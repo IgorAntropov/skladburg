@@ -1,0 +1,20 @@
+@theme {
+  --color-*: initial;
+  --color-primary: #3b5bdb;
+  --color-on-primary: #ffffff;
+  --color-accent: #f2711c;
+  --color-on-accent: #1e2a4a;
+  --color-panel: #1e2a4a;
+  --color-on-panel: #e8e4dc;
+  --color-surface: #e8e4dc;
+  --color-on-surface: #1e2a4a;
+  --font-sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+}
+
+@theme inline {
+  --color-status-ok: #2fa36b;
+  --color-status-warning: #f5c518;
+  --color-status-alarm: #e5484d;
+}

@@ -1,6 +1,26 @@
 {
   "$schema": "https://turborepo.com/schema.json",
+  "globalDependencies": ["tsconfig.base.json"],
   "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint:fsd": {
+      "outputs": []
+    },
+    "preview": {
+      "cache": false,
+      "dependsOn": ["build"],
+      "persistent": true
+    },
+    "test": {
+      "outputs": []
+    },
     "typecheck": {
       "dependsOn": ["^typecheck"],
       "outputs": []

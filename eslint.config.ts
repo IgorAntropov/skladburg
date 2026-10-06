@@ -1,78 +1,11 @@
-import type { Rule } from 'eslint';
-
 import js from '@eslint/js';
 import stylistic from '@stylistic/eslint-plugin';
 import perfectionist from 'eslint-plugin-perfectionist';
+import reactHooks from 'eslint-plugin-react-hooks';
 import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 
-const noCommentsRule: Rule.RuleModule = {
-  create: (context: Rule.RuleContext): Rule.RuleListener => ({
-    Program: (): void => {
-      for (const comment of context.sourceCode.getAllComments()) {
-        if (comment.loc) {
-          context.report({ loc: comment.loc, messageId: 'commentForbidden' });
-        }
-      }
-    },
-  }),
-  meta: {
-    messages: {
-      commentForbidden: 'Comments are forbidden',
-    },
-    schema: [],
-    type: 'problem',
-  },
-};
-
-type SpecifierHostNode
-  = | Parameters<NonNullable<Rule.RuleListener['ExportNamedDeclaration']>>[0]
-    | Parameters<NonNullable<Rule.RuleListener['ImportDeclaration']>>[0];
-
-const specifierNewlineRule: Rule.RuleModule = {
-  create: (context: Rule.RuleContext): Rule.RuleListener => {
-    const checkSpecifiers = (node: SpecifierHostNode): void => {
-      const namedSpecifiers = node.specifiers.filter(
-        specifier => specifier.type === 'ImportSpecifier' || specifier.type === 'ExportSpecifier',
-      );
-
-      namedSpecifiers.forEach((specifier, index) => {
-        const previous = namedSpecifiers[index - 1];
-
-        if (!previous || previous.loc?.end.line !== specifier.loc?.start.line) {
-          return;
-        }
-
-        const comma = context.sourceCode.getTokenAfter(previous);
-
-        context.report({
-          fix: (fixer: Rule.RuleFixer): null | Rule.Fix => {
-            if (comma?.value !== ',' || context.sourceCode.commentsExistBetween(comma, specifier)) {
-              return null;
-            }
-
-            return fixer.replaceTextRange([comma.range[1], specifier.range?.[0] ?? comma.range[1]], '\n');
-          },
-          messageId: 'specifierOnNewLine',
-          node: specifier,
-        });
-      });
-    };
-
-    return {
-      ExportNamedDeclaration: checkSpecifiers,
-      ImportDeclaration: checkSpecifiers,
-    };
-  },
-  meta: {
-    fixable: 'whitespace',
-    messages: {
-      specifierOnNewLine: 'Each named specifier must be on its own line',
-    },
-    schema: [],
-    type: 'layout',
-  },
-};
+import { localPlugin } from './scripts/eslint/local-plugin.ts';
 
 const scriptFiles: string[] = ['**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'];
 const plainScriptFiles: string[] = ['**/*.{js,jsx,mjs,cjs}'];
@@ -90,12 +23,7 @@ export default defineConfig(
   {
     files: scriptFiles,
     plugins: {
-      local: {
-        rules: {
-          'no-comments': noCommentsRule,
-          'specifier-newline': specifierNewlineRule,
-        },
-      },
+      local: localPlugin,
     },
     rules: {
       'local/no-comments': 'error',
@@ -159,6 +87,10 @@ export default defineConfig(
         { internalPattern: ['^@/.+'] },
       ],
     },
+  },
+  {
+    extends: [reactHooks.configs.flat.recommended],
+    files: ['apps/web/**/*.{ts,tsx}'],
   },
   {
     extends: [tseslint.configs.disableTypeChecked],

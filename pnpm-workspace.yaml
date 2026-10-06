@@ -4,3 +4,5 @@ packages:
 allowBuilds:
   simple-git-hooks: false
 engineStrict: true
+overrides:
+  eslint-plugin-react-hooks>zod-validation-error: ^4.0.2

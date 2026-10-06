@@ -4,10 +4,12 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": ["BUILD_PROFILE"],
       "outputs": ["dist/**"]
     },
     "dev": {
       "cache": false,
+      "env": ["BUILD_PROFILE"],
       "persistent": true
     },
     "lint:fsd": {
@@ -16,6 +18,7 @@
     "preview": {
       "cache": false,
       "dependsOn": ["build"],
+      "env": ["BUILD_PROFILE"],
       "persistent": true
     },
     "test": {

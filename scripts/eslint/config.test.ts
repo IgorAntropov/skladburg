@@ -9,6 +9,9 @@ import {
 
 const projectDirectory = fileURLToPath(new URL('../..', import.meta.url));
 const lintedFilePath = fileURLToPath(new URL('../../eslint.config.ts', import.meta.url));
+const applicationFilePath = fileURLToPath(new URL('../../apps/web/src/app/App.tsx', import.meta.url));
+const scriptFilePath = fileURLToPath(new URL('./no-ui-strings-rule.ts', import.meta.url));
+const applicationScriptFilePath = fileURLToPath(new URL('../../apps/web/src/app/probe-logic.ts', import.meta.url));
 
 const formattingRuleIds: ReadonlySet<string> = new Set([
   '@stylistic/object-curly-newline',
@@ -34,19 +37,38 @@ describe('eslint.config.ts with the local rules', () => {
     fixingEslint = new ESLint({ cwd: projectDirectory, fix: true });
   });
 
-  const lint = async (eslint: ESLint | undefined, code: string): Promise<LintOutcomeValue> => {
+  const lint = async (eslint: ESLint | undefined, code: string, filePath: string = lintedFilePath): Promise<LintOutcomeValue> => {
     if (eslint === undefined) {
       throw new Error('ESLint is not initialized');
     }
 
-    const [result] = await eslint.lintText(code, { filePath: lintedFilePath });
-    const ruleIds = (result?.messages ?? []).flatMap(message => (message.ruleId === null ? [] : [message.ruleId]));
+    const results = await eslint.lintText(code, { filePath });
+    const messages = results.flatMap(result => result.messages);
+    const fatalMessages = messages.filter(message => message.fatal === true);
+
+    if (fatalMessages.length > 0) {
+      throw new Error(`Probe failed to lint ${filePath}: ${fatalMessages.map(message => message.message).join('; ')}`);
+    }
+
+    const ruleIds = messages.flatMap(message => (message.ruleId === null ? [] : [message.ruleId]));
 
     return {
       formattingRuleIds: ruleIds.filter(ruleId => formattingRuleIds.has(ruleId)),
-      output: result?.output,
+      output: results.find(result => result.output !== undefined)?.output,
       ruleIds,
     };
+  };
+
+  const readRuleSeverity = async (filePath: string, ruleId: string): Promise<unknown> => {
+    if (checkingEslint === undefined) {
+      throw new Error('ESLint is not initialized');
+    }
+
+    const config: unknown = await checkingEslint.calculateConfigForFile(filePath);
+    const rules = typeof config === 'object' && config !== null && 'rules' in config ? config.rules : undefined;
+    const ruleConfig: unknown = typeof rules === 'object' && rules !== null && ruleId in rules ? Reflect.get(rules, ruleId) : undefined;
+
+    return Array.isArray(ruleConfig) ? ruleConfig[0] : ruleConfig;
   };
 
   const fixTwice = async (code: string): Promise<{ firstPass: LintOutcomeValue; secondPass: LintOutcomeValue; text: string }> => {
@@ -245,6 +267,39 @@ describe('eslint.config.ts with the local rules', () => {
       const outcome = await lint(checkingEslint, code);
 
       expect(outcome.ruleIds).toContain(expectedRuleId);
+    });
+  });
+
+  describe('interface strings', () => {
+    const viewWithText = 'export const View = (): ReactElement => <main>Склад</main>;\n';
+    const viewWithAttribute = 'export const View = (): ReactElement => <input placeholder="Поиск" />;\n';
+
+    it.each([
+      ['text in JSX', viewWithText],
+      ['a user-facing attribute', viewWithAttribute],
+    ])('reports %s in a TSX file of the application', async (_name, code) => {
+      const outcome = await lint(checkingEslint, code, applicationFilePath);
+
+      expect(outcome.ruleIds).toContain('local/no-ui-strings');
+    });
+
+    it.each([
+      ['a TSX file of the application', applicationFilePath, true],
+      ['a script file', scriptFilePath, false],
+      ['a TS file of the application', applicationScriptFilePath, false],
+    ])('enables the rule by scope for %s', async (_name, filePath, isEnabled) => {
+      const severity = await readRuleSeverity(filePath, 'local/no-ui-strings');
+      const isActive = severity === 1 || severity === 2 || severity === 'warn' || severity === 'error';
+
+      expect(isActive).toBe(isEnabled);
+    });
+
+    it('does not report a catalog call in a TSX file of the application', async () => {
+      const code = 'export const View = (): ReactElement => <main>{t(\'field.placeholder\')}</main>;\n';
+
+      const outcome = await lint(checkingEslint, code, applicationFilePath);
+
+      expect(outcome.ruleIds).not.toContain('local/no-ui-strings');
     });
   });
 });

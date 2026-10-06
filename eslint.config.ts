@@ -89,6 +89,12 @@ export default defineConfig(
     },
   },
   {
+    files: ['apps/web/src/**/*.tsx'],
+    rules: {
+      'local/no-ui-strings': 'error',
+    },
+  },
+  {
     extends: [reactHooks.configs.flat.recommended],
     files: ['apps/web/**/*.{ts,tsx}'],
   },

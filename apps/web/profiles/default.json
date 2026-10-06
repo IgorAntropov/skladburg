@@ -1,0 +1,10 @@
+{
+  "bundledLocales": ["ru"],
+  "defaultTenant": {
+    "availableLocales": ["ru"],
+    "brandName": "Skladburg",
+    "defaultLocale": "ru",
+    "tenantId": "skladburg-demo",
+    "termOverrides": {}
+  }
+}

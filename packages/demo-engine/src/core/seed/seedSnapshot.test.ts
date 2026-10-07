@@ -98,6 +98,7 @@ describe('createSeedSnapshot', () => {
 
     expect(state.toSnapshot({
       randomState: snapshot.meta.randomState,
+      schedulerDueAtMs: snapshot.meta.schedulerDueAtMs,
       timeScale: snapshot.meta.timeScale,
       traceRandomState: snapshot.meta.traceRandomState,
       worldTimeMs: snapshot.meta.worldTimeMs,

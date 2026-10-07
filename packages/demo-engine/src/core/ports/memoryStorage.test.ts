@@ -17,6 +17,7 @@ import { createEmptyCollections } from './storage';
 const createMeta = (overrides: Partial<EngineMetaValue> = {}): EngineMetaValue => ({
   channelSeq: {},
   randomState: { a: 1, b: 2, c: 3, d: 4 },
+  schedulerDueAtMs: {},
   seedVersion: 1,
   timeScale: 1,
   traceRandomState: { a: 5, b: 6, c: 7, d: 8 },

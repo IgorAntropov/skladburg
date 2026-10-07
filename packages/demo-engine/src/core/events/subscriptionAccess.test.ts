@@ -22,8 +22,10 @@ import { ENGINE_SERVICES } from '../access/index';
 import { createDomainErrors } from '../errors/index';
 import { addTestMember } from '../modules/testing/moduleHarness';
 import { createTestRuntime } from '../modules/testing/testRuntime';
+import { createRandom } from '../ports/index';
 import { DEMO_USER_HEADER } from '../protocol';
 import {
+  createSeedSnapshot,
   SeedOrganizationId,
   SeedUserId,
   SeedWarehouseId,
@@ -55,7 +57,7 @@ const createHeaders = (userId: string | undefined, organizationId: string | unde
 
 const createFixture = (): FixtureValue => {
   const testRuntime = createTestRuntime();
-  const access = createSubscriptionAccess(createDomainErrors(testRuntime.random));
+  const access = createSubscriptionAccess(createDomainErrors(createRandom(createSeedSnapshot().meta.traceRandomState)));
 
   return {
     ...testRuntime,
@@ -142,11 +144,46 @@ describe('subscription access to a warehouse channel', () => {
     expect(check(buyerWarehouse, SeedUserId.ADMIN_1, UNKNOWN_ID)).toBeUndefined();
   });
 
+  it('does not draw from the main random stream when it denies', () => {
+    const { check, random } = createFixture();
+    const before = random.getState();
+
+    check(buyerWarehouse, SeedUserId.ADMIN_2);
+    check('garbage', SeedUserId.ADMIN_1);
+
+    expect(random.getState()).toEqual(before);
+  });
+
   it('keeps the organization and user channels as before', () => {
     const { check } = createFixture();
 
     expect(check(organizationChannel(SeedOrganizationId.BUYER_1), SeedUserId.ADMIN_1)).toBeUndefined();
     expect(check(userChannel(SeedUserId.ADMIN_1), SeedUserId.ADMIN_1)).toBeUndefined();
     expect(check(organizationChannel(SeedOrganizationId.SELLER_1), SeedUserId.ADMIN_1)?.code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
+  });
+});
+
+describe('subscription access to a channel that cannot be reached', () => {
+  const readEntity = (detail: ErrorDetail | undefined): EntityKind | undefined =>
+    detail?.params.case === 'notFound' ? detail.params.value.entity : undefined;
+
+  it('answers not_found for the channel for a malformed channel name', () => {
+    const { check } = createFixture();
+
+    for (const channel of ['', 'garbage', 'org:', 'org:a b', 'orders:1', 'warehouse']) {
+      const detail = check(channel, SeedUserId.ADMIN_1);
+
+      expect(detail?.code).toBe(ErrorCode.NOT_FOUND);
+      expect(readEntity(detail)).toBe(EntityKind.CHANNEL);
+    }
+  });
+
+  it('answers not_found for the channel for the user channel of another user', () => {
+    const { check } = createFixture();
+
+    const detail = check(userChannel(SeedUserId.ADMIN_2), SeedUserId.ADMIN_1);
+
+    expect(detail?.code).toBe(ErrorCode.NOT_FOUND);
+    expect(readEntity(detail)).toBe(EntityKind.CHANNEL);
   });
 });

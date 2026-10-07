@@ -28,6 +28,7 @@ export type EngineCollectionValue = ReadonlyMap<string, StoredRecordValue>;
 export interface EngineMetaValue extends ClockSnapshotValue {
   channelSeq: Readonly<Record<string, bigint>>;
   randomState: RandomStateValue;
+  schedulerDueAtMs: Readonly<Record<string, number>>;
   seedVersion: number;
   traceRandomState: RandomStateValue;
 }

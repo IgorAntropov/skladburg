@@ -3,10 +3,12 @@ import type { IStateTransaction } from '../state/index';
 export interface CreateSchedulerOptionsValue {
   command: <TResult>(work: (transaction: IStateTransaction) => TResult) => Promise<TResult>;
   getWorldTimeMs: () => number;
+  initialDueAtMs?: Readonly<Record<string, number>>;
   maxRunsPerTick?: number;
 }
 
 export interface IScheduler {
+  readDueAtMs: () => Record<string, number>;
   register: (task: SchedulerTaskValue) => void;
   restart: () => void;
   tick: () => Promise<void>;
@@ -45,7 +47,13 @@ export const createScheduler = (options: CreateSchedulerOptionsValue): ISchedule
       throw new Error(`Task ${task.id} is already registered`);
     }
 
-    entries.push({ dueAtMs: options.getWorldTimeMs() + task.intervalMs, order: entries.length, task });
+    const restoredDueAtMs = options.initialDueAtMs?.[task.id];
+
+    entries.push({
+      dueAtMs: restoredDueAtMs ?? options.getWorldTimeMs() + task.intervalMs,
+      order: entries.length,
+      task,
+    });
   };
 
   const restart = (): void => {
@@ -55,6 +63,9 @@ export const createScheduler = (options: CreateSchedulerOptionsValue): ISchedule
       entry.dueAtMs = nowMs + entry.task.intervalMs;
     }
   };
+
+  const readDueAtMs = (): Record<string, number> =>
+    Object.fromEntries(entries.map(entry => [entry.task.id, entry.dueAtMs]));
 
   const runEntry = async (entry: ScheduledEntryValue): Promise<void> => {
     const { dueAtMs, task } = entry;
@@ -84,5 +95,5 @@ export const createScheduler = (options: CreateSchedulerOptionsValue): ISchedule
     }
   };
 
-  return { register, restart, tick };
+  return { readDueAtMs, register, restart, tick };
 };

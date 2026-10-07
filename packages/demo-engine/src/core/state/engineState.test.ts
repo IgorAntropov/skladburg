@@ -11,6 +11,7 @@ import { createEmptySnapshot } from './emptySnapshot';
 import {
   createEngineState,
   type IEngineState,
+  type LiveMetaValue,
 } from './engineState';
 import {
   ENGINE_SCHEMA_VERSION,
@@ -266,6 +267,111 @@ describe('createEngineState.transact', () => {
 
     expect(() => {
       second.apply();
+    }).toThrow('changed after the transaction was prepared');
+  });
+});
+
+describe('createEngineState.prepareCheckpoint', () => {
+  const readCommittedLiveMeta = (state: IEngineState): LiveMetaValue => {
+    const { randomState, schedulerDueAtMs, timeScale, traceRandomState } = state.getMeta();
+
+    return { randomState, schedulerDueAtMs, timeScale, traceRandomState };
+  };
+
+  it('has nothing to write when the live meta and the world time equal the committed meta', () => {
+    const state = createEngineState(createEmptySnapshot());
+
+    const outcome = state.prepareCheckpoint(state.getMeta().worldTimeMs, () => readCommittedLiveMeta(state));
+
+    expect(outcome.changeSet).toBeUndefined();
+    expect(() => {
+      outcome.apply();
+    }).not.toThrow();
+  });
+
+  it('writes a change set without records when the world time moved', () => {
+    const state = createStateWithWarehouses();
+    const worldTimeMs = state.getMeta().worldTimeMs + 5_000;
+
+    const outcome = state.prepareCheckpoint(worldTimeMs, () => readCommittedLiveMeta(state));
+
+    expect(state.getMeta().worldTimeMs).toBe(TEST_WORLD_TIME_MS);
+
+    expect(outcome.changeSet?.puts).toEqual({});
+    expect(outcome.changeSet?.deletes).toEqual({});
+    expect(outcome.changeSet?.meta).toEqual({ ...state.getMeta(), worldTimeMs });
+  });
+
+  it('writes a change set when only a random state, the scale or a scheduler deadline changed', () => {
+    const state = createEngineState(createEmptySnapshot());
+    const { worldTimeMs } = state.getMeta();
+    const live = readCommittedLiveMeta(state);
+
+    const changedLiveMetas: LiveMetaValue[] = [
+      { ...live, randomState: { ...live.randomState, a: live.randomState.a + 1 } },
+      { ...live, traceRandomState: { ...live.traceRandomState, d: live.traceRandomState.d + 1 } },
+      { ...live, timeScale: 2 },
+      { ...live, schedulerDueAtMs: { task: 10 } },
+    ];
+
+    for (const changed of changedLiveMetas) {
+      expect(state.prepareCheckpoint(worldTimeMs, () => changed).changeSet).toBeDefined();
+    }
+  });
+
+  it('compares the deadlines and the sequences by value, not by key order or identity', () => {
+    const state = createEngineState(createEmptySnapshot());
+    state.transact(TEST_WORLD_TIME_MS, (transaction) => {
+      transaction.nextChannelSeq('org:a');
+      transaction.nextChannelSeq('org:b');
+    }, () => ({ ...createLiveMeta(), schedulerDueAtMs: { first: 1, second: 2 } })).apply();
+
+    const outcome = state.prepareCheckpoint(
+      TEST_WORLD_TIME_MS,
+      () => ({ ...readCommittedLiveMeta(state), schedulerDueAtMs: { first: 1, second: 2 } }),
+    );
+
+    expect(outcome.changeSet).toBeUndefined();
+
+    const moved = state.prepareCheckpoint(
+      TEST_WORLD_TIME_MS,
+      () => ({ ...readCommittedLiveMeta(state), schedulerDueAtMs: { first: 1 } }),
+    );
+
+    expect(moved.changeSet).toBeDefined();
+  });
+
+  it('keeps the channel sequences of the committed meta and the records untouched', () => {
+    const state = createStateWithWarehouses();
+    state.transact(TEST_WORLD_TIME_MS, transaction => transaction.nextChannelSeq('org:a'), createLiveMeta).apply();
+    const recordsBefore = state.read.list('warehouses');
+
+    const outcome = state.prepareCheckpoint(TEST_WORLD_TIME_MS + 1, () => readCommittedLiveMeta(state));
+    outcome.apply();
+
+    expect(state.getChannelSeq('org:a')).toBe(1n);
+    expect(state.read.list('warehouses')).toEqual(recordsBefore);
+    expect(state.getMeta().worldTimeMs).toBe(TEST_WORLD_TIME_MS + 1);
+  });
+
+  it('leaves the committed meta unchanged until the outcome is applied', () => {
+    const state = createEngineState(createEmptySnapshot());
+    const before = state.getMeta();
+
+    state.prepareCheckpoint(before.worldTimeMs + 10, () => readCommittedLiveMeta(state));
+
+    expect(state.getMeta()).toEqual(before);
+  });
+
+  it('refuses to apply a checkpoint that was prepared before another change', () => {
+    const state = createEngineState(createEmptySnapshot());
+    const checkpoint = state.prepareCheckpoint(10, () => readCommittedLiveMeta(state));
+    state.transact(TEST_WORLD_TIME_MS, (transaction) => {
+      transaction.put('warehouses', createTestWarehouse('wh-1', FIRST_TENANT_ID));
+    }, createLiveMeta).apply();
+
+    expect(() => {
+      checkpoint.apply();
     }).toThrow('changed after the transaction was prepared');
   });
 });

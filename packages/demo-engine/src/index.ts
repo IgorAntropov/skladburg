@@ -4,7 +4,10 @@ export {
   type CreateEngineOptionsValue,
   type IDemoEngine,
 } from './core/engine/index';
-export type { EngineSubscriptionValue } from './core/events/index';
+export type {
+  EngineChannelPositionValue,
+  EngineSubscriptionValue,
+} from './core/events/index';
 export type {
   ClockSnapshotValue,
   EngineChangeSetValue,

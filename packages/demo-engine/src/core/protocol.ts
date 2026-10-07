@@ -1,2 +1,4 @@
-export const ENGINE_BASE_URL = 'https://demo-engine.invalid';
-export const DEMO_USER_HEADER = 'x-demo-user-id';
+export {
+  DEMO_USER_HEADER,
+  ENGINE_BASE_URL,
+} from '../protocol/constants';

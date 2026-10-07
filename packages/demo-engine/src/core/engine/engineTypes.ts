@@ -17,6 +17,7 @@ export interface CreateEngineOptionsValue {
 }
 
 export interface IDemoEngine {
+  checkpoint: () => Promise<void>;
   epoch: () => string;
   getClockSnapshot: () => ClockSnapshotValue;
   handle: (request: Request) => Promise<Response>;

@@ -89,6 +89,7 @@ export const createTestRuntime = (): TestRuntimeValue => {
       errors,
       readLiveMeta: () => ({
         randomState: random.getState(),
+        schedulerDueAtMs: {},
         timeScale: clock.getScale(),
         traceRandomState: traceRandom.getState(),
       }),

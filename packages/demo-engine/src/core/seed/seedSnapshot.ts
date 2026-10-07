@@ -86,6 +86,7 @@ export const createSeedSnapshot = (seed: EngineSeedValue = DEFAULT_ENGINE_SEED):
     meta: {
       channelSeq: {},
       randomState: createSeededRandom(seed.randomSeed).getState(),
+      schedulerDueAtMs: {},
       seedVersion: SEED_VERSION,
       timeScale: SEED_TIME_SCALE,
       traceRandomState: createSeededRandom(seed.randomSeed ^ SEED_TRACE_RANDOM_SALT).getState(),

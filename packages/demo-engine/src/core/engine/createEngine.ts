@@ -39,10 +39,14 @@ import {
 import {
   createEngineState,
   isCurrentSnapshot,
+  type LiveMetaValue,
 } from '../state/index';
 import { createRequestValidator } from '../validation/index';
 import { createCommandQueue } from './commandQueue';
-import { createCommandRunner } from './commandRunner';
+import {
+  createCheckpointRunner,
+  createCommandRunner,
+} from './commandRunner';
 import { createSwitchableRandom } from './switchableRandom';
 
 const createClockFromMeta = (meta: EngineMetaValue, realTime: IRealTimeSource): IClock =>
@@ -74,15 +78,25 @@ export const createEngineWithTasks = async (
   const state = createEngineState(snapshot);
   const errors = createDomainErrors(traceRandom);
   const bus = createEventBus({ getEpoch: () => epoch });
+  const readLiveMeta = (): LiveMetaValue => ({
+    randomState: random.getState(),
+    schedulerDueAtMs: scheduler.readDueAtMs(),
+    timeScale: clock.getScale(),
+    traceRandomState: traceRandom.getState(),
+  });
+  const readWorldTimeMs = (): number => clock.now();
   const command = createCommandRunner({
     bus,
     errors,
-    readLiveMeta: () => ({
-      randomState: random.getState(),
-      timeScale: clock.getScale(),
-      traceRandomState: traceRandom.getState(),
-    }),
-    readWorldTimeMs: () => clock.now(),
+    readLiveMeta,
+    readWorldTimeMs,
+    state,
+    storage,
+  });
+  const runCheckpoint = createCheckpointRunner({
+    errors,
+    readLiveMeta,
+    readWorldTimeMs,
     state,
     storage,
   });
@@ -100,7 +114,11 @@ export const createEngineWithTasks = async (
     errors,
     organizationService: createOrganizationService(runtime),
   });
-  const scheduler = createScheduler({ command, getWorldTimeMs: () => clock.now() });
+  const scheduler = createScheduler({
+    command,
+    getWorldTimeMs: readWorldTimeMs,
+    initialDueAtMs: snapshot.meta.schedulerDueAtMs,
+  });
   const subscriptionAccess = createSubscriptionAccess(errors);
   const queue = createCommandQueue();
 
@@ -111,6 +129,8 @@ export const createEngineWithTasks = async (
   const handle = (request: Request): Promise<Response> => queue.enqueue(() => handler(request));
 
   const tick = (): Promise<void> => queue.enqueue(() => scheduler.tick());
+
+  const checkpoint = (): Promise<void> => queue.enqueue(runCheckpoint);
 
   const reset = (nextEpoch: string): Promise<void> => queue.enqueue(async () => {
     const seeded = createSeedSnapshot(options.seed);
@@ -127,11 +147,17 @@ export const createEngineWithTasks = async (
     const detail = subscriptionAccess.check(state.read, channel, headers);
 
     return detail === undefined
-      ? { kind: 'subscribed', unsubscribe: bus.subscribe(channel, listener) }
+      ? {
+          epoch,
+          kind: 'subscribed',
+          seq: state.getChannelSeq(channel),
+          unsubscribe: bus.subscribe(channel, listener),
+        }
       : { detail, kind: 'denied' };
   };
 
   return {
+    checkpoint,
     epoch: () => epoch,
     getClockSnapshot: () => clock.getSnapshot(),
     handle,

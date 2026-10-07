@@ -137,6 +137,17 @@ describe('createEngine startup', () => {
     expect(response.warehouses).toHaveLength(3);
   });
 
+  it('replaces a stored snapshot of the first schema version, which has no scheduler deadlines, with the seed', async () => {
+    const outdated = { ...createSeedSnapshot(), schemaVersion: 1 };
+    const storage = createSpyStorage(outdated);
+
+    const { engine } = await createTestEngine({ storage });
+
+    expect(storage.replaceAllCount()).toBe(1);
+    expect(await storage.load()).toEqual(createSeedSnapshot());
+    expect(engine.getClockSnapshot().worldTimeMs).toBe(DEFAULT_ENGINE_SEED.worldStartMs);
+  });
+
   it('replaces a stored snapshot of the current schema but an older seed version with the seed', async () => {
     const seeded = createSeedSnapshot();
     const extraWarehouse = createTestWarehouse('20000000-0000-4000-8000-000000000999', SeedOrganizationId.BUYER_1);
@@ -446,6 +457,8 @@ interface DeniedValue {
   warehouseId: string | undefined;
 }
 
+type SubscribedValue = Extract<ReturnType<IDemoEngine['subscribe']>, { kind: 'subscribed' }>;
+
 describe('subscription access', () => {
   it('allows a member to subscribe to the organization channel and the own user channel', async () => {
     const { engine } = await createTestEngine();
@@ -601,6 +614,242 @@ describe('subscription access', () => {
     expect(results.map(result => (result.kind === 'denied' ? result.detail.code : undefined))).toEqual(
       results.map(() => ErrorCode.NOT_FOUND),
     );
+  });
+
+  it('names the channel as the missing entity for the channel of another user and for a malformed channel', async () => {
+    const { engine } = await createTestEngine();
+    const headers = new Headers({ 'x-demo-user-id': SeedUserId.ADMIN_1 });
+
+    const results = [`user:${SeedUserId.ADMIN_2}`, 'org:', '', 'org:a:b'].map(
+      channel => engine.subscribe(channel, headers, () => undefined),
+    );
+
+    expect(results.map(result => (
+      result.kind === 'denied' && result.detail.params.case === 'notFound' ? result.detail.params.value.entity : undefined
+    ))).toEqual(results.map(() => EntityKind.CHANNEL));
+  });
+});
+
+describe('subscription position', () => {
+  const buyerChannel = organizationChannel(SeedOrganizationId.BUYER_1);
+  const buyerHeaders = (): Headers => createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+
+  const subscribeAt = (engine: IDemoEngine, channel: string, batches: Event[][]): SubscribedValue => {
+    const result = engine.subscribe(channel, buyerHeaders(), (batch) => {
+      batches.push([...batch]);
+    });
+
+    if (result.kind !== 'subscribed') {
+      throw new Error('Expected a subscription');
+    }
+
+    return result;
+  };
+
+  it('reports the epoch of the engine and zero for a channel without events', async () => {
+    const { engine } = await createTestEngine();
+
+    const subscription = subscribeAt(engine, buyerChannel, []);
+
+    expect(subscription.epoch).toBe(TEST_ENGINE_EPOCH);
+    expect(subscription.seq).toBe(0n);
+  });
+
+  it('starts the first batch after a subscription with the next seq of the channel', async () => {
+    const { engine } = await createTestEngine();
+    const caller = createEngineCaller(engine);
+    await caller.organization.createWarehouse(createWarehouseRequest(KEY_1), buyerOptions(caller));
+    await caller.organization.createWarehouse(createWarehouseRequest(KEY_2), buyerOptions(caller));
+    const batches: Event[][] = [];
+
+    const subscription = subscribeAt(engine, buyerChannel, batches);
+    await caller.organization.createWarehouse(createWarehouseRequest(KEY_3), buyerOptions(caller));
+
+    expect(subscription.seq).toBe(2n);
+    expect(batches.flat().map(event => event.seq)).toEqual([subscription.seq + 1n]);
+  });
+
+  it('gives a warehouse channel of a just created warehouse the position of its creation event', async () => {
+    const { engine } = await createTestEngine();
+    const caller = createEngineCaller(engine);
+    const created = await caller.organization.createWarehouse(createWarehouseRequest(KEY_1), buyerOptions(caller));
+
+    const subscription = subscribeAt(engine, warehouseChannel(created.warehouse?.id ?? ''), []);
+
+    expect(subscription.seq).toBe(1n);
+  });
+
+  it('joins subscriptions made before and after a command without a gap or a repeat', async () => {
+    const { engine } = await createTestEngine();
+    const caller = createEngineCaller(engine);
+    const earlyBatches: Event[][] = [];
+    const lateBatches: Event[][] = [];
+    const early = subscribeAt(engine, buyerChannel, earlyBatches);
+
+    await caller.organization.createWarehouse(createWarehouseRequest(KEY_1), buyerOptions(caller));
+    const late = subscribeAt(engine, buyerChannel, lateBatches);
+    await caller.organization.createWarehouse(createWarehouseRequest(KEY_2), buyerOptions(caller));
+
+    expect(early.seq).toBe(0n);
+    expect(late.seq).toBe(1n);
+    expect(earlyBatches.flat().map(event => event.seq)).toEqual([1n, 2n]);
+    expect(lateBatches.flat().map(event => event.seq)).toEqual([late.seq + 1n]);
+  });
+
+  it('reports the position before a command that is still being committed and delivers that command next', async () => {
+    const { engine, storage } = await createTestEngine();
+    const caller = createEngineCaller(engine);
+    const batches: Event[][] = [];
+    const release = storage.gateCommits();
+
+    const pending = caller.organization.createWarehouse(createWarehouseRequest(KEY_1), buyerOptions(caller));
+    await settleMicrotasks();
+    const subscription = subscribeAt(engine, buyerChannel, batches);
+    release();
+    await pending;
+
+    expect(subscription.seq).toBe(0n);
+    expect(batches.flat().map(event => event.seq)).toEqual([1n]);
+  });
+
+  it('reports the new epoch after a reset and starts the channel over', async () => {
+    const { engine } = await createTestEngine();
+    const caller = createEngineCaller(engine);
+    await caller.organization.createWarehouse(createWarehouseRequest(KEY_1), buyerOptions(caller));
+
+    await engine.reset('epoch-2');
+    const subscription = subscribeAt(engine, buyerChannel, []);
+
+    expect(subscription.epoch).toBe('epoch-2');
+    expect(subscription.seq).toBe(0n);
+  });
+});
+
+describe('checkpoint', () => {
+  it('commits one change set without records, carrying the world time of the checkpoint and the unchanged streams', async () => {
+    const { engine, realTime, storage } = await createTestEngine();
+    const seedMeta = createSeedSnapshot().meta;
+    realTime.advance(7_000);
+
+    await engine.checkpoint();
+
+    expect(storage.commits).toHaveLength(1);
+    const [commit] = storage.commits;
+    expect(commit?.puts).toEqual({});
+    expect(commit?.deletes).toEqual({});
+    expect(commit?.meta).toEqual({ ...seedMeta, worldTimeMs: DEFAULT_ENGINE_SEED.worldStartMs + 7_000 });
+    expect((await storage.load())?.meta.worldTimeMs).toBe(DEFAULT_ENGINE_SEED.worldStartMs + 7_000);
+  });
+
+  it('does not commit again while nothing in the meta has changed', async () => {
+    const { engine, realTime, storage } = await createTestEngine();
+    realTime.advance(1_000);
+
+    await engine.checkpoint();
+    await engine.checkpoint();
+
+    expect(storage.commits).toHaveLength(1);
+
+    realTime.advance(1);
+    await engine.checkpoint();
+
+    expect(storage.commits).toHaveLength(2);
+  });
+
+  it('does not commit when the world time stands still and no command has run', async () => {
+    const { engine, storage } = await createTestEngine();
+
+    await engine.checkpoint();
+
+    expect(storage.commits).toHaveLength(0);
+  });
+
+  it('does not commit right after a command that stored the same meta', async () => {
+    const { engine, storage } = await createTestEngine();
+    const caller = createEngineCaller(engine);
+    await caller.organization.createWarehouse(createWarehouseRequest(KEY_1), buyerOptions(caller));
+
+    await engine.checkpoint();
+
+    expect(storage.commits).toHaveLength(1);
+  });
+
+  it('sends no events and does not draw from the random streams', async () => {
+    const { engine, realTime, storage } = await createTestEngine();
+    const batches: Event[][] = [];
+    subscribeBuyer(engine, batches);
+    const seedMeta = createSeedSnapshot().meta;
+    realTime.advance(3_000);
+
+    await engine.checkpoint();
+
+    expect(batches).toHaveLength(0);
+    expect(storage.commits[0]?.meta.randomState).toEqual(seedMeta.randomState);
+    expect(storage.commits[0]?.meta.traceRandomState).toEqual(seedMeta.traceRandomState);
+    expect(storage.commits[0]?.meta.channelSeq).toEqual({});
+  });
+
+  it('keeps the ids of the following entities the same as without a checkpoint', async () => {
+    const plain = await createTestEngine();
+    const plainCaller = createEngineCaller(plain.engine);
+    const withCheckpoint = await createTestEngine();
+    const checkpointCaller = createEngineCaller(withCheckpoint.engine);
+    withCheckpoint.realTime.advance(1_000);
+
+    await withCheckpoint.engine.checkpoint();
+
+    const expected = await plainCaller.organization.createWarehouse(createWarehouseRequest(KEY_1), buyerOptions(plainCaller));
+    const actual = await checkpointCaller.organization.createWarehouse(createWarehouseRequest(KEY_1), buyerOptions(checkpointCaller));
+    expect(actual.warehouse?.id).toBe(expected.warehouse?.id);
+  });
+
+  it('runs in the order of the queue, after the command issued before it', async () => {
+    const { engine, realTime, storage } = await createTestEngine();
+    const caller = createEngineCaller(engine);
+    const release = storage.gateCommits();
+
+    const created = caller.organization.createWarehouse(createWarehouseRequest(KEY_1), buyerOptions(caller));
+    await settleMicrotasks();
+    realTime.advance(2_000);
+    const checkpointed = engine.checkpoint();
+    await settleMicrotasks();
+
+    expect(storage.commits).toHaveLength(0);
+    release();
+    await Promise.all([created, checkpointed]);
+
+    expect(storage.commits).toHaveLength(2);
+    expect(Object.keys(storage.commits[0]?.puts ?? {})).not.toHaveLength(0);
+    expect(storage.commits[1]?.puts).toEqual({});
+    expect(storage.commits[1]?.meta.worldTimeMs).toBeGreaterThan(storage.commits[0]?.meta.worldTimeMs ?? 0);
+  });
+
+  it('answers unavailable when the commit fails, keeps the state and writes the meta on the next try', async () => {
+    const { engine, realTime, storage } = await createTestEngine();
+    realTime.advance(4_000);
+    storage.failNextCommit();
+
+    const error = await captureError(engine.checkpoint());
+
+    expect(readErrorDetail(error).code).toBe(ErrorCode.UNAVAILABLE);
+    expect(storage.commits).toHaveLength(0);
+
+    await engine.checkpoint();
+
+    expect(storage.commits).toHaveLength(1);
+    expect(storage.commits[0]?.meta.worldTimeMs).toBe(DEFAULT_ENGINE_SEED.worldStartMs + 4_000);
+  });
+
+  it('lets a restart on the same storage continue the world time from the checkpoint', async () => {
+    const storage = createSpyStorage();
+    const before = await createTestEngine({ storage });
+    before.realTime.advance(9_000);
+    await before.engine.checkpoint();
+
+    const realTime = createFakeRealTime(WORLD_REAL_TIME_START_MS * 7);
+    const after = await createEngine({ epoch: 'epoch-2', realTime, storage });
+
+    expect(after.getClockSnapshot().worldTimeMs).toBe(DEFAULT_ENGINE_SEED.worldStartMs + 9_000);
   });
 });
 

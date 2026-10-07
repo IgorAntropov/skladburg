@@ -18,9 +18,14 @@ import { readActingContext } from '../context/index';
 
 export const WAREHOUSE_CHANNEL_PERMISSION = 'warehouse_view';
 
+export interface EngineChannelPositionValue {
+  epoch: string;
+  seq: bigint;
+}
+
 export type EngineSubscriptionValue
-  = | { detail: ErrorDetail; kind: 'denied' }
-    | { kind: 'subscribed'; unsubscribe: () => void };
+  = | (EngineChannelPositionValue & { kind: 'subscribed'; unsubscribe: () => void })
+    | { detail: ErrorDetail; kind: 'denied' };
 
 export interface ISubscriptionAccess {
   check: (reader: IStateReader, channel: string, headers: Headers) => ErrorDetail | undefined;
@@ -70,12 +75,12 @@ export const createSubscriptionAccess = (errors: IDomainErrors): ISubscriptionAc
     const parsed = parseChannel(channel);
 
     if (parsed === undefined) {
-      throw errors.notFound(EntityKind.UNSPECIFIED);
+      throw errors.notFound(EntityKind.CHANNEL);
     }
 
     if (parsed.kind === 'user') {
       if (parsed.userId !== userId) {
-        throw errors.notFound(EntityKind.UNSPECIFIED);
+        throw errors.notFound(EntityKind.CHANNEL);
       }
 
       return;

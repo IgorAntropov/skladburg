@@ -19,14 +19,21 @@ import {
   createEmptyCollections,
   ENGINE_COLLECTION_NAMES,
 } from '../ports/index';
+import { isSameMeta } from './metaEquality';
 import { ENGINE_SCHEMA_VERSION } from './schemaVersion';
 import { createReader } from './stateReader';
 import { createTable } from './table';
 import { TABLE_DEFINITIONS } from './tables';
 
+export interface CheckpointOutcomeValue {
+  apply: () => void;
+  changeSet: EngineChangeSetValue | undefined;
+}
+
 export interface IEngineState {
   getChannelSeq: (channel: string) => bigint;
   getMeta: () => EngineMetaValue;
+  prepareCheckpoint: (worldTimeMs: number, readLiveMeta: () => LiveMetaValue) => CheckpointOutcomeValue;
   read: IStateReader;
   replaceAll: (snapshot: EngineSnapshotValue) => void;
   toSnapshot: (volatileMeta: VolatileMetaValue) => EngineSnapshotValue;
@@ -44,15 +51,13 @@ export interface IStateTransaction extends IStateReader {
   readonly worldTimeMs: number;
 }
 
-export type LiveMetaValue = Pick<EngineMetaValue, 'randomState' | 'timeScale' | 'traceRandomState'>;
+export type LiveMetaValue = Pick<EngineMetaValue, 'randomState' | 'schedulerDueAtMs' | 'timeScale' | 'traceRandomState'>;
 
-export interface TransactionOutcomeValue<TResult> {
-  apply: () => void;
-  changeSet: EngineChangeSetValue | undefined;
+export interface TransactionOutcomeValue<TResult> extends CheckpointOutcomeValue {
   result: TResult;
 }
 
-export type VolatileMetaValue = Pick<EngineMetaValue, 'randomState' | 'timeScale' | 'traceRandomState' | 'worldTimeMs'>;
+export type VolatileMetaValue = LiveMetaValue & Pick<EngineMetaValue, 'worldTimeMs'>;
 
 const createTables = (): TablesValue => ({
   boardNodes: createTable(TABLE_DEFINITIONS.boardNodes),
@@ -112,6 +117,16 @@ export const createEngineState = (initial: EngineSnapshotValue): IEngineState =>
       meta: { ...structuredClone(meta), ...structuredClone(volatileMeta) },
       schemaVersion: ENGINE_SCHEMA_VERSION,
     };
+  };
+
+  const createApply = (baseRevision: number, changeSet: EngineChangeSetValue, applyRecords: () => void): (() => void) => () => {
+    if (revision !== baseRevision) {
+      throw new Error('The state changed after the transaction was prepared');
+    }
+
+    applyRecords();
+    meta = structuredClone(changeSet.meta);
+    revision += 1;
   };
 
   const transact = <TResult>(
@@ -179,20 +194,29 @@ export const createEngineState = (initial: EngineSnapshotValue): IEngineState =>
       puts,
     };
 
-    const apply = (): void => {
-      if (revision !== baseRevision) {
-        throw new Error('The state changed after the transaction was prepared');
-      }
-
+    const apply = createApply(baseRevision, changeSet, () => {
       for (const name of ENGINE_COLLECTION_NAMES) {
         overlays[name].apply();
       }
-
-      meta = structuredClone(changeSet.meta);
-      revision += 1;
-    };
+    });
 
     return { apply, changeSet, result };
+  };
+
+  const prepareCheckpoint = (worldTimeMs: number, readLiveMeta: () => LiveMetaValue): CheckpointOutcomeValue => {
+    const nextMeta: EngineMetaValue = {
+      ...structuredClone(meta),
+      ...structuredClone(readLiveMeta()),
+      worldTimeMs,
+    };
+
+    if (isSameMeta(meta, nextMeta)) {
+      return { apply: () => undefined, changeSet: undefined };
+    }
+
+    const changeSet: EngineChangeSetValue = { deletes: {}, meta: nextMeta, puts: {} };
+
+    return { apply: createApply(revision, changeSet, () => undefined), changeSet };
   };
 
   loadSnapshot(initial);
@@ -200,6 +224,7 @@ export const createEngineState = (initial: EngineSnapshotValue): IEngineState =>
   return {
     getChannelSeq,
     getMeta: () => structuredClone(meta),
+    prepareCheckpoint,
     read,
     replaceAll: loadSnapshot,
     toSnapshot,

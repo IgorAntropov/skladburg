@@ -333,6 +333,23 @@ describe('eslint.config.ts with the local rules', () => {
       ['window', 'export const read = (): unknown => window;\n', 'no-restricted-globals'],
       ['document', 'export const read = (): unknown => document;\n', 'no-restricted-globals'],
       ['globalThis', 'export const read = (): unknown => globalThis;\n', 'no-restricted-globals'],
+      ['fetch', 'export const read = (): unknown => fetch(\'https://example.test\');\n', 'no-restricted-globals'],
+      ['postMessage', 'export const run = (): void => {\n  postMessage(\'x\', []);\n};\n', 'no-restricted-globals'],
+      ['addEventListener', 'export const run = (): void => {\n  addEventListener(\'m\', () => 1);\n};\n', 'no-restricted-globals'],
+      ['removeEventListener', 'export const run = (): void => {\n  removeEventListener(\'m\', () => 1);\n};\n', 'no-restricted-globals'],
+      ['close', 'export const run = (): void => {\n  close();\n};\n', 'no-restricted-globals'],
+      ['importScripts', 'export const read = (): unknown => importScripts;\n', 'no-restricted-globals'],
+      ['onmessage', 'export const read = (): unknown => onmessage;\n', 'no-restricted-globals'],
+      ['location', 'export const read = (): unknown => location.href;\n', 'no-restricted-globals'],
+      ['BroadcastChannel', 'export const open = (): unknown => new BroadcastChannel(\'x\');\n', 'no-restricted-globals'],
+      ['MessageChannel', 'export const open = (): unknown => new MessageChannel();\n', 'no-restricted-globals'],
+      ['WebSocket', 'export const open = (): unknown => new WebSocket(\'wss://example.test\');\n', 'no-restricted-globals'],
+      ['Worker', 'export const open = (): unknown => new Worker(\'x\');\n', 'no-restricted-globals'],
+      ['XMLHttpRequest', 'export const open = (): unknown => new XMLHttpRequest();\n', 'no-restricted-globals'],
+      ['caches', 'export const read = (): unknown => caches;\n', 'no-restricted-globals'],
+      ['localStorage', 'export const read = (): unknown => localStorage;\n', 'no-restricted-globals'],
+      ['sessionStorage', 'export const read = (): unknown => sessionStorage;\n', 'no-restricted-globals'],
+      ['process', 'export const read = (): unknown => process.env;\n', 'no-restricted-globals'],
     ];
 
     it.each(forbiddenUsages)('reports %s in a source file of the core', async (_name, code, expectedRuleId) => {
@@ -363,6 +380,14 @@ describe('eslint.config.ts with the local rules', () => {
       ['a local variable named performance', 'export const read = (performance: number): number => performance + 1;\n'],
       ['queueMicrotask', 'export const run = (): void => {\n  queueMicrotask(() => 1);\n};\n'],
       ['a local variable named self', 'export const read = (self: number): number => self + 1;\n'],
+      ['structuredClone', 'export const copy = (value: object): object => structuredClone(value);\n'],
+      ['console', 'export const run = (): void => {\n  console.log(1);\n};\n'],
+      ['Headers', 'export const read = (): unknown => new Headers();\n'],
+      ['Request', 'export const read = (): unknown => new Request(\'https://example.test\');\n'],
+      ['Response', 'export const read = (): unknown => new Response(null);\n'],
+      ['URL', 'export const read = (): unknown => new URL(\'https://example.test\');\n'],
+      ['TextDecoder', 'export const read = (): unknown => new TextDecoder();\n'],
+      ['TextEncoder', 'export const read = (): unknown => new TextEncoder();\n'],
     ])('does not report %s in a file of the core', async (_name, code) => {
       const outcome = await lint(checkingEslint, code, engineCoreFilePath);
 

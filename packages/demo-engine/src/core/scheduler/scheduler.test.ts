@@ -37,7 +37,7 @@ const createTransaction = (): IStateTransaction =>
     createLiveMeta,
   ).result;
 
-const createFixture = (maxRunsPerTick?: number): {
+const createFixture = (maxRunsPerTick?: number, initialDueAtMs?: Readonly<Record<string, number>>): {
   commandCount: () => number;
   realTime: ReturnType<typeof createFakeRealTime>;
   scheduler: ReturnType<typeof createScheduler>;
@@ -53,6 +53,7 @@ const createFixture = (maxRunsPerTick?: number): {
       return Promise.resolve(work(transaction));
     },
     getWorldTimeMs: () => clock.now(),
+    initialDueAtMs,
     maxRunsPerTick,
   });
 
@@ -173,6 +174,44 @@ describe('createScheduler', () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 
+  it('reports the due times of the registered tasks and moves a due time on when the task runs', async () => {
+    const { realTime, scheduler } = createFixture();
+    scheduler.register({ id: 'fast', intervalMs: 1_000, run: () => undefined });
+    scheduler.register({ id: 'slow', intervalMs: 5_000, run: () => undefined });
+
+    expect(scheduler.readDueAtMs()).toEqual({ fast: START_MS + 1_000, slow: START_MS + 5_000 });
+
+    realTime.advance(1_000);
+    await scheduler.tick();
+
+    expect(scheduler.readDueAtMs()).toEqual({ fast: START_MS + 2_000, slow: START_MS + 5_000 });
+  });
+
+  it('takes the due time of a task from the restored deadlines and counts from now for a task without one', async () => {
+    const { realTime, scheduler } = createFixture(undefined, { restored: START_MS + 300, stale: 1 });
+    const restoredRun = vi.fn();
+    const freshRun = vi.fn();
+    scheduler.register({ id: 'restored', intervalMs: 1_000, run: restoredRun });
+    scheduler.register({ id: 'fresh', intervalMs: 1_000, run: freshRun });
+
+    expect(scheduler.readDueAtMs()).toEqual({ fresh: START_MS + 1_000, restored: START_MS + 300 });
+
+    realTime.advance(300);
+    await scheduler.tick();
+
+    expect(restoredRun).toHaveBeenCalledTimes(1);
+    expect(freshRun).not.toHaveBeenCalled();
+  });
+
+  it('ignores the restored deadlines on restart', () => {
+    const { scheduler } = createFixture(undefined, { task: START_MS + 300 });
+    scheduler.register({ id: 'task', intervalMs: 1_000, run: () => undefined });
+
+    scheduler.restart();
+
+    expect(scheduler.readDueAtMs()).toEqual({ task: START_MS + 1_000 });
+  });
+
   it('rejects a duplicate id and an interval that is not a positive integer', () => {
     const { scheduler } = createFixture();
     scheduler.register({ id: 'task', intervalMs: 1_000, run: () => undefined });
@@ -261,3 +300,97 @@ const createSeedSnapshotPersonaIds = (): string[] => [
   SeedPersonaId.CONSTRUCTION_CARRIER,
   SeedPersonaId.CONSTRUCTION_STOREKEEPER,
 ].sort();
+
+describe('engine scheduler deadlines', () => {
+  const idleTask: SchedulerTaskValue = {
+    id: 'writer',
+    intervalMs: 1_000,
+    run: (transaction, dueAtMs) => {
+      transaction.put('personas', {
+        id: `scheduled-${String(dueAtMs)}`,
+        kind: DemoPersonaKind.BUYER,
+        organizationId: SeedOrganizationId.BUYER_1,
+        userId: SeedUserId.ADMIN_1,
+      });
+    },
+  };
+
+  const startMs = DEFAULT_ENGINE_SEED.worldStartMs;
+
+  it('writes the next due time of the task with every commit and with a checkpoint', async () => {
+    const realTime = createFakeRealTime(0);
+    const storage = createSpyStorage();
+    const engine = await createEngineWithTasks({ epoch: 'e', realTime, storage }, [idleTask]);
+
+    realTime.advance(1_000);
+    await engine.tick();
+    realTime.advance(400);
+    await engine.checkpoint();
+
+    expect(storage.commits.map(commit => commit.meta.schedulerDueAtMs)).toEqual([
+      { writer: startMs + 2_000 },
+      { writer: startMs + 2_000 },
+    ]);
+    expect(storage.commits[1]?.meta.worldTimeMs).toBe(startMs + 1_400);
+  });
+
+  it('keeps the due time and does not go back in world time after a restart on the same storage', async () => {
+    const firstRealTime = createFakeRealTime(0);
+    const storage = createSpyStorage();
+    const first = await createEngineWithTasks({ epoch: 'e', realTime: firstRealTime, storage }, [idleTask]);
+    firstRealTime.advance(600);
+    await first.checkpoint();
+    const checkpointWorldTimeMs = first.getClockSnapshot().worldTimeMs;
+
+    const secondRealTime = createFakeRealTime(50_000);
+    const second = await createEngineWithTasks({ epoch: 'e2', realTime: secondRealTime, storage }, [idleTask]);
+
+    expect(second.getClockSnapshot().worldTimeMs).toBeGreaterThanOrEqual(checkpointWorldTimeMs);
+    secondRealTime.advance(399);
+    await second.tick();
+
+    expect(storage.commits).toHaveLength(1);
+
+    secondRealTime.advance(1);
+    await second.tick();
+
+    expect(storage.commits).toHaveLength(2);
+    expect(storage.commits[1]?.meta.schedulerDueAtMs).toEqual({ writer: startMs + 2_000 });
+    expect(second.listPersonas().map(persona => persona.id)).toContain(`scheduled-${String(startMs + 1_000)}`);
+  });
+
+  it('counts a task that has no stored deadline from the world time of the start', async () => {
+    const firstRealTime = createFakeRealTime(0);
+    const storage = createSpyStorage();
+    const first = await createEngineWithTasks({ epoch: 'e', realTime: firstRealTime, storage }, []);
+    firstRealTime.advance(600);
+    await first.checkpoint();
+
+    const secondRealTime = createFakeRealTime(0);
+    const second = await createEngineWithTasks({ epoch: 'e2', realTime: secondRealTime, storage }, [idleTask]);
+    secondRealTime.advance(999);
+    await second.tick();
+
+    expect(storage.commits).toHaveLength(1);
+
+    secondRealTime.advance(1);
+    await second.tick();
+
+    expect(storage.commits).toHaveLength(2);
+  });
+
+  it('counts the deadlines from now on reset and stores them with the next checkpoint', async () => {
+    const realTime = createFakeRealTime(0);
+    const storage = createSpyStorage();
+    const engine = await createEngineWithTasks({ epoch: 'e', realTime, storage }, [idleTask]);
+    realTime.advance(5_000);
+    await engine.tick();
+
+    await engine.reset('e2');
+    realTime.advance(100);
+    await engine.checkpoint();
+
+    expect(storage.commits.at(-1)?.meta.schedulerDueAtMs).toEqual({ writer: startMs + 1_000 });
+    expect((await storage.load())?.meta.schedulerDueAtMs).toEqual({ writer: startMs + 1_000 });
+  });
+});

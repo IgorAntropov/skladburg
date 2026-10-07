@@ -37,6 +37,7 @@ export const TEST_WORLD_TIME_MS = 1_000;
 
 export const createLiveMeta = (): LiveMetaValue => ({
   randomState: { a: 1, b: 2, c: 3, d: 4 },
+  schedulerDueAtMs: {},
   timeScale: 1,
   traceRandomState: { a: 5, b: 6, c: 7, d: 8 },
 });

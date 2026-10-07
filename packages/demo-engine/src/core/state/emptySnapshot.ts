@@ -11,6 +11,7 @@ export const createEmptySnapshot = (): EngineSnapshotValue => ({
   meta: {
     channelSeq: {},
     randomState: createSeededRandom(0).getState(),
+    schedulerDueAtMs: {},
     seedVersion: 0,
     timeScale: 1,
     traceRandomState: createSeededRandom(1).getState(),

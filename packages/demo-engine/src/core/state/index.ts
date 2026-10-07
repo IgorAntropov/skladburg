@@ -1,5 +1,6 @@
 export { createEmptySnapshot } from './emptySnapshot';
 export {
+  type CheckpointOutcomeValue,
   createEngineState,
   type IEngineState,
   type IStateTransaction,

@@ -14,17 +14,17 @@ import {
 } from 'vitest';
 
 import {
+  ErrorCategory,
+  error_traits as errorTraits,
+  ErrorTraitsSchema,
+} from '../gen/common/v1/error_pb';
+import {
   MemberRequirementSchema,
   type MethodAccess,
   MethodAccessSchema,
   PermissionRequirementSchema,
   SessionRequirementSchema,
-} from '../gen/common/v1/access_pb';
-import {
-  ErrorCategory,
-  error_traits as errorTraits,
-  ErrorTraitsSchema,
-} from '../gen/common/v1/error_pb';
+} from '../gen/common/v1/method_options_pb';
 import {
   ContractRule,
   type ContractViolationValue,

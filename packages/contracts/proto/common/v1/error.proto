@@ -15,6 +15,7 @@ enum ErrorCategory {
   ERROR_CATEGORY_ABORTED = 5;
   ERROR_CATEGORY_UNAVAILABLE = 6;
   ERROR_CATEGORY_INTERNAL = 7;
+  ERROR_CATEGORY_UNAUTHENTICATED = 8;
 }
 
 message ErrorTraits {
@@ -44,6 +45,7 @@ enum ErrorCode {
     category: ERROR_CATEGORY_INTERNAL
     is_retryable: true
   }];
+  ERROR_CODE_SESSION_REQUIRED = 11 [(error_traits) = {category: ERROR_CATEGORY_UNAUTHENTICATED}];
 }
 
 message FieldViolation {

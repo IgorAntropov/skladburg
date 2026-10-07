@@ -9,6 +9,28 @@ import { localPlugin } from './scripts/eslint/local-plugin.ts';
 
 const scriptFiles: string[] = ['**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'];
 const plainScriptFiles: string[] = ['**/*.{js,jsx,mjs,cjs}'];
+const engineCoreFiles: string[] = ['packages/demo-engine/src/core/**/*.ts'];
+
+const engineCoreRestrictedGlobals: string[] = [
+  'cancelAnimationFrame',
+  'cancelIdleCallback',
+  'clearImmediate',
+  'clearInterval',
+  'clearTimeout',
+  'crypto',
+  'document',
+  'globalThis',
+  'indexedDB',
+  'navigator',
+  'performance',
+  'requestAnimationFrame',
+  'requestIdleCallback',
+  'self',
+  'setImmediate',
+  'setInterval',
+  'setTimeout',
+  'window',
+];
 
 export default defineConfig(
   {
@@ -97,6 +119,34 @@ export default defineConfig(
   {
     extends: [reactHooks.configs.flat.recommended],
     files: ['apps/web/**/*.{ts,tsx}'],
+  },
+  {
+    files: engineCoreFiles,
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        ...engineCoreRestrictedGlobals.map(name => ({
+          message: `The engine core must not touch ${name} directly; take it through a port`,
+          name,
+        })),
+      ],
+      'no-restricted-properties': [
+        'error',
+        { message: 'Read the time through IClock', object: 'Date', property: 'now' },
+        { message: 'Draw numbers through IRandom', object: 'Math', property: 'random' },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          message: 'Read the time through IClock; new Date() needs an explicit argument',
+          selector: 'NewExpression[callee.name=\'Date\'][arguments.length=0]',
+        },
+        {
+          message: 'Read the time through IClock; Date() returns the current time',
+          selector: 'CallExpression[callee.name=\'Date\']',
+        },
+      ],
+    },
   },
   {
     extends: [tseslint.configs.disableTypeChecked],

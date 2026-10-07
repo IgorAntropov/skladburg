@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package access.v1;
 
-import "common/v1/access.proto";
+import "common/v1/method_options.proto";
 import "common/v1/money.proto";
 import "common/v1/page.proto";
 import "organization/v1/organization.proto";

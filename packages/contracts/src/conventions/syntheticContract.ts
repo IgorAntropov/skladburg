@@ -35,13 +35,13 @@ import { fileURLToPath } from 'node:url';
 import {
   access,
   type MethodAccess,
-} from '../gen/common/v1/access_pb';
+} from '../gen/common/v1/method_options_pb';
 import { loadContractRegistry } from './loadContractRegistry';
 
 const BASE_PACKAGES: readonly string[] = ['buf.validate', 'common.v1', 'google.protobuf'];
 const SYNTHETIC_DEPENDENCIES: string[] = [
   'buf/validate/validate.proto',
-  'common/v1/access.proto',
+  'common/v1/method_options.proto',
   'common/v1/money.proto',
   'common/v1/page.proto',
 ];

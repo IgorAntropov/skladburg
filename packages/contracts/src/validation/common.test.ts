@@ -11,7 +11,7 @@ import {
   MethodAccessSchema,
   PermissionRequirementSchema,
   SessionRequirementSchema,
-} from '../gen/common/v1/access_pb';
+} from '../gen/common/v1/method_options_pb';
 import { MoneySchema } from '../gen/common/v1/money_pb';
 import { PageRequestSchema } from '../gen/common/v1/page_pb';
 import { collectViolations } from './collectViolations';

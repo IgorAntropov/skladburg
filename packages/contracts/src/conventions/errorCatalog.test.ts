@@ -28,6 +28,7 @@ const expectedTraits: Record<ErrorCode, ErrorTraitsSnapshotValue> = {
   [ErrorCode.MEMBERSHIP_REQUIRED]: { category: ErrorCategory.PERMISSION_DENIED, isRetryable: false },
   [ErrorCode.NOT_FOUND]: { category: ErrorCategory.NOT_FOUND, isRetryable: false },
   [ErrorCode.PERMISSION_DENIED]: { category: ErrorCategory.PERMISSION_DENIED, isRetryable: false },
+  [ErrorCode.SESSION_REQUIRED]: { category: ErrorCategory.UNAUTHENTICATED, isRetryable: false },
   [ErrorCode.UNAVAILABLE]: { category: ErrorCategory.UNAVAILABLE, isRetryable: true },
   [ErrorCode.UNSPECIFIED]: { category: ErrorCategory.UNSPECIFIED, isRetryable: false },
   [ErrorCode.VALIDATION_FAILED]: { category: ErrorCategory.INVALID_ARGUMENT, isRetryable: false },

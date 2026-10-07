@@ -16,13 +16,13 @@ import { MethodOptions_IdempotencyLevel } from '@bufbuild/protobuf/wkt';
 import { field as fieldRules } from '@bufbuild/protovalidate/gen/buf/validate/validate_pb.js';
 
 import {
-  access,
-  MethodAccessSchema,
-} from '../gen/common/v1/access_pb';
-import {
   ErrorCategory,
   error_traits as errorTraits,
 } from '../gen/common/v1/error_pb';
+import {
+  access,
+  MethodAccessSchema,
+} from '../gen/common/v1/method_options_pb';
 import { collectViolations } from '../validation/collectViolations';
 import {
   ContractRule,

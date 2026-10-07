@@ -12,6 +12,10 @@ const lintedFilePath = fileURLToPath(new URL('../../eslint.config.ts', import.me
 const applicationFilePath = fileURLToPath(new URL('../../apps/web/src/app/App.tsx', import.meta.url));
 const scriptFilePath = fileURLToPath(new URL('./no-ui-strings-rule.ts', import.meta.url));
 const applicationScriptFilePath = fileURLToPath(new URL('../../apps/web/src/app/probe-logic.ts', import.meta.url));
+const applicationIndexFilePath = fileURLToPath(new URL('../../apps/web/src/app/index.ts', import.meta.url));
+const engineCoreFilePath = fileURLToPath(new URL('../../packages/demo-engine/src/core/protocol.ts', import.meta.url));
+const engineCoreTestFilePath = fileURLToPath(new URL('../../packages/demo-engine/src/core/ports/clock.test.ts', import.meta.url));
+const engineEntryFilePath = fileURLToPath(new URL('../../packages/demo-engine/src/index.ts', import.meta.url));
 
 const formattingRuleIds: ReadonlySet<string> = new Set([
   '@stylistic/object-curly-newline',
@@ -300,6 +304,69 @@ describe('eslint.config.ts with the local rules', () => {
       const outcome = await lint(checkingEslint, code, applicationFilePath);
 
       expect(outcome.ruleIds).not.toContain('local/no-ui-strings');
+    });
+  });
+
+  describe('determinism of the engine core', () => {
+    const engineCoreRuleIds: readonly string[] = ['no-restricted-globals', 'no-restricted-properties', 'no-restricted-syntax'];
+
+    const forbiddenUsages: readonly (readonly [string, string, string])[] = [
+      ['Date.now', 'export const read = (): number => Date.now();\n', 'no-restricted-properties'],
+      ['Math.random', 'export const read = (): number => Math.random();\n', 'no-restricted-properties'],
+      ['new Date() without arguments', 'export const read = (): Date => new Date();\n', 'no-restricted-syntax'],
+      ['Date() called as a function', 'export const read = (): string => Date();\n', 'no-restricted-syntax'],
+      ['setTimeout', 'export const run = (): void => {\n  setTimeout(() => 1, 10);\n};\n', 'no-restricted-globals'],
+      ['setInterval', 'export const run = (): void => {\n  setInterval(() => 1, 10);\n};\n', 'no-restricted-globals'],
+      ['clearTimeout', 'export const run = (id: number): void => {\n  clearTimeout(id);\n};\n', 'no-restricted-globals'],
+      ['clearInterval', 'export const run = (id: number): void => {\n  clearInterval(id);\n};\n', 'no-restricted-globals'],
+      ['setImmediate', 'export const run = (): void => {\n  setImmediate(() => 1);\n};\n', 'no-restricted-globals'],
+      ['clearImmediate', 'export const run = (id: unknown): void => {\n  clearImmediate(id);\n};\n', 'no-restricted-globals'],
+      ['requestAnimationFrame', 'export const run = (): void => {\n  requestAnimationFrame(() => 1);\n};\n', 'no-restricted-globals'],
+      ['cancelAnimationFrame', 'export const run = (id: number): void => {\n  cancelAnimationFrame(id);\n};\n', 'no-restricted-globals'],
+      ['requestIdleCallback', 'export const run = (): void => {\n  requestIdleCallback(() => 1);\n};\n', 'no-restricted-globals'],
+      ['cancelIdleCallback', 'export const run = (id: number): void => {\n  cancelIdleCallback(id);\n};\n', 'no-restricted-globals'],
+      ['performance', 'export const read = (): number => performance.now();\n', 'no-restricted-globals'],
+      ['crypto', 'export const read = (): string => crypto.randomUUID();\n', 'no-restricted-globals'],
+      ['indexedDB', 'export const open = (): unknown => indexedDB;\n', 'no-restricted-globals'],
+      ['navigator', 'export const read = (): unknown => navigator;\n', 'no-restricted-globals'],
+      ['self', 'export const read = (): unknown => self;\n', 'no-restricted-globals'],
+      ['window', 'export const read = (): unknown => window;\n', 'no-restricted-globals'],
+      ['document', 'export const read = (): unknown => document;\n', 'no-restricted-globals'],
+      ['globalThis', 'export const read = (): unknown => globalThis;\n', 'no-restricted-globals'],
+    ];
+
+    it.each(forbiddenUsages)('reports %s in a source file of the core', async (_name, code, expectedRuleId) => {
+      const outcome = await lint(checkingEslint, code, engineCoreFilePath);
+
+      expect(outcome.ruleIds).toContain(expectedRuleId);
+    });
+
+    it.each(forbiddenUsages)('reports %s in a test file of the core', async (_name, code, expectedRuleId) => {
+      const outcome = await lint(checkingEslint, code, engineCoreTestFilePath);
+
+      expect(outcome.ruleIds).toContain(expectedRuleId);
+    });
+
+    it.each(forbiddenUsages)('does not report %s in a file outside of the core', async (_name, code) => {
+      const engineEntryOutcome = await lint(checkingEslint, code, engineEntryFilePath);
+      const applicationOutcome = await lint(checkingEslint, code, applicationIndexFilePath);
+
+      expect(engineEntryOutcome.ruleIds.filter(ruleId => engineCoreRuleIds.includes(ruleId))).toEqual([]);
+      expect(applicationOutcome.ruleIds.filter(ruleId => engineCoreRuleIds.includes(ruleId))).toEqual([]);
+    });
+
+    it.each([
+      ['new Date with an explicit timestamp', 'export const read = (timestamp: number): Date => new Date(timestamp);\n'],
+      ['new Date with zero', 'export const read = (): Date => new Date(0);\n'],
+      ['a property named now on another object', 'export const read = (clock: { now: () => number }): number => clock.now();\n'],
+      ['a property named random on another object', 'export const read = (source: { random: number }): number => source.random;\n'],
+      ['a local variable named performance', 'export const read = (performance: number): number => performance + 1;\n'],
+      ['queueMicrotask', 'export const run = (): void => {\n  queueMicrotask(() => 1);\n};\n'],
+      ['a local variable named self', 'export const read = (self: number): number => self + 1;\n'],
+    ])('does not report %s in a file of the core', async (_name, code) => {
+      const outcome = await lint(checkingEslint, code, engineCoreFilePath);
+
+      expect(outcome.ruleIds.filter(ruleId => engineCoreRuleIds.includes(ruleId))).toEqual([]);
     });
   });
 });

@@ -3,7 +3,7 @@ syntax = "proto3";
 package organization.v1;
 
 import "buf/validate/validate.proto";
-import "common/v1/access.proto";
+import "common/v1/method_options.proto";
 import "common/v1/page.proto";
 
 enum ProfileKind {
@@ -81,6 +81,20 @@ message Warehouse {
   string address = 7;
   repeated WarehouseCapability capabilities = 8;
   bool is_wms_enabled = 9;
+}
+
+message WarehouseCreated {
+  Warehouse warehouse = 1;
+}
+
+enum WarehouseChange {
+  WAREHOUSE_CHANGE_UNSPECIFIED = 0;
+  WAREHOUSE_CHANGE_CREATED = 1;
+}
+
+message WarehouseChanged {
+  string warehouse_id = 1;
+  WarehouseChange change = 2;
 }
 
 message GetOrganizationRequest {

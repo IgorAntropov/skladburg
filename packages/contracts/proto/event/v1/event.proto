@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package event.v1;
+
+import "google/protobuf/timestamp.proto";
+import "organization/v1/organization.proto";
+
+message Event {
+  string channel = 1;
+  uint64 seq = 2;
+  string epoch = 3;
+  google.protobuf.Timestamp occurred_at = 4;
+  oneof payload {
+    organization.v1.WarehouseCreated warehouse_created = 10;
+    organization.v1.WarehouseChanged warehouse_changed = 11;
+  }
+}

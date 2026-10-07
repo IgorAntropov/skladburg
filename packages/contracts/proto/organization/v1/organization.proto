@@ -1,0 +1,163 @@
+syntax = "proto3";
+
+package organization.v1;
+
+import "buf/validate/validate.proto";
+import "common/v1/access.proto";
+import "common/v1/page.proto";
+
+enum ProfileKind {
+  PROFILE_KIND_UNSPECIFIED = 0;
+  PROFILE_KIND_SELLER = 1;
+  PROFILE_KIND_BUYER = 2;
+  PROFILE_KIND_CARRIER = 3;
+}
+
+message OrganizationProfile {
+  ProfileKind kind = 1;
+  int32 verification_level = 2;
+}
+
+message Organization {
+  string id = 1;
+  string name = 2;
+  string legal_name = 3;
+  string inn = 4;
+  string kpp = 5;
+  string ogrn = 6;
+  repeated OrganizationProfile profiles = 7;
+  repeated string sphere_ids = 8;
+}
+
+message Sphere {
+  string id = 1;
+  string parent_id = 2;
+  string name = 3;
+}
+
+message PluralForms {
+  optional string zero = 1;
+  optional string one = 2;
+  optional string two = 3;
+  optional string few = 4;
+  optional string many = 5;
+  string other = 6;
+}
+
+message MessageOverride {
+  oneof value {
+    string text = 1;
+    PluralForms plural = 2;
+  }
+}
+
+message LocaleTermOverrides {
+  string locale = 1;
+  map<string, MessageOverride> messages = 2;
+}
+
+message OrganizationSettings {
+  string organization_id = 1;
+  string brand_name = 2;
+  string default_locale = 3;
+  repeated string available_locales = 4;
+  repeated LocaleTermOverrides term_overrides = 5;
+}
+
+enum WarehouseCapability {
+  WAREHOUSE_CAPABILITY_UNSPECIFIED = 0;
+  WAREHOUSE_CAPABILITY_RAMP = 1;
+  WAREHOUSE_CAPABILITY_COLD = 2;
+  WAREHOUSE_CAPABILITY_OVERSIZE = 3;
+}
+
+message Warehouse {
+  string id = 1;
+  string tenant_id = 2;
+  string name = 3;
+  string city_id = 4;
+  string board_node_id = 5;
+  string time_zone = 6;
+  string address = 7;
+  repeated WarehouseCapability capabilities = 8;
+  bool is_wms_enabled = 9;
+}
+
+message GetOrganizationRequest {
+  string organization_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetOrganizationResponse {
+  Organization organization = 1;
+}
+
+message GetOrganizationSettingsRequest {}
+
+message GetOrganizationSettingsResponse {
+  OrganizationSettings settings = 1;
+}
+
+message ListSpheresRequest {
+  common.v1.PageRequest page = 1;
+}
+
+message ListSpheresResponse {
+  repeated Sphere spheres = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message ListWarehousesRequest {
+  common.v1.PageRequest page = 1;
+}
+
+message ListWarehousesResponse {
+  repeated Warehouse warehouses = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message CreateWarehouseRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  string name = 2 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 120
+  ];
+  string city_id = 3 [(buf.validate.field).string.uuid = true];
+  string board_node_id = 4 [(buf.validate.field).string.uuid = true];
+  string time_zone = 5 [(buf.validate.field).string.pattern = "^[A-Za-z_]+(/[A-Za-z0-9_+-]+)+$"];
+  string address = 6 [(buf.validate.field).string.max_len = 500];
+  repeated WarehouseCapability capabilities = 7 [
+    (buf.validate.field).repeated.unique = true,
+    (buf.validate.field).repeated.items.enum.defined_only = true,
+    (buf.validate.field).repeated.items.enum.not_in = 0
+  ];
+}
+
+message CreateWarehouseResponse {
+  Warehouse warehouse = 1;
+}
+
+service OrganizationService {
+  rpc GetOrganization(GetOrganizationRequest) returns (GetOrganizationResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).member = {};
+  }
+
+  rpc GetOrganizationSettings(GetOrganizationSettingsRequest) returns (GetOrganizationSettingsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).member = {};
+  }
+
+  rpc ListSpheres(ListSpheresRequest) returns (ListSpheresResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).session = {};
+  }
+
+  rpc ListWarehouses(ListWarehousesRequest) returns (ListWarehousesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "warehouse_view";
+  }
+
+  rpc CreateWarehouse(CreateWarehouseRequest) returns (CreateWarehouseResponse) {
+    option (common.v1.access).permission.name = "warehouse_create";
+  }
+}

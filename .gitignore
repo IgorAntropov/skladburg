@@ -8,3 +8,5 @@ coverage/
 .env*.local
 playwright-report/
 test-results/
+packages/contracts/src/gen/
+packages/contracts/proto-deps/

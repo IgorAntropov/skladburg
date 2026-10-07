@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package common.v1;
+
+import "common/v1/entity.proto";
+import "common/v1/money.proto";
+import "google/protobuf/descriptor.proto";
+
+enum ErrorCategory {
+  ERROR_CATEGORY_UNSPECIFIED = 0;
+  ERROR_CATEGORY_INVALID_ARGUMENT = 1;
+  ERROR_CATEGORY_NOT_FOUND = 2;
+  ERROR_CATEGORY_PERMISSION_DENIED = 3;
+  ERROR_CATEGORY_FAILED_PRECONDITION = 4;
+  ERROR_CATEGORY_ABORTED = 5;
+  ERROR_CATEGORY_UNAVAILABLE = 6;
+  ERROR_CATEGORY_INTERNAL = 7;
+}
+
+message ErrorTraits {
+  ErrorCategory category = 1;
+  bool is_retryable = 2;
+}
+
+extend google.protobuf.EnumValueOptions {
+  ErrorTraits error_traits = 50002;
+}
+
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_PERMISSION_DENIED = 1 [(error_traits) = {category: ERROR_CATEGORY_PERMISSION_DENIED}];
+  ERROR_CODE_LIMIT_EXCEEDED = 2 [(error_traits) = {category: ERROR_CATEGORY_PERMISSION_DENIED}];
+  ERROR_CODE_MEMBERSHIP_REQUIRED = 3 [(error_traits) = {category: ERROR_CATEGORY_PERMISSION_DENIED}];
+  ERROR_CODE_VALIDATION_FAILED = 4 [(error_traits) = {category: ERROR_CATEGORY_INVALID_ARGUMENT}];
+  ERROR_CODE_IDEMPOTENCY_KEY_REUSED = 5 [(error_traits) = {category: ERROR_CATEGORY_INVALID_ARGUMENT}];
+  ERROR_CODE_NOT_FOUND = 6 [(error_traits) = {category: ERROR_CATEGORY_NOT_FOUND}];
+  ERROR_CODE_VERSION_CONFLICT = 7 [(error_traits) = {category: ERROR_CATEGORY_ABORTED}];
+  ERROR_CODE_INVALID_TRANSITION = 8 [(error_traits) = {category: ERROR_CATEGORY_FAILED_PRECONDITION}];
+  ERROR_CODE_UNAVAILABLE = 9 [(error_traits) = {
+    category: ERROR_CATEGORY_UNAVAILABLE
+    is_retryable: true
+  }];
+  ERROR_CODE_INTERNAL = 10 [(error_traits) = {
+    category: ERROR_CATEGORY_INTERNAL
+    is_retryable: true
+  }];
+}
+
+message FieldViolation {
+  string field_path = 1;
+  string rule_id = 2;
+}
+
+message PermissionDeniedParams {
+  string permission = 1;
+  string warehouse_id = 2;
+}
+
+message LimitExceededParams {
+  string permission = 1;
+  Money limit = 2;
+  Money requested = 3;
+}
+
+message ValidationFailedParams {
+  repeated FieldViolation violations = 1;
+}
+
+message NotFoundParams {
+  EntityKind entity = 1;
+}
+
+message VersionConflictParams {
+  EntityKind entity = 1;
+  int32 current_version = 2;
+}
+
+message InvalidTransitionParams {
+  EntityKind entity = 1;
+  string from_status = 2;
+  string to_status = 3;
+}
+
+message ErrorDetail {
+  ErrorCode code = 1;
+  string trace_id = 2;
+  oneof params {
+    PermissionDeniedParams permission_denied = 10;
+    LimitExceededParams limit_exceeded = 11;
+    ValidationFailedParams validation_failed = 12;
+    NotFoundParams not_found = 13;
+    VersionConflictParams version_conflict = 14;
+    InvalidTransitionParams invalid_transition = 15;
+  }
+}

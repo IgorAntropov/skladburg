@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package common.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/descriptor.proto";
+
+message PermissionRequirement {
+  string name = 1 [(buf.validate.field).string.pattern = "^[a-z][a-z0-9]*(_[a-z0-9]+)*_(view|create|edit|delete|approve|sign|fund|release|export|manage)$"];
+  string scope_field = 2 [(buf.validate.field).string.pattern = "^([a-z][a-z0-9_]*)?$"];
+  string limit_field = 3 [(buf.validate.field).string.pattern = "^([a-z][a-z0-9_]*)?$"];
+}
+
+message MemberRequirement {}
+
+message SessionRequirement {}
+
+message MethodAccess {
+  oneof requirement {
+    option (buf.validate.oneof).required = true;
+
+    PermissionRequirement permission = 1;
+    MemberRequirement member = 2;
+    SessionRequirement session = 3;
+  }
+}
+
+extend google.protobuf.MethodOptions {
+  MethodAccess access = 50001;
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@skladburg/contracts",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/gen/*_pb.ts"
+  },
+  "scripts": {
+    "deps:proto": "buf export https://github.com/bufbuild/protovalidate.git#ref=4baed765070e580226a0a30bf2a357cc027dc1f7,subdir=proto/protovalidate -o proto-deps/protovalidate",
+    "generate": "buf generate && buf build proto --exclude-source-info -o src/gen/contract.binpb",
+    "lint:proto": "buf lint proto && buf format proto --diff --exit-code",
+    "format:proto": "buf format proto --write",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "2.16.0",
+    "@bufbuild/protovalidate": "1.3.0"
+  },
+  "devDependencies": {
+    "@bufbuild/buf": "1.73.0",
+    "@bufbuild/protoc-gen-es": "2.16.0",
+    "@types/node": "~24.19.1",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.3"
+  }
+}

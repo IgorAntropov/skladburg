@@ -12,7 +12,7 @@ const plainScriptFiles: string[] = ['**/*.{js,jsx,mjs,cjs}'];
 
 export default defineConfig(
   {
-    ignores: ['**/dist/', '**/coverage/', '**/.turbo/'],
+    ignores: ['**/dist/', '**/coverage/', '**/.turbo/', 'packages/contracts/src/gen/'],
   },
   {
     linterOptions: {

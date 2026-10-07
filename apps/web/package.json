@@ -11,6 +11,8 @@
     "lint:fsd": "steiger ./src --fail-on-warnings"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "2.16.0",
+    "@skladburg/contracts": "workspace:*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

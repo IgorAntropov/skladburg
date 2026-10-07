@@ -3,16 +3,31 @@
   "globalDependencies": ["tsconfig.base.json"],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "^generate"],
       "env": ["BUILD_PROFILE"],
       "outputs": ["dist/**"]
     },
+    "deps:proto": {
+      "inputs": ["package.json", "buf.yaml"],
+      "outputs": ["proto-deps/**"]
+    },
     "dev": {
       "cache": false,
+      "dependsOn": ["^generate"],
       "env": ["BUILD_PROFILE"],
       "persistent": true
     },
+    "generate": {
+      "dependsOn": ["deps:proto"],
+      "inputs": ["proto/**", "buf.yaml", "buf.gen.yaml", "package.json"],
+      "outputs": ["src/gen/**"]
+    },
     "lint:fsd": {
+      "outputs": []
+    },
+    "lint:proto": {
+      "dependsOn": ["deps:proto"],
+      "inputs": ["proto/**", "buf.yaml"],
       "outputs": []
     },
     "preview": {
@@ -22,10 +37,11 @@
       "persistent": true
     },
     "test": {
+      "dependsOn": ["generate", "^generate"],
       "outputs": []
     },
     "typecheck": {
-      "dependsOn": ["^typecheck"],
+      "dependsOn": ["^typecheck", "generate", "^generate"],
       "outputs": []
     }
   }

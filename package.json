@@ -7,14 +7,16 @@
   },
   "packageManager": "pnpm@11.28.5+sha512.484563d30b4c2ad27cb48aa94ff2b302dbcebc8ff6bf28816c2589886e146ce7f76f354f3bc1a438e6f5e9768c302aa0a6f7add8232903cd4cf81426cbc14d9e",
   "scripts": {
+    "postinstall": "pnpm proto:generate",
     "prepare": "simple-git-hooks",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "preview": "turbo run preview",
     "test": "vitest run && turbo run test",
     "typecheck": "tsc -p tsconfig.json && turbo run typecheck",
-    "lint": "tsc -p tsconfig.json && turbo run typecheck lint:fsd && eslint --max-warnings 0 --no-error-on-unmatched-pattern apps packages scripts \"*.ts\" && node scripts/check-comments.ts",
-    "lint:fix": "eslint --fix --no-error-on-unmatched-pattern apps packages scripts \"*.ts\""
+    "lint": "tsc -p tsconfig.json && turbo run typecheck lint:fsd lint:proto && eslint --max-warnings 0 --no-error-on-unmatched-pattern apps packages scripts \"*.ts\" && node scripts/check-comments.ts",
+    "lint:fix": "eslint --fix --no-error-on-unmatched-pattern apps packages scripts \"*.ts\" && pnpm --filter @skladburg/contracts format:proto",
+    "proto:generate": "turbo run generate --filter=@skladburg/contracts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

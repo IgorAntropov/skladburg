@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package network.v1;
+
+message BoardPosition {
+  int32 column = 1;
+  int32 row = 2;
+}
+
+message City {
+  string id = 1;
+  string name = 2;
+  string time_zone = 3;
+}
+
+message BoardNode {
+  string id = 1;
+  BoardPosition position = 2;
+  string city_id = 3;
+}

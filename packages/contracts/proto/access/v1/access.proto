@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package access.v1;
+
+import "common/v1/access.proto";
+import "common/v1/money.proto";
+import "common/v1/page.proto";
+import "organization/v1/organization.proto";
+
+enum PermissionAction {
+  PERMISSION_ACTION_UNSPECIFIED = 0;
+  PERMISSION_ACTION_VIEW = 1;
+  PERMISSION_ACTION_CREATE = 2;
+  PERMISSION_ACTION_EDIT = 3;
+  PERMISSION_ACTION_DELETE = 4;
+  PERMISSION_ACTION_APPROVE = 5;
+  PERMISSION_ACTION_SIGN = 6;
+  PERMISSION_ACTION_FUND = 7;
+  PERMISSION_ACTION_RELEASE = 8;
+  PERMISSION_ACTION_EXPORT = 9;
+  PERMISSION_ACTION_MANAGE = 10;
+}
+
+message Permission {
+  string name = 1;
+  string feature = 2;
+  PermissionAction action = 3;
+  bool is_scope_applicable = 4;
+  bool is_limit_applicable = 5;
+}
+
+message User {
+  string id = 1;
+  string display_name = 2;
+}
+
+message RoleAssignment {
+  string role_id = 1;
+  repeated string warehouse_ids = 2;
+  common.v1.Money amount_limit = 3;
+}
+
+message Membership {
+  string id = 1;
+  string user_id = 2;
+  string organization_id = 3;
+  repeated RoleAssignment role_assignments = 4;
+}
+
+message Role {
+  string id = 1;
+  string tenant_id = 2;
+  string name = 3;
+  string preset_key = 4;
+  repeated string permissions = 5;
+}
+
+message EffectivePermission {
+  string permission = 1;
+  bool is_organization_wide = 2;
+  repeated string warehouse_ids = 3;
+  common.v1.Money amount_limit = 4;
+}
+
+message GetSessionRequest {}
+
+message GetSessionResponse {
+  User user = 1;
+  repeated Membership memberships = 2;
+  repeated organization.v1.Organization organizations = 3;
+  string acting_organization_id = 4;
+  repeated EffectivePermission permissions = 5;
+}
+
+message ListPermissionsRequest {
+  common.v1.PageRequest page = 1;
+}
+
+message ListPermissionsResponse {
+  repeated Permission permissions = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message ListRolesRequest {
+  common.v1.PageRequest page = 1;
+}
+
+message ListRolesResponse {
+  repeated Role roles = 1;
+  common.v1.PageResponse page = 2;
+}
+
+service AccessService {
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).session = {};
+  }
+
+  rpc ListPermissions(ListPermissionsRequest) returns (ListPermissionsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).session = {};
+  }
+
+  rpc ListRoles(ListRolesRequest) returns (ListRolesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "member_view";
+  }
+}

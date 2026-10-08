@@ -55,7 +55,7 @@ export const createValidProfile = (
     availableLocales: ['ru', 'en'],
     brandName: 'Северный склад',
     defaultLocale: 'ru',
-    tenantId: 'north-warehouse',
+    tenantId: 'f1000001-0000-4000-8000-000000000000',
     termOverrides: {},
     ...tenantPatch,
   },

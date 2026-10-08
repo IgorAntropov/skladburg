@@ -39,16 +39,25 @@ describe('loadBuildProfile', () => {
     const profile = loadBuildProfile({ appRoot, profileName: 'sample' });
 
     expect(profile.bundledLocales).toEqual(['ru', 'en']);
-    expect(profile.defaultTenant.tenantId).toBe('north-warehouse');
+    expect(profile.defaultTenant.tenantId).toBe('f1000001-0000-4000-8000-000000000000');
     expect(profile.defaultTenant.brandName).toBe('Северный склад');
   });
 
   it('loads the default profile of the application', () => {
     const profile = loadBuildProfile({ appRoot: REAL_APP_ROOT, profileName: 'default' });
 
+    expect(profile.defaultTenant.tenantId).toBe('10000001-0000-4000-8000-000000000000');
     expect(profile.bundledLocales).toEqual(['ru']);
     expect(profile.defaultTenant.defaultLocale).toBe('ru');
     expect(profile.defaultTenant.availableLocales).toEqual(['ru']);
+  });
+
+  it('explains that the tenant identifier must be a UUID', () => {
+    const appRoot = prepare({ catalogs: ['ru', 'en'], profiles: { sample: createValidProfile({ tenantId: 'north-warehouse' }) } });
+
+    expect(() => loadBuildProfile({ appRoot, profileName: 'sample' })).toThrow(
+      'Build profile "sample": defaultTenant.tenantId must be a UUID in the lowercase 8-4-4-4-12 form',
+    );
   });
 
   it('accepts term overrides with strings and plural forms', () => {
@@ -172,6 +181,12 @@ describe('loadBuildProfile', () => {
     ['brandName', 7],
     ['tenantId', undefined],
     ['tenantId', ''],
+    ['tenantId', 'north-warehouse'],
+    ['tenantId', 'F1000001-0000-4000-8000-000000000000'],
+    ['tenantId', 'f1000001-0000-4000-8000-00000000000'],
+    ['tenantId', 'f1000001000040008000000000000000'],
+    ['tenantId', 'g1000001-0000-4000-8000-000000000000'],
+    ['tenantId', 7],
     ['defaultLocale', undefined],
     ['availableLocales', undefined],
     ['availableLocales', []],

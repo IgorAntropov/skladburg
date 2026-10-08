@@ -10,6 +10,7 @@ import {
   vi,
 } from 'vitest';
 
+import type { IActingContextStore } from '../context/actingContextTypes';
 import type { ApiErrorValue } from '../errors/apiErrorTypes';
 import type { IRealtimeChannel } from '../realtime/realtimeTypes';
 import type { FakeRealtimeSourceValue } from '../realtime/testing/createFakeRealtimeSource';
@@ -70,6 +71,7 @@ const createFakeDemoControl = (): FakeDemoControlValue => {
 };
 
 describe('syncQueriesWithRealtime', () => {
+  let actingContext: IActingContextStore;
   let queryClient: QueryClient;
   let realtime: IRealtimeChannel;
   let frames: ManualFrameSchedulerValue;
@@ -115,8 +117,9 @@ describe('syncQueriesWithRealtime', () => {
     queryClient = createQueryClient({ networkMode: 'always' });
     frames = createManualFrameScheduler();
     source = createFakeRealtimeSource();
+    actingContext = createActingContextStore({ organizationId: 'org-1', userId: 'user-1' });
     realtime = createRealtimeChannel({
-      actingContext: createActingContextStore({ organizationId: 'org-1', userId: 'user-1' }),
+      actingContext,
       frameScheduler: frames.scheduler,
       source: source.source,
     });
@@ -289,6 +292,82 @@ describe('syncQueriesWithRealtime', () => {
       });
       expect(invalidateSpy).not.toHaveBeenCalled();
       expect(isInvalidated('warehouses')).toBe(false);
+    });
+  });
+
+  describe('change of the acting context', () => {
+    it('invalidates the queries of every subscribed channel without subscribing again', async () => {
+      await addQuery('warehouses', [ORGANIZATION_CHANNEL]);
+      await addQuery('deal', [DEAL_CHANNEL]);
+      await addQuery('plain', undefined);
+      sync();
+      openChannel(ORGANIZATION_CHANNEL);
+      openChannel(DEAL_CHANNEL);
+      subscribeSpy.mockClear();
+
+      actingContext.set({ organizationId: 'org-2', userId: 'user-1' });
+      frames.flushFrame();
+
+      expect(subscribeSpy).not.toHaveBeenCalled();
+      expect(invalidateSpy).toHaveBeenCalledTimes(2);
+      expect(isInvalidated('warehouses')).toBe(true);
+      expect(isInvalidated('deal')).toBe(true);
+      expect(isInvalidated('plain')).toBe(false);
+    });
+
+    it('reopens the source subscriptions with the new context', async () => {
+      await addQuery('warehouses', [ORGANIZATION_CHANNEL]);
+      await addQuery('deal', [DEAL_CHANNEL]);
+      sync();
+      const previous = [findSourceSubscription(ORGANIZATION_CHANNEL), findSourceSubscription(DEAL_CHANNEL)];
+
+      actingContext.set({ organizationId: 'org-2', userId: 'user-1' });
+
+      expect(previous.every(subscription => subscription?.isClosed())).toBe(true);
+      expect(source.subscriptions).toHaveLength(4);
+      expect(source.subscriptions.slice(2).map(subscription => subscription.context.organizationId)).toEqual(['org-2', 'org-2']);
+      expect(source.subscriptions.slice(2).every(subscription => !subscription.isClosed())).toBe(true);
+    });
+
+    it('warns about a denied subscription after the change and invalidates nothing', async () => {
+      await addQuery('warehouses', [ORGANIZATION_CHANNEL]);
+      sync();
+      openChannel(ORGANIZATION_CHANNEL);
+      subscribeSpy.mockClear();
+
+      actingContext.set({ organizationId: 'org-2', userId: 'user-1' });
+      source.subscriptions.at(-1)?.deny(DENIED_ERROR);
+      frames.flushFrame();
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledWith('> syncQueriesWithRealtime -> denied:', {
+        channel: ORGANIZATION_CHANNEL,
+        code: ErrorCode.PERMISSION_DENIED,
+      });
+      expect(invalidateSpy).not.toHaveBeenCalled();
+      expect(isInvalidated('warehouses')).toBe(false);
+      expect(subscribeSpy).not.toHaveBeenCalled();
+      expect(source.subscriptions.at(-1)?.isClosed()).toBe(false);
+    });
+
+    it('keeps the synchronization subscription after a denial and resyncs when the previous context returns', async () => {
+      await addQuery('warehouses', [ORGANIZATION_CHANNEL]);
+      sync();
+      openChannel(ORGANIZATION_CHANNEL);
+      actingContext.set({ organizationId: 'org-2', userId: 'user-1' });
+      source.subscriptions.at(-1)?.deny(DENIED_ERROR);
+      frames.flushFrame();
+      subscribeSpy.mockClear();
+
+      actingContext.set({ organizationId: 'org-1', userId: 'user-1' });
+      frames.flushFrame();
+
+      expect(source.subscriptions).toHaveLength(3);
+      expect(source.subscriptions.at(-1)?.context.organizationId).toBe('org-1');
+      expect(subscribeSpy).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(invalidateSpy).toHaveBeenCalledTimes(1);
+      expect(isInvalidated('warehouses')).toBe(true);
     });
   });
 

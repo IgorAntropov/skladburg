@@ -19,7 +19,7 @@ const createProfile = (bundledLocales: readonly string[], defaultLocale = 'ru'):
     availableLocales: ['ru', 'en'],
     brandName: 'Северный склад',
     defaultLocale,
-    tenantId: 'north-warehouse',
+    tenantId: 'f1000001-0000-4000-8000-000000000000',
     termOverrides: { ru: { 'field.placeholder': 'Скоро' } },
   },
 });

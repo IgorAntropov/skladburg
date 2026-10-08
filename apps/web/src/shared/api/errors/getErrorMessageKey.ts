@@ -20,5 +20,7 @@ const ERROR_MESSAGE_KEYS = {
   [ErrorCode.VERSION_CONFLICT]: 'error.version_conflict',
 } as const satisfies Record<KnownErrorCode, MessageKey>;
 
-export const getErrorMessageKey = (code: ErrorCode): MessageKey =>
+export type ErrorMessageKeyValue = (typeof ERROR_MESSAGE_KEYS)[KnownErrorCode];
+
+export const getErrorMessageKey = (code: ErrorCode): ErrorMessageKeyValue =>
   isKnownErrorCode(code) ? ERROR_MESSAGE_KEYS[code] : ERROR_MESSAGE_KEYS[ErrorCode.INTERNAL];

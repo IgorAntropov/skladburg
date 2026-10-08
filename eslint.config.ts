@@ -15,14 +15,43 @@ const engineCoreFiles: string[] = ['packages/demo-engine/src/core/**/*.ts'];
 const engineBoundaryFiles: string[] = ['apps/web/src/**/*.{ts,tsx}'];
 const engineBoundaryTestFiles: string[] = ['apps/web/src/**/*.test.{ts,tsx}'];
 const engineBoundaryAllowedFiles: string[] = ['apps/web/src/shared/api/transport/demo/**'];
-const engineBoundaryMessage = 'The demo engine is reachable only through shared/api/transport/demo; take engine types from there';
+const engineBoundaryAllowedTestFiles: string[] = ['apps/web/src/shared/api/transport/demo/**/*.test.{ts,tsx}'];
 
-const createEngineBoundaryRules = (importPattern: string, selectorPattern: string): Linter.RulesRecord => ({
-  'no-restricted-imports': ['error', { patterns: [{ message: engineBoundaryMessage, regex: importPattern }] }],
+interface BoundaryRestrictionValue {
+  importPattern: string;
+  message: string;
+  selectorPattern: string;
+}
+
+const engineRestriction: BoundaryRestrictionValue = {
+  importPattern: '^@skladburg/demo-engine(/|$)',
+  message: 'The demo engine is reachable only through shared/api/transport/demo; take engine types from there',
+  selectorPattern: '^@skladburg.demo-engine($|[^-a-z0-9_])',
+};
+
+const engineRestrictionForTests: BoundaryRestrictionValue = {
+  ...engineRestriction,
+  importPattern: '^@skladburg/demo-engine(?!/testing$)(/|$)',
+  selectorPattern: '^@skladburg.demo-engine($|[^-a-z0-9_](?!testing$))',
+};
+
+const apiTestingEntryRestriction: BoundaryRestrictionValue = {
+  importPattern: '^@/shared/api/index\\.testing$',
+  message: 'The testing entry of shared/api is for tests only',
+  selectorPattern: '^@.shared.api.index.testing$',
+};
+
+const createBoundaryRules = (restrictions: readonly BoundaryRestrictionValue[]): Linter.RulesRecord => ({
+  'no-restricted-imports': [
+    'error',
+    { patterns: restrictions.map(({ importPattern, message }) => ({ message, regex: importPattern })) },
+  ],
   'no-restricted-syntax': [
     'error',
-    { message: engineBoundaryMessage, selector: `ImportExpression[source.value=/${selectorPattern}/]` },
-    { message: engineBoundaryMessage, selector: `TSImportType[argument.literal.value=/${selectorPattern}/]` },
+    ...restrictions.flatMap(({ message, selectorPattern }) => [
+      { message, selector: `ImportExpression[source.value=/${selectorPattern}/]` },
+      { message, selector: `TSImportType[argument.literal.value=/${selectorPattern}/]` },
+    ]),
   ],
 });
 
@@ -182,17 +211,18 @@ export default defineConfig(
   },
   {
     files: engineBoundaryFiles,
-    rules: createEngineBoundaryRules('^@skladburg/demo-engine(/|$)', '^@skladburg.demo-engine($|[^-a-z0-9_])'),
+    rules: createBoundaryRules([engineRestriction, apiTestingEntryRestriction]),
   },
   {
     files: engineBoundaryTestFiles,
-    rules: createEngineBoundaryRules(
-      '^@skladburg/demo-engine(?!/testing$)(/|$)',
-      '^@skladburg.demo-engine($|[^-a-z0-9_](?!testing$))',
-    ),
+    rules: createBoundaryRules([engineRestrictionForTests]),
   },
   {
     files: engineBoundaryAllowedFiles,
+    rules: createBoundaryRules([apiTestingEntryRestriction]),
+  },
+  {
+    files: engineBoundaryAllowedTestFiles,
     rules: {
       'no-restricted-imports': 'off',
       'no-restricted-syntax': 'off',

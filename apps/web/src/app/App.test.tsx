@@ -1,3 +1,13 @@
+import type { GetOrganizationSettingsResponse } from '@skladburg/contracts/organization/v1/organization';
+
+import { create } from '@bufbuild/protobuf';
+import {
+  GetOrganizationSettingsResponseSchema,
+  LocaleTermOverridesSchema,
+  MessageOverrideSchema,
+  OrganizationService,
+  OrganizationSettingsSchema,
+} from '@skladburg/contracts/organization/v1/organization';
 import {
   cleanup,
   render,
@@ -6,6 +16,7 @@ import {
 import {
   bundledLocales,
   catalogLoaders,
+  defaultLocaleCatalog,
   defaultTenant,
 } from 'virtual:build-profile';
 import {
@@ -16,19 +27,55 @@ import {
   it,
 } from 'vitest';
 
-import type { TenantSettingsValue } from '@/shared/tenant';
+import { createQueryClient } from '@/shared/api';
+import { createTestRuntime } from '@/shared/api/index.testing';
+import { createLocalizer } from '@/shared/i18n';
 
 import { App } from './App';
-import { loadAppContext } from './bootstrap/loadAppContext';
 
+const ORGANIZATION_ID = 'f4000002-0000-4000-8000-000000000000';
+const BRAND_NAME = 'Северный склад';
 const OVERRIDDEN_PLACEHOLDER = 'Склад «Север» скоро откроется';
 
-const renderApp = async (tenant: TenantSettingsValue = defaultTenant): Promise<string> => {
-  const { localizer, tenantSettings } = await loadAppContext({ bundledLocales, catalogLoaders, defaultTenant: tenant });
+interface RenderAppOptionsValue {
+  placeholder?: string | undefined;
+}
 
-  render(<App localizer={localizer} tenantSettings={tenantSettings} />);
+const createSettingsResponse = (placeholder: string | undefined): GetOrganizationSettingsResponse => {
+  const termOverrides = placeholder === undefined
+    ? []
+    : [
+        create(LocaleTermOverridesSchema, {
+          locale: defaultTenant.defaultLocale,
+          messages: { 'field.placeholder': create(MessageOverrideSchema, { value: { case: 'text', value: placeholder } }) },
+        }),
+      ];
 
-  return localizer.getSnapshot().t('field.placeholder');
+  return create(GetOrganizationSettingsResponseSchema, {
+    settings: create(OrganizationSettingsSchema, {
+      availableLocales: [defaultTenant.defaultLocale],
+      brandName: BRAND_NAME,
+      defaultLocale: defaultTenant.defaultLocale,
+      organizationId: ORGANIZATION_ID,
+      termOverrides,
+    }),
+  });
+};
+
+const renderApp = async ({ placeholder }: RenderAppOptionsValue = {}): Promise<void> => {
+  const localizer = await createLocalizer({
+    bundledLocales,
+    catalogLoaders,
+    requestedLocale: undefined,
+    tenant: defaultTenant,
+  });
+  const runtime = createTestRuntime({
+    routes: router => router.service(OrganizationService, {
+      getOrganizationSettings: () => createSettingsResponse(placeholder),
+    }),
+  });
+
+  render(<App localizer={localizer} queryClient={createQueryClient({ networkMode: 'always' })} runtime={runtime} />);
 };
 
 describe('App', () => {
@@ -41,49 +88,52 @@ describe('App', () => {
     cleanup();
   });
 
+  it('shows an empty busy landmark until the settings of the organization are applied', async () => {
+    await renderApp();
+
+    const waiting = screen.getByRole('main', { busy: true });
+
+    expect(waiting.textContent).toBe('');
+
+    await screen.findByRole('heading', { name: BRAND_NAME });
+  });
+
   it('renders the main landmark', async () => {
     await renderApp();
 
-    expect(screen.getByRole('main')).toBeDefined();
+    await screen.findByRole('heading', { name: BRAND_NAME });
+
+    expect(screen.getByRole('main').getAttribute('aria-busy')).toBeNull();
   });
 
-  it('renders the brand name excluded from translation', async () => {
+  it('renders the brand name from the settings of the engine, excluded from translation', async () => {
     await renderApp();
 
-    const brand = screen.getByRole('heading', { name: defaultTenant.brandName });
+    const brand = await screen.findByRole('heading', { name: BRAND_NAME });
 
     expect(brand.getAttribute('translate')).toBe('no');
+    expect(screen.queryByRole('heading', { name: defaultTenant.brandName })).toBeNull();
   });
 
   it('renders the placeholder from the locale catalog', async () => {
-    const placeholder = await renderApp();
-
-    expect(placeholder).not.toBe('field.placeholder');
-    expect(screen.getByText(placeholder)).toBeDefined();
-  });
-
-  it('applies the term override of the company without code changes', async () => {
-    const tenant: TenantSettingsValue = {
-      ...defaultTenant,
-      termOverrides: { [defaultTenant.defaultLocale]: { 'field.placeholder': OVERRIDDEN_PLACEHOLDER } },
-    };
-
-    await renderApp(tenant);
-
-    expect(screen.getByText(OVERRIDDEN_PLACEHOLDER)).toBeDefined();
-  });
-
-  it('sets the document language and title', async () => {
     await renderApp();
 
-    expect(document.documentElement.lang).toBe(defaultTenant.defaultLocale);
-    expect(document.title).toBe(defaultTenant.brandName);
+    expect(await screen.findByText(defaultLocaleCatalog['field.placeholder'])).toBeDefined();
   });
 
-  it('uses the brand name of the company in the title', async () => {
-    await renderApp({ ...defaultTenant, brandName: 'Северный склад' });
+  it('applies the term override from the settings of the engine without code changes', async () => {
+    await renderApp({ placeholder: OVERRIDDEN_PLACEHOLDER });
 
-    expect(document.title).toBe('Северный склад');
-    expect(screen.getByRole('heading', { name: 'Северный склад' })).toBeDefined();
+    expect(await screen.findByText(OVERRIDDEN_PLACEHOLDER)).toBeDefined();
+    expect(screen.queryByText(defaultLocaleCatalog['field.placeholder'])).toBeNull();
+  });
+
+  it('sets the document language and title from the settings of the engine', async () => {
+    await renderApp();
+
+    await screen.findByRole('heading', { name: BRAND_NAME });
+
+    expect(document.documentElement.lang).toBe(defaultTenant.defaultLocale);
+    expect(document.title).toBe(BRAND_NAME);
   });
 });

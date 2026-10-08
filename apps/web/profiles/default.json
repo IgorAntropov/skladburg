@@ -2,9 +2,9 @@
   "bundledLocales": ["ru"],
   "defaultTenant": {
     "availableLocales": ["ru"],
-    "brandName": "Skladburg",
+    "brandName": "Покупатель 1",
     "defaultLocale": "ru",
-    "tenantId": "skladburg-demo",
+    "tenantId": "10000001-0000-4000-8000-000000000000",
     "termOverrides": {}
   }
 }

@@ -7,6 +7,8 @@ import type {
 
 type RawRecord = Record<string, unknown>;
 
+const LOWERCASE_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 const isRecord = (value: unknown): value is RawRecord => {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 };
@@ -103,6 +105,10 @@ const parseDefaultTenant = (
       profileName,
       'defaultTenant.termOverrides must map locale codes to messages (a string or an object of plural forms)',
     );
+  }
+
+  if (!LOWERCASE_UUID_PATTERN.test(tenantId)) {
+    throw createProfileError(profileName, 'defaultTenant.tenantId must be a UUID in the lowercase 8-4-4-4-12 form');
   }
 
   assertCanonicalLocale(defaultLocale, 'defaultTenant.defaultLocale', profileName);

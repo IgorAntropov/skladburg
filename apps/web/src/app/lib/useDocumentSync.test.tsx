@@ -49,7 +49,7 @@ const tenantSettings: TenantSettingsValue = {
   availableLocales: ['ru', 'en'],
   brandName: 'Северный склад',
   defaultLocale: 'ru',
-  tenantId: 'north-warehouse',
+  tenantId: 'f2000001-0000-4000-8000-000000000000',
   termOverrides: {},
 };
 

@@ -1,25 +1,34 @@
+import type { QueryClient } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 
-import type { ILocalizer } from '@/shared/i18n';
-import type { TenantSettingsValue } from '@/shared/tenant';
+import { QueryClientProvider } from '@tanstack/react-query';
 
+import type { ApiRuntimeValue } from '@/shared/api';
+import type { ILocalizer } from '@/shared/i18n';
+
+import { ApiRuntimeProvider } from '@/shared/api';
 import { LocalizerProvider } from '@/shared/i18n';
-import { TenantSettingsProvider } from '@/shared/tenant';
 
 import { AppShell } from './shell/AppShell';
+import { TenantSettingsGate } from './shell/TenantSettingsGate';
 import './styles/index.css';
 
 interface AppProps {
   localizer: ILocalizer;
-  tenantSettings: TenantSettingsValue;
+  queryClient: QueryClient;
+  runtime: ApiRuntimeValue;
 }
 
-export const App = ({ localizer, tenantSettings }: AppProps): ReactElement => {
+export const App = ({ localizer, queryClient, runtime }: AppProps): ReactElement => {
   return (
     <LocalizerProvider localizer={localizer}>
-      <TenantSettingsProvider tenantSettings={tenantSettings}>
-        <AppShell />
-      </TenantSettingsProvider>
+      <ApiRuntimeProvider runtime={runtime}>
+        <QueryClientProvider client={queryClient}>
+          <TenantSettingsGate localizer={localizer}>
+            <AppShell />
+          </TenantSettingsGate>
+        </QueryClientProvider>
+      </ApiRuntimeProvider>
     </LocalizerProvider>
   );
 };

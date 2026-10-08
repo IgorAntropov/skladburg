@@ -163,6 +163,7 @@ const startApplication = async (): Promise<HarnessValue> => {
     catalogLoaders,
     requestedLocale: undefined,
     tenant: defaultTenant,
+    userTimeZone: 'UTC',
   });
   const queryClient = createQueryClient({ networkMode: runtime.networkMode });
   const stopSync = syncQueriesWithRealtime({

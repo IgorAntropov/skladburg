@@ -38,7 +38,10 @@ import { createTestRuntime } from '@/shared/api/index.testing';
 import { createLocalizer } from '@/shared/i18n';
 import { observeLongTasks } from '@/shared/lib/performance';
 
+import { readDeviceTimeZone } from './readDeviceTimeZone';
 import { startApp } from './startApp';
+
+vi.mock('./readDeviceTimeZone', () => ({ readDeviceTimeZone: vi.fn(() => 'Asia/Vladivostok') }));
 
 vi.mock('@/shared/api', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/shared/api')>();
@@ -254,6 +257,26 @@ describe('startApp', () => {
     expect(await findBrandHeading()).toBeDefined();
     expect(createLocalizer).toHaveBeenCalledTimes(3);
     expect(createApiRuntime).toHaveBeenCalledOnce();
+  });
+
+  it('reads the device time zone once and gives it to every localizer', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const original = await vi.importActual<typeof import('@/shared/i18n')>('@/shared/i18n');
+    vi.mocked(createLocalizer)
+      .mockRejectedValueOnce(new Error('catalog chunk is unavailable'))
+      .mockImplementation(original.createLocalizer);
+    vi.mocked(readDeviceTimeZone).mockClear();
+
+    await startApp(createRootElement());
+    fireEvent.click(await screen.findByRole('button'));
+    await findBrandHeading();
+
+    expect(readDeviceTimeZone).toHaveBeenCalledOnce();
+    expect(createLocalizer).toHaveBeenCalledTimes(3);
+
+    for (const [options] of vi.mocked(createLocalizer).mock.calls) {
+      expect(options.userTimeZone).toBe('Asia/Vladivostok');
+    }
   });
 
   it.each([

@@ -26,6 +26,12 @@ const demoTransportFilePath = fileURLToPath(new URL('../../apps/web/src/shared/a
 const demoTransportTestFilePath = fileURLToPath(
   new URL('../../apps/web/src/shared/api/transport/demo/probe-transport.test.ts', import.meta.url),
 );
+const i18nFilePath = fileURLToPath(new URL('../../apps/web/src/shared/i18n/translation/probe-format.ts', import.meta.url));
+const i18nTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/i18n/translation/probe-format.test.ts', import.meta.url));
+const bootstrapFilePath = fileURLToPath(new URL('../../apps/web/src/app/bootstrap/probe-start.ts', import.meta.url));
+const bootstrapTestFilePath = fileURLToPath(new URL('../../apps/web/src/app/bootstrap/probe-start.test.ts', import.meta.url));
+const engineWorkerFilePath = fileURLToPath(new URL('../../packages/demo-engine/src/worker/probe-host.ts', import.meta.url));
+const scriptsProbeFilePath = fileURLToPath(new URL('./probe-tool.ts', import.meta.url));
 
 const formattingRuleIds: ReadonlySet<string> = new Set([
   '@stylistic/object-curly-newline',
@@ -593,6 +599,246 @@ describe('eslint.config.ts with the local rules', () => {
 
       expect(isRestricted(allowed.ruleIds)).toBe(false);
       expect(isRestricted(forbidden.ruleIds)).toBe(true);
+    });
+  });
+
+  describe('device time zone in the engine core and the web application', () => {
+    const timeZoneUsages: readonly (readonly [string, string])[] = [
+      ['getFullYear', 'export const read = (date: Date): number => date.getFullYear();\n'],
+      ['getMonth', 'export const read = (date: Date): number => date.getMonth();\n'],
+      ['getDate', 'export const read = (date: Date): number => date.getDate();\n'],
+      ['getDay', 'export const read = (date: Date): number => date.getDay();\n'],
+      ['getHours', 'export const read = (date: Date): number => date.getHours();\n'],
+      ['getMinutes', 'export const read = (date: Date): number => date.getMinutes();\n'],
+      ['getSeconds', 'export const read = (date: Date): number => date.getSeconds();\n'],
+      ['getMilliseconds', 'export const read = (date: Date): number => date.getMilliseconds();\n'],
+      ['getYear', 'export const read = (date: Date): number => date.getYear();\n'],
+      ['getTimezoneOffset', 'export const read = (date: Date): number => date.getTimezoneOffset();\n'],
+      ['setFullYear', 'export const write = (date: Date): number => date.setFullYear(2026);\n'],
+      ['setMonth', 'export const write = (date: Date): number => date.setMonth(1);\n'],
+      ['setDate', 'export const write = (date: Date): number => date.setDate(1);\n'],
+      ['setHours', 'export const write = (date: Date): number => date.setHours(1);\n'],
+      ['setMinutes', 'export const write = (date: Date): number => date.setMinutes(1);\n'],
+      ['setSeconds', 'export const write = (date: Date): number => date.setSeconds(1);\n'],
+      ['setMilliseconds', 'export const write = (date: Date): number => date.setMilliseconds(1);\n'],
+      ['setYear', 'export const write = (date: Date): number => date.setYear(26);\n'],
+      ['an optional call of getHours', 'export const read = (date: Date | undefined): number | undefined => date?.getHours();\n'],
+      ['a reference to getHours', 'export const read = (): unknown => Date.prototype.getHours;\n'],
+      ['toLocaleString', 'export const read = (date: Date): string => date.toLocaleString();\n'],
+      ['toLocaleDateString', 'export const read = (date: Date): string => date.toLocaleDateString();\n'],
+      ['toLocaleTimeString', 'export const read = (date: Date): string => date.toLocaleTimeString();\n'],
+      ['toDateString', 'export const read = (date: Date): string => date.toDateString();\n'],
+      ['toTimeString', 'export const read = (date: Date): string => date.toTimeString();\n'],
+      ['new Date with two components', 'export const read = (): Date => new Date(2026, 0);\n'],
+      ['new Date with three components', 'export const read = (): Date => new Date(2026, 0, 1);\n'],
+      ['new Date with a string', 'export const read = (): Date => new Date(\'2026-01-01\');\n'],
+      ['new Date with a template string', 'export const read = (day: string): Date => new Date(`2026-01-${day}`);\n'],
+      ['Date.parse', 'export const read = (): number => Date.parse(\'2026-01-01\');\n'],
+      ['a reference to Date.parse', 'export const read = (): unknown => [\'2026-01-01\'].map(Date.parse);\n'],
+      ['new Intl.DateTimeFormat without options', 'export const read = (): unknown => new Intl.DateTimeFormat(\'ru\');\n'],
+      ['Intl.DateTimeFormat called without options', 'export const read = (): unknown => Intl.DateTimeFormat(\'ru\');\n'],
+      [
+        'Intl.DateTimeFormat without a time zone',
+        'export const read = (): unknown => new Intl.DateTimeFormat(\'ru\', { hour: \'numeric\' });\n',
+      ],
+      [
+        'Intl.DateTimeFormat with options that are not a literal',
+        'export const read = (options: object): unknown => new Intl.DateTimeFormat(\'ru\', options);\n',
+      ],
+      [
+        'Intl.DateTimeFormat with a time zone in a nested call',
+        'export const read = (): unknown => new Intl.DateTimeFormat(\'ru\', Object.freeze({ timeZone: \'UTC\' }));\n',
+      ],
+      ['Temporal.Now', 'export const read = (): unknown => Temporal.Now.instant();\n'],
+    ];
+
+    const allowedUsages: readonly (readonly [string, string])[] = [
+      ['getUTCHours', 'export const read = (date: Date): number => date.getUTCHours();\n'],
+      ['setUTCDate', 'export const write = (date: Date): number => date.setUTCDate(1);\n'],
+      ['Date.UTC', 'export const read = (): number => Date.UTC(2026, 0, 1);\n'],
+      ['toISOString of a date from a timestamp', 'export const read = (timestamp: number): string => new Date(timestamp).toISOString();\n'],
+      ['new Date with zero', 'export const read = (): Date => new Date(0);\n'],
+      [
+        'Intl.DateTimeFormat with a time zone shorthand',
+        'export const read = (timeZone: string): unknown => Intl.DateTimeFormat(\'en-US\', { timeZone });\n',
+      ],
+      [
+        'new Intl.DateTimeFormat with a time zone value',
+        'export const read = (): unknown => new Intl.DateTimeFormat(\'ru\', { hour: \'numeric\', timeZone: \'UTC\' });\n',
+      ],
+      ['new Intl.NumberFormat', 'export const read = (): unknown => new Intl.NumberFormat(\'ru\');\n'],
+      ['Intl.NumberFormat called as a function', 'export const read = (): unknown => Intl.NumberFormat(\'ru\');\n'],
+      ['the type Intl.DateTimeFormat', 'export type Formatter = Intl.DateTimeFormat;\n'],
+    ];
+
+    const readSyntaxRuleIds = (ruleIds: readonly string[]): string[] => ruleIds.filter(ruleId => ruleId === 'no-restricted-syntax');
+
+    describe('in the engine core', () => {
+      it.each(timeZoneUsages)('reports %s in a source file of the core', async (_name, code) => {
+        const outcome = await lint(untypedEslint, code, engineCoreFilePath);
+
+        expect(readSyntaxRuleIds(outcome.ruleIds)).not.toEqual([]);
+      });
+
+      it.each(timeZoneUsages)('reports %s in a test file of the core', async (_name, code) => {
+        const outcome = await lint(untypedEslint, code, engineCoreTestFilePath);
+
+        expect(readSyntaxRuleIds(outcome.ruleIds)).not.toEqual([]);
+      });
+
+      it.each(timeZoneUsages)('does not report %s outside of the core and the web application', async (_name, code) => {
+        const workerOutcome = await lint(untypedEslint, code, engineWorkerFilePath);
+        const engineEntryOutcome = await lint(untypedEslint, code, engineEntryFilePath);
+        const scriptOutcome = await lint(untypedEslint, code, scriptsProbeFilePath);
+
+        expect(readSyntaxRuleIds(workerOutcome.ruleIds)).toEqual([]);
+        expect(readSyntaxRuleIds(engineEntryOutcome.ruleIds)).toEqual([]);
+        expect(readSyntaxRuleIds(scriptOutcome.ruleIds)).toEqual([]);
+      });
+
+      it.each(allowedUsages)('allows %s in a file of the core', async (_name, code) => {
+        const sourceOutcome = await lint(untypedEslint, code, engineCoreFilePath);
+        const testOutcome = await lint(untypedEslint, code, engineCoreTestFilePath);
+
+        expect(readSyntaxRuleIds(sourceOutcome.ruleIds)).toEqual([]);
+        expect(readSyntaxRuleIds(testOutcome.ruleIds)).toEqual([]);
+      });
+
+      it('keeps the older restrictions of the core next to the time zone ones', async () => {
+        const code = 'export const read = (date: Date): number => Date.now() + Math.random() + date.getHours() + new Date().getTime();\n';
+        const outcome = await lint(untypedEslint, code, engineCoreFilePath);
+
+        expect(outcome.ruleIds.filter(ruleId => ruleId === 'no-restricted-properties')).toHaveLength(2);
+        expect(readSyntaxRuleIds(outcome.ruleIds)).toHaveLength(2);
+      });
+
+      it('suggests the replacement in the message', async () => {
+        if (untypedEslint === undefined) {
+          throw new Error('ESLint is not initialized');
+        }
+
+        const [result] = await untypedEslint.lintText(timeZoneUsages[0]?.[1] ?? '', { filePath: engineCoreFilePath });
+        const message = result?.messages.find(lintMessage => lintMessage.ruleId === 'no-restricted-syntax');
+
+        expect(message?.message).toContain('getUTC*');
+        expect(message?.message).toContain('core/calendar');
+      });
+    });
+
+    describe('in the web application', () => {
+      it.each(timeZoneUsages)('reports %s in a page', async (_name, code) => {
+        const outcome = await lint(untypedEslint, code, pageFilePath);
+
+        expect(readSyntaxRuleIds(outcome.ruleIds)).not.toEqual([]);
+      });
+
+      it.each(timeZoneUsages)('reports %s in a test of a page', async (_name, code) => {
+        const outcome = await lint(untypedEslint, code, pageTestFilePath);
+
+        expect(readSyntaxRuleIds(outcome.ruleIds)).not.toEqual([]);
+      });
+
+      it.each(timeZoneUsages)('reports %s in the client of the api layer, the demo transport and its test', async (_name, code) => {
+        const clientOutcome = await lint(untypedEslint, code, apiClientFilePath);
+        const transportOutcome = await lint(untypedEslint, code, demoTransportFilePath);
+        const transportTestOutcome = await lint(untypedEslint, code, demoTransportTestFilePath);
+
+        expect(readSyntaxRuleIds(clientOutcome.ruleIds)).not.toEqual([]);
+        expect(readSyntaxRuleIds(transportOutcome.ruleIds)).not.toEqual([]);
+        expect(readSyntaxRuleIds(transportTestOutcome.ruleIds)).not.toEqual([]);
+      });
+
+      it.each(timeZoneUsages)('does not report %s in shared/i18n and app/bootstrap', async (_name, code) => {
+        for (const filePath of [i18nFilePath, i18nTestFilePath, bootstrapFilePath, bootstrapTestFilePath]) {
+          const outcome = await lint(untypedEslint, code, filePath);
+
+          expect(readSyntaxRuleIds(outcome.ruleIds), filePath).toEqual([]);
+        }
+      });
+
+      it.each(allowedUsages)('allows %s in a page and in its test', async (_name, code) => {
+        const outcome = await lint(untypedEslint, code, pageFilePath);
+        const testOutcome = await lint(untypedEslint, code, pageTestFilePath);
+
+        expect(readSyntaxRuleIds(outcome.ruleIds)).toEqual([]);
+        expect(readSyntaxRuleIds(testOutcome.ruleIds)).toEqual([]);
+      });
+
+      it('suggests formatting through shared/i18n in the message', async () => {
+        if (untypedEslint === undefined) {
+          throw new Error('ESLint is not initialized');
+        }
+
+        const [result] = await untypedEslint.lintText(timeZoneUsages[0]?.[1] ?? '', { filePath: pageFilePath });
+        const message = result?.messages.find(lintMessage => lintMessage.ruleId === 'no-restricted-syntax');
+
+        expect(message?.message).toContain('shared/i18n');
+      });
+    });
+
+    describe('next to the boundary of the demo engine', () => {
+      const engineImport = toValueImport('@skladburg/demo-engine/client');
+      const engineDynamicImport = toDynamicImport('@skladburg/demo-engine/client');
+      const timeZoneCode = 'export const read = (date: Date): number => date.getHours();\n';
+
+      it.each([
+        ['a page', pageFilePath],
+        ['the client of the api layer', apiClientFilePath],
+      ])('reports both the engine import and the time zone in %s', async (_name, filePath) => {
+        const outcome = await lint(untypedEslint, `${engineDynamicImport}${timeZoneCode}`, filePath);
+
+        expect(readSyntaxRuleIds(outcome.ruleIds)).toHaveLength(2);
+      });
+
+      it.each([
+        ['a test of a page', pageTestFilePath],
+        ['a test of the api client', apiClientTestFilePath],
+      ])('reports both the engine dynamic import and the time zone in %s', async (_name, filePath) => {
+        const outcome = await lint(untypedEslint, `${engineDynamicImport}${timeZoneCode}`, filePath);
+
+        expect(readSyntaxRuleIds(outcome.ruleIds)).toHaveLength(2);
+      });
+
+      it('reports the engine import and the time zone in a page', async () => {
+        const outcome = await lint(untypedEslint, `${engineImport}${timeZoneCode}`, pageFilePath);
+
+        expect(outcome.ruleIds).toContain('no-restricted-imports');
+        expect(readSyntaxRuleIds(outcome.ruleIds)).toHaveLength(1);
+      });
+
+      it.each([
+        ['shared/i18n', i18nFilePath],
+        ['app/bootstrap', bootstrapFilePath],
+      ])('keeps the engine boundary and drops the time zone in %s', async (_name, filePath) => {
+        const staticOutcome = await lint(untypedEslint, `${engineImport}${timeZoneCode}`, filePath);
+        const dynamicOutcome = await lint(untypedEslint, `${engineDynamicImport}${timeZoneCode}`, filePath);
+
+        expect(staticOutcome.ruleIds).toContain('no-restricted-imports');
+        expect(readSyntaxRuleIds(staticOutcome.ruleIds)).toEqual([]);
+        expect(readSyntaxRuleIds(dynamicOutcome.ruleIds)).toHaveLength(1);
+      });
+
+      it.each([
+        ['a test in shared/i18n', i18nTestFilePath],
+        ['a test in app/bootstrap', bootstrapTestFilePath],
+      ])('keeps the testing entry allowed and the other entries forbidden in %s', async (_name, filePath) => {
+        const allowed = await lint(untypedEslint, toValueImport('@skladburg/demo-engine/testing'), filePath);
+        const forbidden = await lint(untypedEslint, toValueImport('@skladburg/demo-engine/client'), filePath);
+
+        expect(isRestricted(allowed.ruleIds)).toBe(false);
+        expect(isRestricted(forbidden.ruleIds)).toBe(true);
+      });
+
+      it.each([
+        ['the demo transport', demoTransportFilePath],
+        ['a test of the demo transport', demoTransportTestFilePath],
+      ])('keeps the engine allowed and reports the time zone in %s', async (_name, filePath) => {
+        const engineOutcome = await lint(untypedEslint, engineDynamicImport, filePath);
+        const timeZoneOutcome = await lint(untypedEslint, timeZoneCode, filePath);
+
+        expect(isRestricted(engineOutcome.ruleIds)).toBe(false);
+        expect(readSyntaxRuleIds(timeZoneOutcome.ruleIds)).toHaveLength(1);
+      });
     });
   });
 });

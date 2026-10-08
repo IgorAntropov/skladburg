@@ -59,6 +59,7 @@ const createTestLocalizer = (): Promise<ILocalizer> => {
     catalogLoaders: { en: () => Promise.resolve(enCatalog), ru: () => Promise.resolve(catalog) },
     requestedLocale: undefined,
     tenant: tenantSettings,
+    userTimeZone: 'UTC',
   });
 };
 

@@ -68,6 +68,7 @@ const renderApp = async ({ placeholder }: RenderAppOptionsValue = {}): Promise<v
     catalogLoaders,
     requestedLocale: undefined,
     tenant: defaultTenant,
+    userTimeZone: 'UTC',
   });
   const runtime = createTestRuntime({
     routes: router => router.service(OrganizationService, {

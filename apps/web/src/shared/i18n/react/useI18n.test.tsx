@@ -46,6 +46,7 @@ const createOptions = (): LocalizerOptionsValue => ({
     defaultLocale: 'ru',
     termOverrides: {},
   },
+  userTimeZone: 'UTC',
 });
 
 const Probe = (): ReactElement => {

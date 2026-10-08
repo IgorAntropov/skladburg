@@ -25,6 +25,8 @@ export const catalog = {
   'field.warehouses.empty': 'Складов пока нет',
   'field.warehouses.loading': 'Загружаем склады',
   'field.warehouses.title': 'Склады',
+  'time.zoned_offset_only': '{time} ({offset})',
+  'time.zoned_with_place': '{time} ({place}, {offset})',
   'units.pallet': {
     few: '{count} паллеты',
     many: '{count} паллет',

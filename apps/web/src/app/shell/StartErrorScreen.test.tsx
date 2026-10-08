@@ -32,6 +32,7 @@ const createTestLocalizer = (): ReturnType<typeof createLocalizer> => {
     catalogLoaders: { [defaultLocale]: () => Promise.resolve(defaultLocaleCatalog) },
     requestedLocale: undefined,
     tenant: { availableLocales: [defaultLocale], defaultLocale, termOverrides: {} },
+    userTimeZone: 'UTC',
   });
 };
 

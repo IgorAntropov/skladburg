@@ -19,6 +19,7 @@ export const createLocalizer = async ({
   catalogLoaders,
   requestedLocale,
   tenant,
+  userTimeZone,
 }: LocalizerOptionsValue): Promise<ILocalizer> => {
   const catalogs = new Map<LocaleCode, Promise<LocaleCatalogValue>>();
   const listeners = new Set<() => void>();
@@ -46,7 +47,7 @@ export const createLocalizer = async ({
   };
 
   const initialLocale = resolveLocale({ bundledLocales, requestedLocale, tenant });
-  let snapshot = createSnapshot(initialLocale, await loadCatalog(initialLocale), tenant);
+  let snapshot = createSnapshot(initialLocale, await loadCatalog(initialLocale), tenant, userTimeZone);
   let committed: LocalizationRequestValue = { requestedLocale, tenant };
   let desired: LocalizationRequestValue = committed;
   let latestRequestId = 0;
@@ -86,7 +87,7 @@ export const createLocalizer = async ({
       return;
     }
 
-    snapshot = createSnapshot(locale, catalog, request.tenant);
+    snapshot = createSnapshot(locale, catalog, request.tenant, userTimeZone);
     notify();
   };
 

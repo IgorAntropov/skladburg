@@ -16,6 +16,11 @@ const engineBoundaryFiles: string[] = ['apps/web/src/**/*.{ts,tsx}'];
 const engineBoundaryTestFiles: string[] = ['apps/web/src/**/*.test.{ts,tsx}'];
 const engineBoundaryAllowedFiles: string[] = ['apps/web/src/shared/api/transport/demo/**'];
 const engineBoundaryAllowedTestFiles: string[] = ['apps/web/src/shared/api/transport/demo/**/*.test.{ts,tsx}'];
+const timeZoneExemptFiles: string[] = ['apps/web/src/shared/i18n/**/*.{ts,tsx}', 'apps/web/src/app/bootstrap/**/*.{ts,tsx}'];
+const timeZoneExemptTestFiles: string[] = [
+  'apps/web/src/shared/i18n/**/*.test.{ts,tsx}',
+  'apps/web/src/app/bootstrap/**/*.test.{ts,tsx}',
+];
 
 interface BoundaryRestrictionValue {
   importPattern: string;
@@ -41,7 +46,15 @@ const apiTestingEntryRestriction: BoundaryRestrictionValue = {
   selectorPattern: '^@.shared.api.index.testing$',
 };
 
-const createBoundaryRules = (restrictions: readonly BoundaryRestrictionValue[]): Linter.RulesRecord => ({
+interface SyntaxRestrictionValue {
+  message: string;
+  selector: string;
+}
+
+const createBoundaryRules = (
+  restrictions: readonly BoundaryRestrictionValue[],
+  extraSyntaxRestrictions: readonly SyntaxRestrictionValue[] = [],
+): Linter.RulesRecord => ({
   'no-restricted-imports': [
     'error',
     { patterns: restrictions.map(({ importPattern, message }) => ({ message, regex: importPattern })) },
@@ -52,8 +65,60 @@ const createBoundaryRules = (restrictions: readonly BoundaryRestrictionValue[]):
       { message, selector: `ImportExpression[source.value=/${selectorPattern}/]` },
       { message, selector: `TSImportType[argument.literal.value=/${selectorPattern}/]` },
     ]),
+    ...extraSyntaxRestrictions,
   ],
 });
+
+const createTimeZoneRestrictions = (hint: string): SyntaxRestrictionValue[] => [
+  {
+    message: `Local date getters and setters depend on the device time zone; ${hint}`,
+    selector: 'MemberExpression[property.name=/^(get|set)(FullYear|Month|Date|Day|Hours|Minutes|Seconds|Milliseconds|Year)$/]',
+  },
+  {
+    message: `getTimezoneOffset reads the device time zone; ${hint}`,
+    selector: 'MemberExpression[property.name=\'getTimezoneOffset\']',
+  },
+  {
+    message: `Local date formatting depends on the device time zone; ${hint}`,
+    selector: 'MemberExpression[property.name=/^(toLocaleString|toLocaleDateString|toLocaleTimeString|toDateString|toTimeString)$/]',
+  },
+  {
+    message: `new Date with date components builds a local time; ${hint}`,
+    selector: 'NewExpression[callee.name=\'Date\'][arguments.length>=2]',
+  },
+  {
+    message: `new Date with a string depends on the device time zone; ${hint}`,
+    selector: 'NewExpression[callee.name=\'Date\'][arguments.0.value=type(string)]',
+  },
+  {
+    message: `new Date with a template string depends on the device time zone; ${hint}`,
+    selector: 'NewExpression[callee.name=\'Date\'][arguments.0.type=\'TemplateLiteral\']',
+  },
+  {
+    message: `Date.parse depends on the device time zone; ${hint}`,
+    selector: 'MemberExpression[object.name=\'Date\'][property.name=\'parse\']',
+  },
+  {
+    message: `Intl.DateTimeFormat needs an explicit timeZone in an options literal; ${hint}`,
+    selector: [
+      ':matches(NewExpression, CallExpression)',
+      '[callee.object.name=\'Intl\']',
+      '[callee.property.name=\'DateTimeFormat\']',
+      ':not(:has(> ObjectExpression:has(> Property[key.name=\'timeZone\'])))',
+    ].join(''),
+  },
+  {
+    message: `Temporal.Now reads the device time zone; ${hint}`,
+    selector: 'MemberExpression[object.name=\'Temporal\'][property.name=\'Now\']',
+  },
+];
+
+const engineCoreTimeZoneRestrictions: SyntaxRestrictionValue[] = createTimeZoneRestrictions(
+  'use getUTC*, Date.UTC, the functions of core/calendar or an explicit timeZone',
+);
+const webTimeZoneRestrictions: SyntaxRestrictionValue[] = createTimeZoneRestrictions(
+  'format through shared/i18n, use getUTC* or Date.UTC, or pass an explicit timeZone',
+);
 
 const engineCoreRestrictedGlobals: string[] = [
   'addEventListener',
@@ -206,27 +271,36 @@ export default defineConfig(
           message: 'Read the time through IClock; Date() returns the current time',
           selector: 'CallExpression[callee.name=\'Date\']',
         },
+        ...engineCoreTimeZoneRestrictions,
       ],
     },
   },
   {
     files: engineBoundaryFiles,
-    rules: createBoundaryRules([engineRestriction, apiTestingEntryRestriction]),
+    rules: createBoundaryRules([engineRestriction, apiTestingEntryRestriction], webTimeZoneRestrictions),
   },
   {
     files: engineBoundaryTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests]),
+    rules: createBoundaryRules([engineRestrictionForTests], webTimeZoneRestrictions),
   },
   {
     files: engineBoundaryAllowedFiles,
-    rules: createBoundaryRules([apiTestingEntryRestriction]),
+    rules: createBoundaryRules([apiTestingEntryRestriction], webTimeZoneRestrictions),
   },
   {
     files: engineBoundaryAllowedTestFiles,
     rules: {
       'no-restricted-imports': 'off',
-      'no-restricted-syntax': 'off',
+      'no-restricted-syntax': ['error', ...webTimeZoneRestrictions],
     },
+  },
+  {
+    files: timeZoneExemptFiles,
+    rules: createBoundaryRules([engineRestriction, apiTestingEntryRestriction]),
+  },
+  {
+    files: timeZoneExemptTestFiles,
+    rules: createBoundaryRules([engineRestrictionForTests]),
   },
   {
     extends: [tseslint.configs.disableTypeChecked],

@@ -1,7 +1,9 @@
 export { createLocalizer } from './localizer/createLocalizer';
 export type {
+  CalendarDateValue,
   CatalogLoader,
   CatalogLoadersValue,
+  DateTimeFormatPartsValue,
   I18nSnapshotValue,
   ILocalizer,
   LocaleCatalogValue,
@@ -12,6 +14,7 @@ export type {
   TenantLocalizationValue,
   TermOverridesValue,
   Translate,
+  ZonedDateTimeOptionsValue,
 } from './localizer/localizationTypes';
 export type {
   CatalogShapeValue,

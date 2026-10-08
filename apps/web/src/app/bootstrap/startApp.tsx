@@ -23,15 +23,17 @@ import { observeLongTasks } from '@/shared/lib/performance';
 
 import { App } from '../App';
 import { StartErrorScreen } from '../shell/StartErrorScreen';
+import { readDeviceTimeZone } from './readDeviceTimeZone';
 
-const createProfileLocalizer = (): Promise<ILocalizer> => createLocalizer({
+const createProfileLocalizer = (userTimeZone: string): Promise<ILocalizer> => createLocalizer({
   bundledLocales,
   catalogLoaders,
   requestedLocale: undefined,
   tenant: defaultTenant,
+  userTimeZone,
 });
 
-const createStartErrorLocalizer = (): Promise<ILocalizer> => {
+const createStartErrorLocalizer = (userTimeZone: string): Promise<ILocalizer> => {
   const { defaultLocale } = defaultTenant;
 
   return createLocalizer({
@@ -39,6 +41,7 @@ const createStartErrorLocalizer = (): Promise<ILocalizer> => {
     catalogLoaders: { [defaultLocale]: () => Promise.resolve(defaultLocaleCatalog) },
     requestedLocale: undefined,
     tenant: { availableLocales: [defaultLocale], defaultLocale, termOverrides: {} },
+    userTimeZone,
   });
 };
 
@@ -53,6 +56,7 @@ const runReleaseStep = (step: string, release: (() => void) | undefined): void =
 
 export const startApp = async (rootElement: HTMLElement): Promise<void> => {
   const root = createRoot(rootElement);
+  const userTimeZone = readDeviceTimeZone();
 
   let localizer: ILocalizer | undefined;
   let runtime: ApiRuntimeValue | undefined;
@@ -74,7 +78,7 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
 
   const renderStartError = async (onRetry: () => Promise<void>): Promise<void> => {
     try {
-      const startErrorLocalizer = localizer ?? await createStartErrorLocalizer();
+      const startErrorLocalizer = localizer ?? await createStartErrorLocalizer(userTimeZone);
 
       root.render(
         <StrictMode>
@@ -93,7 +97,7 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
     releaseRuntime();
 
     try {
-      const appLocalizer = localizer ?? await createProfileLocalizer();
+      const appLocalizer = localizer ?? await createProfileLocalizer(userTimeZone);
       localizer = appLocalizer;
 
       const nextRuntime = await createApiRuntime({ defaultOrganizationId: defaultTenant.tenantId });

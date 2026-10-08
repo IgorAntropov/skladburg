@@ -67,6 +67,7 @@ const createOptions = (overrides: Partial<LocalizerOptionsValue> = {}): Localize
   },
   requestedLocale: undefined,
   tenant: createTenant(),
+  userTimeZone: 'UTC',
   ...overrides,
 });
 
@@ -130,7 +131,18 @@ describe('createLocalizer', () => {
     expect(snapshot.formatNumber(1234.5)).toMatch(/^1\s234,5$/u);
     expect(snapshot.formatNumber(0.25, { style: 'percent' })).toMatch(/^25\s%$/u);
     expect(snapshot.formatCurrency(1234.5, 'RUB')).toMatch(/^1\s234,50\s₽$/u);
-    expect(snapshot.formatDate(new Date(Date.UTC(2026, 9, 7, 12)), { dateStyle: 'long', timeZone: 'UTC' })).toBe('7 октября 2026 г.');
+    expect(snapshot.formatCalendarDate({ day: 7, month: 10, year: 2026 })).toBe('7 октября 2026 г.');
+    expect(snapshot.formatDateTime(Date.UTC(2026, 9, 7, 12), { timeZone: 'UTC' })).toBe('12:00');
+  });
+
+  it('keeps the user time zone in the snapshot and across locale changes', async () => {
+    const localizer = await createLocalizer(createOptions({ userTimeZone: 'Europe/Kirov' }));
+
+    expect(localizer.getSnapshot().userTimeZone).toBe('Europe/Kirov');
+
+    await localizer.setLocale('en');
+
+    expect(localizer.getSnapshot().userTimeZone).toBe('Europe/Kirov');
   });
 
   it('keeps the snapshot stable while nothing changes', async () => {

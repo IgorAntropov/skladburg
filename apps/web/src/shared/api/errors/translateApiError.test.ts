@@ -49,6 +49,7 @@ beforeAll(async () => {
     catalogLoaders: { [defaultLocale]: () => Promise.resolve(defaultLocaleCatalog) },
     requestedLocale: undefined,
     tenant: { availableLocales: [defaultLocale], defaultLocale, termOverrides: {} },
+    userTimeZone: 'UTC',
   });
 
   t = localizer.getSnapshot().t;

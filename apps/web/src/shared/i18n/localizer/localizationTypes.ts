@@ -5,16 +5,26 @@ import type {
   PluralFormsValue,
 } from './messageShape';
 
+export interface CalendarDateValue {
+  day: number;
+  month: number;
+  year: number;
+}
+
 export type CatalogLoader = () => Promise<LocaleCatalogValue>;
 
 export type CatalogLoadersValue = Readonly<Partial<Record<LocaleCode, CatalogLoader>>>;
 
+export type DateTimeFormatPartsValue = Omit<Intl.DateTimeFormatOptions, 'timeZone' | 'timeZoneName'>;
+
 export interface I18nSnapshotValue {
+  formatCalendarDate: (date: CalendarDateValue, format?: DateTimeFormatPartsValue) => string;
   formatCurrency: (amount: number, currencyCode: string) => string;
-  formatDate: (date: Date, options?: Intl.DateTimeFormatOptions) => string;
+  formatDateTime: (instant: Date | number, options: ZonedDateTimeOptionsValue) => string;
   formatNumber: (amount: number, options?: Intl.NumberFormatOptions) => string;
   locale: LocaleCode;
   t: Translate;
+  userTimeZone: string;
 }
 
 export interface ILocalizer {
@@ -33,6 +43,7 @@ export interface LocalizerOptionsValue {
   catalogLoaders: CatalogLoadersValue;
   requestedLocale: LocaleCode | undefined;
   tenant: TenantLocalizationValue;
+  userTimeZone: string;
 }
 
 export type MessageKey = Extract<keyof ReferenceCatalogValue, string>;
@@ -56,6 +67,12 @@ export interface TenantLocalizationValue {
 export type TermOverridesValue = Readonly<Partial<Record<LocaleCode, MessageOverridesValue>>>;
 
 export type Translate = <Key extends MessageKey>(key: Key, ...params: MessageParamsArgs<Key>) => string;
+
+export interface ZonedDateTimeOptionsValue {
+  format?: DateTimeFormatPartsValue | undefined;
+  placeName?: string | undefined;
+  timeZone: string;
+}
 
 type MessageText<Key extends MessageKey> = ReferenceCatalogValue[Key] extends string
   ? ReferenceCatalogValue[Key]

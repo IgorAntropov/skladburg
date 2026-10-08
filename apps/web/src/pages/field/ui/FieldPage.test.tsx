@@ -133,6 +133,7 @@ const createTestLocalizer = (): Promise<ILocalizer> => createLocalizer({
   catalogLoaders: { ru: () => Promise.resolve(defaultLocaleCatalog) },
   requestedLocale: undefined,
   tenant: { availableLocales: ['ru'], defaultLocale: 'ru', termOverrides: {} },
+  userTimeZone: 'UTC',
 });
 
 const renderPage = async (options: RenderPageOptionsValue = {}): Promise<RenderedPageValue> => {

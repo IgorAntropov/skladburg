@@ -23,6 +23,8 @@ const timeZoneExemptTestFiles: string[] = [
 ];
 const navigationOwnerFiles: string[] = ['apps/web/src/shared/routing/location/**/*.{ts,tsx}'];
 const navigationOwnerTestFiles: string[] = ['apps/web/src/shared/routing/location/**/*.test.{ts,tsx}'];
+const rawControlFiles: string[] = ['apps/web/src/**/*.tsx'];
+const rawControlExemptFiles: string[] = ['apps/web/src/shared/ui/**', 'apps/web/src/**/*.test.tsx'];
 
 interface BoundaryRestrictionValue {
   importPattern: string;
@@ -189,6 +191,18 @@ const webTimeZoneRestrictions: SyntaxRestrictionValue[] = createTimeZoneRestrict
 );
 const webSyntaxRestrictions: SyntaxRestrictionValue[] = [...webTimeZoneRestrictions, ...navigationRestrictions];
 
+const sideEffectImportRestrictions: SyntaxRestrictionValue[] = [
+  {
+    message: 'Side-effect imports are dropped from the production build by sideEffects in apps/web/package.json; '
+      + 'export a function and call it from the entry point',
+    selector: 'ImportDeclaration[specifiers.length=0][importKind!=\'type\']:not([source.value=/\\.css$/])',
+  },
+];
+
+const webSourceSyntaxRestrictions: SyntaxRestrictionValue[] = [...webSyntaxRestrictions, ...sideEffectImportRestrictions];
+const timeZoneExemptSourceSyntaxRestrictions: SyntaxRestrictionValue[] = [...navigationRestrictions, ...sideEffectImportRestrictions];
+const navigationOwnerSourceSyntaxRestrictions: SyntaxRestrictionValue[] = [...webTimeZoneRestrictions, ...sideEffectImportRestrictions];
+
 const engineCoreRestrictedGlobals: string[] = [
   'addEventListener',
   'BroadcastChannel',
@@ -312,6 +326,13 @@ export default defineConfig(
     },
   },
   {
+    files: rawControlFiles,
+    ignores: rawControlExemptFiles,
+    rules: {
+      'local/no-raw-controls': 'error',
+    },
+  },
+  {
     extends: [reactHooks.configs.flat.recommended],
     files: ['apps/web/**/*.{ts,tsx}'],
   },
@@ -348,7 +369,7 @@ export default defineConfig(
     files: engineBoundaryFiles,
     rules: createBoundaryRules(
       [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
-      webSyntaxRestrictions,
+      webSourceSyntaxRestrictions,
     ),
   },
   {
@@ -357,7 +378,10 @@ export default defineConfig(
   },
   {
     files: engineBoundaryAllowedFiles,
-    rules: createBoundaryRules([registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction], webSyntaxRestrictions),
+    rules: createBoundaryRules(
+      [registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
+      webSourceSyntaxRestrictions,
+    ),
   },
   {
     files: engineBoundaryAllowedTestFiles,
@@ -367,7 +391,7 @@ export default defineConfig(
     files: timeZoneExemptFiles,
     rules: createBoundaryRules(
       [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
-      navigationRestrictions,
+      timeZoneExemptSourceSyntaxRestrictions,
     ),
   },
   {
@@ -378,7 +402,7 @@ export default defineConfig(
     files: navigationOwnerFiles,
     rules: createBoundaryRules(
       [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
-      webTimeZoneRestrictions,
+      navigationOwnerSourceSyntaxRestrictions,
     ),
   },
   {

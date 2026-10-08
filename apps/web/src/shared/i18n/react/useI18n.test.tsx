@@ -28,8 +28,8 @@ import { useI18n } from './useI18n';
 const enCatalog: LocaleCatalogValue = {
   ...ruCatalog,
   'app.startError.message': 'Failed to start the application',
-  'app.startError.retry': 'Retry',
-  'app.startError.retrying': 'Retrying…',
+  'common.retry': 'Retry',
+  'common.retrying': 'Retrying…',
   'units.pallet': { one: '{count} pallet', other: '{count} pallets' },
   'warehouse.placeholder': 'A living world is coming soon',
 };

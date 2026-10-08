@@ -1,3 +1,5 @@
+import type { Linter } from 'eslint';
+
 import { ESLint } from 'eslint';
 import { fileURLToPath } from 'node:url';
 import tseslint from 'typescript-eslint';
@@ -7,6 +9,8 @@ import {
   expect,
   it,
 } from 'vitest';
+
+import baseConfig from '../../eslint.config.ts';
 
 const projectDirectory = fileURLToPath(new URL('../..', import.meta.url));
 const lintedFilePath = fileURLToPath(new URL('../../eslint.config.ts', import.meta.url));
@@ -45,6 +49,14 @@ const routingLocationTestingTestFilePath = fileURLToPath(
   new URL('../../apps/web/src/shared/routing/location/testing/probe-memory.test.ts', import.meta.url),
 );
 const engineWorkerFilePath = fileURLToPath(new URL('../../packages/demo-engine/src/worker/probe-host.ts', import.meta.url));
+const sharedUiFilePath = fileURLToPath(new URL('../../apps/web/src/shared/ui/probe/ProbeView.tsx', import.meta.url));
+const sharedUiDeepFilePath = fileURLToPath(new URL('../../apps/web/src/shared/ui/probe/parts/ProbeParts.tsx', import.meta.url));
+const pageViewFilePath = fileURLToPath(new URL('../../apps/web/src/pages/probe/ui/ProbeView.tsx', import.meta.url));
+const featureViewFilePath = fileURLToPath(new URL('../../apps/web/src/features/probe/ui/ProbeView.tsx', import.meta.url));
+const applicationViewFilePath = fileURLToPath(new URL('../../apps/web/src/app/probe/ProbeView.tsx', import.meta.url));
+const pageViewTestFilePath = fileURLToPath(new URL('../../apps/web/src/pages/probe/ui/ProbeView.test.tsx', import.meta.url));
+const sharedUiViewTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/ui/probe/ProbeView.test.tsx', import.meta.url));
+const sharedLibFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/probe-effect.ts', import.meta.url));
 const scriptsProbeFilePath = fileURLToPath(new URL('./probe-tool.ts', import.meta.url));
 
 const formattingRuleIds: ReadonlySet<string> = new Set([
@@ -1219,6 +1231,167 @@ describe('eslint.config.ts with the local rules', () => {
 
       expect(message?.message).toContain('shared/routing');
       expect(message?.message).toContain('for tests only');
+    });
+  });
+
+  describe('raw form controls in the web application', () => {
+    const rawControlRuleId = 'local/no-raw-controls';
+
+    const isRawControlsBlock = (block: Linter.Config): boolean => block.rules !== undefined && rawControlRuleId in block.rules;
+
+    const rawControlCodes: readonly (readonly [string, string])[] = [
+      ['button', 'export const View = (): ReactElement => <button type="button" />;\n'],
+      ['select', 'export const View = (): ReactElement => <select />;\n'],
+      ['input', 'export const View = (): ReactElement => <input />;\n'],
+      ['textarea', 'export const View = (): ReactElement => <textarea />;\n'],
+    ];
+
+    const primitiveCode = 'export const View = (): ReactElement => <Button />;\n';
+
+    const readRawControlIds = (ruleIds: readonly string[]): string[] => ruleIds.filter(ruleId => ruleId === rawControlRuleId);
+
+    it('declares the rule in exactly one block of the real configuration', () => {
+      expect(baseConfig.filter(isRawControlsBlock)).toHaveLength(1);
+    });
+
+    it('enables the rule as an error in the real configuration', () => {
+      const block = baseConfig.find(isRawControlsBlock);
+
+      expect(block?.rules?.[rawControlRuleId]).toBe('error');
+    });
+
+    it('scopes the block to the TSX files of the web application and exempts shared/ui and component tests', () => {
+      const block = baseConfig.find(isRawControlsBlock);
+
+      expect(block?.files).toEqual(['apps/web/src/**/*.tsx']);
+      expect(block?.ignores).toEqual(['apps/web/src/shared/ui/**', 'apps/web/src/**/*.test.tsx']);
+    });
+
+    describe.each(rawControlCodes)('with a raw %s', (_controlName, code) => {
+      it.each([
+        ['a page', pageViewFilePath],
+        ['a feature', featureViewFilePath],
+        ['app', applicationViewFilePath],
+        ['a TSX file of the application', applicationFilePath],
+      ])('reports it in %s', async (_name, filePath) => {
+        const outcome = await lint(untypedEslint, code, filePath);
+
+        expect(readRawControlIds(outcome.ruleIds)).toHaveLength(1);
+      });
+
+      it.each([
+        ['shared/ui', sharedUiFilePath],
+        ['a nested folder of shared/ui', sharedUiDeepFilePath],
+        ['a component test of a page', pageViewTestFilePath],
+        ['a component test in shared/ui', sharedUiViewTestFilePath],
+      ])('does not report it in %s', async (_name, filePath) => {
+        const outcome = await lint(untypedEslint, code, filePath);
+
+        expect(readRawControlIds(outcome.ruleIds)).toEqual([]);
+      });
+    });
+
+    it('does not report a primitive from shared/ui in a page', async () => {
+      const outcome = await lint(untypedEslint, primitiveCode, pageViewFilePath);
+
+      expect(readRawControlIds(outcome.ruleIds)).toEqual([]);
+    });
+
+    it('points to shared/ui in the message', async () => {
+      if (untypedEslint === undefined) {
+        throw new Error('ESLint is not initialized');
+      }
+
+      const [result] = await untypedEslint.lintText(rawControlCodes[0]?.[1] ?? '', { filePath: pageViewFilePath });
+      const message = result?.messages.find(item => item.ruleId === rawControlRuleId);
+
+      expect(message?.message).toContain('@/shared/ui');
+    });
+  });
+
+  describe('side-effect imports in the web application', () => {
+    const sideEffectImportCode = 'import \'./probe\';\n';
+    const engineImportCode = 'import { probe } from \'@skladburg/demo-engine\';\n';
+    const testingEntryImportCode = 'import { probe } from \'@/shared/api/index.testing\';\n';
+    const dateGetterCode = 'export const readHours = (date: Date): number => date.getHours();\n';
+    const locationAssignmentCode = 'export const go = (): void => { window.location.hash = \'#x\'; };\n';
+    const sideEffectMessagePart = 'Side-effect imports are dropped from the production build';
+
+    const readSideEffectMessages = async (code: string, filePath: string): Promise<string[]> => {
+      if (untypedEslint === undefined) {
+        throw new Error('ESLint is not initialized');
+      }
+
+      const [result] = await untypedEslint.lintText(code, { filePath });
+
+      return (result?.messages ?? []).flatMap(message => message.message.includes(sideEffectMessagePart) ? [message.message] : []);
+    };
+
+    it.each([
+      ['a feature view', featureViewFilePath],
+      ['a page view', pageViewFilePath],
+      ['a shared/lib module', sharedLibFilePath],
+      ['a page module', pageFilePath],
+      ['an application module', applicationScriptFilePath],
+      ['the demo transport', demoTransportFilePath],
+      ['the i18n module', i18nFilePath],
+      ['the bootstrap module', bootstrapFilePath],
+      ['the routing location owner', routingLocationFilePath],
+    ])('reports an import for the side effect in %s', async (_name, filePath) => {
+      expect(await readSideEffectMessages(sideEffectImportCode, filePath)).toHaveLength(1);
+    });
+
+    it('explains how to replace the side-effect import', async () => {
+      const [message] = await readSideEffectMessages(sideEffectImportCode, featureViewFilePath);
+
+      expect(message).toContain('sideEffects in apps/web/package.json');
+      expect(message).toContain('export a function and call it from the entry point');
+    });
+
+    it.each([
+      ['a stylesheet import', 'import \'./styles/index.css\';\n'],
+      ['a named import', 'import { probe } from \'./probe\';\n'],
+      ['a default import', 'import probe from \'./probe\';\n'],
+      ['a namespace import', 'import * as probe from \'./probe\';\n'],
+      ['a type-only import without specifiers', 'import type {} from \'./probe\';\n'],
+    ])('does not report %s', async (_name, code) => {
+      expect(await readSideEffectMessages(code, featureViewFilePath)).toEqual([]);
+    });
+
+    it.each([
+      ['a page component test', pageViewTestFilePath],
+      ['a page logic test', pageTestFilePath],
+      ['an application test', applicationTestFilePath],
+      ['a demo transport test', demoTransportTestFilePath],
+      ['an i18n test', i18nTestFilePath],
+      ['a bootstrap test', bootstrapTestFilePath],
+      ['a routing location test', routingLocationTestFilePath],
+    ])('does not report an import for the side effect in %s', async (_name, filePath) => {
+      expect(await readSideEffectMessages(sideEffectImportCode, filePath)).toEqual([]);
+    });
+
+    it.each([
+      ['the demo engine import', engineImportCode, pageFilePath],
+      ['a local date getter', dateGetterCode, pageFilePath],
+      ['a location assignment', locationAssignmentCode, pageFilePath],
+      ['the testing entry of shared/api', testingEntryImportCode, pageFilePath],
+      ['a location assignment in the i18n module', locationAssignmentCode, i18nFilePath],
+      ['a local date getter in the routing owner', dateGetterCode, routingLocationFilePath],
+      ['a location assignment in the bootstrap module', locationAssignmentCode, bootstrapFilePath],
+      ['the demo engine import in the routing owner', engineImportCode, routingLocationFilePath],
+      ['a location assignment in the demo transport', locationAssignmentCode, demoTransportFilePath],
+    ])('keeps reporting %s next to the side-effect import', async (_name, code, filePath) => {
+      if (untypedEslint === undefined) {
+        throw new Error('ESLint is not initialized');
+      }
+
+      const [result] = await untypedEslint.lintText(`${sideEffectImportCode}${code}`, { filePath });
+      const restrictedMessages = (result?.messages ?? []).filter(
+        message => message.ruleId === 'no-restricted-imports' || message.ruleId === 'no-restricted-syntax',
+      );
+
+      expect(restrictedMessages.some(message => message.message.includes(sideEffectMessagePart))).toBe(true);
+      expect(restrictedMessages.some(message => !message.message.includes(sideEffectMessagePart))).toBe(true);
     });
   });
 });

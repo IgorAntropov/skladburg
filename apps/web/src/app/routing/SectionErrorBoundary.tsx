@@ -7,18 +7,33 @@ import { Component } from 'react';
 
 interface SectionErrorBoundaryProps {
   children: ReactNode;
-  fallback: ReactNode;
+  fallback: (error: Error, reset: () => void) => ReactNode;
+  resetKey: string;
 }
 
 interface SectionErrorBoundaryState {
-  hasError: boolean;
+  error: Error | undefined;
+  resetKey: string;
 }
 
-export class SectionErrorBoundary extends Component<SectionErrorBoundaryProps, SectionErrorBoundaryState> {
-  override state: SectionErrorBoundaryState = { hasError: false };
+const toError = (thrown: unknown): Error => (thrown instanceof Error ? thrown : new Error(String(thrown)));
 
-  static getDerivedStateFromError(): SectionErrorBoundaryState {
-    return { hasError: true };
+export class SectionErrorBoundary extends Component<SectionErrorBoundaryProps, SectionErrorBoundaryState> {
+  override state: SectionErrorBoundaryState = { error: undefined, resetKey: this.props.resetKey };
+
+  static getDerivedStateFromError(thrown: unknown): Pick<SectionErrorBoundaryState, 'error'> {
+    return { error: toError(thrown) };
+  }
+
+  static getDerivedStateFromProps(
+    props: SectionErrorBoundaryProps,
+    state: SectionErrorBoundaryState,
+  ): null | SectionErrorBoundaryState {
+    if (props.resetKey === state.resetKey) {
+      return null;
+    }
+
+    return { error: undefined, resetKey: props.resetKey };
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
@@ -26,6 +41,13 @@ export class SectionErrorBoundary extends Component<SectionErrorBoundaryProps, S
   }
 
   override render(): ReactNode {
-    return this.state.hasError ? this.props.fallback : this.props.children;
+    const { error } = this.state;
+
+    return error === undefined ? this.props.children : this.props.fallback(error, this.handleReset);
   }
+
+  private readonly handleReset = (): void => {
+    console.log('> SectionErrorBoundary -> handleReset:', { error: this.state.error?.name });
+    this.setState({ error: undefined });
+  };
 }

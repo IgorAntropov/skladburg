@@ -1,27 +1,45 @@
 import type { ReactElement } from 'react';
 
+import { useState } from 'react';
+
 import { useI18n } from '@/shared/i18n';
 import { useReloadPage } from '@/shared/routing';
+import {
+  Button,
+  StatusScreen,
+} from '@/shared/ui';
 
-import { RETRY_BUTTON_CLASS_NAME } from '../lib/retryButtonClassName';
+import { SectionChunkLoadError } from './SectionChunkLoadError';
 
-export const SectionErrorScreen = (): ReactElement => {
+interface SectionErrorScreenProps {
+  error: Error;
+  onReset: () => void;
+}
+
+export const SectionErrorScreen = ({ error, onReset }: SectionErrorScreenProps): ReactElement => {
   const { t } = useI18n();
   const reloadPage = useReloadPage();
 
+  const [resetCount, setResetCount] = useState(0);
+
+  const isChunkError = error instanceof SectionChunkLoadError;
+  const message = isChunkError ? t('routing.chunkError.message') : t('routing.renderError.message');
+
   const handleRetryClick = (): void => {
-    console.log('> SectionErrorScreen -> handleRetryClick:', {});
-    reloadPage();
+    console.log('> SectionErrorScreen -> handleRetryClick:', { isChunkError, resetCount });
+    if (isChunkError) {
+      reloadPage();
+      return;
+    }
+    setResetCount(count => count + 1);
+    onReset();
   };
 
-  return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col items-start gap-4 px-4 py-8">
-      <p className="text-balance text-lg" role="alert">
-        {t('routing.chunkError.message')}
-      </p>
-      <button className={RETRY_BUTTON_CLASS_NAME} onClick={handleRetryClick} type="button">
-        {t('common.retry')}
-      </button>
-    </div>
+  const retryAction = (
+    <Button onClick={handleRetryClick} size="lg">
+      {t('common.retry')}
+    </Button>
   );
+
+  return <StatusScreen action={retryAction} announceKey={resetCount} layout="section" title={message} tone="error" />;
 };

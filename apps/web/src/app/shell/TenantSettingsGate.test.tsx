@@ -368,7 +368,7 @@ describe('TenantSettingsGate', () => {
     expect(applyTenant).not.toHaveBeenCalled();
 
     isFailing = false;
-    fireEvent.click(screen.getByRole('button', { name: defaultLocaleCatalog['app.startError.retry'] }));
+    fireEvent.click(screen.getByRole('button', { name: defaultLocaleCatalog['common.retry'] }));
 
     expect(await screen.findByText(getProbeText(FIRST_BRAND, defaultLocaleCatalog['warehouse.placeholder']))).toBeDefined();
     expect(screen.queryByRole('alert')).toBeNull();
@@ -393,9 +393,9 @@ describe('TenantSettingsGate', () => {
     await screen.findByRole('alert');
     fireEvent.click(screen.getByRole('button'));
 
-    const retryingButton = await screen.findByRole('button', { name: defaultLocaleCatalog['app.startError.retrying'] });
+    const retryingButton = await screen.findByRole('button', { name: defaultLocaleCatalog['common.retrying'] });
 
-    expect(retryingButton.hasAttribute('disabled')).toBe(true);
+    expect(retryingButton.getAttribute('aria-disabled')).toBe('true');
     expect(screen.queryByRole('main', { busy: true })).toBeNull();
 
     retryResponse.resolve();
@@ -419,7 +419,7 @@ describe('TenantSettingsGate', () => {
     expect(consoleError.mock.calls[0]?.[0]).toBe('> TenantSettingsGate -> applyTenant:');
     expect(applyTenant).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole('button', { name: defaultLocaleCatalog['app.startError.retry'] }));
+    fireEvent.click(screen.getByRole('button', { name: defaultLocaleCatalog['common.retry'] }));
 
     expect(await screen.findByText(getProbeText(FIRST_BRAND, FIRST_PLACEHOLDER))).toBeDefined();
     expect(applyTenant).toHaveBeenCalledTimes(2);

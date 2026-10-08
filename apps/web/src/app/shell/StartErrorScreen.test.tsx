@@ -47,7 +47,20 @@ const renderScreen = async (onRetry: () => Promise<void>): Promise<void> => {
 };
 
 const expectButtonEnabled = (): void => {
-  expect(screen.getByRole('button').hasAttribute('disabled')).toBe(false);
+  const button = screen.getByRole('button');
+
+  expect(button.hasAttribute('disabled')).toBe(false);
+  expect(button.getAttribute('aria-disabled')).toBeNull();
+  expect(button.getAttribute('aria-busy')).toBeNull();
+};
+
+const createDeferredRetry = (): { finish: () => void; promise: Promise<void> } => {
+  let finish: () => void = () => undefined;
+  const promise = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+
+  return { finish, promise };
 };
 
 describe('StartErrorScreen', () => {
@@ -56,20 +69,21 @@ describe('StartErrorScreen', () => {
     vi.restoreAllMocks();
   });
 
-  it('announces the failure with the text from the catalog', async () => {
+  it('announces the failure with the text from the catalog as the heading of the screen', async () => {
     await renderScreen(() => Promise.resolve());
 
     expect(screen.getByRole('alert').textContent).toBe(defaultLocaleCatalog['app.startError.message']);
+    expect(screen.getByRole('heading', { level: 1, name: defaultLocaleCatalog['app.startError.message'] })).toBeDefined();
+    expect(screen.getByRole('main')).toBeDefined();
   });
 
-  it('offers an enabled retry button', async () => {
+  it('offers an enabled retry button with the common text', async () => {
     await renderScreen(() => Promise.resolve());
 
-    const button = screen.getByRole('button', { name: defaultLocaleCatalog['app.startError.retry'] });
+    const button = screen.getByRole('button', { name: defaultLocaleCatalog['common.retry'] });
 
     expect(button.getAttribute('type')).toBe('button');
-    expect(button.hasAttribute('disabled')).toBe(false);
-    expect(button.getAttribute('aria-busy')).toBe('false');
+    expectButtonEnabled();
   });
 
   it('retries once per click', async () => {
@@ -82,23 +96,41 @@ describe('StartErrorScreen', () => {
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
-  it('disables the button and shows the progress text while retrying', async () => {
-    let finishRetry: () => void = () => undefined;
-    const retrying = new Promise<void>((resolve) => {
-      finishRetry = resolve;
-    });
-    await renderScreen(() => retrying);
+  it('shows the progress text, ignores further clicks and keeps the focus on the button while retrying', async () => {
+    const onRetry = vi.fn();
+    const deferred = createDeferredRetry();
+    onRetry.mockReturnValue(deferred.promise);
+    await renderScreen(onRetry);
+    screen.getByRole('button').focus();
 
     fireEvent.click(screen.getByRole('button'));
 
-    const button = screen.getByRole('button', { name: defaultLocaleCatalog['app.startError.retrying'] });
+    const button = screen.getByRole('button', { name: defaultLocaleCatalog['common.retrying'] });
 
-    expect(button.hasAttribute('disabled')).toBe(true);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
     expect(button.getAttribute('aria-busy')).toBe('true');
+    expect(document.activeElement).toBe(button);
 
-    finishRetry();
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(onRetry).toHaveBeenCalledOnce();
+
+    deferred.finish();
 
     await waitFor(expectButtonEnabled);
-    expect(screen.getByRole('button', { name: defaultLocaleCatalog['app.startError.retry'] })).toBeDefined();
+    expect(screen.getByRole('button', { name: defaultLocaleCatalog['common.retry'] })).toBe(button);
+    expect(document.activeElement).toBe(button);
+  });
+
+  it('announces the same failure again after an attempt that ends on the same screen', async () => {
+    await renderScreen(() => Promise.resolve());
+    const firstAlert = screen.getByRole('alert');
+
+    fireEvent.click(screen.getByRole('button'));
+
+    await waitFor(expectButtonEnabled);
+    expect(screen.getByRole('alert')).not.toBe(firstAlert);
+    expect(screen.getByRole('alert').textContent).toBe(defaultLocaleCatalog['app.startError.message']);
   });
 });

@@ -14,6 +14,10 @@ import { PendingSignal } from './PendingSignal';
 import { SectionErrorBoundary } from './SectionErrorBoundary';
 import { SectionErrorScreen } from './SectionErrorScreen';
 
+const renderSectionError = (error: Error, reset: () => void): ReactElement => (
+  <SectionErrorScreen error={error} onReset={reset} />
+);
+
 interface RouteFrameProps {
   children: ReactNode;
   errorResetKey: string;
@@ -38,7 +42,7 @@ export const RouteFrame = ({ children, errorResetKey, path }: RouteFrameProps): 
 
   return (
     <main aria-busy={busyAttribute} className="flex-1 focus-visible:outline-none" ref={mainRef} tabIndex={-1}>
-      <SectionErrorBoundary fallback={<SectionErrorScreen />} key={errorResetKey}>
+      <SectionErrorBoundary fallback={renderSectionError} key={errorResetKey} resetKey={path}>
         <Suspense fallback={<PendingSignal onPendingChange={setIsPending} />}>{children}</Suspense>
       </SectionErrorBoundary>
     </main>

@@ -1,0 +1,17 @@
+export const DROPDOWN_MENU_CONTENT_CLASS_NAME = [
+  'z-50 max-h-(--radix-dropdown-menu-content-available-height) min-w-48 overflow-y-auto',
+  'rounded-panel border border-line bg-panel-solid p-1.5 text-on-panel shadow-panel',
+  'motion-safe:transition-opacity motion-safe:duration-100 motion-safe:starting:opacity-0',
+].join(' ');
+
+export const DROPDOWN_MENU_ITEM_CLASS_NAME = [
+  'flex min-h-11 cursor-default items-center gap-2 rounded-control px-3 py-2 text-base outline-none select-none',
+  'data-highlighted:bg-line focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
+  'data-disabled:pointer-events-none data-disabled:text-on-panel-muted',
+].join(' ');
+
+export const DROPDOWN_MENU_INDICATOR_SLOT_CLASS_NAME = 'flex size-4 shrink-0 items-center justify-center';
+
+export const DROPDOWN_MENU_LABEL_CLASS_NAME = 'px-3 py-2 text-sm font-medium text-on-panel-muted';
+
+export const DROPDOWN_MENU_SEPARATOR_CLASS_NAME = 'mx-3 my-1.5 h-px bg-line';

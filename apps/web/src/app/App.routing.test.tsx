@@ -328,7 +328,7 @@ describe('App routes', () => {
     await waitFor(() => {
       expect(retryButton.getAttribute('aria-busy')).toBe('true');
     });
-    expect(retryButton.hasAttribute('disabled')).toBe(true);
+    expect(retryButton.getAttribute('aria-disabled')).toBe('true');
     expect(retryButton.textContent).toBe(defaultLocaleCatalog['common.retrying']);
     expect(screen.getByRole('alert')).toBe(alert);
     expect(screen.getByRole('button', { name: defaultLocaleCatalog['common.retrying'] })).toBe(retryButton);

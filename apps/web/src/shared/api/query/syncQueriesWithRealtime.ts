@@ -6,7 +6,6 @@ import type {
 } from '../realtime/realtimeTypes';
 import type { IDemoControl } from '../transport/demo';
 
-import './apiQueryMetaTypes';
 import { invalidateQueriesByChannel } from './invalidateQueriesByChannel';
 
 export interface SyncQueriesWithRealtimeOptionsValue {

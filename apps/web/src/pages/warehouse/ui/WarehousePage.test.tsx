@@ -57,7 +57,6 @@ import {
 import { OBJECT_TYPES } from '@/shared/routing';
 
 import { warehouseKeys } from '../api/warehouseKeys';
-import { createSkeletonLineClassName } from './cardStyles';
 import { WarehousePage } from './WarehousePage';
 
 const FOCUSED_OBJECT_ID = 'f6000001-0000-4000-8000-000000000000';
@@ -167,8 +166,6 @@ const formatAddress = (address: string): string => defaultLocaleCatalog['warehou
 
 const getWarehouseSection = (): HTMLElement => screen.getByRole('region', { name: defaultLocaleCatalog['warehouse.warehouses.title'] });
 
-const getClassNames = (elements: Iterable<Element>): string[] => Array.from(elements, element => element.className);
-
 const getResetButton = (name: string): HTMLElement => screen.getByRole('button', { name });
 
 describe('WarehousePage header', () => {
@@ -260,7 +257,7 @@ describe('WarehousePage organization card', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it('keeps the lines of the frame in step with the lines of the card', async () => {
+  it('keeps the frame in the shape of the card', async () => {
     const response = createDeferred();
     await renderPage({
       getOrganization: async () => {
@@ -271,18 +268,19 @@ describe('WarehousePage organization card', () => {
     });
 
     const frame = screen.getByRole('status', { name: defaultLocaleCatalog['warehouse.organization.loading'] });
-    const frameClassName = frame.className;
-    const frameLines = Array.from(frame.children);
+    const frameCard = frame.firstElementChild;
+    const frameLines = Array.from(frameCard?.children ?? []);
 
+    expect(frameLines).toHaveLength(2);
     expect(frameLines.every(line => line.getAttribute('aria-hidden') === 'true')).toBe(true);
 
     response.resolve();
 
-    const card = await screen.findByRole('region', { name: defaultLocaleCatalog['warehouse.organization.title'] });
-    const cardLines = Array.from(card.children);
+    const section = await screen.findByRole('region', { name: defaultLocaleCatalog['warehouse.organization.title'] });
+    const card = section.firstElementChild;
 
-    expect(getClassNames(frameLines)).toEqual(getClassNames(cardLines).map(createSkeletonLineClassName));
-    expect(frameClassName.replace(' border-dashed', '')).toBe(card.className);
+    expect(frameCard?.className).toBe(card?.className);
+    expect(card?.children).toHaveLength(frameLines.length);
   });
 
   it('shows the error by code and loads the organization on retry', async () => {
@@ -306,6 +304,41 @@ describe('WarehousePage organization card', () => {
 
     expect(await screen.findByText(LEGAL_NAME)).toBeDefined();
     expect(getOrganization).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(defaultLocaleCatalog['error.invalid_transition'])).toBeNull();
+  });
+
+  it('keeps the error and the focused retry button busy while the organization is requested again after a failure', async () => {
+    let attempt = 0;
+    const retryResponse = createDeferred();
+    await renderPage({
+      getOrganization: async () => {
+        attempt += 1;
+        if (attempt === 1) {
+          throw createCodedError();
+        }
+        await retryResponse.promise;
+
+        return createOrganizationResponse();
+      },
+    });
+
+    const alert = await screen.findByText(defaultLocaleCatalog['error.invalid_transition']);
+    const retryButton = screen.getByRole('button', { name: defaultLocaleCatalog['common.retry'] });
+    retryButton.focus();
+    fireEvent.click(retryButton);
+
+    const busyButton = await screen.findByRole('button', { name: defaultLocaleCatalog['common.retrying'] });
+
+    expect(busyButton).toBe(retryButton);
+    expect(busyButton.getAttribute('aria-busy')).toBe('true');
+    expect(busyButton.getAttribute('aria-disabled')).toBe('true');
+    expect(document.activeElement).toBe(retryButton);
+    expect(alert.isConnected).toBe(true);
+    expect(screen.queryByRole('status', { name: defaultLocaleCatalog['warehouse.organization.loading'] })).toBeNull();
+
+    retryResponse.resolve();
+
+    expect(await screen.findByText(LEGAL_NAME)).toBeDefined();
     expect(screen.queryByText(defaultLocaleCatalog['error.invalid_transition'])).toBeNull();
   });
 });
@@ -351,21 +384,22 @@ describe('WarehousePage warehouse list', () => {
       },
     });
 
-    const list = screen.getByRole('list', { name: defaultLocaleCatalog['warehouse.warehouses.loading'] });
+    const frame = screen.getByRole('status', { name: defaultLocaleCatalog['warehouse.warehouses.loading'] });
 
-    expect(list.getAttribute('aria-busy')).toBe('true');
-    expect(within(list).getAllByRole('listitem')).toHaveLength(3);
-    expect(list.textContent).toBe('');
+    expect(frame.getAttribute('aria-busy')).toBe('true');
+    expect(frame.firstElementChild?.children).toHaveLength(3);
+    expect(frame.textContent).toBe('');
+    expect(screen.queryByRole('list')).toBeNull();
     expect(within(getWarehouseSection()).getByRole('heading', { level: 2 }).textContent)
       .toBe(defaultLocaleCatalog['warehouse.warehouses.title']);
 
     response.resolve();
 
     expect(await screen.findByText(FIRST_WAREHOUSE.name)).toBeDefined();
-    expect(screen.queryByRole('list', { name: defaultLocaleCatalog['warehouse.warehouses.loading'] })).toBeNull();
+    expect(screen.queryByRole('status', { name: defaultLocaleCatalog['warehouse.warehouses.loading'] })).toBeNull();
   });
 
-  it('keeps the lines of every frame in step with the lines of the warehouse card', async () => {
+  it('keeps every frame in the shape of the warehouse card', async () => {
     const response = createDeferred();
     await renderPage({
       listWarehouses: async () => {
@@ -375,23 +409,23 @@ describe('WarehousePage warehouse list', () => {
       },
     });
 
-    const list = screen.getByRole('list', { name: defaultLocaleCatalog['warehouse.warehouses.loading'] });
-    const frameItems = within(list).getAllByRole('listitem');
-    const frameLineClassNames = frameItems.map(item => getClassNames(Array.from(item.children)));
-    const frameItemClassName = frameItems[0]?.className;
+    const frame = screen.getByRole('status', { name: defaultLocaleCatalog['warehouse.warehouses.loading'] });
+    const frameCards = Array.from(frame.firstElementChild?.children ?? []);
 
-    expect(frameItems.every(item => Array.from(item.children).every(line => line.getAttribute('aria-hidden') === 'true'))).toBe(true);
+    const areLinesHidden = frameCards.every((frameCard) => {
+      return Array.from(frameCard.children).every(line => line.getAttribute('aria-hidden') === 'true');
+    });
+
+    expect(areLinesHidden).toBe(true);
 
     response.resolve();
 
-    const nameElement = await screen.findByText(FIRST_WAREHOUSE.name);
-    const cardItem = within(screen.getByRole('list')).getByRole('listitem');
-    const expectedLineClassNames = getClassNames(Array.from(cardItem.children)).map(createSkeletonLineClassName);
+    await screen.findByText(FIRST_WAREHOUSE.name);
 
-    expect(nameElement).toBeDefined();
-    expect(expectedLineClassNames).toHaveLength(2);
-    expect(frameLineClassNames).toEqual(frameItems.map(() => expectedLineClassNames));
-    expect(frameItemClassName?.replace(' border-dashed', '')).toBe(cardItem.className);
+    const card = within(screen.getByRole('list')).getByRole('listitem').firstElementChild;
+
+    expect(frameCards.map(frameCard => frameCard.className)).toEqual(frameCards.map(() => card?.className));
+    expect(frameCards.map(frameCard => frameCard.children.length)).toEqual(frameCards.map(() => card?.children.length));
   });
 
   it('shows the hint when there are no warehouses', async () => {
@@ -425,7 +459,7 @@ describe('WarehousePage warehouse list', () => {
     expect(within(getWarehouseSection()).queryByRole('alert')).toBeNull();
   });
 
-  it('shows the empty frames again while the list is requested after a failure', async () => {
+  it('keeps the error and the focused retry button busy while the list is requested again after a failure', async () => {
     let attempt = 0;
     const retryResponse = createDeferred();
     await renderPage({
@@ -441,16 +475,27 @@ describe('WarehousePage warehouse list', () => {
     });
 
     await within(getWarehouseSection()).findByRole('alert');
-    fireEvent.click(within(getWarehouseSection()).getByRole('button', { name: defaultLocaleCatalog['common.retry'] }));
+    const retryButton = within(getWarehouseSection()).getByRole('button', { name: defaultLocaleCatalog['common.retry'] });
+    retryButton.focus();
+    fireEvent.click(retryButton);
 
-    const list = await screen.findByRole('list', { name: defaultLocaleCatalog['warehouse.warehouses.loading'] });
+    const busyButton = await within(getWarehouseSection()).findByRole('button', { name: defaultLocaleCatalog['common.retrying'] });
 
-    expect(list.getAttribute('aria-busy')).toBe('true');
-    expect(within(getWarehouseSection()).queryByRole('alert')).toBeNull();
+    expect(busyButton).toBe(retryButton);
+    expect(busyButton.getAttribute('aria-busy')).toBe('true');
+    expect(busyButton.getAttribute('aria-disabled')).toBe('true');
+    expect(document.activeElement).toBe(retryButton);
+    expect(within(getWarehouseSection()).getByRole('alert').textContent).toBe(defaultLocaleCatalog['error.invalid_transition']);
+    expect(screen.queryByRole('status', { name: defaultLocaleCatalog['warehouse.warehouses.loading'] })).toBeNull();
+
+    fireEvent.click(busyButton);
+
+    expect(attempt).toBe(2);
 
     retryResponse.resolve();
 
     expect(await screen.findByText(FIRST_WAREHOUSE.name)).toBeDefined();
+    expect(within(getWarehouseSection()).queryByRole('alert')).toBeNull();
   });
 
   it('stores the list under the organization key and declares the organization channel', async () => {
@@ -488,7 +533,7 @@ describe('WarehousePage demo reset', () => {
 
     const pendingButton = await screen.findByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.pending'] });
 
-    expect(pendingButton.hasAttribute('disabled')).toBe(true);
+    expect(pendingButton.getAttribute('aria-disabled')).toBe('true');
     expect(pendingButton.getAttribute('aria-busy')).toBe('true');
 
     fireEvent.click(pendingButton);
@@ -500,8 +545,27 @@ describe('WarehousePage demo reset', () => {
     const idleButton = await screen.findByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] });
 
     expect(idleButton.hasAttribute('disabled')).toBe(false);
-    expect(idleButton.getAttribute('aria-busy')).toBe('false');
+    expect(idleButton.getAttribute('aria-disabled')).toBeNull();
+    expect(idleButton.getAttribute('aria-busy')).toBeNull();
     expect(reset).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the focus on the same button while the command runs and after it', async () => {
+    const response = createDeferred();
+    await renderPage({ demoControl: createDemoControl(() => response.promise) });
+    await screen.findByText(FIRST_WAREHOUSE.name);
+    const button = getResetButton(defaultLocaleCatalog['warehouse.resetDemo.label']);
+    button.focus();
+
+    fireEvent.click(button);
+
+    expect(await screen.findByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.pending'] })).toBe(button);
+    expect(document.activeElement).toBe(button);
+
+    response.resolve();
+
+    expect(await screen.findByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] })).toBe(button);
+    expect(document.activeElement).toBe(button);
   });
 
   it('does not change the data before the answer and does not refetch by itself', async () => {

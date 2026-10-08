@@ -1,7 +1,6 @@
 import {
   createInProcessEngineConnection,
   SeedOrganizationId,
-  SeedPersonaId,
   SeedUserId,
 } from '@skladburg/demo-engine/testing';
 import {
@@ -325,7 +324,9 @@ describe('App with the demo engine in the same thread', () => {
 
     await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] }).hasAttribute('disabled')).toBe(false);
+      const resetButton = screen.getByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] });
+
+      expect(resetButton.getAttribute('aria-disabled')).toBeNull();
     });
     expect(getBrand()).toBeDefined();
     expect(getBusyPlaceholderCount()).toBe(0);
@@ -340,14 +341,30 @@ const getNavigationTitles = (): string[] => {
 
 const getSectionTitle = (section: AppSectionValue): string => defaultLocaleCatalog[SECTION_TITLE_KEYS[section]];
 
-const findPersonaSelect = async (): Promise<HTMLSelectElement> => {
-  const select = await screen.findByRole<HTMLSelectElement>('combobox', { name: defaultLocaleCatalog['persona.label'] });
+const formatPersonaOption = (kindKey: 'persona.kind.carrier' | 'persona.kind.storekeeper', organizationName: string): string => {
+  return defaultLocaleCatalog['persona.option']
+    .replace('{kind}', defaultLocaleCatalog[kindKey])
+    .replace('{organization}', organizationName);
+};
+
+const STOREKEEPER_OPTION = formatPersonaOption('persona.kind.storekeeper', BRAND_NAME);
+const CARRIER_OPTION = formatPersonaOption('persona.kind.carrier', 'Логист 1');
+
+const choosePersona = async (optionName: string): Promise<void> => {
+  const trigger = await screen.findByRole('button', { name: new RegExp(`^${defaultLocaleCatalog['persona.label']}`) });
 
   await waitFor(() => {
-    expect(select.options.length).toBeGreaterThan(1);
+    expect(trigger.getAttribute('aria-disabled')).toBeNull();
+    expect(trigger.hasAttribute('disabled')).toBe(false);
+    expect(trigger.getAttribute('aria-label')).toContain(`${defaultLocaleCatalog['persona.label']}:`);
   });
+  trigger.focus();
+  fireEvent.keyDown(trigger, { key: 'ArrowDown' });
 
-  return select;
+  const option = await screen.findByRole('menuitemradio', { name: optionName });
+
+  option.focus();
+  fireEvent.keyDown(option, { key: 'Enter' });
 };
 
 describe('App sections of the persona on the demo engine', () => {
@@ -397,7 +414,7 @@ describe('App sections of the persona on the demo engine', () => {
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
-    fireEvent.change(await findPersonaSelect(), { target: { value: SeedPersonaId.FRESH_STOREKEEPER } });
+    await choosePersona(STOREKEEPER_OPTION);
     await expectWarehouseCount(frames, 1);
     observer.disconnect();
 
@@ -410,7 +427,7 @@ describe('App sections of the persona on the demo engine', () => {
   it('leads the persona that switches to the carrier away from the warehouse and changes the brand', async () => {
     const { location } = await startApplication({ initialPath: '/deals' });
 
-    fireEvent.change(await findPersonaSelect(), { target: { value: SeedPersonaId.FRESH_CARRIER } });
+    await choosePersona(CARRIER_OPTION);
 
     expect(await screen.findByText('Логист 1', { selector: 'header p' })).toBeDefined();
     await waitFor(() => {
@@ -423,7 +440,7 @@ describe('App sections of the persona on the demo engine', () => {
     const { frames, location } = await startApplication();
     await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
 
-    fireEvent.change(await findPersonaSelect(), { target: { value: SeedPersonaId.FRESH_CARRIER } });
+    await choosePersona(CARRIER_OPTION);
 
     expect(await screen.findByRole('heading', { level: 1, name: getSectionTitle('network') })).toBeDefined();
     expect(location.read().path).toBe('/network');

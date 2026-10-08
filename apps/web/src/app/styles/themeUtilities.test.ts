@@ -6,20 +6,40 @@ import {
   it,
 } from 'vitest';
 
+import indexCss from './index.css?raw';
 import { readThemeTokens } from './testing/readThemeTokens';
 import themeCss from './theme.css?raw';
 
 const STYLESHEET_SOURCES: Readonly<Record<string, string>> = {
+  './index.css': indexCss,
   './theme.css': themeCss,
   'tailwindcss': tailwindCss,
 };
 
-const ENTRY_STYLESHEET = '@import \'tailwindcss\';\n@import \'./theme.css\';';
+const SHADOW_COMPOSITE_PARTS = [
+  'var(--tw-inset-shadow)',
+  'var(--tw-inset-ring-shadow)',
+  'var(--tw-ring-offset-shadow)',
+  'var(--tw-ring-shadow)',
+  'var(--tw-shadow)',
+];
 
-const SHADOW_PANEL_RULE = /\.shadow-panel\s*\{([^}]*)\}/;
+const PANEL_SHADOW_COMPOSITE_PARTS = [
+  'var(--tw-inset-shadow, 0 0 #0000)',
+  'var(--tw-inset-ring-shadow, 0 0 #0000)',
+  'var(--tw-ring-offset-shadow, 0 0 #0000)',
+  'var(--tw-ring-shadow, 0 0 #0000)',
+  'var(--tw-shadow)',
+];
+
+const PANEL_SELECTOR = '.shadow-panel';
+const RING_SELECTOR = '.ring-1';
+const FOCUS_RING_SELECTOR = '.focus-visible\\:ring-2:focus-visible';
+
+const escapeRegExp = (value: string): string => value.replaceAll(/[$()*+.?[\\\]^{|}]/g, '\\$&');
 
 const readBuiltCss = async (candidates: string[]): Promise<string> => {
-  const compiler = await compile(ENTRY_STYLESHEET, {
+  const compiler = await compile(indexCss, {
     base: '/',
     loadStylesheet: (id, base) => {
       const content = STYLESHEET_SOURCES[id];
@@ -35,26 +55,97 @@ const readBuiltCss = async (candidates: string[]): Promise<string> => {
   return compiler.build(candidates);
 };
 
-const readBoxShadowDeclarations = (css: string): string[] => {
-  const body = SHADOW_PANEL_RULE.exec(css)?.[1];
+const readLastDeclarations = (css: string, selector: string): ReadonlyMap<string, string> => {
+  const rulePattern = new RegExp(`${escapeRegExp(selector)}\\s*\\{([^}]*)\\}`, 'g');
+  const declarations = new Map<string, string>();
+  let ruleCount = 0;
 
-  if (body === undefined) {
-    throw new Error('Rule .shadow-panel is missing in the compiled stylesheet');
+  for (const match of css.matchAll(rulePattern)) {
+    ruleCount += 1;
+
+    for (const rawDeclaration of (match[1] ?? '').split(';')) {
+      const separatorIndex = rawDeclaration.indexOf(':');
+      const name = rawDeclaration.slice(0, separatorIndex).trim();
+      const isTrackedDeclaration = separatorIndex > 0 && (name.startsWith('--') || name === 'box-shadow');
+
+      if (isTrackedDeclaration) {
+        declarations.set(name, rawDeclaration.slice(separatorIndex + 1).replaceAll(/\s+/g, ' ').trim());
+      }
+    }
   }
 
-  return body
-    .split(';')
-    .map(declaration => declaration.trim())
-    .filter(declaration => declaration.startsWith('box-shadow:'))
-    .map(declaration => declaration.slice('box-shadow:'.length).trim());
+  if (ruleCount === 0) {
+    throw new Error(`Rule ${selector} is missing in the compiled stylesheet`);
+  }
+
+  return declarations;
+};
+
+const splitTopLevel = (value: string): string[] => {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+
+  for (const character of value) {
+    if (character === '(') {
+      depth += 1;
+    }
+
+    if (character === ')') {
+      depth -= 1;
+    }
+
+    const isSeparator = character === ',' && depth === 0;
+
+    if (isSeparator) {
+      parts.push(current.trim());
+    }
+
+    current = isSeparator ? '' : current + character;
+  }
+
+  parts.push(current.trim());
+
+  return parts;
+};
+
+const readCompositeParts = (declarations: ReadonlyMap<string, string>): string[] => {
+  const boxShadow = declarations.get('box-shadow');
+
+  if (boxShadow === undefined) {
+    throw new Error('Declaration box-shadow is missing in the compiled rule');
+  }
+
+  return splitTopLevel(boxShadow);
 };
 
 describe('panel shadow', () => {
-  it('ends the compiled shadow-panel rule with a reference to the theme variable', async () => {
-    const declarations = readBoxShadowDeclarations(await readBuiltCss(['shadow-panel']));
+  it('resolves the panel shadow through the theme variable and the Tailwind shadow layer', async () => {
+    const css = await readBuiltCss(['shadow-panel', 'ring-1', 'focus-visible:ring-2']);
+    const panel = readLastDeclarations(css, PANEL_SELECTOR);
 
-    expect(declarations.length).toBeGreaterThan(1);
-    expect(declarations.at(-1)).toBe('var(--shadow-panel)');
+    expect(panel.get('--tw-shadow')).toBe('var(--shadow-panel)');
+    expect(readCompositeParts(panel)).toEqual(PANEL_SHADOW_COMPOSITE_PARTS);
+  });
+
+  it('keeps the composite shadow valid when no other utility registers the shadow layer', async () => {
+    const css = await readBuiltCss(['shadow-panel']);
+    const panel = readLastDeclarations(css, PANEL_SELECTOR);
+
+    expect(readCompositeParts(panel)).toEqual(PANEL_SHADOW_COMPOSITE_PARTS);
+  });
+
+  it('leaves the ring layer untouched so that rings add to the panel shadow', async () => {
+    const css = await readBuiltCss(['shadow-panel', 'ring-1', 'focus-visible:ring-2']);
+    const panel = readLastDeclarations(css, PANEL_SELECTOR);
+    const ring = readLastDeclarations(css, RING_SELECTOR);
+    const focusRing = readLastDeclarations(css, FOCUS_RING_SELECTOR);
+
+    expect(panel.has('--tw-ring-shadow')).toBe(false);
+    expect(ring.get('--tw-ring-shadow')).toBeDefined();
+    expect(focusRing.get('--tw-ring-shadow')).toBeDefined();
+    expect(readCompositeParts(ring)).toEqual(SHADOW_COMPOSITE_PARTS);
+    expect(readCompositeParts(focusRing)).toEqual(SHADOW_COMPOSITE_PARTS);
   });
 
   it('gives the dark theme its own panel shadow', () => {
@@ -66,5 +157,12 @@ describe('panel shadow', () => {
     expect(lightShadow).toBeDefined();
     expect(darkShadow).toBeDefined();
     expect(darkShadow).not.toBe(lightShadow);
+  });
+});
+
+describe('stylesheet sources', () => {
+  it('keeps test files and test helpers out of the class scan', () => {
+    expect(indexCss).toMatch(/^@source not '[^']*\*\.test\.\*';$/m);
+    expect(indexCss).toMatch(/^@source not '[^']*\/testing';$/m);
   });
 });

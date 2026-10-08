@@ -18,8 +18,8 @@ import { createLocalizer } from './createLocalizer';
 const enCatalog: LocaleCatalogValue = {
   ...ruCatalog,
   'app.startError.message': 'Failed to start the application',
-  'app.startError.retry': 'Retry',
-  'app.startError.retrying': 'Retrying…',
+  'common.retry': 'Retry',
+  'common.retrying': 'Retrying…',
   'units.pallet': { one: '{count} pallet', other: '{count} pallets' },
   'warehouse.placeholder': 'A living world is coming soon',
 };
@@ -27,8 +27,8 @@ const enCatalog: LocaleCatalogValue = {
 const deCatalog: LocaleCatalogValue = {
   ...ruCatalog,
   'app.startError.message': 'Anwendung konnte nicht gestartet werden',
-  'app.startError.retry': 'Wiederholen',
-  'app.startError.retrying': 'Wiederholung…',
+  'common.retry': 'Wiederholen',
+  'common.retrying': 'Wiederholung…',
   'units.pallet': { one: '{count} Palette', other: '{count} Paletten' },
   'warehouse.placeholder': 'Bald entsteht hier eine lebendige Welt',
 };

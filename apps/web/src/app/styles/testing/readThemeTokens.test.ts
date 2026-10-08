@@ -13,8 +13,6 @@ const SAMPLE_CSS = `
   --color-*: initial;
   --color-canvas: #edeae3;
   --color-panel: rgb(255 255 255 / 0.92);
-  --shadow-panel:
-    0 10px 30px -12px rgb(30 42 74 / 0.28), 0 1px 2px rgb(30 42 74 / 0.12);
 }
 
 @theme inline {
@@ -23,6 +21,8 @@ const SAMPLE_CSS = `
 
 :root {
   color-scheme: light;
+  --shadow-panel:
+    0 10px 30px -12px rgb(30 42 74 / 0.28), 0 1px 2px rgb(30 42 74 / 0.12);
 }
 
 [data-theme='dark'] {
@@ -39,11 +39,12 @@ const SAMPLE_CSS = `
 `;
 
 describe('readThemeTokens', () => {
-  it('merges static and inline theme blocks into the light theme', () => {
+  it('merges static, inline and root blocks into the light theme', () => {
     const { tokens } = readThemeTokens(SAMPLE_CSS);
 
     expect(tokens.light.get('--color-canvas')).toBe('#edeae3');
     expect(tokens.light.get('--color-status-ok')).toBe('#2fa36b');
+    expect(tokens.light.has('--shadow-panel')).toBe(true);
   });
 
   it('applies dark overrides on top of the light theme', () => {
@@ -76,7 +77,11 @@ describe('readThemeTokens', () => {
   });
 
   it('throws when the dark block is missing', () => {
-    const cssWithoutDark = '@theme static {\n  --color-canvas: #ffffff;\n}\n@theme inline {\n  --color-x: #000000;\n}';
+    const cssWithoutDark = [
+      '@theme static {\n  --color-canvas: #ffffff;\n}',
+      '@theme inline {\n  --color-x: #000000;\n}',
+      ':root {\n  --shadow-panel: none;\n}',
+    ].join('\n');
 
     expect(() => readThemeTokens(cssWithoutDark)).toThrow('is missing');
   });

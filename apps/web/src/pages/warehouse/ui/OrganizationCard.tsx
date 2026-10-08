@@ -2,53 +2,61 @@ import type { ReactElement } from 'react';
 
 import { useActingOrganizationQuery } from '@/entities/organization';
 import { useI18n } from '@/shared/i18n';
+import {
+  Card,
+  Skeleton,
+  WidgetStates,
+} from '@/shared/ui';
 
 import {
-  CARD_CLASS_NAME,
-  CARD_SKELETON_CLASS_NAME,
-  createSkeletonLineClassName,
   ORGANIZATION_LEGAL_NAME_CLASS_NAME,
+  ORGANIZATION_LEGAL_NAME_SKELETON_CLASS_NAME,
   ORGANIZATION_NAME_CLASS_NAME,
+  ORGANIZATION_NAME_SKELETON_CLASS_NAME,
 } from './cardStyles';
-import { QueryErrorNotice } from './QueryErrorNotice';
 
 export const OrganizationCard = (): ReactElement => {
   const { t } = useI18n();
   const {
     data: organization,
     error,
-    isError,
+    isFetching,
     refetch,
   } = useActingOrganizationQuery();
 
-  const isFailed = organization === undefined && isError;
-
   const handleRetry = (): void => {
-    console.log('> OrganizationCard -> handleRetry:', { isFailed });
+    console.log('> OrganizationCard -> handleRetry:', { hasError: error !== null });
     void refetch();
   };
 
-  if (organization !== undefined) {
-    return (
-      <section aria-label={t('warehouse.organization.title')} className={CARD_CLASS_NAME}>
-        <h2 className={ORGANIZATION_NAME_CLASS_NAME} translate="no">
-          {organization.name}
-        </h2>
-        <p className={ORGANIZATION_LEGAL_NAME_CLASS_NAME} translate="no">
-          {organization.legalName}
-        </p>
-      </section>
-    );
-  }
-
-  if (isFailed) {
-    return <QueryErrorNotice error={error} onRetry={handleRetry} />;
-  }
+  const skeleton = (
+    <Card>
+      <Skeleton className={ORGANIZATION_NAME_SKELETON_CLASS_NAME} />
+      <Skeleton className={ORGANIZATION_LEGAL_NAME_SKELETON_CLASS_NAME} />
+    </Card>
+  );
 
   return (
-    <div aria-busy="true" aria-label={t('warehouse.organization.loading')} className={CARD_SKELETON_CLASS_NAME} role="status">
-      <div aria-hidden="true" className={createSkeletonLineClassName(ORGANIZATION_NAME_CLASS_NAME)} />
-      <div aria-hidden="true" className={createSkeletonLineClassName(ORGANIZATION_LEGAL_NAME_CLASS_NAME)} />
-    </div>
+    <WidgetStates
+      data={organization}
+      error={error}
+      isRetrying={isFetching}
+      loadingLabel={t('warehouse.organization.loading')}
+      onRetry={handleRetry}
+      skeleton={skeleton}
+    >
+      {loadedOrganization => (
+        <section aria-label={t('warehouse.organization.title')}>
+          <Card>
+            <h2 className={ORGANIZATION_NAME_CLASS_NAME} translate="no">
+              {loadedOrganization.name}
+            </h2>
+            <p className={ORGANIZATION_LEGAL_NAME_CLASS_NAME} translate="no">
+              {loadedOrganization.legalName}
+            </p>
+          </Card>
+        </section>
+      )}
+    </WidgetStates>
   );
 };

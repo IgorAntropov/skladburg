@@ -3,8 +3,10 @@ import type { ReactElement } from 'react';
 import { useState } from 'react';
 
 import { useI18n } from '@/shared/i18n';
-
-import { RETRY_BUTTON_CLASS_NAME } from '../lib/retryButtonClassName';
+import {
+  Button,
+  StatusScreen,
+} from '@/shared/ui';
 
 interface StartErrorScreenProps {
   onRetry: () => Promise<void>;
@@ -14,8 +16,7 @@ export const StartErrorScreen = ({ onRetry }: StartErrorScreenProps): ReactEleme
   const { t } = useI18n();
 
   const [isRetrying, setIsRetrying] = useState(false);
-
-  const retryLabel = isRetrying ? t('app.startError.retrying') : t('app.startError.retry');
+  const [finishedAttemptCount, setFinishedAttemptCount] = useState(0);
 
   const retry = async (): Promise<void> => {
     setIsRetrying(true);
@@ -24,31 +25,28 @@ export const StartErrorScreen = ({ onRetry }: StartErrorScreenProps): ReactEleme
     }
     finally {
       setIsRetrying(false);
+      setFinishedAttemptCount(count => count + 1);
     }
   };
 
   const handleRetryClick = (): void => {
-    console.log('> StartErrorScreen -> handleRetryClick:', { isRetrying });
-    if (isRetrying) {
-      return;
-    }
+    console.log('> StartErrorScreen -> handleRetryClick:', { finishedAttemptCount });
     void retry();
   };
 
+  const retryAction = (
+    <Button onClick={handleRetryClick} pending={isRetrying} pendingLabel={t('common.retrying')} size="lg">
+      {t('common.retry')}
+    </Button>
+  );
+
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-canvas px-4 text-center text-on-canvas">
-      <p className="text-balance text-lg" role="alert">
-        {t('app.startError.message')}
-      </p>
-      <button
-        aria-busy={isRetrying}
-        className={RETRY_BUTTON_CLASS_NAME}
-        disabled={isRetrying}
-        onClick={handleRetryClick}
-        type="button"
-      >
-        {retryLabel}
-      </button>
-    </main>
+    <StatusScreen
+      action={retryAction}
+      announceKey={finishedAttemptCount}
+      layout="app"
+      title={t('app.startError.message')}
+      tone="error"
+    />
   );
 };

@@ -42,8 +42,8 @@ const catalog: LocaleCatalogValue = {
 const enCatalog: LocaleCatalogValue = {
   ...defaultLocaleCatalog,
   'app.startError.message': 'The application failed to start',
-  'app.startError.retry': 'Retry',
-  'app.startError.retrying': 'Retrying…',
+  'common.retry': 'Retry',
+  'common.retrying': 'Retrying…',
   'section.warehouse.title': 'Warehouse',
   'units.pallet': { one: '{count} pallet', other: '{count} pallets' },
   'warehouse.placeholder': 'A warehouse is coming soon',

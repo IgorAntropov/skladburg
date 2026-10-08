@@ -1,3 +1,5 @@
+import type { MockInstance } from 'vitest';
+
 import {
   createInProcessEngineConnection,
   SeedOrganizationId,
@@ -15,7 +17,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from '@testing-library/react';
 import { defaultLocaleCatalog } from 'virtual:build-profile';
 import {
@@ -93,6 +94,7 @@ const createTestLocalizer = (): Promise<ILocalizer> => createLocalizer({
 const renderSwitcher = async (
   runtime: ApiRuntimeValue,
   queryClient: QueryClient = createQueryClient({ networkMode: 'always' }),
+  className?: string,
 ): Promise<void> => {
   const localizer = await createTestLocalizer();
 
@@ -100,7 +102,7 @@ const renderSwitcher = async (
     <LocalizerProvider localizer={localizer}>
       <ApiRuntimeProvider runtime={runtime}>
         <QueryClientProvider client={queryClient}>
-          <PersonaSwitcher />
+          <PersonaSwitcher className={className} />
         </QueryClientProvider>
       </ApiRuntimeProvider>
     </LocalizerProvider>,
@@ -123,14 +125,37 @@ const startEngineRuntime = async (personaId: string): Promise<ApiRuntimeValue> =
   return runtime;
 };
 
-const getSelect = (): HTMLSelectElement => {
-  const select = screen.getByRole('combobox', { name: defaultLocaleCatalog['persona.label'] });
+const TRIGGER_NAME_PATTERN = new RegExp(`^${defaultLocaleCatalog['persona.label']}`);
 
-  if (!(select instanceof HTMLSelectElement)) {
-    throw new TypeError('The persona switcher is not a select');
+const getTrigger = (): HTMLButtonElement => {
+  const trigger = screen.getByRole('button', { hidden: true, name: TRIGGER_NAME_PATTERN });
+
+  if (!(trigger instanceof HTMLButtonElement)) {
+    throw new TypeError('The persona switcher trigger is not a button');
   }
 
-  return select;
+  return trigger;
+};
+
+const getTriggerName = (persona: DemoPersonaListItemValue): string => defaultLocaleCatalog['persona.trigger.label']
+  .replace('{persona}', formatOption(persona));
+
+const openMenu = async (): Promise<HTMLElement> => {
+  const trigger = getTrigger();
+
+  trigger.focus();
+  fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+
+  return screen.findByRole('menu', { name: defaultLocaleCatalog['persona.label'] });
+};
+
+const getPersonaItem = (persona: DemoPersonaListItemValue): HTMLElement => screen.getByRole('menuitemradio', {
+  name: formatOption(persona),
+});
+
+const chooseWithEnter = (item: HTMLElement): void => {
+  item.focus();
+  fireEvent.keyDown(item, { key: 'Enter' });
 };
 
 const createDeferred = (): { promise: Promise<void>; resolve: () => void } => {
@@ -140,6 +165,22 @@ const createDeferred = (): { promise: Promise<void>; resolve: () => void } => {
   });
 
   return { promise, resolve };
+};
+
+const createTwoPersonaRuntime = (): ApiRuntimeValue => {
+  const runtime = createTestRuntime({
+    demoControl: createDemoControl(() => Promise.resolve([FIRST_PERSONA, SECOND_PERSONA])),
+  });
+
+  runtime.actingContext.set({ organizationId: FIRST_PERSONA.organizationId, userId: FIRST_PERSONA.userId });
+
+  return runtime;
+};
+
+const waitForTriggerName = async (persona: DemoPersonaListItemValue): Promise<void> => {
+  await waitFor(() => {
+    expect(getTrigger().getAttribute('aria-label')).toBe(getTriggerName(persona));
+  });
 };
 
 describe('PersonaSwitcher with the demo engine', () => {
@@ -156,12 +197,12 @@ describe('PersonaSwitcher with the demo engine', () => {
     const personas = await runtime.demoControl?.listPersonas() ?? [];
 
     await renderSwitcher(runtime);
-
     await waitFor(() => {
-      expect(within(getSelect()).queryAllByRole('option')).toHaveLength(8);
+      expect(getTrigger().disabled).toBe(false);
     });
+    await openMenu();
 
-    const labels = within(getSelect()).getAllByRole('option').map(option => option.textContent);
+    const labels = screen.getAllByRole('menuitemradio').map(item => item.textContent);
 
     expect(personas).toHaveLength(8);
     expect(labels).toEqual(personas.map(formatOption));
@@ -170,30 +211,46 @@ describe('PersonaSwitcher with the demo engine', () => {
     expect(new Set(labels).size).toBe(8);
   });
 
-  it('shows the persona of the current acting context as chosen', async () => {
+  it('shows the persona of the current acting context on the trigger and as the checked item', async () => {
     const runtime = await startEngineRuntime(SeedPersonaId.FRESH_STOREKEEPER);
+    const personas = await runtime.demoControl?.listPersonas() ?? [];
+    const storekeeper = personas.find(persona => persona.id === SeedPersonaId.FRESH_STOREKEEPER);
 
     await renderSwitcher(runtime);
 
-    await waitFor(() => {
-      expect(getSelect().value).toBe(SeedPersonaId.FRESH_STOREKEEPER);
-    });
+    if (storekeeper === undefined) {
+      throw new TypeError('The storekeeper persona is missing');
+    }
 
-    expect(getSelect().selectedOptions[0]?.textContent).toBe(
-      `${defaultLocaleCatalog['persona.kind.storekeeper']} · Покупатель 1`,
+    await waitForTriggerName(storekeeper);
+
+    expect(getTrigger().textContent).toBe(
+      `${defaultLocaleCatalog['persona.label']}${formatOption(storekeeper)}`,
     );
+
+    await openMenu();
+
+    const checkedItems = screen.getAllByRole('menuitemradio').filter(item => item.getAttribute('aria-checked') === 'true');
+
+    expect(checkedItems.map(item => item.textContent)).toEqual([formatOption(storekeeper)]);
   });
 
   it('switches the acting context to the chosen persona and keeps it chosen', async () => {
     const runtime = await startEngineRuntime(SeedPersonaId.FRESH_BUYER);
+    const personas = await runtime.demoControl?.listPersonas() ?? [];
+    const storekeeper = personas.find(persona => persona.id === SeedPersonaId.FRESH_STOREKEEPER);
 
     await renderSwitcher(runtime);
 
-    await waitFor(() => {
-      expect(getSelect().value).toBe(SeedPersonaId.FRESH_BUYER);
-    });
+    if (storekeeper === undefined) {
+      throw new TypeError('The storekeeper persona is missing');
+    }
 
-    fireEvent.change(getSelect(), { target: { value: SeedPersonaId.FRESH_STOREKEEPER } });
+    await waitFor(() => {
+      expect(getTrigger().disabled).toBe(false);
+    });
+    await openMenu();
+    chooseWithEnter(getPersonaItem(storekeeper));
 
     await waitFor(() => {
       expect(runtime.actingContext.get()).toEqual({
@@ -201,29 +258,133 @@ describe('PersonaSwitcher with the demo engine', () => {
         userId: SeedUserId.STOREKEEPER_1,
       });
     });
+    await waitForTriggerName(storekeeper);
     await waitFor(() => {
-      expect(getSelect().disabled).toBe(false);
-      expect(getSelect().value).toBe(SeedPersonaId.FRESH_STOREKEEPER);
+      expect(getTrigger().getAttribute('aria-disabled')).toBeNull();
     });
   });
 
   it('switches to a persona of another organization', async () => {
     const runtime = await startEngineRuntime(SeedPersonaId.FRESH_BUYER);
+    const personas = await runtime.demoControl?.listPersonas() ?? [];
+    const seller = personas.find(persona => persona.id === SeedPersonaId.FRESH_SELLER);
 
     await renderSwitcher(runtime);
 
-    await waitFor(() => {
-      expect(getSelect().value).toBe(SeedPersonaId.FRESH_BUYER);
-    });
+    if (seller === undefined) {
+      throw new TypeError('The seller persona is missing');
+    }
 
-    fireEvent.change(getSelect(), { target: { value: SeedPersonaId.FRESH_SELLER } });
+    await waitFor(() => {
+      expect(getTrigger().disabled).toBe(false);
+    });
+    await openMenu();
+    chooseWithEnter(getPersonaItem(seller));
 
     await waitFor(() => {
       expect(runtime.actingContext.get().organizationId).toBe(SeedOrganizationId.SELLER_1);
     });
+    await waitForTriggerName(seller);
+  });
+});
+
+describe('PersonaSwitcher keyboard', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  const renderTwoPersonas = async (): Promise<{ cancelQueries: MockInstance<QueryClient['cancelQueries']>; runtime: ApiRuntimeValue }> => {
+    const runtime = createTwoPersonaRuntime();
+    const queryClient = createQueryClient({ networkMode: 'always' });
+    const cancelQueries = vi.spyOn(queryClient, 'cancelQueries');
+
+    await renderSwitcher(runtime, queryClient);
+    await waitForTriggerName(FIRST_PERSONA);
+
+    return { cancelQueries, runtime };
+  };
+
+  it('opens the menu on the arrow down of the closed trigger and does not switch the persona', async () => {
+    const { cancelQueries, runtime } = await renderTwoPersonas();
+
+    const menu = await openMenu();
+
+    expect(menu).toBeDefined();
+    expect(getTrigger().getAttribute('aria-expanded')).toBe('true');
+    expect(cancelQueries).not.toHaveBeenCalled();
+    expect(runtime.actingContext.get().userId).toBe(FIRST_PERSONA.userId);
+  });
+
+  it('does not switch the persona with the arrow keys inside the open menu', async () => {
+    const { cancelQueries, runtime } = await renderTwoPersonas();
+
+    const menu = await openMenu();
+
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    fireEvent.keyDown(menu, { key: 'ArrowUp' });
+    fireEvent.keyDown(menu, { key: 'Home' });
+    fireEvent.keyDown(menu, { key: 'End' });
+
+    expect(screen.getByRole('menu')).toBeDefined();
+    expect(cancelQueries).not.toHaveBeenCalled();
+    expect(runtime.actingContext.get().userId).toBe(FIRST_PERSONA.userId);
+  });
+
+  it('closes on Escape without switching the persona and returns the focus to the trigger', async () => {
+    const { cancelQueries, runtime } = await renderTwoPersonas();
+
+    const menu = await openMenu();
+
+    fireEvent.keyDown(menu, { key: 'Escape' });
+
     await waitFor(() => {
-      expect(getSelect().value).toBe(SeedPersonaId.FRESH_SELLER);
+      expect(screen.queryByRole('menu')).toBeNull();
     });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(getTrigger());
+    });
+    expect(cancelQueries).not.toHaveBeenCalled();
+    expect(runtime.actingContext.get().userId).toBe(FIRST_PERSONA.userId);
+  });
+
+  it('switches the persona exactly once on Enter at another persona and closes the menu', async () => {
+    const { cancelQueries, runtime } = await renderTwoPersonas();
+
+    await openMenu();
+    chooseWithEnter(getPersonaItem(SECOND_PERSONA));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+    await waitFor(() => {
+      expect(runtime.actingContext.get().userId).toBe(SECOND_PERSONA.userId);
+    });
+    expect(cancelQueries).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing when the current persona is chosen again', async () => {
+    const { cancelQueries, runtime } = await renderTwoPersonas();
+
+    await openMenu();
+    chooseWithEnter(getPersonaItem(FIRST_PERSONA));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+    expect(cancelQueries).not.toHaveBeenCalled();
+    expect(runtime.actingContext.get().userId).toBe(FIRST_PERSONA.userId);
+  });
+
+  it('marks only the current persona as checked and names the trigger with it', async () => {
+    await renderTwoPersonas();
+
+    await openMenu();
+
+    expect(getPersonaItem(FIRST_PERSONA).getAttribute('aria-checked')).toBe('true');
+    expect(getPersonaItem(SECOND_PERSONA).getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByRole('group', { name: defaultLocaleCatalog['persona.menu.label'] })).toBeDefined();
+    expect(getTrigger().getAttribute('aria-label')).toBe(getTriggerName(FIRST_PERSONA));
   });
 });
 
@@ -232,41 +393,51 @@ describe('PersonaSwitcher states', () => {
     cleanup();
   });
 
-  it('is busy and disabled while the context is being switched, then available again', async () => {
-    const runtime = createTestRuntime({
-      demoControl: createDemoControl(() => Promise.resolve([FIRST_PERSONA, SECOND_PERSONA])),
-    });
-    runtime.actingContext.set({ organizationId: FIRST_PERSONA.organizationId, userId: FIRST_PERSONA.userId });
+  it('is busy while the context is being switched, keeps the focus, stays closed, then is available again', async () => {
+    const runtime = createTwoPersonaRuntime();
     const queryClient = createQueryClient({ networkMode: 'always' });
     const deferred = createDeferred();
     vi.spyOn(queryClient, 'cancelQueries').mockReturnValue(deferred.promise);
 
     await renderSwitcher(runtime, queryClient);
+    await waitForTriggerName(FIRST_PERSONA);
 
-    await waitFor(() => {
-      expect(within(getSelect()).queryAllByRole('option')).toHaveLength(2);
-    });
-
-    expect(getSelect().disabled).toBe(false);
-    expect(getSelect().getAttribute('aria-busy')).toBe('false');
+    expect(getTrigger().disabled).toBe(false);
+    expect(getTrigger().getAttribute('aria-busy')).toBeNull();
     expect(screen.getByRole('status').textContent).toBe('');
 
-    fireEvent.change(getSelect(), { target: { value: SECOND_PERSONA.id } });
+    await openMenu();
+    chooseWithEnter(getPersonaItem(SECOND_PERSONA));
 
-    expect(getSelect().disabled).toBe(true);
-    expect(getSelect().getAttribute('aria-busy')).toBe('true');
+    await waitFor(() => {
+      expect(getTrigger().getAttribute('aria-busy')).toBe('true');
+    });
+
+    const trigger = getTrigger();
+
+    expect(trigger.getAttribute('aria-disabled')).toBe('true');
+    expect(trigger.disabled).toBe(false);
+    expect(trigger.textContent).toBe(defaultLocaleCatalog['persona.switching']);
+    expect(trigger.getAttribute('aria-label')).toBe(getTriggerName(FIRST_PERSONA));
     expect(screen.getByRole('status').textContent).toBe(defaultLocaleCatalog['persona.switching']);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(trigger);
+    });
+
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+
+    expect(screen.queryByRole('menu')).toBeNull();
 
     await act(async () => {
       deferred.resolve();
       await deferred.promise;
     });
 
+    await waitForTriggerName(SECOND_PERSONA);
     await waitFor(() => {
-      expect(getSelect().disabled).toBe(false);
+      expect(getTrigger().getAttribute('aria-busy')).toBeNull();
     });
 
-    expect(getSelect().getAttribute('aria-busy')).toBe('false');
     expect(runtime.actingContext.get().userId).toBe(SECOND_PERSONA.userId);
     expect(screen.getByRole('status').textContent).toBe('');
   });
@@ -276,12 +447,23 @@ describe('PersonaSwitcher states', () => {
 
     await renderSwitcher(runtime);
 
-    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
     expect(screen.queryByText(defaultLocaleCatalog['persona.label'])).toBeNull();
     expect(document.body.textContent).toBe('');
   });
 
-  it('shows a disabled select of the same shape without options while the list is loading', async () => {
+  it('puts the given class name on the trigger next to its own layout', async () => {
+    const runtime = createTestRuntime({ demoControl: createDemoControl(() => Promise.resolve([FIRST_PERSONA])) });
+
+    await renderSwitcher(runtime, undefined, 'w-80');
+
+    const trigger = await screen.findByRole('button', { name: TRIGGER_NAME_PATTERN });
+
+    expect(trigger.className).toContain('w-80');
+    expect(trigger.className).toContain('justify-start');
+  });
+
+  it('shows a disabled trigger of the same shape while the list is loading', async () => {
     const deferred = createDeferred();
     const runtime = createTestRuntime({
       demoControl: createDemoControl(async () => {
@@ -293,12 +475,16 @@ describe('PersonaSwitcher states', () => {
 
     await renderSwitcher(runtime);
 
-    const select = getSelect();
+    const trigger = getTrigger();
+    const loadingClassName = trigger.className;
 
-    expect(select.disabled).toBe(true);
-    expect(select.getAttribute('aria-busy')).toBe('true');
-    expect(within(select).queryAllByRole('option')).toHaveLength(0);
-    expect(select.className).toContain('w-64');
+    expect(trigger.disabled).toBe(true);
+    expect(trigger.getAttribute('aria-label')).toBe(defaultLocaleCatalog['persona.label']);
+    expect(trigger.className).toContain('justify-start');
+
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+
+    expect(screen.queryByRole('menu')).toBeNull();
 
     await act(async () => {
       deferred.resolve();
@@ -306,11 +492,10 @@ describe('PersonaSwitcher states', () => {
     });
 
     await waitFor(() => {
-      expect(within(getSelect()).queryAllByRole('option')).toHaveLength(1);
+      expect(getTrigger().disabled).toBe(false);
     });
 
-    expect(getSelect().disabled).toBe(false);
-    expect(getSelect().className).toBe(select.className);
+    expect(getTrigger().className).toBe(loadingClassName);
   });
 
   it('renders nothing and logs when the list cannot be loaded', async () => {
@@ -324,7 +509,7 @@ describe('PersonaSwitcher states', () => {
     await renderSwitcher(runtime, queryClient);
 
     await waitFor(() => {
-      expect(screen.queryByRole('combobox')).toBeNull();
+      expect(screen.queryByRole('button')).toBeNull();
       expect(log).toHaveBeenCalledWith('> PersonaSwitcher -> reportPersonasError:', { error: failure });
     });
 
@@ -333,31 +518,25 @@ describe('PersonaSwitcher states', () => {
 
   it('logs the choice and keeps the context when the switch fails', async () => {
     const log = vi.spyOn(console, 'log');
-    const runtime = createTestRuntime({
-      demoControl: createDemoControl(() => Promise.resolve([FIRST_PERSONA, SECOND_PERSONA])),
-    });
-    runtime.actingContext.set({ organizationId: FIRST_PERSONA.organizationId, userId: FIRST_PERSONA.userId });
+    const runtime = createTwoPersonaRuntime();
     const queryClient = createQueryClient({ networkMode: 'always' });
     const failure = new Error('cancel failed');
     vi.spyOn(queryClient, 'cancelQueries').mockRejectedValue(failure);
 
     await renderSwitcher(runtime, queryClient);
+    await waitForTriggerName(FIRST_PERSONA);
+    await openMenu();
+    chooseWithEnter(getPersonaItem(SECOND_PERSONA));
 
     await waitFor(() => {
-      expect(within(getSelect()).queryAllByRole('option')).toHaveLength(2);
-    });
-
-    fireEvent.change(getSelect(), { target: { value: SECOND_PERSONA.id } });
-
-    await waitFor(() => {
-      expect(log).toHaveBeenCalledWith('> PersonaSwitcher -> handlePersonaChange:', { personaId: SECOND_PERSONA.id });
-      expect(log).toHaveBeenCalledWith('> PersonaSwitcher -> handlePersonaChange:', {
+      expect(log).toHaveBeenCalledWith('> PersonaSwitcher -> handlePersonaValueChange:', { personaId: SECOND_PERSONA.id });
+      expect(log).toHaveBeenCalledWith('> PersonaSwitcher -> handlePersonaValueChange:', {
         personaId: SECOND_PERSONA.id,
         switchError: failure,
       });
     });
     await waitFor(() => {
-      expect(getSelect().disabled).toBe(false);
+      expect(getTrigger().getAttribute('aria-busy')).toBeNull();
     });
 
     expect(runtime.actingContext.get().userId).toBe(FIRST_PERSONA.userId);

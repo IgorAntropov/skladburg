@@ -12,6 +12,7 @@ import type {
 } from './sectionPages';
 
 import { createCachedSectionLoaders } from './createCachedSectionLoaders';
+import { SectionChunkLoadError } from './SectionChunkLoadError';
 
 const CHUNK_ERROR = new Error('chunk is unavailable');
 
@@ -38,38 +39,6 @@ describe('createCachedSectionLoaders', () => {
     expect(await second).toBe(loadedModule);
   });
 
-  it('does not call the source loader again once the module is loaded', async () => {
-    const loader = vi.fn<SectionLoader>(() => Promise.resolve(createModule()));
-    const { network } = createCachedSectionLoaders(createLoaders(loader));
-
-    await network();
-    await network();
-    await network();
-
-    expect(loader).toHaveBeenCalledOnce();
-  });
-
-  it('calls the callback at once when the module is already loaded', async () => {
-    const loadedModule = createModule();
-    const { catalog } = createCachedSectionLoaders(createLoaders(() => Promise.resolve(loadedModule)));
-    await catalog();
-    const onFulfilled = vi.fn((module: SectionModuleValue): SectionModuleValue => module);
-
-    catalog().then(onFulfilled);
-
-    expect(onFulfilled).toHaveBeenCalledOnce();
-    expect(onFulfilled).toHaveBeenCalledWith(loadedModule);
-  });
-
-  it('gives the result of the callback to the next step when the module is already loaded', async () => {
-    const { warehouse } = createCachedSectionLoaders(createLoaders(() => Promise.resolve(createModule())));
-    await warehouse();
-
-    const title = await warehouse().then(() => 'ready');
-
-    expect(title).toBe('ready');
-  });
-
   it('keeps the loading of every section apart', async () => {
     const catalogModule = createModule();
     const dealsModule = createModule();
@@ -84,14 +53,17 @@ describe('createCachedSectionLoaders', () => {
     expect(await cached.deals()).toBe(dealsModule);
   });
 
-  it('passes the error through, forgets the failed loading and tries again on the next call', async () => {
+  it('wraps the failure into the chunk error with the source error, forgets it and tries again on the next call', async () => {
     const loadedModule = createModule();
     const loader = vi.fn<SectionLoader>()
       .mockRejectedValueOnce(CHUNK_ERROR)
       .mockResolvedValueOnce(loadedModule);
     const { deals } = createCachedSectionLoaders(createLoaders(loader));
 
-    await expect(deals()).rejects.toBe(CHUNK_ERROR);
+    const failure: unknown = await deals().then(() => undefined, (error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(SectionChunkLoadError);
+    expect(failure).toMatchObject({ cause: CHUNK_ERROR, name: 'SectionChunkLoadError', section: 'deals' });
     expect(await deals()).toBe(loadedModule);
     expect(loader).toHaveBeenCalledTimes(2);
   });
@@ -104,5 +76,15 @@ describe('createCachedSectionLoaders', () => {
 
     expect(results.map(result => result.status)).toEqual(['rejected', 'rejected']);
     expect(loader).toHaveBeenCalledOnce();
+  });
+
+  it('names the section of every loader in its chunk error', async () => {
+    const cached = createCachedSectionLoaders(createLoaders(() => Promise.reject(CHUNK_ERROR)));
+
+    for (const section of ['catalog', 'deals', 'network', 'warehouse'] as const) {
+      const failure: unknown = await cached[section]().then(() => undefined, (error: unknown) => error);
+
+      expect(failure).toMatchObject({ section });
+    }
   });
 });

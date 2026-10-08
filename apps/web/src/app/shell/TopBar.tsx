@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { PersonaSwitcher } from '@/features/switch-persona';
+import { useDemoControl } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
 import {
   AddressLink,
@@ -13,6 +13,7 @@ import {
   getAddressSection,
   SECTION_TITLE_KEYS,
 } from '../routing/sections';
+import { PersonaSwitcherSlot } from './PersonaSwitcherSlot';
 
 const NAV_LINK_CLASS_NAME = [
   'inline-flex min-h-11 items-center rounded-md px-3 text-base',
@@ -25,6 +26,9 @@ export const TopBar = (): ReactElement => {
   const { brandName } = useTenantSettings();
   const { address } = useAddress();
   const availableSections = useAvailableSections();
+  const demoControl = useDemoControl();
+
+  const isPersonaSwitcherShown = demoControl !== undefined;
 
   const currentSection = address === undefined ? undefined : getAddressSection(address);
   const navigationSections = availableSections.kind === 'ready' ? availableSections.sections : [];
@@ -50,9 +54,11 @@ export const TopBar = (): ReactElement => {
             })}
           </ul>
         </nav>
-        <div className="ml-auto">
-          <PersonaSwitcher />
-        </div>
+        {isPersonaSwitcherShown && (
+          <div className="ml-auto">
+            <PersonaSwitcherSlot />
+          </div>
+        )}
       </div>
     </header>
   );

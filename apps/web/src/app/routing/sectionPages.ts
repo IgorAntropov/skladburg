@@ -10,7 +10,11 @@ import type {
   ObjectRefValue,
 } from '@/shared/routing';
 
-export type CachedSectionLoader = () => PromiseLike<SectionModuleValue>;
+import type { CachedModuleLoader } from '../lib/createCachedModuleLoader';
+
+import { toLazyModuleLoader } from '../lib/createCachedModuleLoader';
+
+export type CachedSectionLoader = CachedModuleLoader<SectionModuleValue>;
 
 export type CachedSectionLoadersValue = Readonly<Record<AppSectionValue, CachedSectionLoader>>;
 
@@ -35,11 +39,9 @@ export const DEFAULT_SECTION_LOADERS: SectionLoadersValue = {
   warehouse: () => import('@/pages/warehouse').then(module => ({ default: module.WarehousePage })),
 };
 
-const toLazyLoader = (loader: CachedSectionLoader): SectionLoader => () => loader() as Promise<SectionModuleValue>;
-
 export const createSectionPages = (loaders: CachedSectionLoadersValue): SectionPagesValue => ({
-  catalog: lazy(toLazyLoader(loaders.catalog)),
-  deals: lazy(toLazyLoader(loaders.deals)),
-  network: lazy(toLazyLoader(loaders.network)),
-  warehouse: lazy(toLazyLoader(loaders.warehouse)),
+  catalog: lazy(toLazyModuleLoader(loaders.catalog)),
+  deals: lazy(toLazyModuleLoader(loaders.deals)),
+  network: lazy(toLazyModuleLoader(loaders.network)),
+  warehouse: lazy(toLazyModuleLoader(loaders.warehouse)),
 });

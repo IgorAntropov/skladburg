@@ -497,6 +497,107 @@ describe('AppRoutes chunk failure', () => {
   });
 });
 
+describe('AppRoutes render failure', () => {
+  interface BrokenPageValue {
+    fix: () => void;
+    Page: (props: SectionPageProps) => ReactElement;
+  }
+
+  const createBrokenPage = (): BrokenPageValue => {
+    let isBroken = true;
+    const Page = ({ focus }: SectionPageProps): ReactElement => {
+      if (isBroken) {
+        throw new Error('the page crashed');
+      }
+
+      return <p data-testid="page-deals">{focus === undefined ? '' : `${focus.type}:${focus.id}`}</p>;
+    };
+
+    return {
+      fix: () => {
+        isBroken = false;
+      },
+      Page,
+    };
+  };
+
+  const renderBrokenDeals = async (initialPath = '/deals'): Promise<RenderedRoutesValue & { brokenPage: BrokenPageValue }> => {
+    const brokenPage = createBrokenPage();
+    const loaders = createStubLoaders();
+    loaders.deals.mockResolvedValue({ default: brokenPage.Page });
+    const rendered = await renderRoutes(initialPath, loaders);
+
+    return { ...rendered, brokenPage };
+  };
+
+  it('shows the text about the error instead of the text about the connection and reports the error', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await renderBrokenDeals();
+
+    const alert = await screen.findByRole('alert');
+
+    expect(alert.textContent).toBe(defaultLocaleCatalog['routing.renderError.message']);
+    expect(alert.textContent).not.toBe(defaultLocaleCatalog['routing.chunkError.message']);
+    expect(screen.getByRole('main').contains(alert)).toBe(true);
+    expect(screen.getByRole('button', { name: defaultLocaleCatalog['common.retry'] })).toBeDefined();
+    expect(getLoggedLabels(consoleError)).toContain('> SectionErrorBoundary -> componentDidCatch:');
+  });
+
+  it('draws the section again on retry without reloading the page', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { brokenPage, location } = await renderBrokenDeals();
+    const retryButton = await screen.findByRole('button', { name: defaultLocaleCatalog['common.retry'] });
+    brokenPage.fix();
+
+    fireEvent.click(retryButton);
+
+    expect(await screen.findByTestId('page-deals')).toBeDefined();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(location.reloadCount).toBe(0);
+  });
+
+  it('keeps the error screen and announces it again when the section fails again on retry', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await renderBrokenDeals();
+    const firstAlert = await screen.findByRole('alert');
+
+    fireEvent.click(screen.getByRole('button', { name: defaultLocaleCatalog['common.retry'] }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).not.toBe(firstAlert);
+    });
+    expect(screen.getByRole('alert').textContent).toBe(defaultLocaleCatalog['routing.renderError.message']);
+    expect(screen.queryByTestId('page-deals')).toBeNull();
+  });
+
+  it('draws the section when the user opens another object of it', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { brokenPage, location } = await renderBrokenDeals();
+    await screen.findByRole('alert');
+    brokenPage.fix();
+
+    act(() => {
+      location.navigate(`/deals/${OBJECT_ID}`);
+    });
+
+    expect((await screen.findByTestId('page-deals')).textContent).toBe(`deal:${OBJECT_ID}`);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('leaves the error screen when the user opens another section', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { location } = await renderBrokenDeals();
+    await screen.findByRole('alert');
+
+    act(() => {
+      location.navigate('/network');
+    });
+
+    expect(await screen.findByTestId('page-network')).toBeDefined();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
 describe('AppRoutes focus', () => {
   it('does not move the focus when the first page appears', async () => {
     await renderRoutes('/network');
@@ -683,8 +784,8 @@ describe('AppRoutes session states', () => {
     expect(alert.textContent).toBe(defaultLocaleCatalog['error.unavailable']);
     expect(screen.getByRole('main').contains(alert)).toBe(true);
     expect(screen.queryByTestId('page-network')).toBeNull();
-    expect(retryButton.getAttribute('aria-busy')).toBe('false');
-    expect(retryButton.hasAttribute('disabled')).toBe(false);
+    expect(retryButton.getAttribute('aria-busy')).toBeNull();
+    expect(retryButton.getAttribute('aria-disabled')).toBeNull();
 
     fireEvent.click(retryButton);
 
@@ -704,7 +805,7 @@ describe('AppRoutes session states', () => {
 
     expect(screen.getByRole('alert').textContent).toBe(defaultLocaleCatalog['error.unavailable']);
     expect(retryButton.getAttribute('aria-busy')).toBe('true');
-    expect(retryButton.hasAttribute('disabled')).toBe(true);
+    expect(retryButton.getAttribute('aria-disabled')).toBe('true');
     expect(screen.queryByRole('button', { name: defaultLocaleCatalog['common.retry'] })).toBeNull();
 
     fireEvent.click(retryButton);

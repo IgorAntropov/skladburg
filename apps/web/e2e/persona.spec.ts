@@ -164,3 +164,91 @@ test.describe('persona link', () => {
     await navigation.expectAddress(toSectionHash('deals'));
   });
 });
+
+test.describe('persona menu with the keyboard', () => {
+  test('opens on the arrow down key of the focused trigger and keeps the persona', async ({ page }) => {
+    const navigation = createNavigationRobot(page);
+    const persona = createPersonaRobot(page);
+
+    await navigation.openSection('deals');
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+
+    await persona.openMenuWithArrowDown();
+
+    await persona.expectCheckedPersona(DEFAULT_PERSONA);
+
+    await persona.closeMenuWithEscape();
+
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+    await navigation.expectAddress(toSectionHash('deals'));
+  });
+
+  test('keeps the persona on the arrow keys and Escape of the open menu and returns the focus to the trigger', async ({ page }) => {
+    const navigation = createNavigationRobot(page);
+    const persona = createPersonaRobot(page);
+
+    await navigation.openSection('deals');
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+    await persona.openMenuWithArrowDown();
+
+    await persona.pressArrowDownInMenu(3);
+    await persona.pressArrowUpInMenu(1);
+    await persona.expectMenuOpen();
+    await persona.expectCheckedPersona(DEFAULT_PERSONA);
+
+    await persona.closeMenuWithEscape();
+
+    await persona.expectTriggerFocused();
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+    await persona.expectSections(DEFAULT_PERSONA.sections);
+    await navigation.expectAddress(toSectionHash('deals'));
+  });
+
+  test('changes the persona to exactly the highlighted one on Enter', async ({ page }) => {
+    const navigation = createNavigationRobot(page);
+    const persona = createPersonaRobot(page);
+
+    await navigation.openSection('network');
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+    await persona.openMenuWithArrowDown();
+
+    await persona.highlightPersonaWithArrows(PERSONAS.freshCarrier);
+    await persona.expectCheckedPersona(DEFAULT_PERSONA);
+    await persona.pressEnterOnHighlightedPersona();
+
+    await persona.expectMenuClosed();
+    await persona.expectCurrentPersona(PERSONAS.freshCarrier);
+    await persona.expectSections(PERSONAS.freshCarrier.sections);
+  });
+});
+
+test.describe('persona menu with the mouse', () => {
+  test('opens on a click of the trigger and changes nothing until an item is chosen', async ({ page }) => {
+    const navigation = createNavigationRobot(page);
+    const persona = createPersonaRobot(page);
+
+    await navigation.openSection('catalog');
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+
+    await persona.openMenuWithClick();
+
+    await persona.expectCheckedPersona(DEFAULT_PERSONA);
+    await persona.closeMenuWithEscape();
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+    await navigation.expectAddress(toSectionHash('catalog'));
+  });
+
+  test('changes the persona on a click of an item', async ({ page }) => {
+    const navigation = createNavigationRobot(page);
+    const persona = createPersonaRobot(page);
+
+    await navigation.openSection('catalog');
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+
+    await persona.selectPersona(PERSONAS.constructionSeller);
+
+    await persona.expectCurrentPersona(PERSONAS.constructionSeller);
+    await persona.openMenuWithClick();
+    await persona.expectCheckedPersona(PERSONAS.constructionSeller);
+  });
+});

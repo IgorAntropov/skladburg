@@ -1,12 +1,12 @@
-import type {
-  ChangeEvent,
-  ReactElement,
-} from 'react';
+import type { ReactElement } from 'react';
 
+import { ChevronDown } from 'lucide-react';
 import {
   useEffect,
-  useId,
+  useState,
 } from 'react';
+
+import type { DemoPersonaListItemValue } from '@/shared/api';
 
 import {
   useActingContext,
@@ -14,17 +14,24 @@ import {
   useSwitchActingContext,
 } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
+import { cn } from '@/shared/lib/cn';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/shared/ui';
 
 import { usePersonasQuery } from '../api/usePersonasQuery';
 import { PERSONA_KIND_MESSAGE_KEYS } from '../model/personaKindMessageKeys';
 
-const SELECT_CLASS_NAME = [
-  'min-h-11 w-64 max-w-full rounded-md border border-line-strong bg-panel-solid px-3 text-base text-on-panel',
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
-  'disabled:opacity-60',
-].join(' ');
+export interface PersonaSwitcherProps {
+  className?: string | undefined;
+}
 
-export const PersonaSwitcher = (): null | ReactElement => {
+export const PersonaSwitcher = ({ className }: PersonaSwitcherProps): null | ReactElement => {
   const { t } = useI18n();
   const demoControl = useDemoControl();
   const {
@@ -35,26 +42,43 @@ export const PersonaSwitcher = (): null | ReactElement => {
   } = usePersonasQuery();
   const { organizationId, userId } = useActingContext();
   const { isSwitching, switchActingContext } = useSwitchActingContext();
-  const selectId = useId();
+  const [isOpen, setIsOpen] = useState(false);
 
   const isDemoActive = demoControl !== undefined;
   const isSwitcherVisible = isDemoActive && !isError;
-  const isSelectDisabled = isPending || isSwitching;
   const currentPersona = personas.find(persona => persona.organizationId === organizationId && persona.userId === userId);
+  const isMenuBlocked = isPending || isSwitching;
   const switchingStatus = isSwitching ? t('persona.switching') : '';
 
-  const handlePersonaChange = (event: ChangeEvent<HTMLSelectElement>): void => {
-    const personaId = event.target.value;
+  const formatPersona = (persona: DemoPersonaListItemValue): string => t('persona.option', {
+    kind: t(PERSONA_KIND_MESSAGE_KEYS[persona.kind]),
+    organization: persona.organizationName,
+  });
 
-    console.log('> PersonaSwitcher -> handlePersonaChange:', { personaId });
-    const persona = personas.find(item => item.id === personaId);
+  const currentPersonaTitle = currentPersona === undefined ? undefined : formatPersona(currentPersona);
+  const triggerLabel = currentPersonaTitle === undefined
+    ? t('persona.label')
+    : t('persona.trigger.label', { persona: currentPersonaTitle });
 
-    if (persona === undefined) {
+  const handleOpenChange = (nextIsOpen: boolean): void => {
+    console.log('> PersonaSwitcher -> handleOpenChange:', { isMenuBlocked, nextIsOpen });
+    if (nextIsOpen && isMenuBlocked) {
+      return;
+    }
+
+    setIsOpen(nextIsOpen);
+  };
+
+  const handlePersonaValueChange = (personaId: string): void => {
+    console.log('> PersonaSwitcher -> handlePersonaValueChange:', { personaId });
+    const persona = personas.find(candidate => candidate.id === personaId);
+
+    if (persona === undefined || persona.id === currentPersona?.id) {
       return;
     }
 
     switchActingContext({ organizationId: persona.organizationId, userId: persona.userId }).catch((switchError: unknown) => {
-      console.log('> PersonaSwitcher -> handlePersonaChange:', { personaId, switchError });
+      console.log('> PersonaSwitcher -> handlePersonaValueChange:', { personaId, switchError });
     });
   };
 
@@ -69,27 +93,36 @@ export const PersonaSwitcher = (): null | ReactElement => {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <label className="text-base" htmlFor={selectId}>
-        {t('persona.label')}
-      </label>
-      <select
-        aria-busy={isSelectDisabled}
-        className={SELECT_CLASS_NAME}
-        disabled={isSelectDisabled}
-        id={selectId}
-        onChange={handlePersonaChange}
-        value={currentPersona?.id ?? ''}
-      >
-        {personas.map(persona => (
-          <option key={persona.id} value={persona.id}>
-            {t('persona.option', {
-              kind: t(PERSONA_KIND_MESSAGE_KEYS[persona.kind]),
-              organization: persona.organizationName,
-            })}
-          </option>
-        ))}
-      </select>
+    <div className="flex items-center">
+      <DropdownMenu onOpenChange={handleOpenChange} open={isOpen}>
+        <DropdownMenuTrigger>
+          <Button
+            aria-label={triggerLabel}
+            className={cn('justify-start', className)}
+            disabled={isPending}
+            pending={isSwitching}
+            pendingLabel={t('persona.switching')}
+            variant="secondary"
+          >
+            <span className="shrink-0 font-normal">{t('persona.label')}</span>
+            <span className="min-w-0 flex-1 truncate text-left" translate="no">{currentPersonaTitle}</span>
+            <ChevronDown aria-hidden className="size-4 shrink-0" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" label={t('persona.label')}>
+          <DropdownMenuRadioGroup
+            label={t('persona.menu.label')}
+            onValueChange={handlePersonaValueChange}
+            value={currentPersona?.id}
+          >
+            {personas.map(persona => (
+              <DropdownMenuRadioItem key={persona.id} value={persona.id}>
+                {formatPersona(persona)}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <span className="sr-only" role="status">
         {switchingStatus}
       </span>

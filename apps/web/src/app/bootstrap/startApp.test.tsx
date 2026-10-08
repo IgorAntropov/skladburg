@@ -143,7 +143,11 @@ const createRootElement = (): HTMLElement => {
 };
 
 const expectButtonEnabled = (): void => {
-  expect(screen.getByRole('button').hasAttribute('disabled')).toBe(false);
+  const button = screen.getByRole('button');
+
+  expect(button.hasAttribute('disabled')).toBe(false);
+  expect(button.getAttribute('aria-disabled')).toBeNull();
+  expect(button.getAttribute('aria-busy')).toBeNull();
 };
 
 const getLoggedLabels = (spy: MockInstance<typeof console.error>): unknown[] => {
@@ -281,7 +285,7 @@ describe('startApp', () => {
     expect(consoleError.mock.calls[0]?.[0]).toBe('> startApp -> tryStart:');
     expect(consoleError.mock.calls[0]?.[1]).toMatchObject({ tenantId: defaultTenant.tenantId });
     expect((await screen.findByRole('alert')).textContent).toBe(defaultLocaleCatalog['app.startError.message']);
-    expect(screen.getByRole('button', { name: defaultLocaleCatalog['app.startError.retry'] })).toBeDefined();
+    expect(screen.getByRole('button', { name: defaultLocaleCatalog['common.retry'] })).toBeDefined();
   });
 
   it('renders the application in the same root after a successful retry', async () => {
@@ -313,7 +317,7 @@ describe('startApp', () => {
     await waitFor(expectErrorLoggedTwice);
     await waitFor(expectButtonEnabled);
     expect(screen.getByRole('alert')).toBeDefined();
-    expect(screen.getByRole('button', { name: defaultLocaleCatalog['app.startError.retry'] })).toBeDefined();
+    expect(screen.getByRole('button', { name: defaultLocaleCatalog['common.retry'] })).toBeDefined();
     expect(consoleError.mock.calls[1]?.[0]).toBe('> startApp -> tryStart:');
   });
 
@@ -330,9 +334,9 @@ describe('startApp', () => {
     await startApp(createRootElement());
     fireEvent.click(await screen.findByRole('button'));
 
-    const button = await screen.findByRole('button', { name: defaultLocaleCatalog['app.startError.retrying'] });
+    const button = await screen.findByRole('button', { name: defaultLocaleCatalog['common.retrying'] });
 
-    expect(button.hasAttribute('disabled')).toBe(true);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
     expect(button.getAttribute('aria-busy')).toBe('true');
 
     failRetry(new Error('still unavailable'));

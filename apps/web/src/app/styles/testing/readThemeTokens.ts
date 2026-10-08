@@ -8,6 +8,7 @@ export interface ThemeTokensValue {
 const LIGHT_BLOCK_HEADERS = [
   /^@theme\s+static\s*\{/m,
   /^@theme\s+inline\s*\{/m,
+  /^:root\s*\{/m,
 ];
 
 const DARK_BLOCK_HEADER = /^\[data-theme='dark'\]\s*\{/m;

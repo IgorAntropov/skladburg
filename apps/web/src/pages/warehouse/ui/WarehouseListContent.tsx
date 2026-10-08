@@ -1,74 +1,82 @@
 import type { ReactElement } from 'react';
 
 import { useI18n } from '@/shared/i18n';
+import {
+  Card,
+  Skeleton,
+  WidgetStates,
+} from '@/shared/ui';
 
 import { useWarehousesQuery } from '../api/useWarehousesQuery';
 import {
-  CARD_CLASS_NAME,
-  CARD_SKELETON_CLASS_NAME,
-  createSkeletonLineClassName,
   WAREHOUSE_ADDRESS_CLASS_NAME,
+  WAREHOUSE_ADDRESS_SKELETON_CLASS_NAME,
   WAREHOUSE_NAME_CLASS_NAME,
+  WAREHOUSE_NAME_SKELETON_CLASS_NAME,
 } from './cardStyles';
-import { QueryErrorNotice } from './QueryErrorNotice';
 
 const SKELETON_ROW_IDS = ['first', 'second', 'third'] as const;
+
+const isListEmpty = (list: readonly unknown[]): boolean => list.length === 0;
 
 export const WarehouseListContent = (): ReactElement => {
   const { t } = useI18n();
   const {
     data: warehouses,
     error,
-    isError,
+    isFetching,
     refetch,
   } = useWarehousesQuery();
 
-  const isFailed = warehouses === undefined && isError;
-
   const handleRetry = (): void => {
-    console.log('> WarehouseListContent -> handleRetry:', { isFailed });
+    console.log('> WarehouseListContent -> handleRetry:', { hasError: error !== null });
     void refetch();
   };
 
-  if (warehouses?.length === 0) {
-    return <p>{t('warehouse.warehouses.empty')}</p>;
-  }
-
-  if (warehouses !== undefined) {
-    return (
-      <ul className="flex flex-col gap-3">
-        {warehouses.map((warehouse) => {
-          const hasAddress = warehouse.address !== '';
-
-          return (
-            <li className={CARD_CLASS_NAME} key={warehouse.id}>
-              <p className={WAREHOUSE_NAME_CLASS_NAME} translate="no">
-                {warehouse.name}
-              </p>
-              {hasAddress && (
-                <p className={WAREHOUSE_ADDRESS_CLASS_NAME} translate="no">
-                  {t('warehouse.warehouses.address', { address: warehouse.address })}
-                </p>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    );
-  }
-
-  if (isFailed) {
-    return <QueryErrorNotice error={error} onRetry={handleRetry} />;
-  }
+  const skeleton = (
+    <div className="flex flex-col gap-3">
+      {SKELETON_ROW_IDS.map(rowId => (
+        <Card key={rowId}>
+          <Skeleton className={WAREHOUSE_NAME_SKELETON_CLASS_NAME} />
+          <Skeleton className={WAREHOUSE_ADDRESS_SKELETON_CLASS_NAME} />
+        </Card>
+      ))}
+    </div>
+  );
 
   return (
-    <ul aria-busy="true" aria-label={t('warehouse.warehouses.loading')} className="flex flex-col gap-3">
-      {SKELETON_ROW_IDS.map(rowId => (
-        <li className={CARD_SKELETON_CLASS_NAME} key={rowId}>
-          <p aria-hidden="true" className={createSkeletonLineClassName(WAREHOUSE_NAME_CLASS_NAME)} />
-          <p aria-hidden="true" className={createSkeletonLineClassName(WAREHOUSE_ADDRESS_CLASS_NAME)} />
-        </li>
-      ))}
-    </ul>
+    <WidgetStates
+      data={warehouses}
+      empty={<p>{t('warehouse.warehouses.empty')}</p>}
+      error={error}
+      isEmpty={isListEmpty}
+      isRetrying={isFetching}
+      loadingLabel={t('warehouse.warehouses.loading')}
+      onRetry={handleRetry}
+      skeleton={skeleton}
+    >
+      {loadedWarehouses => (
+        <ul className="flex flex-col gap-3">
+          {loadedWarehouses.map((warehouse) => {
+            const hasAddress = warehouse.address !== '';
+
+            return (
+              <li key={warehouse.id}>
+                <Card>
+                  <p className={WAREHOUSE_NAME_CLASS_NAME} translate="no">
+                    {warehouse.name}
+                  </p>
+                  {hasAddress && (
+                    <p className={WAREHOUSE_ADDRESS_CLASS_NAME} translate="no">
+                      {t('warehouse.warehouses.address', { address: warehouse.address })}
+                    </p>
+                  )}
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </WidgetStates>
   );
 };

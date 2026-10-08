@@ -21,6 +21,8 @@ const timeZoneExemptTestFiles: string[] = [
   'apps/web/src/shared/i18n/**/*.test.{ts,tsx}',
   'apps/web/src/app/bootstrap/**/*.test.{ts,tsx}',
 ];
+const navigationOwnerFiles: string[] = ['apps/web/src/shared/routing/location/**/*.{ts,tsx}'];
+const navigationOwnerTestFiles: string[] = ['apps/web/src/shared/routing/location/**/*.test.{ts,tsx}'];
 
 interface BoundaryRestrictionValue {
   importPattern: string;
@@ -44,6 +46,12 @@ const apiTestingEntryRestriction: BoundaryRestrictionValue = {
   importPattern: '^@/shared/api/index\\.testing$',
   message: 'The testing entry of shared/api is for tests only',
   selectorPattern: '^@.shared.api.index.testing$',
+};
+
+const routingTestingEntryRestriction: BoundaryRestrictionValue = {
+  importPattern: '^@/shared/routing/index\\.testing$',
+  message: 'The testing entry of shared/routing is for tests only',
+  selectorPattern: '^@.shared.routing.index.testing$',
 };
 
 interface SyntaxRestrictionValue {
@@ -113,12 +121,67 @@ const createTimeZoneRestrictions = (hint: string): SyntaxRestrictionValue[] => [
   },
 ];
 
+const createGlobalMatcher = (name: string, holders: string, path = 'object'): string =>
+  `:matches([${path}.name='${name}'], [${path}.property.name='${name}'][${path}.object.name=/^(${holders})$/])`;
+
+const createMemberNameMatcher = (members: string, path = 'property'): string =>
+  `:matches([computed=false][${path}.name=/^(${members})$/], [computed=true][${path}.value=/^(${members})$/])`;
+
+const createNavigationRestrictions = (): SyntaxRestrictionValue[] => {
+  const locationHolders = 'window|globalThis|self|document|top|parent';
+  const historyHolders = 'window|globalThis|self|top|parent';
+  const locationMembers = 'hash|assign|replace|reload';
+  const locationWrittenMembers = 'href|search|pathname';
+  const historyMembers = 'pushState|replaceState|back|forward|go';
+
+  return [
+    {
+      message: 'location.hash belongs to shared/routing; read the address with useAddress and change it with useNavigate or '
+        + 'AddressLink, use @/shared/routing',
+      selector: `MemberExpression${createMemberNameMatcher('hash')}${createGlobalMatcher('location', locationHolders)}`,
+    },
+    {
+      message: 'Page navigation goes through shared/routing; do not call location.assign, location.replace or location.reload, '
+        + 'use @/shared/routing (useNavigate, AddressLink, useReloadPage)',
+      selector: `MemberExpression${createMemberNameMatcher('assign|replace|reload')}${createGlobalMatcher('location', locationHolders)}`,
+    },
+    {
+      message: 'history.pushState, history.replaceState, history.back, history.forward and history.go belong to shared/routing; '
+        + 'use @/shared/routing (useNavigate, AddressLink)',
+      selector: `MemberExpression${createMemberNameMatcher(historyMembers)}${createGlobalMatcher('history', historyHolders)}`,
+    },
+    {
+      message: 'Taking hash, assign, replace or reload out of location bypasses shared/routing, use @/shared/routing',
+      selector: `VariableDeclarator${createGlobalMatcher('location', locationHolders, 'init')} > ObjectPattern > `
+        + `Property[key.name=/^(${locationMembers})$/]`,
+    },
+    {
+      message: 'Taking pushState, replaceState, back, forward or go out of history bypasses shared/routing, use @/shared/routing',
+      selector: `VariableDeclarator${createGlobalMatcher('history', historyHolders, 'init')} > ObjectPattern > `
+        + `Property[key.name=/^(${historyMembers})$/]`,
+    },
+    {
+      message: 'Assigning to location navigates the page; use @/shared/routing (useNavigate, AddressLink)',
+      selector: `AssignmentExpression${createGlobalMatcher('location', locationHolders, 'left')}`,
+    },
+    {
+      message: 'Assigning to location.href, location.search or location.pathname navigates the page; use @/shared/routing '
+        + '(useNavigate, AddressLink)',
+      selector: `AssignmentExpression > MemberExpression.left${createMemberNameMatcher(locationWrittenMembers)}`
+        + createGlobalMatcher('location', locationHolders),
+    },
+  ];
+};
+
+const navigationRestrictions: SyntaxRestrictionValue[] = createNavigationRestrictions();
+
 const engineCoreTimeZoneRestrictions: SyntaxRestrictionValue[] = createTimeZoneRestrictions(
   'use getUTC*, Date.UTC, the functions of core/calendar or an explicit timeZone',
 );
 const webTimeZoneRestrictions: SyntaxRestrictionValue[] = createTimeZoneRestrictions(
   'format through shared/i18n, use getUTC* or Date.UTC, or pass an explicit timeZone',
 );
+const webSyntaxRestrictions: SyntaxRestrictionValue[] = [...webTimeZoneRestrictions, ...navigationRestrictions];
 
 const engineCoreRestrictedGlobals: string[] = [
   'addEventListener',
@@ -277,30 +340,47 @@ export default defineConfig(
   },
   {
     files: engineBoundaryFiles,
-    rules: createBoundaryRules([engineRestriction, apiTestingEntryRestriction], webTimeZoneRestrictions),
+    rules: createBoundaryRules(
+      [engineRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
+      webSyntaxRestrictions,
+    ),
   },
   {
     files: engineBoundaryTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests], webTimeZoneRestrictions),
+    rules: createBoundaryRules([engineRestrictionForTests], webSyntaxRestrictions),
   },
   {
     files: engineBoundaryAllowedFiles,
-    rules: createBoundaryRules([apiTestingEntryRestriction], webTimeZoneRestrictions),
+    rules: createBoundaryRules([apiTestingEntryRestriction, routingTestingEntryRestriction], webSyntaxRestrictions),
   },
   {
     files: engineBoundaryAllowedTestFiles,
     rules: {
       'no-restricted-imports': 'off',
-      'no-restricted-syntax': ['error', ...webTimeZoneRestrictions],
+      'no-restricted-syntax': ['error', ...webSyntaxRestrictions],
     },
   },
   {
     files: timeZoneExemptFiles,
-    rules: createBoundaryRules([engineRestriction, apiTestingEntryRestriction]),
+    rules: createBoundaryRules(
+      [engineRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
+      navigationRestrictions,
+    ),
   },
   {
     files: timeZoneExemptTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests]),
+    rules: createBoundaryRules([engineRestrictionForTests], navigationRestrictions),
+  },
+  {
+    files: navigationOwnerFiles,
+    rules: createBoundaryRules(
+      [engineRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
+      webTimeZoneRestrictions,
+    ),
+  },
+  {
+    files: navigationOwnerTestFiles,
+    rules: createBoundaryRules([engineRestrictionForTests], webTimeZoneRestrictions),
   },
   {
     extends: [tseslint.configs.disableTypeChecked],

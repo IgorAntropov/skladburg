@@ -40,6 +40,7 @@ import {
 
 import type { IDemoControl } from '@/shared/api';
 import type { ILocalizer } from '@/shared/i18n';
+import type { ObjectRefValue } from '@/shared/routing';
 
 import {
   ApiRuntimeProvider,
@@ -53,13 +54,13 @@ import {
   createLocalizer,
   LocalizerProvider,
 } from '@/shared/i18n';
-import { TenantSettingsProvider } from '@/shared/tenant';
+import { OBJECT_TYPES } from '@/shared/routing';
 
 import { warehouseKeys } from '../api/warehouseKeys';
 import { createSkeletonLineClassName } from './cardStyles';
-import { FieldPage } from './FieldPage';
+import { WarehousePage } from './WarehousePage';
 
-const BRAND_NAME = 'Северный склад';
+const FOCUSED_OBJECT_ID = 'f6000001-0000-4000-8000-000000000000';
 const ORGANIZATION_NAME = 'Север-Опт';
 const LEGAL_NAME = 'ООО «Север-Опт»';
 const ORGANIZATION_INN = '7700000001';
@@ -78,6 +79,7 @@ interface RenderedPageValue {
 
 interface RenderPageOptionsValue {
   demoControl?: IDemoControl | undefined;
+  focus?: ObjectRefValue | undefined;
   getOrganization?: OrganizationHandler | undefined;
   listWarehouses?: undefined | WarehousesHandler;
 }
@@ -137,6 +139,7 @@ const createTestLocalizer = (): Promise<ILocalizer> => createLocalizer({
 });
 
 const renderPage = async (options: RenderPageOptionsValue = {}): Promise<RenderedPageValue> => {
+  const { focus } = options;
   const localizer = await createTestLocalizer();
   const queryClient = createQueryClient({ networkMode: 'always' });
   const runtime = createTestRuntime({
@@ -151,17 +154,7 @@ const renderPage = async (options: RenderPageOptionsValue = {}): Promise<Rendere
     <LocalizerProvider localizer={localizer}>
       <ApiRuntimeProvider runtime={runtime}>
         <QueryClientProvider client={queryClient}>
-          <TenantSettingsProvider
-            tenantSettings={{
-              availableLocales: ['ru'],
-              brandName: BRAND_NAME,
-              defaultLocale: 'ru',
-              tenantId: TEST_ORGANIZATION_ID,
-              termOverrides: {},
-            }}
-          >
-            <FieldPage />
-          </TenantSettingsProvider>
+          <WarehousePage focus={focus} />
         </QueryClientProvider>
       </ApiRuntimeProvider>
     </LocalizerProvider>,
@@ -170,36 +163,67 @@ const renderPage = async (options: RenderPageOptionsValue = {}): Promise<Rendere
   return { queryClient };
 };
 
-const formatAddress = (address: string): string => defaultLocaleCatalog['field.warehouses.address'].replace('{address}', address);
+const formatAddress = (address: string): string => defaultLocaleCatalog['warehouse.warehouses.address'].replace('{address}', address);
 
-const getWarehouseSection = (): HTMLElement => screen.getByRole('region', { name: defaultLocaleCatalog['field.warehouses.title'] });
+const getWarehouseSection = (): HTMLElement => screen.getByRole('region', { name: defaultLocaleCatalog['warehouse.warehouses.title'] });
 
 const getClassNames = (elements: Iterable<Element>): string[] => Array.from(elements, element => element.className);
 
 const getResetButton = (name: string): HTMLElement => screen.getByRole('button', { name });
 
-describe('FieldPage header', () => {
+describe('WarehousePage header', () => {
   afterEach(() => {
     cleanup();
   });
 
-  it('shows the brand of the organization in the title without translation', async () => {
+  it('shows the title of the section as the only first level heading', async () => {
     await renderPage();
 
-    const title = screen.getByRole('heading', { level: 1 });
+    const titles = screen.getAllByRole('heading', { level: 1 });
 
-    expect(title.textContent).toBe(BRAND_NAME);
-    expect(title.getAttribute('translate')).toBe('no');
+    expect(titles).toHaveLength(1);
+    expect(titles[0]?.textContent).toBe(defaultLocaleCatalog['section.warehouse.title']);
   });
 
   it('keeps the note about the future world', async () => {
     await renderPage();
 
-    expect(screen.getByText(defaultLocaleCatalog['field.placeholder'])).toBeDefined();
+    expect(screen.getByText(defaultLocaleCatalog['warehouse.placeholder'])).toBeDefined();
   });
 });
 
-describe('FieldPage organization card', () => {
+describe('WarehousePage focused object', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('does not name an object when there is none in the address', async () => {
+    await renderPage();
+
+    expect(screen.queryByText(FOCUSED_OBJECT_ID)).toBeNull();
+  });
+
+  it('does not render a landmark of its own', async () => {
+    await renderPage();
+
+    expect(screen.queryByRole('main')).toBeNull();
+  });
+
+  it.each(OBJECT_TYPES)('names the opened object of the type %s and keeps its identifier out of translation', async (type) => {
+    await renderPage({ focus: { id: FOCUSED_OBJECT_ID, type } });
+
+    const identifier = screen.getByText(FOCUSED_OBJECT_ID);
+    const focusedText = defaultLocaleCatalog['routing.focusedObject'];
+
+    expect(identifier.getAttribute('translate')).toBe('no');
+    const typeTitle = defaultLocaleCatalog[`object.type.${type}`];
+
+    expect(identifier.closest('p')?.textContent).toBe(`${focusedText.replace('{type}', typeTitle)} ${FOCUSED_OBJECT_ID}`);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(defaultLocaleCatalog['section.warehouse.title']);
+  });
+});
+
+describe('WarehousePage organization card', () => {
   afterEach(() => {
     cleanup();
   });
@@ -207,7 +231,7 @@ describe('FieldPage organization card', () => {
   it('shows the name and the legal name but not the tax number', async () => {
     await renderPage();
 
-    const card = await screen.findByRole('region', { name: defaultLocaleCatalog['field.organization.title'] });
+    const card = await screen.findByRole('region', { name: defaultLocaleCatalog['warehouse.organization.title'] });
 
     expect(within(card).getByRole('heading', { level: 2 }).textContent).toBe(ORGANIZATION_NAME);
     expect(within(card).getByText(LEGAL_NAME)).toBeDefined();
@@ -224,7 +248,7 @@ describe('FieldPage organization card', () => {
       },
     });
 
-    const frame = screen.getByRole('status', { name: defaultLocaleCatalog['field.organization.loading'] });
+    const frame = screen.getByRole('status', { name: defaultLocaleCatalog['warehouse.organization.loading'] });
 
     expect(frame.getAttribute('aria-busy')).toBe('true');
     expect(frame.textContent).toBe('');
@@ -246,7 +270,7 @@ describe('FieldPage organization card', () => {
       },
     });
 
-    const frame = screen.getByRole('status', { name: defaultLocaleCatalog['field.organization.loading'] });
+    const frame = screen.getByRole('status', { name: defaultLocaleCatalog['warehouse.organization.loading'] });
     const frameClassName = frame.className;
     const frameLines = Array.from(frame.children);
 
@@ -254,7 +278,7 @@ describe('FieldPage organization card', () => {
 
     response.resolve();
 
-    const card = await screen.findByRole('region', { name: defaultLocaleCatalog['field.organization.title'] });
+    const card = await screen.findByRole('region', { name: defaultLocaleCatalog['warehouse.organization.title'] });
     const cardLines = Array.from(card.children);
 
     expect(getClassNames(frameLines)).toEqual(getClassNames(cardLines).map(createSkeletonLineClassName));
@@ -286,7 +310,7 @@ describe('FieldPage organization card', () => {
   });
 });
 
-describe('FieldPage warehouse list', () => {
+describe('WarehousePage warehouse list', () => {
   afterEach(() => {
     cleanup();
   });
@@ -327,18 +351,18 @@ describe('FieldPage warehouse list', () => {
       },
     });
 
-    const list = screen.getByRole('list', { name: defaultLocaleCatalog['field.warehouses.loading'] });
+    const list = screen.getByRole('list', { name: defaultLocaleCatalog['warehouse.warehouses.loading'] });
 
     expect(list.getAttribute('aria-busy')).toBe('true');
     expect(within(list).getAllByRole('listitem')).toHaveLength(3);
     expect(list.textContent).toBe('');
     expect(within(getWarehouseSection()).getByRole('heading', { level: 2 }).textContent)
-      .toBe(defaultLocaleCatalog['field.warehouses.title']);
+      .toBe(defaultLocaleCatalog['warehouse.warehouses.title']);
 
     response.resolve();
 
     expect(await screen.findByText(FIRST_WAREHOUSE.name)).toBeDefined();
-    expect(screen.queryByRole('list', { name: defaultLocaleCatalog['field.warehouses.loading'] })).toBeNull();
+    expect(screen.queryByRole('list', { name: defaultLocaleCatalog['warehouse.warehouses.loading'] })).toBeNull();
   });
 
   it('keeps the lines of every frame in step with the lines of the warehouse card', async () => {
@@ -351,7 +375,7 @@ describe('FieldPage warehouse list', () => {
       },
     });
 
-    const list = screen.getByRole('list', { name: defaultLocaleCatalog['field.warehouses.loading'] });
+    const list = screen.getByRole('list', { name: defaultLocaleCatalog['warehouse.warehouses.loading'] });
     const frameItems = within(list).getAllByRole('listitem');
     const frameLineClassNames = frameItems.map(item => getClassNames(Array.from(item.children)));
     const frameItemClassName = frameItems[0]?.className;
@@ -373,7 +397,7 @@ describe('FieldPage warehouse list', () => {
   it('shows the hint when there are no warehouses', async () => {
     await renderPage({ listWarehouses: () => createWarehousesResponse([]) });
 
-    expect(await screen.findByText(defaultLocaleCatalog['field.warehouses.empty'])).toBeDefined();
+    expect(await screen.findByText(defaultLocaleCatalog['warehouse.warehouses.empty'])).toBeDefined();
     expect(screen.queryByRole('list')).toBeNull();
   });
 
@@ -419,7 +443,7 @@ describe('FieldPage warehouse list', () => {
     await within(getWarehouseSection()).findByRole('alert');
     fireEvent.click(within(getWarehouseSection()).getByRole('button', { name: defaultLocaleCatalog['common.retry'] }));
 
-    const list = await screen.findByRole('list', { name: defaultLocaleCatalog['field.warehouses.loading'] });
+    const list = await screen.findByRole('list', { name: defaultLocaleCatalog['warehouse.warehouses.loading'] });
 
     expect(list.getAttribute('aria-busy')).toBe('true');
     expect(within(getWarehouseSection()).queryByRole('alert')).toBeNull();
@@ -441,7 +465,7 @@ describe('FieldPage warehouse list', () => {
   });
 });
 
-describe('FieldPage demo reset', () => {
+describe('WarehousePage demo reset', () => {
   afterEach(() => {
     cleanup();
   });
@@ -451,7 +475,7 @@ describe('FieldPage demo reset', () => {
 
     await screen.findByText(FIRST_WAREHOUSE.name);
 
-    expect(screen.queryByRole('button', { name: defaultLocaleCatalog['field.resetDemo.label'] })).toBeNull();
+    expect(screen.queryByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] })).toBeNull();
   });
 
   it('shows the progress while the command runs and calls reset once per click', async () => {
@@ -460,9 +484,9 @@ describe('FieldPage demo reset', () => {
     await renderPage({ demoControl: createDemoControl(reset) });
 
     await screen.findByText(FIRST_WAREHOUSE.name);
-    fireEvent.click(getResetButton(defaultLocaleCatalog['field.resetDemo.label']));
+    fireEvent.click(getResetButton(defaultLocaleCatalog['warehouse.resetDemo.label']));
 
-    const pendingButton = await screen.findByRole('button', { name: defaultLocaleCatalog['field.resetDemo.pending'] });
+    const pendingButton = await screen.findByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.pending'] });
 
     expect(pendingButton.hasAttribute('disabled')).toBe(true);
     expect(pendingButton.getAttribute('aria-busy')).toBe('true');
@@ -473,7 +497,7 @@ describe('FieldPage demo reset', () => {
 
     response.resolve();
 
-    const idleButton = await screen.findByRole('button', { name: defaultLocaleCatalog['field.resetDemo.label'] });
+    const idleButton = await screen.findByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] });
 
     expect(idleButton.hasAttribute('disabled')).toBe(false);
     expect(idleButton.getAttribute('aria-busy')).toBe('false');
@@ -486,14 +510,14 @@ describe('FieldPage demo reset', () => {
     await renderPage({ demoControl: createDemoControl(() => response.promise), listWarehouses });
 
     await screen.findByText(FIRST_WAREHOUSE.name);
-    fireEvent.click(getResetButton(defaultLocaleCatalog['field.resetDemo.label']));
-    await screen.findByRole('button', { name: defaultLocaleCatalog['field.resetDemo.pending'] });
+    fireEvent.click(getResetButton(defaultLocaleCatalog['warehouse.resetDemo.label']));
+    await screen.findByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.pending'] });
 
     expect(screen.getAllByRole('listitem')).toHaveLength(2);
     expect(screen.getByText(FIRST_WAREHOUSE.name)).toBeDefined();
 
     response.resolve();
-    await screen.findByRole('button', { name: defaultLocaleCatalog['field.resetDemo.label'] });
+    await screen.findByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] });
 
     expect(listWarehouses).toHaveBeenCalledTimes(1);
     expect(screen.getAllByRole('listitem')).toHaveLength(2);
@@ -505,15 +529,15 @@ describe('FieldPage demo reset', () => {
     await renderPage({ demoControl: createDemoControl(reset) });
 
     await screen.findByText(FIRST_WAREHOUSE.name);
-    fireEvent.click(getResetButton(defaultLocaleCatalog['field.resetDemo.label']));
+    fireEvent.click(getResetButton(defaultLocaleCatalog['warehouse.resetDemo.label']));
 
     const alert = await screen.findByRole('alert');
 
     expect(alert.textContent).toBe(defaultLocaleCatalog['error.invalid_transition']);
-    expect(getResetButton(defaultLocaleCatalog['field.resetDemo.label']).hasAttribute('disabled')).toBe(false);
+    expect(getResetButton(defaultLocaleCatalog['warehouse.resetDemo.label']).hasAttribute('disabled')).toBe(false);
 
     isFailing = false;
-    fireEvent.click(getResetButton(defaultLocaleCatalog['field.resetDemo.label']));
+    fireEvent.click(getResetButton(defaultLocaleCatalog['warehouse.resetDemo.label']));
 
     await waitFor(() => {
       expect(screen.queryByRole('alert')).toBeNull();

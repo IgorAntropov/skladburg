@@ -30,6 +30,20 @@ const i18nFilePath = fileURLToPath(new URL('../../apps/web/src/shared/i18n/trans
 const i18nTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/i18n/translation/probe-format.test.ts', import.meta.url));
 const bootstrapFilePath = fileURLToPath(new URL('../../apps/web/src/app/bootstrap/probe-start.ts', import.meta.url));
 const bootstrapTestFilePath = fileURLToPath(new URL('../../apps/web/src/app/bootstrap/probe-start.test.ts', import.meta.url));
+const applicationTestFilePath = fileURLToPath(new URL('../../apps/web/src/app/probe-logic.test.ts', import.meta.url));
+const routingReactFilePath = fileURLToPath(new URL('../../apps/web/src/shared/routing/react/probe-hook.ts', import.meta.url));
+const routingReactTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/routing/react/probe-hook.test.tsx', import.meta.url));
+const routingAddressFilePath = fileURLToPath(new URL('../../apps/web/src/shared/routing/address/probe-address.ts', import.meta.url));
+const routingLocationFilePath = fileURLToPath(new URL('../../apps/web/src/shared/routing/location/probe-location.ts', import.meta.url));
+const routingLocationTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/shared/routing/location/probe-location.test.tsx', import.meta.url),
+);
+const routingLocationTestingFilePath = fileURLToPath(
+  new URL('../../apps/web/src/shared/routing/location/testing/probe-memory.ts', import.meta.url),
+);
+const routingLocationTestingTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/shared/routing/location/testing/probe-memory.test.ts', import.meta.url),
+);
 const engineWorkerFilePath = fileURLToPath(new URL('../../packages/demo-engine/src/worker/probe-host.ts', import.meta.url));
 const scriptsProbeFilePath = fileURLToPath(new URL('./probe-tool.ts', import.meta.url));
 
@@ -839,6 +853,317 @@ describe('eslint.config.ts with the local rules', () => {
         expect(isRestricted(engineOutcome.ruleIds)).toBe(false);
         expect(readSyntaxRuleIds(timeZoneOutcome.ruleIds)).toHaveLength(1);
       });
+    });
+  });
+
+  describe('navigation only through shared/routing in the web application', () => {
+    const navigationUsages: readonly (readonly [string, string])[] = [
+      ['reading location.hash', 'export const read = (): string => location.hash;\n'],
+      ['reading window.location.hash', 'export const read = (): string => window.location.hash;\n'],
+      ['reading globalThis.location.hash', 'export const read = (): string => globalThis.location.hash;\n'],
+      ['reading document.location.hash', 'export const read = (): string => document.location.hash;\n'],
+      ['reading self.location.hash', 'export const read = (): string => self.location.hash;\n'],
+      ['reading hash through an optional chain', 'export const read = (): string | undefined => window.location?.hash;\n'],
+      ['reading hash by a string key', 'export const read = (): string => window.location[\'hash\'];\n'],
+      ['writing location.hash', 'export const write = (): void => {\n  location.hash = \'#/deals\';\n};\n'],
+      ['writing window.location.hash', 'export const write = (): void => {\n  window.location.hash = \'#/deals\';\n};\n'],
+      ['location.assign', 'export const go = (): void => {\n  location.assign(\'/\');\n};\n'],
+      ['window.location.assign', 'export const go = (): void => {\n  window.location.assign(\'/\');\n};\n'],
+      ['location.replace', 'export const go = (): void => {\n  location.replace(\'/\');\n};\n'],
+      ['document.location.replace', 'export const go = (): void => {\n  document.location.replace(\'/\');\n};\n'],
+      ['location.reload', 'export const go = (): void => {\n  location.reload();\n};\n'],
+      ['window.location.reload', 'export const go = (): void => {\n  window.location.reload();\n};\n'],
+      ['globalThis.location.reload', 'export const go = (): void => {\n  globalThis.location.reload();\n};\n'],
+      ['a reference to location.assign', 'export const read = (): unknown => window.location.assign;\n'],
+      ['history.pushState', 'export const go = (): void => {\n  history.pushState(null, \'\', \'#/deals\');\n};\n'],
+      ['window.history.pushState', 'export const go = (): void => {\n  window.history.pushState(null, \'\', \'#/deals\');\n};\n'],
+      ['history.replaceState', 'export const go = (): void => {\n  history.replaceState(null, \'\', \'#/deals\');\n};\n'],
+      ['window.history.replaceState', 'export const go = (): void => {\n  window.history.replaceState(null, \'\', \'#/deals\');\n};\n'],
+      [
+        'globalThis.history.replaceState',
+        'export const go = (): void => {\n  globalThis.history.replaceState(null, \'\', \'#/deals\');\n};\n',
+      ],
+      [
+        'an optional call of history.pushState',
+        'export const go = (): void => {\n  window.history?.pushState(null, \'\', \'#/deals\');\n};\n',
+      ],
+      ['history.back', 'export const go = (): void => {\n  history.back();\n};\n'],
+      ['window.history.back', 'export const go = (): void => {\n  window.history.back();\n};\n'],
+      ['history.forward', 'export const go = (): void => {\n  history.forward();\n};\n'],
+      ['window.history.forward', 'export const go = (): void => {\n  window.history.forward();\n};\n'],
+      ['history.go', 'export const go = (): void => {\n  history.go(-1);\n};\n'],
+      ['globalThis.history.go', 'export const go = (): void => {\n  globalThis.history.go(-2);\n};\n'],
+      ['an optional call of history.back', 'export const go = (): void => {\n  window.history?.back();\n};\n'],
+      ['an optional call of history.go', 'export const go = (): void => {\n  window.history?.go(1);\n};\n'],
+      ['a reference to history.back', 'export const read = (): unknown => window.history.back;\n'],
+      ['history.back by a string key', 'export const go = (): void => {\n  window.history[\'back\']();\n};\n'],
+      ['taking hash out of location', 'export const { hash } = location;\n'],
+      ['taking hash out of window.location', 'export const { hash } = window.location;\n'],
+      ['taking reload out of document.location', 'export const { reload } = document.location;\n'],
+      ['taking pushState out of history', 'export const { pushState } = history;\n'],
+      ['taking replaceState out of window.history', 'export const { replaceState } = window.history;\n'],
+      ['taking back out of history', 'export const { back } = history;\n'],
+      ['taking forward out of window.history', 'export const { forward } = window.history;\n'],
+      ['taking go out of window.history', 'export const { go } = window.history;\n'],
+      ['assigning location.href', 'export const go = (): void => {\n  location.href = \'/\';\n};\n'],
+      ['assigning window.location.search', 'export const go = (): void => {\n  window.location.search = \'?a=1\';\n};\n'],
+      ['assigning window.location.pathname', 'export const go = (): void => {\n  window.location.pathname = \'/a\';\n};\n'],
+      ['assigning window.location', 'export const go = (): void => {\n  window.location = \'/\';\n};\n'],
+      ['assigning location', 'export const go = (): void => {\n  location = \'/\';\n};\n'],
+    ];
+
+    const allowedNavigationUsages: readonly (readonly [string, string])[] = [
+      ['reading location.origin', 'export const read = (): string => location.origin;\n'],
+      ['reading window.location.pathname', 'export const read = (): string => window.location.pathname;\n'],
+      ['reading location.href', 'export const read = (): string => location.href;\n'],
+      ['reading location.search', 'export const read = (): string => document.location.search;\n'],
+      ['taking origin out of window.location', 'export const { origin } = window.location;\n'],
+      ['reading history.length', 'export const read = (): number => history.length;\n'],
+      ['reading window.history.state', 'export const read = (): unknown => window.history.state;\n'],
+      ['taking length out of history', 'export const { length } = window.history;\n'],
+      ['hash of a URL object', 'export const read = (url: URL): string => url.hash;\n'],
+      ['hash of a location member of another object', 'export const read = (props: { location: URL }): string => props.location.hash;\n'],
+      ['reload of another object', 'export const go = (source: { reload: () => void }): void => {\n  source.reload();\n};\n'],
+      ['replace of a string', 'export const read = (text: string): string => text.replace(\'a\', \'b\');\n'],
+      ['back of another object', 'export const go = (source: { back: () => void }): void => {\n  source.back();\n};\n'],
+      ['go of another object', 'export const go = (source: { go: (step: number) => void }): void => {\n  source.go(1);\n};\n'],
+      ['back of a memory location', 'export const go = (location: { back: () => void }): void => {\n  location.back();\n};\n'],
+      ['pushState of another object', 'export const go = (source: { pushState: () => void }): void => {\n  source.pushState();\n};\n'],
+      ['assign of Object', 'export const read = (): object => Object.assign({}, {});\n'],
+      [
+        'hash taken out of a plain object',
+        'export const read = (value: { hash: string }): string => {\n  const { hash } = value;\n  return hash;\n};\n',
+      ],
+      [
+        'assigning another property of a variable named like a member',
+        'export const go = (value: { href: string }): void => {\n  value.href = \'/\';\n};\n',
+      ],
+    ];
+
+    const readNavigationRuleIds = (ruleIds: readonly string[]): string[] => ruleIds.filter(ruleId => ruleId === 'no-restricted-syntax');
+
+    const restrictedPlaces: readonly (readonly [string, string])[] = [
+      ['a page', pageFilePath],
+      ['a test of a page', pageTestFilePath],
+      ['a component test of a page', pageComponentTestFilePath],
+      ['app', applicationScriptFilePath],
+      ['a test in app', applicationTestFilePath],
+      ['app/bootstrap', bootstrapFilePath],
+      ['a test in app/bootstrap', bootstrapTestFilePath],
+      ['shared/i18n', i18nFilePath],
+      ['a test in shared/i18n', i18nTestFilePath],
+      ['the client of the api layer', apiClientFilePath],
+      ['the demo transport', demoTransportFilePath],
+      ['a test of the demo transport', demoTransportTestFilePath],
+      ['shared/routing/react', routingReactFilePath],
+      ['a test in shared/routing/react', routingReactTestFilePath],
+      ['shared/routing/address', routingAddressFilePath],
+    ];
+
+    const ownerPlaces: readonly (readonly [string, string])[] = [
+      ['shared/routing/location', routingLocationFilePath],
+      ['a test in shared/routing/location', routingLocationTestFilePath],
+      ['shared/routing/location/testing', routingLocationTestingFilePath],
+      ['a test in shared/routing/location/testing', routingLocationTestingTestFilePath],
+    ];
+
+    describe.each(restrictedPlaces)('in %s', (_placeName, filePath) => {
+      it.each(navigationUsages)('reports %s', async (_name, code) => {
+        const outcome = await lint(untypedEslint, code, filePath);
+
+        expect(readNavigationRuleIds(outcome.ruleIds)).toHaveLength(1);
+      });
+
+      it.each(allowedNavigationUsages)('allows %s', async (_name, code) => {
+        const outcome = await lint(untypedEslint, code, filePath);
+
+        expect(readNavigationRuleIds(outcome.ruleIds)).toEqual([]);
+      });
+    });
+
+    describe.each(ownerPlaces)('in %s', (_placeName, filePath) => {
+      it.each(navigationUsages)('allows %s', async (_name, code) => {
+        const outcome = await lint(untypedEslint, code, filePath);
+
+        expect(readNavigationRuleIds(outcome.ruleIds)).toEqual([]);
+      });
+    });
+
+    it('does not apply to files outside of the web application', async () => {
+      const outcome = await lint(untypedEslint, 'export const read = (): string => window.location.hash;\n', scriptFilePath);
+
+      expect(readNavigationRuleIds(outcome.ruleIds)).toEqual([]);
+    });
+
+    it('reports every navigation call of one file separately', async () => {
+      const code = [
+        'export const go = (): void => {',
+        '  window.location.hash = \'#/a\';',
+        '  window.history.pushState(null, \'\', \'#/b\');',
+        '  location.reload();',
+        '};',
+        '',
+      ].join('\n');
+      const outcome = await lint(untypedEslint, code, pageFilePath);
+
+      expect(readNavigationRuleIds(outcome.ruleIds)).toHaveLength(3);
+    });
+
+    it.each([
+      ['a page', pageFilePath],
+      ['app/bootstrap', bootstrapFilePath],
+      ['shared/i18n', i18nFilePath],
+      ['shared/routing/react', routingReactFilePath],
+    ])('points to shared/routing in the messages in %s', async (_name, filePath) => {
+      if (untypedEslint === undefined) {
+        throw new Error('ESLint is not initialized');
+      }
+
+      for (const [usageName, code] of navigationUsages) {
+        const [result] = await untypedEslint.lintText(code, { filePath });
+        const message = result?.messages.find(item => item.ruleId === 'no-restricted-syntax');
+
+        expect(message?.message, usageName).toContain('@/shared/routing');
+      }
+    });
+
+    describe('next to the time zone restrictions and the engine boundary', () => {
+      const timeZoneCode = 'export const read = (date: Date): number => date.getHours();\n';
+      const navigationCode = 'export const go = (): void => {\n  window.location.reload();\n};\n';
+
+      it.each([
+        ['a page', pageFilePath],
+        ['a test of a page', pageTestFilePath],
+        ['the demo transport', demoTransportFilePath],
+        ['a test of the demo transport', demoTransportTestFilePath],
+        ['shared/routing/react', routingReactFilePath],
+      ])('reports both the time zone and the navigation in %s', async (_name, filePath) => {
+        const outcome = await lint(untypedEslint, `${timeZoneCode}${navigationCode}`, filePath);
+
+        expect(readNavigationRuleIds(outcome.ruleIds)).toHaveLength(2);
+      });
+
+      it.each([
+        ['shared/i18n', i18nFilePath],
+        ['a test in shared/i18n', i18nTestFilePath],
+        ['app/bootstrap', bootstrapFilePath],
+        ['a test in app/bootstrap', bootstrapTestFilePath],
+      ])('reports the navigation and drops the time zone in %s', async (_name, filePath) => {
+        const outcome = await lint(untypedEslint, `${timeZoneCode}${navigationCode}`, filePath);
+
+        expect(readNavigationRuleIds(outcome.ruleIds)).toHaveLength(1);
+      });
+
+      it.each(ownerPlaces)('reports the time zone and allows the navigation in %s', async (_name, filePath) => {
+        const outcome = await lint(untypedEslint, `${timeZoneCode}${navigationCode}`, filePath);
+
+        expect(readNavigationRuleIds(outcome.ruleIds)).toHaveLength(1);
+      });
+
+      it.each([
+        ['shared/routing/location', routingLocationFilePath],
+        ['shared/routing/location/testing', routingLocationTestingFilePath],
+      ])('keeps the engine boundary in %s', async (_name, filePath) => {
+        const outcome = await lint(untypedEslint, toValueImport('@skladburg/demo-engine/client'), filePath);
+
+        expect(outcome.ruleIds).toContain('no-restricted-imports');
+      });
+
+      it.each([
+        ['a test in shared/routing/location', routingLocationTestFilePath],
+        ['a test in shared/routing/location/testing', routingLocationTestingTestFilePath],
+      ])('keeps the engine testing entry allowed and the other entries forbidden in %s', async (_name, filePath) => {
+        const allowed = await lint(untypedEslint, toValueImport('@skladburg/demo-engine/testing'), filePath);
+        const forbidden = await lint(untypedEslint, toValueImport('@skladburg/demo-engine/client'), filePath);
+
+        expect(isRestricted(allowed.ruleIds)).toBe(false);
+        expect(isRestricted(forbidden.ruleIds)).toBe(true);
+      });
+
+      it('keeps the engine boundary and the testing entry of shared/api next to the navigation in a page', async () => {
+        const code = `${toValueImport('@skladburg/demo-engine/client')}${toValueImport('@/shared/api/index.testing')}${navigationCode}`;
+        const outcome = await lint(untypedEslint, code, pageFilePath);
+
+        expect(outcome.ruleIds.filter(ruleId => ruleId === 'no-restricted-imports')).toHaveLength(2);
+        expect(readNavigationRuleIds(outcome.ruleIds)).toHaveLength(1);
+      });
+    });
+  });
+
+  describe('boundary of the testing entry of shared/routing in the web application', () => {
+    const testingEntrySpecifier = '@/shared/routing/index.testing';
+
+    describe.each(importForms)('with %s', (_formName, toCode) => {
+      it.each([
+        ['a page', pageFilePath],
+        ['app', applicationScriptFilePath],
+        ['app/bootstrap', bootstrapFilePath],
+        ['shared/i18n', i18nFilePath],
+        ['the client of the api layer', apiClientFilePath],
+        ['the demo transport', demoTransportFilePath],
+        ['shared/routing/react', routingReactFilePath],
+        ['shared/routing/location', routingLocationFilePath],
+        ['shared/routing/location/testing', routingLocationTestingFilePath],
+      ])('reports the testing entry in %s', async (_name, filePath) => {
+        const outcome = await lint(untypedEslint, toCode(testingEntrySpecifier), filePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(true);
+      });
+
+      it.each([
+        ['a test of a page', pageTestFilePath],
+        ['a component test of a page', pageComponentTestFilePath],
+        ['a test in app', applicationTestFilePath],
+        ['a test in app/bootstrap', bootstrapTestFilePath],
+        ['a test in shared/i18n', i18nTestFilePath],
+        ['a test of the api client', apiClientTestFilePath],
+        ['a test of the demo transport', demoTransportTestFilePath],
+        ['a test in shared/routing/react', routingReactTestFilePath],
+        ['a test in shared/routing/location', routingLocationTestFilePath],
+        ['a test in shared/routing/location/testing', routingLocationTestingTestFilePath],
+      ])('allows the testing entry in %s', async (_name, filePath) => {
+        const outcome = await lint(untypedEslint, toCode(testingEntrySpecifier), filePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(false);
+      });
+    });
+
+    it.each([
+      ['a page', pageFilePath],
+      ['a test of a page', pageTestFilePath],
+      ['app/bootstrap', bootstrapFilePath],
+      ['shared/routing/react', routingReactFilePath],
+    ])('does not report the public entry of shared/routing in %s', async (_name, filePath) => {
+      const outcome = await lint(untypedEslint, toValueImport('@/shared/routing'), filePath);
+
+      expect(isRestricted(outcome.ruleIds)).toBe(false);
+    });
+
+    it.each([
+      ['a sibling module', '@/shared/routing/index.testing-tools'],
+      ['a nested path', '@/shared/routing/location/testing/createMemoryLocation'],
+      ['the testing entry of another slice', '@/shared/i18n/index.testing'],
+      ['a relative path', './index.testing'],
+    ])('does not report %s in a page', async (_name, specifier) => {
+      const outcome = await lint(untypedEslint, toValueImport(specifier), pageFilePath);
+
+      expect(isRestricted(outcome.ruleIds)).toBe(false);
+    });
+
+    it.each([
+      ['a static import', toValueImport],
+      ['a dynamic import', toDynamicImport],
+      ['an import type query', toTypeQuery],
+    ])('explains that the testing entry is for tests for %s', async (_name, toCode) => {
+      if (untypedEslint === undefined) {
+        throw new Error('ESLint is not initialized');
+      }
+
+      const [result] = await untypedEslint.lintText(toCode(testingEntrySpecifier), { filePath: pageFilePath });
+      const message = result?.messages.find(item => item.ruleId === 'no-restricted-imports' || item.ruleId === 'no-restricted-syntax');
+
+      expect(message?.message).toContain('shared/routing');
+      expect(message?.message).toContain('for tests only');
     });
   });
 });

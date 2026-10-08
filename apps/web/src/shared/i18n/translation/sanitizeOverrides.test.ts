@@ -14,8 +14,8 @@ import { sanitizeOverrides } from './sanitizeOverrides';
 describe('sanitizeOverrides', () => {
   it('keeps valid text and plural overrides', () => {
     const overrides = {
-      'field.placeholder': 'Скоро здесь будет склад',
       'units.pallet': { few: '{count} поддона', many: '{count} поддонов', one: '{count} поддон', other: '{count} поддона' },
+      'warehouse.placeholder': 'Скоро здесь будет склад',
     };
 
     expect(sanitizeOverrides(overrides, catalog, 'ru')).toEqual(overrides);
@@ -27,8 +27,8 @@ describe('sanitizeOverrides', () => {
 
   it('drops a string where a plural is expected and the opposite', () => {
     const overrides = {
-      'field.placeholder': { other: 'Скоро' },
       'units.pallet': 'поддон',
+      'warehouse.placeholder': { other: 'Скоро' },
     };
 
     expect(sanitizeOverrides(overrides, catalog, 'ru')).toEqual({});
@@ -44,8 +44,8 @@ describe('sanitizeOverrides', () => {
 
   it('drops values that are neither text nor plural forms', () => {
     const overrides = {
-      'field.placeholder': null,
       'units.pallet': ['поддон'],
+      'warehouse.placeholder': null,
     };
 
     expect(sanitizeOverrides(overrides, catalog, 'ru')).toEqual({});
@@ -53,11 +53,11 @@ describe('sanitizeOverrides', () => {
 
   it('keeps valid entries next to invalid ones', () => {
     const overrides = {
-      'field.placeholder': 'Скоро здесь будет склад',
       'unknown.key': 'Текст',
+      'warehouse.placeholder': 'Скоро здесь будет склад',
     };
 
-    expect(sanitizeOverrides(overrides, catalog, 'ru')).toEqual({ 'field.placeholder': 'Скоро здесь будет склад' });
+    expect(sanitizeOverrides(overrides, catalog, 'ru')).toEqual({ 'warehouse.placeholder': 'Скоро здесь будет склад' });
   });
 
   it('returns an empty object for missing overrides', () => {
@@ -105,7 +105,7 @@ describe('sanitizeOverrides placeholders', () => {
   });
 
   it('drops a text with a foreign placeholder', () => {
-    expect(sanitizeOverrides({ 'field.placeholder': 'Привет {name}' }, catalog, 'ru')).toEqual({});
+    expect(sanitizeOverrides({ 'warehouse.placeholder': 'Привет {name}' }, catalog, 'ru')).toEqual({});
   });
 
   it('drops a plural with a foreign, extra or missing placeholder', () => {

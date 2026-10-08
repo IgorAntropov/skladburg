@@ -1,11 +1,22 @@
 import type { ReactElement } from 'react';
 
-import { FieldPage } from '@/pages/field';
+import type { SectionLoadersValue } from '../routing/sectionPages';
 
 import { useDocumentSync } from '../lib/useDocumentSync';
+import { AppRoutes } from '../routing/AppRoutes';
+import { TopBar } from './TopBar';
 
-export const AppShell = (): ReactElement => {
+interface AppShellProps {
+  sectionLoaders: SectionLoadersValue;
+}
+
+export const AppShell = ({ sectionLoaders }: AppShellProps): ReactElement => {
   useDocumentSync();
 
-  return <FieldPage />;
+  return (
+    <div className="flex min-h-dvh flex-col bg-surface text-on-surface">
+      <TopBar />
+      <AppRoutes sectionLoaders={sectionLoaders} />
+    </div>
+  );
 };

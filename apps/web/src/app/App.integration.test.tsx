@@ -34,6 +34,7 @@ import {
   syncQueriesWithRealtime,
 } from '@/shared/api';
 import { createLocalizer } from '@/shared/i18n';
+import { createMemoryLocation } from '@/shared/routing/index.testing';
 
 import { App } from './App';
 
@@ -174,7 +175,7 @@ const startApplication = async (): Promise<HarnessValue> => {
 
   render(
     <StrictMode>
-      <App localizer={localizer} queryClient={queryClient} runtime={runtime} />
+      <App localizer={localizer} location={createMemoryLocation('/warehouse')} queryClient={queryClient} runtime={runtime} />
     </StrictMode>,
   );
 
@@ -184,7 +185,7 @@ const startApplication = async (): Promise<HarnessValue> => {
     await inProcess.close();
   });
 
-  await screen.findByRole('heading', { level: 1, name: BRAND_NAME });
+  await screen.findByRole('heading', { level: 1, name: defaultLocaleCatalog['section.warehouse.title'] });
   await subscribed;
   const busyPlaceholderWatch = watchBusyPlaceholders();
 
@@ -202,8 +203,12 @@ const startApplication = async (): Promise<HarnessValue> => {
   };
 };
 
+const getBrand = (): HTMLElement => within(screen.getByRole('banner')).getByText(BRAND_NAME);
+
 const getWarehouseItems = (): HTMLElement[] => {
-  return within(screen.getByRole('list')).queryAllByRole('listitem');
+  const section = screen.getByRole('region', { name: defaultLocaleCatalog['warehouse.warehouses.title'] });
+
+  return within(section).queryAllByRole('listitem');
 };
 
 const expectWarehouseCount = async (frames: ManualFramesValue, count: number): Promise<void> => {
@@ -240,17 +245,22 @@ describe('App with the demo engine in the same thread', () => {
   it('shows the organization of the profile with its warehouses and synchronizes the document', async () => {
     await startApplication();
 
-    const brand = screen.getByRole('heading', { level: 1, name: BRAND_NAME });
+    const brand = getBrand();
 
     expect(brand.getAttribute('translate')).toBe('no');
-    expect(await screen.findByRole('region', { name: defaultLocaleCatalog['field.organization.title'] })).toBeDefined();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(defaultLocaleCatalog['section.warehouse.title']);
+    expect(await screen.findByRole('region', { name: defaultLocaleCatalog['warehouse.organization.title'] })).toBeDefined();
     await waitFor(() => {
       expect(getWarehouseItems()).toHaveLength(SEED_WAREHOUSE_COUNT);
     });
     expect(getWarehouseItems().map(item => item.textContent)).toEqual(
       expect.arrayContaining([expect.stringContaining('Склад 1')]),
     );
-    expect(document.title).toBe(BRAND_NAME);
+    expect(document.title).toBe(
+      defaultLocaleCatalog['app.documentTitle']
+        .replace('{section}', defaultLocaleCatalog['section.warehouse.title'])
+        .replace('{brand}', BRAND_NAME),
+    );
     expect(document.documentElement.lang).toBe('ru');
   });
 
@@ -281,13 +291,13 @@ describe('App with the demo engine in the same thread', () => {
     await createWarehouse(runtime);
     await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT + 1);
 
-    fireEvent.click(screen.getByRole('button', { name: defaultLocaleCatalog['field.resetDemo.label'] }));
+    fireEvent.click(screen.getByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] }));
 
     await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: defaultLocaleCatalog['field.resetDemo.label'] }).hasAttribute('disabled')).toBe(false);
+      expect(screen.getByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] }).hasAttribute('disabled')).toBe(false);
     });
-    expect(screen.getByRole('heading', { level: 1, name: BRAND_NAME })).toBeDefined();
+    expect(getBrand()).toBeDefined();
     expect(getBusyPlaceholderCount()).toBe(0);
   });
 });

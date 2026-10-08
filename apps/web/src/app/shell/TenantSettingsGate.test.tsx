@@ -96,7 +96,7 @@ const createSettingsResponse = ({ brandName, placeholder }: SettingsFixtureValue
     : [
         create(LocaleTermOverridesSchema, {
           locale: 'ru',
-          messages: { 'field.placeholder': create(MessageOverrideSchema, { value: { case: 'text', value: placeholder } }) },
+          messages: { 'warehouse.placeholder': create(MessageOverrideSchema, { value: { case: 'text', value: placeholder } }) },
         }),
       ];
 
@@ -145,7 +145,7 @@ const Probe = (): ReactElement => {
     <p>
       {brandName}
       {' | '}
-      {t('field.placeholder')}
+      {t('warehouse.placeholder')}
     </p>
   );
 };
@@ -194,7 +194,7 @@ describe('TenantSettingsGate', () => {
   it('applies the settings of the organization once and then shows the children', async () => {
     const { applyTenant } = await renderGate(() => createSettingsResponse({ brandName: FIRST_BRAND }));
 
-    expect(await screen.findByText(getProbeText(FIRST_BRAND, defaultLocaleCatalog['field.placeholder']))).toBeDefined();
+    expect(await screen.findByText(getProbeText(FIRST_BRAND, defaultLocaleCatalog['warehouse.placeholder']))).toBeDefined();
     expect(applyTenant).toHaveBeenCalledTimes(1);
     expect(applyTenant.mock.calls[0]?.[0]).toMatchObject({
       availableLocales: ['ru'],
@@ -250,7 +250,7 @@ describe('TenantSettingsGate', () => {
 
     response.resolve();
 
-    expect(await screen.findByText(getProbeText(FIRST_BRAND, defaultLocaleCatalog['field.placeholder']))).toBeDefined();
+    expect(await screen.findByText(getProbeText(FIRST_BRAND, defaultLocaleCatalog['warehouse.placeholder']))).toBeDefined();
     expect(screen.queryByRole('main')).toBeNull();
   });
 
@@ -278,14 +278,14 @@ describe('TenantSettingsGate', () => {
     applying.resolve();
 
     expect(await screen.findByText(getProbeText(FIRST_BRAND, FIRST_PLACEHOLDER))).toBeDefined();
-    expect(screen.queryByText(defaultLocaleCatalog['field.placeholder'])).toBeNull();
+    expect(screen.queryByText(defaultLocaleCatalog['warehouse.placeholder'])).toBeNull();
   });
 
   it('replaces the term of the interface with the override from the response', async () => {
     await renderGate(() => createSettingsResponse({ brandName: FIRST_BRAND, placeholder: FIRST_PLACEHOLDER }));
 
     expect(await screen.findByText(getProbeText(FIRST_BRAND, FIRST_PLACEHOLDER))).toBeDefined();
-    expect(screen.queryByText(defaultLocaleCatalog['field.placeholder'])).toBeNull();
+    expect(screen.queryByText(defaultLocaleCatalog['warehouse.placeholder'])).toBeNull();
   });
 
   it('applies new settings again and keeps the previous children on screen while they are applied', async () => {
@@ -370,7 +370,7 @@ describe('TenantSettingsGate', () => {
     isFailing = false;
     fireEvent.click(screen.getByRole('button', { name: defaultLocaleCatalog['app.startError.retry'] }));
 
-    expect(await screen.findByText(getProbeText(FIRST_BRAND, defaultLocaleCatalog['field.placeholder']))).toBeDefined();
+    expect(await screen.findByText(getProbeText(FIRST_BRAND, defaultLocaleCatalog['warehouse.placeholder']))).toBeDefined();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(applyTenant).toHaveBeenCalledTimes(1);
     expect(consoleError).not.toHaveBeenCalled();
@@ -400,7 +400,7 @@ describe('TenantSettingsGate', () => {
 
     retryResponse.resolve();
 
-    expect(await screen.findByText(getProbeText(FIRST_BRAND, defaultLocaleCatalog['field.placeholder']))).toBeDefined();
+    expect(await screen.findByText(getProbeText(FIRST_BRAND, defaultLocaleCatalog['warehouse.placeholder']))).toBeDefined();
   });
 
   it('logs a failed application of the tenant and applies it again on retry', async () => {

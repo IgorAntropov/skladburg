@@ -20,6 +20,7 @@ import {
   LocalizerProvider,
 } from '@/shared/i18n';
 import { observeLongTasks } from '@/shared/lib/performance';
+import { createHashLocation } from '@/shared/routing';
 
 import { App } from '../App';
 import { StartErrorScreen } from '../shell/StartErrorScreen';
@@ -57,6 +58,7 @@ const runReleaseStep = (step: string, release: (() => void) | undefined): void =
 export const startApp = async (rootElement: HTMLElement): Promise<void> => {
   const root = createRoot(rootElement);
   const userTimeZone = readDeviceTimeZone();
+  const location = createHashLocation(window);
 
   let localizer: ILocalizer | undefined;
   let runtime: ApiRuntimeValue | undefined;
@@ -112,7 +114,7 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
 
       root.render(
         <StrictMode>
-          <App localizer={appLocalizer} queryClient={queryClient} runtime={nextRuntime} />
+          <App localizer={appLocalizer} location={location} queryClient={queryClient} runtime={nextRuntime} />
         </StrictMode>,
       );
     }

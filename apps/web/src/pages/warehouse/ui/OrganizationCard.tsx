@@ -30,7 +30,7 @@ export const OrganizationCard = (): ReactElement => {
 
   if (organization !== undefined) {
     return (
-      <section aria-label={t('field.organization.title')} className={CARD_CLASS_NAME}>
+      <section aria-label={t('warehouse.organization.title')} className={CARD_CLASS_NAME}>
         <h2 className={ORGANIZATION_NAME_CLASS_NAME} translate="no">
           {organization.name}
         </h2>
@@ -46,7 +46,7 @@ export const OrganizationCard = (): ReactElement => {
   }
 
   return (
-    <div aria-busy="true" aria-label={t('field.organization.loading')} className={CARD_SKELETON_CLASS_NAME} role="status">
+    <div aria-busy="true" aria-label={t('warehouse.organization.loading')} className={CARD_SKELETON_CLASS_NAME} role="status">
       <div aria-hidden="true" className={createSkeletonLineClassName(ORGANIZATION_NAME_CLASS_NAME)} />
       <div aria-hidden="true" className={createSkeletonLineClassName(ORGANIZATION_LEGAL_NAME_CLASS_NAME)} />
     </div>

@@ -20,8 +20,8 @@ const enCatalog: LocaleCatalogValue = {
   'app.startError.message': 'Failed to start the application',
   'app.startError.retry': 'Retry',
   'app.startError.retrying': 'Retrying…',
-  'field.placeholder': 'A living world is coming soon',
   'units.pallet': { one: '{count} pallet', other: '{count} pallets' },
+  'warehouse.placeholder': 'A living world is coming soon',
 };
 
 const deCatalog: LocaleCatalogValue = {
@@ -29,8 +29,8 @@ const deCatalog: LocaleCatalogValue = {
   'app.startError.message': 'Anwendung konnte nicht gestartet werden',
   'app.startError.retry': 'Wiederholen',
   'app.startError.retrying': 'Wiederholung…',
-  'field.placeholder': 'Bald entsteht hier eine lebendige Welt',
   'units.pallet': { one: '{count} Palette', other: '{count} Paletten' },
+  'warehouse.placeholder': 'Bald entsteht hier eine lebendige Welt',
 };
 
 interface DeferredValue<Value> {
@@ -77,7 +77,7 @@ describe('createLocalizer', () => {
     const snapshot = localizer.getSnapshot();
 
     expect(snapshot.locale).toBe('en');
-    expect(snapshot.t('field.placeholder')).toBe('A living world is coming soon');
+    expect(snapshot.t('warehouse.placeholder')).toBe('A living world is coming soon');
   });
 
   it('loads only the catalog of the active locale', async () => {
@@ -96,32 +96,32 @@ describe('createLocalizer', () => {
   it('applies term overrides of the active locale over the catalog', async () => {
     const localizer = await createLocalizer(createOptions({
       tenant: createTenant({
-        termOverrides: { ru: { 'field.placeholder': 'Скоро здесь будет склад' } },
+        termOverrides: { ru: { 'warehouse.placeholder': 'Скоро здесь будет склад' } },
       }),
     }));
 
-    expect(localizer.getSnapshot().t('field.placeholder')).toBe('Скоро здесь будет склад');
+    expect(localizer.getSnapshot().t('warehouse.placeholder')).toBe('Скоро здесь будет склад');
   });
 
   it('ignores term overrides of another locale', async () => {
     const localizer = await createLocalizer(createOptions({
       tenant: createTenant({
-        termOverrides: { en: { 'field.placeholder': 'Another text' } },
+        termOverrides: { en: { 'warehouse.placeholder': 'Another text' } },
       }),
     }));
 
-    expect(localizer.getSnapshot().t('field.placeholder')).toBe('Здесь скоро появится живой мир');
+    expect(localizer.getSnapshot().t('warehouse.placeholder')).toBe('Здесь скоро появится живой мир');
   });
 
   it('drops invalid term overrides', async () => {
     const localizer = await createLocalizer(createOptions({
       tenant: createTenant({
-        termOverrides: { ru: { 'field.placeholder': { other: 'Не строка' }, 'unknown.key': 'Текст' } },
+        termOverrides: { ru: { 'unknown.key': 'Текст', 'warehouse.placeholder': { other: 'Не строка' } } },
       }),
     }));
     const { t } = localizer.getSnapshot();
 
-    expect(t('field.placeholder')).toBe('Здесь скоро появится живой мир');
+    expect(t('warehouse.placeholder')).toBe('Здесь скоро появится живой мир');
   });
 
   it('formats numbers, currency and dates by the active locale', async () => {
@@ -291,10 +291,10 @@ describe('createLocalizer applyTenant', () => {
     localizer.subscribe(listener);
 
     await localizer.applyTenant(createTenant({
-      termOverrides: { ru: { 'field.placeholder': 'Ворота скоро откроются' } },
+      termOverrides: { ru: { 'warehouse.placeholder': 'Ворота скоро откроются' } },
     }));
 
-    expect(localizer.getSnapshot().t('field.placeholder')).toBe('Ворота скоро откроются');
+    expect(localizer.getSnapshot().t('warehouse.placeholder')).toBe('Ворота скоро откроются');
     expect(listener).toHaveBeenCalledTimes(1);
   });
 

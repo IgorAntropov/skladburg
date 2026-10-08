@@ -30,15 +30,26 @@ pnpm dev
 | `pnpm dev`            | dev-сервер Vite с горячей перезагрузкой                                                       |
 | `pnpm build`          | проверка типов и production-сборка                                                            |
 | `pnpm preview`        | локальный просмотр production-сборки                                                          |
+| `pnpm e2e`            | сквозные сценарии Playwright в chromium и webkit на production-сборке                         |
 | `pnpm test`           | все unit-тесты: проверки репозитория, контракт и приложение                                   |
 | `pnpm lint`           | проверка типов, архитектуры слоёв, `buf lint` и формата `.proto`, ESLint и поиск комментариев |
 | `pnpm lint:fix`       | автоисправление ESLint и форматирование `.proto` (`buf format`)                               |
 | `pnpm typecheck`      | проверка типов по всему монорепозиторию                                                       |
 | `pnpm proto:generate` | генерация типов и образа контракта из `.proto`                                                |
 
+## Сквозные тесты
+
+Браузеры Playwright (chromium и webkit, около 500 МБ в кеше) ставятся один раз:
+
+```bash
+pnpm --filter @skladburg/web exec playwright install chromium webkit
+```
+
+Дальше `pnpm e2e` сам собирает приложение, поднимает превью на порту 4174 и прогоняет сценарии в обоих браузерах. HTML-отчёт остаётся в `apps/web/playwright-report`.
+
 ## Структура
 
-- `apps/web` — приложение на Vite и React. В `src` лежат слои Feature-Sliced Design: сейчас `app`, `pages` и `shared`.
+- `apps/web` — приложение на Vite и React. В `src` лежат слои Feature-Sliced Design: сейчас `app`, `pages` и `shared`. Сквозные тесты Playwright лежат в `e2e`.
 - `packages/contracts` — контракт API: `.proto` — источник типов, `src/gen` генерируется и не коммитится.
 - `packages/demo-engine` — «платформа в браузере»: движок демо без сервера (организации, права, события и общие данные на стартовых заглушках), говорит на том же протоколе Connect, что и будущий бэкенд, и не зависит от React и DOM.
 - `scripts` — проверки репозитория (правила ESLint, поиск комментариев) и их тесты.

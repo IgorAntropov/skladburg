@@ -12,6 +12,7 @@ import {
   fireEvent,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import { createRoot } from 'react-dom/client';
 import {
@@ -37,6 +38,8 @@ import {
 import { createTestRuntime } from '@/shared/api/index.testing';
 import { createLocalizer } from '@/shared/i18n';
 import { observeLongTasks } from '@/shared/lib/performance';
+import { createHashLocation } from '@/shared/routing';
+import { createMemoryLocation } from '@/shared/routing/index.testing';
 
 import { readDeviceTimeZone } from './readDeviceTimeZone';
 import { startApp } from './startApp';
@@ -56,6 +59,12 @@ vi.mock('@/shared/api', async (importOriginal) => {
 
 vi.mock('@/shared/lib/performance', () => ({ observeLongTasks: vi.fn() }));
 
+vi.mock('@/shared/routing', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/shared/routing')>();
+
+  return { ...original, createHashLocation: vi.fn(original.createHashLocation) };
+});
+
 vi.mock('react-dom/client', async (importOriginal) => {
   const original = await importOriginal<typeof import('react-dom/client')>();
 
@@ -68,6 +77,7 @@ vi.mock('@/shared/i18n', async (importOriginal) => {
   return { ...original, createLocalizer: vi.fn(original.createLocalizer) };
 });
 
+const WAREHOUSE_PATH = '/warehouse';
 const ENGINE_BRAND = 'Северный склад';
 const ENGINE_ORGANIZATION_ID = 'f4000001-0000-4000-8000-000000000000';
 
@@ -127,7 +137,7 @@ const failFirstRender = async (): Promise<void> => {
   });
 };
 
-const findBrandHeading = (): Promise<HTMLElement> => screen.findByRole('heading', { name: ENGINE_BRAND });
+const findBrand = async (): Promise<HTMLElement> => within(await screen.findByRole('banner')).findByText(ENGINE_BRAND);
 
 describe('startApp', () => {
   beforeEach(() => {
@@ -137,6 +147,8 @@ describe('startApp', () => {
     vi.mocked(syncQueriesWithRealtime).mockReset();
     vi.mocked(createLocalizer).mockReset();
     vi.mocked(observeLongTasks).mockClear();
+    vi.mocked(createHashLocation).mockReset();
+    vi.mocked(createHashLocation).mockImplementation(() => createMemoryLocation(WAREHOUSE_PATH));
   });
 
   afterEach(() => {
@@ -148,8 +160,12 @@ describe('startApp', () => {
   it('renders the application with the settings from the engine', async () => {
     await startApp(createRootElement());
 
-    expect(await findBrandHeading()).toBeDefined();
-    expect(document.title).toBe(ENGINE_BRAND);
+    expect(await findBrand()).toBeDefined();
+    expect(document.title).toBe(
+      defaultLocaleCatalog['app.documentTitle']
+        .replace('{section}', defaultLocaleCatalog['section.warehouse.title'])
+        .replace('{brand}', ENGINE_BRAND),
+    );
     expect(createApiRuntime).toHaveBeenCalledOnce();
     expect(createApiRuntime).toHaveBeenCalledWith({ defaultOrganizationId: defaultTenant.tenantId });
   });
@@ -159,7 +175,7 @@ describe('startApp', () => {
     vi.mocked(createApiRuntime).mockResolvedValueOnce({ ...runtime, networkMode: 'online' });
 
     await startApp(createRootElement());
-    await findBrandHeading();
+    await findBrand();
 
     expect(createQueryClient).toHaveBeenCalledExactlyOnceWith({ networkMode: 'online' });
     expect(syncQueriesWithRealtime).toHaveBeenCalledOnce();
@@ -192,7 +208,7 @@ describe('startApp', () => {
     await startApp(rootElement);
     fireEvent.click(await screen.findByRole('button'));
 
-    expect(await findBrandHeading()).toBeDefined();
+    expect(await findBrand()).toBeDefined();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(rootElement.querySelector('main')).not.toBeNull();
     expect(document.querySelectorAll('main')).toHaveLength(1);
@@ -254,7 +270,7 @@ describe('startApp', () => {
 
     fireEvent.click(screen.getByRole('button'));
 
-    expect(await findBrandHeading()).toBeDefined();
+    expect(await findBrand()).toBeDefined();
     expect(createLocalizer).toHaveBeenCalledTimes(3);
     expect(createApiRuntime).toHaveBeenCalledOnce();
   });
@@ -269,7 +285,7 @@ describe('startApp', () => {
 
     await startApp(createRootElement());
     fireEvent.click(await screen.findByRole('button'));
-    await findBrandHeading();
+    await findBrand();
 
     expect(readDeviceTimeZone).toHaveBeenCalledOnce();
     expect(createLocalizer).toHaveBeenCalledTimes(3);
@@ -323,7 +339,7 @@ describe('startApp', () => {
 
     fireEvent.click(await screen.findByRole('button'));
 
-    expect(await findBrandHeading()).toBeDefined();
+    expect(await findBrand()).toBeDefined();
     expect(events).toEqual(['create first', 'close first', 'create second']);
     expect(openRuntimeCount).toBe(1);
   });
@@ -383,13 +399,13 @@ describe('startApp', () => {
 
     fireEvent.click(await screen.findByRole('button'));
 
-    expect(await findBrandHeading()).toBeDefined();
+    expect(await findBrand()).toBeDefined();
     expect(events).toEqual(['create first', 'stop first', 'close first', 'create second']);
   });
 
   it('starts the long task monitor once before the first start attempt', async () => {
     await startApp(createRootElement());
-    await findBrandHeading();
+    await findBrand();
 
     expect(observeLongTasks).toHaveBeenCalledOnce();
 
@@ -405,9 +421,31 @@ describe('startApp', () => {
 
     await startApp(createRootElement());
     fireEvent.click(await screen.findByRole('button'));
-    await findBrandHeading();
+    await findBrand();
 
     expect(createApiRuntime).toHaveBeenCalledTimes(2);
     expect(observeLongTasks).toHaveBeenCalledOnce();
+  });
+
+  it('creates the hash location once for the window and keeps it across retries', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.mocked(createApiRuntime).mockRejectedValueOnce(new Error('the engine is unavailable'));
+
+    await startApp(createRootElement());
+    fireEvent.click(await screen.findByRole('button'));
+    await findBrand();
+
+    expect(createApiRuntime).toHaveBeenCalledTimes(2);
+    expect(createHashLocation).toHaveBeenCalledExactlyOnceWith(window);
+  });
+
+  it('opens the first section instead of the empty address and leaves no empty entry behind', async () => {
+    const location = createMemoryLocation('/');
+    vi.mocked(createHashLocation).mockReturnValue(location);
+
+    await startApp(createRootElement());
+
+    expect(await screen.findByRole('heading', { level: 1, name: defaultLocaleCatalog['section.network.title'] })).toBeDefined();
+    expect(location.history).toEqual(['/network']);
   });
 });

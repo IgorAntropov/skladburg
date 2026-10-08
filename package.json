@@ -10,6 +10,7 @@
     "postinstall": "pnpm proto:generate",
     "prepare": "simple-git-hooks",
     "dev": "turbo run dev",
+    "e2e": "turbo run e2e",
     "build": "turbo run build",
     "preview": "turbo run preview",
     "test": "vitest run && turbo run test",

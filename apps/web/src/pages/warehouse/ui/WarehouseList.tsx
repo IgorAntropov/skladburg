@@ -14,7 +14,7 @@ export const WarehouseList = (): ReactElement => {
   return (
     <section aria-labelledby={titleId} className="flex flex-col gap-3">
       <h2 className="text-lg font-semibold" id={titleId}>
-        {t('field.warehouses.title')}
+        {t('warehouse.warehouses.title')}
       </h2>
       <WarehouseListContent />
     </section>

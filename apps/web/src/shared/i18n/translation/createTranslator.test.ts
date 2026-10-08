@@ -34,7 +34,7 @@ describe('createTranslate with the ru catalog', () => {
   });
 
   it('returns a plain message', () => {
-    expect(translateRu('field.placeholder')).toBe('Здесь скоро появится живой мир');
+    expect(translateRu('warehouse.placeholder')).toBe('Здесь скоро появится живой мир');
   });
 });
 

@@ -30,8 +30,8 @@ const enCatalog: LocaleCatalogValue = {
   'app.startError.message': 'Failed to start the application',
   'app.startError.retry': 'Retry',
   'app.startError.retrying': 'Retrying…',
-  'field.placeholder': 'A living world is coming soon',
   'units.pallet': { one: '{count} pallet', other: '{count} pallets' },
+  'warehouse.placeholder': 'A living world is coming soon',
 };
 
 const createOptions = (): LocalizerOptionsValue => ({

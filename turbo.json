@@ -17,6 +17,11 @@
       "env": ["BUILD_PROFILE"],
       "persistent": true
     },
+    "e2e": {
+      "cache": false,
+      "dependsOn": ["build"],
+      "env": ["BUILD_PROFILE"]
+    },
     "generate": {
       "dependsOn": ["deps:proto"],
       "inputs": ["proto/**", "buf.yaml", "buf.gen.yaml", "package.json"],

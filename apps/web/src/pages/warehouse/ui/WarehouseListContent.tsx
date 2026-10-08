@@ -31,7 +31,7 @@ export const WarehouseListContent = (): ReactElement => {
   };
 
   if (warehouses?.length === 0) {
-    return <p>{t('field.warehouses.empty')}</p>;
+    return <p>{t('warehouse.warehouses.empty')}</p>;
   }
 
   if (warehouses !== undefined) {
@@ -47,7 +47,7 @@ export const WarehouseListContent = (): ReactElement => {
               </p>
               {hasAddress && (
                 <p className={WAREHOUSE_ADDRESS_CLASS_NAME} translate="no">
-                  {t('field.warehouses.address', { address: warehouse.address })}
+                  {t('warehouse.warehouses.address', { address: warehouse.address })}
                 </p>
               )}
             </li>
@@ -62,7 +62,7 @@ export const WarehouseListContent = (): ReactElement => {
   }
 
   return (
-    <ul aria-busy="true" aria-label={t('field.warehouses.loading')} className="flex flex-col gap-3">
+    <ul aria-busy="true" aria-label={t('warehouse.warehouses.loading')} className="flex flex-col gap-3">
       {SKELETON_ROW_IDS.map(rowId => (
         <li className={CARD_SKELETON_CLASS_NAME} key={rowId}>
           <p aria-hidden="true" className={createSkeletonLineClassName(WAREHOUSE_NAME_CLASS_NAME)} />

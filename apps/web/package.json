@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "e2e": "playwright test",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@feature-sliced/steiger-plugin": "^0.8.0",
+    "@playwright/test": "1.64.0",
     "@steiger/toolkit": "~0.2.3",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/dom": "^10.4.2",

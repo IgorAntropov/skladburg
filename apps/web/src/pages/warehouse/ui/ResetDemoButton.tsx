@@ -18,7 +18,7 @@ export const ResetDemoButton = (): ReactElement => {
     mutate,
   } = useResetDemoMutation();
 
-  const label = isPending ? t('field.resetDemo.pending') : t('field.resetDemo.label');
+  const label = isPending ? t('warehouse.resetDemo.pending') : t('warehouse.resetDemo.label');
   const errorMessage = isError ? translateApiError(t, parseApiError(error)) : undefined;
 
   const handleResetClick = (): void => {

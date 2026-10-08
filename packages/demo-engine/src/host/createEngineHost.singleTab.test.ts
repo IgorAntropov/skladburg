@@ -8,7 +8,10 @@ import {
   vi,
 } from 'vitest';
 
-import type { HostHarnessValue } from './testing/hostHarness';
+import type {
+  HostFixtureValue,
+  HostHarnessValue,
+} from './testing/hostHarness';
 
 import {
   createHeaders,
@@ -22,6 +25,11 @@ import {
   SeedOrganizationId,
   SeedUserId,
 } from '../core/seed/index';
+import {
+  ENGINE_BASE_URL,
+  EngineControlCommand,
+  parseEngineClientMessage,
+} from '../protocol/index';
 import {
   CHECKPOINT_INTERVAL_MS,
   ENGINE_LOCK_NAME,
@@ -45,6 +53,16 @@ const KEY_1 = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
 
 const BUYER_CHANNEL = `org:${SeedOrganizationId.BUYER_1}`;
 const buyerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+
+const readInboxRequestIds = (fixture: HostFixtureValue, type: 'abort' | 'control' | 'request'): string[] =>
+  fixture.inbox.flatMap((data) => {
+    const message = parseEngineClientMessage(data);
+
+    return message?.type === type ? [message.requestId] : [];
+  });
+
+const readTransportErrorIds = (fixture: HostFixtureValue): string[] =>
+  fixture.messages.flatMap(message => message.type === 'transport_error' ? [message.requestId] : []);
 
 let harness: HostHarnessValue;
 
@@ -192,7 +210,7 @@ describe('engine host in the single-tab mode when the start fails', () => {
     expect(countMessages(fixture, 'status')).toBe(0);
   });
 
-  it('fails the calls made before and after the failure at once, without waiting for the timeout', async () => {
+  it('rejects the calls in flight at once, aborts them in the engine and refuses the later calls itself', async () => {
     const loadGate = createGate();
     const fixture = harness.addHost({
       isSingleTab: true,
@@ -206,6 +224,8 @@ describe('engine host in the single-tab mode when the start fails', () => {
     const controlBeforeFailure = captureError(fixture.connection.control.listPersonas());
     await waitForInbox(fixture, 'request');
     await waitForInbox(fixture, 'control');
+    const requestId = readInboxRequestIds(fixture, 'request')[0];
+    const controlId = readInboxRequestIds(fixture, 'control')[0];
 
     loadGate.open();
 
@@ -213,12 +233,46 @@ describe('engine host in the single-tab mode when the start fails', () => {
     expect((await controlBeforeFailure).code).toBe(Code.Unavailable);
     expect((await captureError(fixture.organization().listWarehouses({}, buyerOptions))).code).toBe(Code.Unavailable);
     expect((await captureError(fixture.connection.control.reset())).code).toBe(Code.Unavailable);
-    expect(countMessages(fixture, 'transport_error')).toBe(4);
+    await waitForInbox(fixture, 'abort', 2);
+
+    expect(readInboxRequestIds(fixture, 'abort').toSorted()).toEqual([controlId, requestId].toSorted());
+    expect(readInboxRequestIds(fixture, 'request')).toEqual([requestId]);
+    expect(readInboxRequestIds(fixture, 'control')).toEqual([controlId]);
+    await vi.waitFor(() => {
+      expect(readTransportErrorIds(fixture).toSorted()).toEqual([controlId, requestId].toSorted());
+    }, WAIT_OPTIONS);
     expect(countMessages(fixture, 'status')).toBe(0);
     expect(harness.timers.activeCount()).toBe(0);
   });
 
-  it('gives no reply to a subscription and ignores an unsubscribe', async () => {
+  it('answers a request and a control command that reach the failed host with a transport error at once', async () => {
+    const fixture = harness.addHost({
+      isSingleTab: true,
+      loadCore: () => Promise.reject(new Error('The engine core is not loaded')),
+    });
+    await vi.waitFor(() => {
+      expect(countMessages(fixture, 'engine_unavailable')).toBe(1);
+    }, WAIT_OPTIONS);
+
+    fixture.sendToHost({
+      body: new ArrayBuffer(0),
+      headers: [],
+      method: 'POST',
+      requestId: 'raw-request',
+      type: 'request',
+      url: `${ENGINE_BASE_URL}/organization.v1.OrganizationService/ListWarehouses`,
+    });
+    fixture.sendToHost({ command: EngineControlCommand.RESET, requestId: 'raw-control', type: 'control' });
+    fixture.sendToHost({ command: EngineControlCommand.LIST_PERSONAS, requestId: 'raw-personas', type: 'control' });
+
+    await vi.waitFor(() => {
+      expect(readTransportErrorIds(fixture)).toEqual(['raw-request', 'raw-control', 'raw-personas']);
+    }, WAIT_OPTIONS);
+    expect(countMessages(fixture, 'status')).toBe(0);
+    expect(harness.timers.activeCount()).toBe(0);
+  });
+
+  it('gives no reply to a subscription and ignores an unsubscribe and an abort', async () => {
     const fixture = harness.addHost({
       isSingleTab: true,
       loadCore: () => Promise.reject(new Error('The engine core is not loaded')),
@@ -235,7 +289,11 @@ describe('engine host in the single-tab mode when the start fails', () => {
     await waitForInbox(fixture, 'subscribe');
     recorded.unsubscribe();
     await waitForInbox(fixture, 'unsubscribe');
-    await captureError(fixture.organization().listWarehouses({}, buyerOptions));
+    fixture.sendToHost({ requestId: 'raw-abort', type: 'abort' });
+    fixture.sendToHost({ command: EngineControlCommand.RESET, requestId: 'raw-control', type: 'control' });
+    await vi.waitFor(() => {
+      expect(readTransportErrorIds(fixture)).toEqual(['raw-control']);
+    }, WAIT_OPTIONS);
 
     expect(fixture.messages.map(message => message.type)).toEqual(['engine_unavailable', 'transport_error']);
     expect(recorded.positions).toHaveLength(0);

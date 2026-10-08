@@ -8,6 +8,7 @@ import {
   cleanup,
   renderHook,
 } from '@testing-library/react';
+import { defaultLocaleCatalog } from 'virtual:build-profile';
 import {
   afterEach,
   beforeEach,
@@ -31,14 +32,12 @@ import { TenantSettingsProvider } from '@/shared/tenant';
 import { useDocumentSync } from './useDocumentSync';
 
 const catalog: LocaleCatalogValue = {
-  'app.startError.message': 'Не удалось запустить приложение',
-  'app.startError.retry': 'Повторить',
-  'app.startError.retrying': 'Повторяем…',
+  ...defaultLocaleCatalog,
   'field.placeholder': 'Скоро здесь будет склад',
-  'units.pallet': { few: '{count} паллеты', many: '{count} паллет', one: '{count} паллета', other: '{count} паллеты' },
 };
 
 const enCatalog: LocaleCatalogValue = {
+  ...defaultLocaleCatalog,
   'app.startError.message': 'The application failed to start',
   'app.startError.retry': 'Retry',
   'app.startError.retrying': 'Retrying…',

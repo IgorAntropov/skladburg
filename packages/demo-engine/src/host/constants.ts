@@ -12,5 +12,7 @@ export const ENGINE_DATABASE_NAME = ENGINE_NAME_PREFIX;
 export const TICK_INTERVAL_MS = 250;
 export const CHECKPOINT_INTERVAL_MS = 5000;
 export const HOST_REQUEST_TIMEOUT_MS = ENGINE_REQUEST_TIMEOUT_MS;
+export const LEADER_RETRY_DELAYS_MS = [1000, 5000, 15_000, 30_000] as const;
+export const LEADER_RETRY_REPEAT_DELAY_MS = 30_000;
 
 export const createTabLockName = (tabId: string): string => `${ENGINE_TAB_LOCK_PREFIX}:${tabId}`;

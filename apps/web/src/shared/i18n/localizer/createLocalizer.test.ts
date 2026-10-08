@@ -16,6 +16,7 @@ import { catalog as ruCatalog } from '../catalogs/ru';
 import { createLocalizer } from './createLocalizer';
 
 const enCatalog: LocaleCatalogValue = {
+  ...ruCatalog,
   'app.startError.message': 'Failed to start the application',
   'app.startError.retry': 'Retry',
   'app.startError.retrying': 'Retrying…',
@@ -24,6 +25,7 @@ const enCatalog: LocaleCatalogValue = {
 };
 
 const deCatalog: LocaleCatalogValue = {
+  ...ruCatalog,
   'app.startError.message': 'Anwendung konnte nicht gestartet werden',
   'app.startError.retry': 'Wiederholen',
   'app.startError.retrying': 'Wiederholung…',

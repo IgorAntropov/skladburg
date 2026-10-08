@@ -1,3 +1,5 @@
+import type { Linter } from 'eslint';
+
 import js from '@eslint/js';
 import stylistic from '@stylistic/eslint-plugin';
 import perfectionist from 'eslint-plugin-perfectionist';
@@ -10,6 +12,19 @@ import { localPlugin } from './scripts/eslint/local-plugin.ts';
 const scriptFiles: string[] = ['**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'];
 const plainScriptFiles: string[] = ['**/*.{js,jsx,mjs,cjs}'];
 const engineCoreFiles: string[] = ['packages/demo-engine/src/core/**/*.ts'];
+const engineBoundaryFiles: string[] = ['apps/web/src/**/*.{ts,tsx}'];
+const engineBoundaryTestFiles: string[] = ['apps/web/src/**/*.test.{ts,tsx}'];
+const engineBoundaryAllowedFiles: string[] = ['apps/web/src/shared/api/transport/demo/**'];
+const engineBoundaryMessage = 'The demo engine is reachable only through shared/api/transport/demo; take engine types from there';
+
+const createEngineBoundaryRules = (importPattern: string, selectorPattern: string): Linter.RulesRecord => ({
+  'no-restricted-imports': ['error', { patterns: [{ message: engineBoundaryMessage, regex: importPattern }] }],
+  'no-restricted-syntax': [
+    'error',
+    { message: engineBoundaryMessage, selector: `ImportExpression[source.value=/${selectorPattern}/]` },
+    { message: engineBoundaryMessage, selector: `TSImportType[argument.literal.value=/${selectorPattern}/]` },
+  ],
+});
 
 const engineCoreRestrictedGlobals: string[] = [
   'addEventListener',
@@ -163,6 +178,24 @@ export default defineConfig(
           selector: 'CallExpression[callee.name=\'Date\']',
         },
       ],
+    },
+  },
+  {
+    files: engineBoundaryFiles,
+    rules: createEngineBoundaryRules('^@skladburg/demo-engine(/|$)', '^@skladburg.demo-engine($|[^-a-z0-9_])'),
+  },
+  {
+    files: engineBoundaryTestFiles,
+    rules: createEngineBoundaryRules(
+      '^@skladburg/demo-engine(?!/testing$)(/|$)',
+      '^@skladburg.demo-engine($|[^-a-z0-9_](?!testing$))',
+    ),
+  },
+  {
+    files: engineBoundaryAllowedFiles,
+    rules: {
+      'no-restricted-imports': 'off',
+      'no-restricted-syntax': 'off',
     },
   },
   {

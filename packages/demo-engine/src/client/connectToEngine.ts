@@ -73,9 +73,22 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
     port.postMessage(message, transfer);
   };
 
-  const assertOpen = (): void => {
+  const sendAbort = (requestId: string): void => {
+    try {
+      postToEngine({ requestId, type: 'abort' });
+    }
+    catch (error) {
+      console.log('> EngineConnection -> sendAbort:', { error, requestId });
+    }
+  };
+
+  const assertAvailable = (): void => {
     if (isClosed) {
       throw createUnavailableError('the connection is closed');
+    }
+
+    if (lastStatus?.state === 'unavailable') {
+      throw createUnavailableError('the engine is not running');
     }
   };
 
@@ -97,13 +110,13 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
       };
 
       const handleAbort = (): void => {
-        postToEngine({ requestId, type: 'abort' });
         fail(signal?.reason);
+        sendAbort(requestId);
       };
 
       const handleTimeout = (): void => {
-        postToEngine({ requestId, type: 'abort' });
         fail(createUnavailableError('the request timed out'));
+        sendAbort(requestId);
       };
 
       const timerId = setTimeout(handleTimeout, requestTimeoutMs);
@@ -134,7 +147,7 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
   };
 
   const fetchFromEngine: typeof globalThis.fetch = async (input, init) => {
-    assertOpen();
+    assertAvailable();
 
     const request = new Request(input, init);
     const { signal } = request;
@@ -142,7 +155,7 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
     const requestId = nextId('request');
     const { message, transfer } = await serializeRequest(request, requestId);
     signal.throwIfAborted();
-    assertOpen();
+    assertAvailable();
 
     const reply = await awaitReply(requestId, () => {
       postToEngine(message, transfer);
@@ -152,11 +165,18 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
       throw createUnavailableError('the reply does not match the request');
     }
 
-    return restoreResponse(reply);
+    try {
+      return restoreResponse(reply);
+    }
+    catch (error) {
+      console.log('> EngineConnection -> fetchFromEngine:', { error, requestId });
+
+      throw createUnavailableError('the reply could not be restored');
+    }
   };
 
   const callControl = async (command: EngineControlCommand): Promise<EngineControlResultMessageValue> => {
-    assertOpen();
+    assertAvailable();
 
     const requestId = nextId('control');
     const reply = await awaitReply(requestId, () => {
@@ -233,6 +253,13 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
     }
   };
 
+  const rejectPendingReplies = (reason: string): void => {
+    for (const [requestId, pending] of [...pendingReplies]) {
+      pending.fail(createUnavailableError(reason));
+      sendAbort(requestId);
+    }
+  };
+
   const decodeEvents = (buffers: readonly ArrayBuffer[]): Event[] | undefined => {
     try {
       return buffers.map(decodeEvent);
@@ -252,6 +279,7 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
         break;
       case 'engine_unavailable':
         publishStatus({ reason: message.reason, state: 'unavailable' });
+        rejectPendingReplies('the engine is not running');
         break;
       case 'events': {
         const handlers = subscriptions.get(message.subscriptionId);

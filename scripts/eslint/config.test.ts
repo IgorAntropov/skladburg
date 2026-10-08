@@ -1,5 +1,6 @@
 import { ESLint } from 'eslint';
 import { fileURLToPath } from 'node:url';
+import tseslint from 'typescript-eslint';
 import {
   beforeAll,
   describe,
@@ -16,6 +17,15 @@ const applicationIndexFilePath = fileURLToPath(new URL('../../apps/web/src/app/i
 const engineCoreFilePath = fileURLToPath(new URL('../../packages/demo-engine/src/core/protocol.ts', import.meta.url));
 const engineCoreTestFilePath = fileURLToPath(new URL('../../packages/demo-engine/src/core/ports/clock.test.ts', import.meta.url));
 const engineEntryFilePath = fileURLToPath(new URL('../../packages/demo-engine/src/index.ts', import.meta.url));
+const pageFilePath = fileURLToPath(new URL('../../apps/web/src/pages/probe-logic.ts', import.meta.url));
+const pageTestFilePath = fileURLToPath(new URL('../../apps/web/src/pages/probe-logic.test.ts', import.meta.url));
+const pageComponentTestFilePath = fileURLToPath(new URL('../../apps/web/src/pages/probe-view.test.tsx', import.meta.url));
+const apiClientFilePath = fileURLToPath(new URL('../../apps/web/src/shared/api/client/probe-client.ts', import.meta.url));
+const apiClientTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/api/client/probe-client.test.ts', import.meta.url));
+const demoTransportFilePath = fileURLToPath(new URL('../../apps/web/src/shared/api/transport/demo/probe-transport.ts', import.meta.url));
+const demoTransportTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/shared/api/transport/demo/probe-transport.test.ts', import.meta.url),
+);
 
 const formattingRuleIds: ReadonlySet<string> = new Set([
   '@stylistic/object-curly-newline',
@@ -35,9 +45,11 @@ interface LintOutcomeValue {
 describe('eslint.config.ts with the local rules', () => {
   let checkingEslint: ESLint | undefined;
   let fixingEslint: ESLint | undefined;
+  let untypedEslint: ESLint | undefined;
 
   beforeAll(() => {
     checkingEslint = new ESLint({ cwd: projectDirectory });
+    untypedEslint = new ESLint({ cwd: projectDirectory, overrideConfig: [tseslint.configs.disableTypeChecked] });
     fixingEslint = new ESLint({ cwd: projectDirectory, fix: true });
   });
 
@@ -392,6 +404,118 @@ describe('eslint.config.ts with the local rules', () => {
       const outcome = await lint(checkingEslint, code, engineCoreFilePath);
 
       expect(outcome.ruleIds.filter(ruleId => engineCoreRuleIds.includes(ruleId))).toEqual([]);
+    });
+  });
+
+  describe('boundary of the demo engine in the web application', () => {
+    const engineEntries: readonly (readonly [string, string])[] = [
+      ['the package entry', '@skladburg/demo-engine'],
+      ['the client entry', '@skladburg/demo-engine/client'],
+      ['the worker entry', '@skladburg/demo-engine/worker?worker'],
+      ['the testing entry', '@skladburg/demo-engine/testing'],
+      ['a nested path', '@skladburg/demo-engine/client/types'],
+    ];
+
+    const toValueImport = (specifier: string): string => `import { probe } from '${specifier}';\nexport const value = probe;\n`;
+    const toTypeImport = (specifier: string): string => `import type { Probe } from '${specifier}';\nexport type Value = Probe;\n`;
+    const toDynamicImport = (specifier: string): string => `export const load = (): Promise<unknown> => import('${specifier}');\n`;
+    const toReExport = (specifier: string): string => `export { probe } from '${specifier}';\n`;
+    const toTypeQuery = (specifier: string): string => `export type Value = import('${specifier}').Probe;\n`;
+
+    const importForms: readonly (readonly [string, (specifier: string) => string])[] = [
+      ['a value import', toValueImport],
+      ['a type import', toTypeImport],
+      ['a dynamic import', toDynamicImport],
+      ['a re-export', toReExport],
+      ['an import type query', toTypeQuery],
+    ];
+
+    const isRestricted = (ruleIds: readonly string[]): boolean =>
+      ruleIds.includes('no-restricted-imports') || ruleIds.includes('no-restricted-syntax');
+
+    describe.each(importForms)('with %s', (_formName, toCode) => {
+      it.each(engineEntries)('reports %s in a page', async (_name, specifier) => {
+        const outcome = await lint(untypedEslint, toCode(specifier), pageFilePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(true);
+      });
+
+      it.each(engineEntries)('reports %s in the client of the api layer', async (_name, specifier) => {
+        const outcome = await lint(untypedEslint, toCode(specifier), apiClientFilePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(true);
+      });
+
+      it.each(engineEntries)('allows %s in the demo transport', async (_name, specifier) => {
+        const outcome = await lint(untypedEslint, toCode(specifier), demoTransportFilePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(false);
+      });
+
+      it.each(engineEntries)('allows %s in a test of the demo transport', async (_name, specifier) => {
+        const outcome = await lint(untypedEslint, toCode(specifier), demoTransportTestFilePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(false);
+      });
+    });
+
+    it.each([
+      ['a test of a page', pageTestFilePath],
+      ['a component test of a page', pageComponentTestFilePath],
+      ['a test of the api client', apiClientTestFilePath],
+    ])('allows the testing entry in %s', async (_name, filePath) => {
+      const outcome = await lint(untypedEslint, toValueImport('@skladburg/demo-engine/testing'), filePath);
+
+      expect(isRestricted(outcome.ruleIds)).toBe(false);
+    });
+
+    it.each([
+      ['a test of a page', pageTestFilePath],
+      ['a component test of a page', pageComponentTestFilePath],
+      ['a test of the api client', apiClientTestFilePath],
+    ])('reports the other entries of the engine in %s', async (_name, filePath) => {
+      const forbiddenSpecifiers = [
+        '@skladburg/demo-engine',
+        '@skladburg/demo-engine/client',
+        '@skladburg/demo-engine/worker?worker',
+        '@skladburg/demo-engine/testing/engine',
+      ];
+
+      for (const specifier of forbiddenSpecifiers) {
+        const outcome = await lint(untypedEslint, toValueImport(specifier), filePath);
+
+        expect(isRestricted(outcome.ruleIds), specifier).toBe(true);
+      }
+    });
+
+    it.each([
+      ['a relative module', './demo-engine'],
+      ['another workspace package', '@skladburg/contracts'],
+      ['a package with a similar name', '@skladburg/demo-engine-tools'],
+    ])('does not report %s in a page', async (_name, specifier) => {
+      const outcome = await lint(untypedEslint, toValueImport(specifier), pageFilePath);
+
+      expect(isRestricted(outcome.ruleIds)).toBe(false);
+    });
+
+    it('does not apply to the engine package itself', async () => {
+      const outcome = await lint(untypedEslint, toValueImport('@skladburg/demo-engine/client'), engineEntryFilePath);
+
+      expect(isRestricted(outcome.ruleIds)).toBe(false);
+    });
+
+    it.each([
+      ['a static import', toValueImport],
+      ['a dynamic import', toDynamicImport],
+    ])('explains where to take the engine from for %s', async (_name, toCode) => {
+      if (untypedEslint === undefined) {
+        throw new Error('ESLint is not initialized');
+      }
+
+      const [result] = await untypedEslint.lintText(toCode('@skladburg/demo-engine/client'), { filePath: pageFilePath });
+      const message = result?.messages.find(item => item.ruleId === 'no-restricted-imports' || item.ruleId === 'no-restricted-syntax');
+
+      expect(message?.message).toContain('shared/api/transport/demo');
     });
   });
 });

@@ -9,6 +9,7 @@ import { OrganizationService } from '@skladburg/contracts/organization/v1/organi
 
 import type { IEngineConnection } from '../../client/index';
 import type {
+  EngineClientMessageValue,
   EngineHostMessageValue,
   EngineStatusValue,
 } from '../../protocol/index';
@@ -56,6 +57,7 @@ export interface HostFixtureValue {
   kill: () => void;
   messages: EngineHostMessageValue[];
   organization: (useBinaryFormat?: boolean) => Client<typeof OrganizationService>;
+  sendToHost: (message: EngineClientMessageValue) => void;
   stop: () => Promise<void>;
   tabId: string;
 }
@@ -235,6 +237,9 @@ export const createHostHarness = (storage: SpyStorageValue = createSpyStorage())
       kill,
       messages,
       organization: (useBinaryFormat = true) => createClient(OrganizationService, createTransport(useBinaryFormat)),
+      sendToHost: (message) => {
+        port1.postMessage(message);
+      },
       stop: async () => {
         if (isKilled) {
           return;

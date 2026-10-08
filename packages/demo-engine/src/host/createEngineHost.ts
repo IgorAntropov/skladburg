@@ -20,6 +20,8 @@ import {
   ENGINE_BROADCAST_CHANNEL_NAME,
   ENGINE_LOCK_NAME,
   HOST_REQUEST_TIMEOUT_MS,
+  LEADER_RETRY_DELAYS_MS,
+  LEADER_RETRY_REPEAT_DELAY_MS,
   TICK_INTERVAL_MS,
 } from './constants';
 import { startEngine } from './engineStartup';
@@ -49,9 +51,9 @@ export const createEngineHost = (options: CreateEngineHostOptionsValue): IEngine
   let leaderStorage: EngineStatusValue['storage'] = 'memory';
   let storageHealth: StorageHealthValue = 'ok';
   let releaseLock: () => void = () => undefined;
-  const lockReleased = new Promise<void>((resolve) => {
-    releaseLock = resolve;
-  });
+  let cancelLeaderRetry: (() => void) | undefined;
+  let leaderRetryAttempt = 0;
+  const lockRequests = new Set<Promise<void>>();
   let leaderStartup: Promise<void> | undefined;
   let hasLeaderLock = false;
   let hasTabLock = lockManager === undefined;
@@ -161,9 +163,10 @@ export const createEngineHost = (options: CreateEngineHostOptionsValue): IEngine
       service.serve(tabId, call);
     }
 
-    leader = service;
     announceLeader(service);
     service.start();
+    leader = service;
+    leaderRetryAttempt = 0;
     console.log('> EngineHost -> assumeLeadership:', {
       coordination,
       epoch: service.epoch(),
@@ -171,33 +174,76 @@ export const createEngineHost = (options: CreateEngineHostOptionsValue): IEngine
     });
   };
 
-  const handleLockGranted = async (): Promise<void> => {
+  const enqueueLeaderLock = (manager: ILockManager): void => {
+    const request = requestLock(manager);
+    lockRequests.add(request);
+    void request.finally(() => {
+      lockRequests.delete(request);
+    });
+  };
+
+  const requeueLeaderLock = (): void => {
+    cancelLeaderRetry?.();
+    cancelLeaderRetry = undefined;
+
+    if (lockManager === undefined || isStopped || lockAbort.signal.aborted) {
+      return;
+    }
+
+    enqueueLeaderLock(lockManager);
+  };
+
+  const scheduleLeaderRetry = (): void => {
+    if (isStopped || lockAbort.signal.aborted) {
+      return;
+    }
+
+    const delayMs = LEADER_RETRY_DELAYS_MS[leaderRetryAttempt] ?? LEADER_RETRY_REPEAT_DELAY_MS;
+    leaderRetryAttempt += 1;
+    cancelLeaderRetry = options.timers.setTimeout(requeueLeaderLock, delayMs);
+  };
+
+  const handleLeaderStartFailure = (error: unknown, releaseThisLock: () => void): void => {
+    console.log('> EngineHost -> assumeLeadership:', { error });
+    hasLeaderLock = false;
+    closeStorage();
+    closeStorage = () => undefined;
+    postToPort({ reason: 'start_failed', type: 'engine_unavailable' });
+    scheduleLeaderRetry();
+
+    if (hasTabLock) {
+      postToChannel({ type: 'leader_query' });
+    }
+
+    releaseThisLock();
+  };
+
+  async function handleLockGranted(): Promise<void> {
+    let releaseThisLock: () => void = () => undefined;
+    const lockReleased = new Promise<void>((resolve) => {
+      releaseThisLock = resolve;
+    });
+    releaseLock = releaseThisLock;
     hasLeaderLock = true;
     relay.handleLeaderLost();
     postToChannel({ type: 'leader_lost' });
     leaderStartup = assumeLeadership().catch((error: unknown) => {
-      console.log('> EngineHost -> assumeLeadership:', { error });
-      hasLeaderLock = false;
-      postToPort({ reason: 'start_failed', type: 'engine_unavailable' });
-
-      if (hasTabLock) {
-        postToChannel({ type: 'leader_query' });
-      }
-
-      releaseLock();
+      handleLeaderStartFailure(error, releaseThisLock);
     });
 
     await leaderStartup;
     await lockReleased;
-  };
+  }
 
-  const requestLock = (manager: ILockManager): Promise<void> => manager
-    .request(ENGINE_LOCK_NAME, { signal: lockAbort.signal }, handleLockGranted)
-    .catch((error: unknown) => {
-      if (!isAbortError(error)) {
-        console.log('> EngineHost -> requestLock:', { error });
-      }
-    });
+  function requestLock(manager: ILockManager): Promise<void> {
+    return manager
+      .request(ENGINE_LOCK_NAME, { signal: lockAbort.signal }, handleLockGranted)
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) {
+          console.log('> EngineHost -> requestLock:', { error });
+        }
+      });
+  }
 
   const handleTabLockGranted = async (): Promise<void> => {
     hasTabLock = true;
@@ -271,6 +317,10 @@ export const createEngineHost = (options: CreateEngineHostOptionsValue): IEngine
 
         break;
       case 'leader_ready':
+        if (cancelLeaderRetry !== undefined) {
+          requeueLeaderLock();
+        }
+
         if (leader === undefined && !hasLeaderLock && hasTabLock) {
           relay.handleLeaderReady({
             epoch: message.epoch,
@@ -298,11 +348,15 @@ export const createEngineHost = (options: CreateEngineHostOptionsValue): IEngine
   channel?.addEventListener('message', handleChannelMessage);
   port.addEventListener('message', handlePortMessage);
   port.start?.();
-  const lockRequestsSettled = lockManager === undefined
-    ? startAlone()
-    : Promise.all([requestTabLock(lockManager), requestLock(lockManager)]);
+  const tabLockRequest = lockManager === undefined ? startAlone() : requestTabLock(lockManager);
+
+  if (lockManager !== undefined) {
+    enqueueLeaderLock(lockManager);
+  }
 
   const performStop = async (): Promise<void> => {
+    cancelLeaderRetry?.();
+    cancelLeaderRetry = undefined;
     lockAbort.abort();
     await leaderStartup;
     port.removeEventListener('message', handlePortMessage);
@@ -322,7 +376,7 @@ export const createEngineHost = (options: CreateEngineHostOptionsValue): IEngine
     channel?.close();
     releaseLock();
     releaseTabLock();
-    await lockRequestsSettled;
+    await Promise.all([tabLockRequest, ...lockRequests]);
   };
 
   const stop = (): Promise<void> => {

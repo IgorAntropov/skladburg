@@ -1,3 +1,4 @@
+import { Code } from '@connectrpc/connect';
 import {
   afterEach,
   beforeEach,
@@ -10,7 +11,10 @@ import {
 import type { HostHarnessValue } from './testing/hostHarness';
 
 import { createHeaders } from '../core/engine/testing/engineHarness';
-import { callAs } from '../core/modules/testing/moduleHarness';
+import {
+  callAs,
+  captureError,
+} from '../core/modules/testing/moduleHarness';
 import {
   SeedOrganizationId,
   SeedUserId,
@@ -46,7 +50,7 @@ afterEach(async () => {
 });
 
 describe('engine hosts when the start of the leader fails', () => {
-  it('returns the tab to the followers of the next leader and serves its calls and subscription', async () => {
+  it('returns the tab to the followers of the next leader and serves its later call and subscription', async () => {
     const loadGate = createGate();
     const failed = harness.addHost({
       loadCore: async () => {
@@ -56,7 +60,7 @@ describe('engine hosts when the start of the leader fails', () => {
       },
     });
     const successor = harness.addHost();
-    const callBeforeFailure = failed.organization().listWarehouses({}, buyerOptions);
+    const callBeforeFailure = captureError(failed.organization().listWarehouses({}, buyerOptions));
     const recorded = subscribeRecorded(
       failed,
       BUYER_CHANNEL,
@@ -71,7 +75,7 @@ describe('engine hosts when the start of the leader fails', () => {
     expect(readLastStatus(failed)).toMatchObject({ coordination: 'shared', role: 'follower' });
     await waitForRole(successor, 'leader');
     expect(readLastStatus(successor)?.epoch).toBe(epoch);
-    expect((await callBeforeFailure).warehouses).toHaveLength(3);
+    expect((await callBeforeFailure).code).toBe(Code.Unavailable);
     expect((await failed.organization().listWarehouses({}, buyerOptions)).warehouses).toHaveLength(3);
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(1);

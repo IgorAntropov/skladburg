@@ -1,3 +1,4 @@
+import { defaultLocaleCatalog } from 'virtual:build-profile';
 import {
   describe,
   expect,
@@ -14,19 +15,12 @@ import type { TenantSettingsValue } from '@/shared/tenant';
 import { loadAppContext } from './loadAppContext';
 
 const ruCatalog: LocaleCatalogValue = {
-  'app.startError.message': 'Не удалось запустить приложение',
-  'app.startError.retry': 'Повторить',
-  'app.startError.retrying': 'Повторяем…',
+  ...defaultLocaleCatalog,
   'field.placeholder': 'Скоро здесь будет склад',
-  'units.pallet': {
-    few: '{count} паллеты',
-    many: '{count} паллет',
-    one: '{count} паллета',
-    other: '{count} паллеты',
-  },
 };
 
 const enCatalog: LocaleCatalogValue = {
+  ...defaultLocaleCatalog,
   'app.startError.message': 'The application failed to start',
   'app.startError.retry': 'Retry',
   'app.startError.retrying': 'Retrying…',

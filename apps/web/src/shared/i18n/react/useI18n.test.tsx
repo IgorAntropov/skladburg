@@ -26,6 +26,7 @@ import { LocalizerProvider } from './LocalizerProvider';
 import { useI18n } from './useI18n';
 
 const enCatalog: LocaleCatalogValue = {
+  ...ruCatalog,
   'app.startError.message': 'Failed to start the application',
   'app.startError.retry': 'Retry',
   'app.startError.retrying': 'Retrying…',

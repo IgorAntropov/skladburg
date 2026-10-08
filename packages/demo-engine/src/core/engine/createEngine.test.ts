@@ -55,6 +55,7 @@ import {
   SeedWarehouseId,
 } from '../seed/index';
 import {
+  createEngineState,
   ENGINE_SCHEMA_VERSION,
   TABLE_DEFINITIONS,
 } from '../state/index';
@@ -116,6 +117,52 @@ describe('createEngine startup', () => {
 
     expect(personas.length).toBeGreaterThan(0);
     expect(personas.map(persona => persona.id)).toContain(SeedPersonaId.FRESH_BUYER);
+  });
+
+  it('lists the eight seed personas with organization names, ordered by id', async () => {
+    const { engine } = await createTestEngine();
+
+    const personas = engine.listPersonas();
+
+    expect(personas.map(persona => persona.id)).toEqual([
+      SeedPersonaId.FRESH_BUYER,
+      SeedPersonaId.FRESH_SELLER,
+      SeedPersonaId.FRESH_CARRIER,
+      SeedPersonaId.FRESH_STOREKEEPER,
+      SeedPersonaId.CONSTRUCTION_BUYER,
+      SeedPersonaId.CONSTRUCTION_SELLER,
+      SeedPersonaId.CONSTRUCTION_CARRIER,
+      SeedPersonaId.CONSTRUCTION_STOREKEEPER,
+    ]);
+    expect(personas.map(persona => [persona.kind, persona.organizationName])).toEqual([
+      ['buyer', 'Покупатель 1'],
+      ['seller', 'Продавец 1'],
+      ['carrier', 'Логист 1'],
+      ['storekeeper', 'Покупатель 1'],
+      ['buyer', 'Покупатель 2'],
+      ['seller', 'Продавец 3'],
+      ['carrier', 'Логист 2'],
+      ['storekeeper', 'Покупатель 2'],
+    ]);
+  });
+
+  it('matches every listed organization name with the organization table of the seed', async () => {
+    const { engine } = await createTestEngine();
+    const seedReader = createEngineState(createSeedSnapshot()).read;
+
+    for (const persona of engine.listPersonas()) {
+      expect(persona.organizationName, persona.id).toBe(seedReader.get('organizations', persona.organizationId)?.name);
+    }
+  });
+
+  it('keeps the organization name out of the stored persona record', () => {
+    const seedPersonas = createEngineState(createSeedSnapshot()).read.list('personas');
+
+    expect(seedPersonas).toHaveLength(8);
+
+    for (const persona of seedPersonas) {
+      expect(Object.keys(persona).sort()).toEqual(['id', 'kind', 'organizationId', 'userId']);
+    }
   });
 
   it('starts the world clock at the seed time', async () => {

@@ -6,6 +6,12 @@ import {
   OrganizationService,
   OrganizationSettingsSchema,
 } from '@skladburg/contracts/organization/v1/organization';
+import {
+  createInProcessEngineConnection,
+  SeedOrganizationId,
+  SeedPersonaId,
+  SeedUserId,
+} from '@skladburg/demo-engine/testing';
 import { QueryClient } from '@tanstack/react-query';
 import {
   cleanup,
@@ -28,19 +34,33 @@ import {
   vi,
 } from 'vitest';
 
-import type { ApiRuntimeValue } from '@/shared/api';
+import type {
+  ApiRuntimeValue,
+  IDemoControl,
+} from '@/shared/api';
+import type { IMemoryLocation } from '@/shared/routing/index.testing';
 
 import {
+  ACTING_CONTEXT_STORAGE_KEY,
   createApiRuntime,
   createQueryClient,
+  persistActingContext,
   syncQueriesWithRealtime,
 } from '@/shared/api';
-import { createTestRuntime } from '@/shared/api/index.testing';
+import {
+  createTestRuntime,
+  TEST_ORGANIZATION_ID,
+  TEST_USER_ID,
+} from '@/shared/api/index.testing';
 import { createLocalizer } from '@/shared/i18n';
 import { observeLongTasks } from '@/shared/lib/performance';
-import { createHashLocation } from '@/shared/routing';
+import {
+  APP_SECTIONS,
+  createHashLocation,
+} from '@/shared/routing';
 import { createMemoryLocation } from '@/shared/routing/index.testing';
 
+import { registerSessionRoute } from '../lib/testing/sessionFixtures';
 import { readDeviceTimeZone } from './readDeviceTimeZone';
 import { startApp } from './startApp';
 
@@ -53,6 +73,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
     ...original,
     createApiRuntime: vi.fn(original.createApiRuntime),
     createQueryClient: vi.fn(original.createQueryClient),
+    persistActingContext: vi.fn(original.persistActingContext),
     syncQueriesWithRealtime: vi.fn(original.syncQueriesWithRealtime),
   };
 });
@@ -81,18 +102,29 @@ const WAREHOUSE_PATH = '/warehouse';
 const ENGINE_BRAND = 'Северный склад';
 const ENGINE_ORGANIZATION_ID = 'f4000001-0000-4000-8000-000000000000';
 
-const createRuntime = (close: () => void = vi.fn()): ApiRuntimeValue => ({
+const createDemoControl = (): IDemoControl => ({
+  listPersonas: () => Promise.resolve([]),
+  onReset: () => () => undefined,
+  onStatus: () => () => undefined,
+  reset: () => Promise.resolve(),
+});
+
+const createRuntime = (close: () => void = vi.fn(), demoControl?: IDemoControl): ApiRuntimeValue => ({
   ...createTestRuntime({
-    routes: router => router.service(OrganizationService, {
-      getOrganizationSettings: () => create(GetOrganizationSettingsResponseSchema, {
-        settings: create(OrganizationSettingsSchema, {
-          availableLocales: ['ru'],
-          brandName: ENGINE_BRAND,
-          defaultLocale: 'ru',
-          organizationId: ENGINE_ORGANIZATION_ID,
+    demoControl,
+    routes: (router) => {
+      registerSessionRoute(router);
+      router.service(OrganizationService, {
+        getOrganizationSettings: () => create(GetOrganizationSettingsResponseSchema, {
+          settings: create(OrganizationSettingsSchema, {
+            availableLocales: ['ru'],
+            brandName: ENGINE_BRAND,
+            defaultLocale: 'ru',
+            organizationId: ENGINE_ORGANIZATION_ID,
+          }),
         }),
-      }),
-    }),
+      });
+    },
   }),
   close,
 });
@@ -145,6 +177,8 @@ describe('startApp', () => {
     vi.mocked(createApiRuntime).mockImplementation(() => Promise.resolve(createRuntime()));
     vi.mocked(createQueryClient).mockReset();
     vi.mocked(syncQueriesWithRealtime).mockReset();
+    vi.mocked(persistActingContext).mockClear();
+    window.sessionStorage.clear();
     vi.mocked(createLocalizer).mockReset();
     vi.mocked(observeLongTasks).mockClear();
     vi.mocked(createHashLocation).mockReset();
@@ -167,7 +201,11 @@ describe('startApp', () => {
         .replace('{brand}', ENGINE_BRAND),
     );
     expect(createApiRuntime).toHaveBeenCalledOnce();
-    expect(createApiRuntime).toHaveBeenCalledWith({ defaultOrganizationId: defaultTenant.tenantId });
+    expect(createApiRuntime).toHaveBeenCalledWith({
+      defaultOrganizationId: defaultTenant.tenantId,
+      preferredContext: undefined,
+      preferredPersonaId: undefined,
+    });
   });
 
   it('creates the query client for the network mode of the runtime and synchronizes it with the realtime channel', async () => {
@@ -447,5 +485,221 @@ describe('startApp', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: defaultLocaleCatalog['section.network.title'] })).toBeDefined();
     expect(location.history).toEqual(['/network']);
+  });
+
+  describe('acting context of the tab', () => {
+    const PERSONA_ID = SeedPersonaId.FRESH_STOREKEEPER;
+
+    const startWithAddress = async (address: string, isDemo = true): Promise<IMemoryLocation> => {
+      const location = createMemoryLocation(address);
+      vi.mocked(createHashLocation).mockReturnValue(location);
+      vi.mocked(createApiRuntime).mockResolvedValue(createRuntime(vi.fn(), isDemo ? createDemoControl() : undefined));
+
+      await startApp(createRootElement());
+      await findBrand();
+
+      return location;
+    };
+
+    it('gives the persona from the address to the runtime and removes the parameter from the address', async () => {
+      const location = await startWithAddress(`/deals?as=${PERSONA_ID}`);
+
+      expect(vi.mocked(createApiRuntime).mock.calls[0]?.[0].preferredPersonaId).toBe(PERSONA_ID);
+      expect(location.history).toEqual(['/deals']);
+    });
+
+    it('keeps the other parameters of the address and replaces the entry instead of adding one', async () => {
+      const location = await startWithAddress(`/network?tab=open&as=${PERSONA_ID}&sort=date`);
+
+      expect(location.history).toEqual(['/network?tab=open&sort=date']);
+      expect(location.currentIndex).toBe(0);
+    });
+
+    it('removes the parameter silently when the persona is unknown and still lets the runtime decide', async () => {
+      const location = await startWithAddress('/deals?as=unknown-persona');
+
+      expect(vi.mocked(createApiRuntime).mock.calls[0]?.[0].preferredPersonaId).toBe('unknown-persona');
+      expect(location.history).toEqual(['/deals']);
+    });
+
+    it('leaves the address alone when it has no persona parameter', async () => {
+      const location = await startWithAddress('/deals?tab=open');
+
+      expect(vi.mocked(createApiRuntime).mock.calls[0]?.[0].preferredPersonaId).toBeUndefined();
+      expect(location.history).toEqual(['/deals?tab=open']);
+    });
+
+    it('ignores the persona parameter outside the demo and keeps it in the address', async () => {
+      const location = await startWithAddress(`/deals?as=${PERSONA_ID}`, false);
+
+      expect(location.history).toEqual([`/deals?as=${PERSONA_ID}`]);
+    });
+
+    it('gives the context saved in the tab to the runtime', async () => {
+      const savedContext = { organizationId: ENGINE_ORGANIZATION_ID, userId: TEST_USER_ID };
+      window.sessionStorage.setItem(ACTING_CONTEXT_STORAGE_KEY, JSON.stringify(savedContext));
+
+      await startWithAddress('/deals');
+
+      expect(vi.mocked(createApiRuntime).mock.calls[0]?.[0].preferredContext).toEqual(savedContext);
+    });
+
+    it('gives nothing as the saved context when the stored value is broken', async () => {
+      window.sessionStorage.setItem(ACTING_CONTEXT_STORAGE_KEY, '{broken');
+
+      await startWithAddress('/deals');
+
+      expect(vi.mocked(createApiRuntime).mock.calls[0]?.[0].preferredContext).toBeUndefined();
+    });
+
+    it('saves the context of the runtime in the tab at once and on every change', async () => {
+      const runtime = createRuntime(vi.fn(), createDemoControl());
+      vi.mocked(createApiRuntime).mockResolvedValue(runtime);
+      vi.mocked(createHashLocation).mockReturnValue(createMemoryLocation('/deals'));
+
+      await startApp(createRootElement());
+      await findBrand();
+
+      expect(window.sessionStorage.getItem(ACTING_CONTEXT_STORAGE_KEY)).toBe(
+        JSON.stringify({ organizationId: TEST_ORGANIZATION_ID, userId: TEST_USER_ID }),
+      );
+
+      runtime.actingContext.set({ organizationId: ENGINE_ORGANIZATION_ID, userId: PERSONA_ID });
+
+      expect(window.sessionStorage.getItem(ACTING_CONTEXT_STORAGE_KEY)).toBe(
+        JSON.stringify({ organizationId: ENGINE_ORGANIZATION_ID, userId: PERSONA_ID }),
+      );
+    });
+
+    it('stops saving the context when the runtime is released after a failed start', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const stopPersist = vi.fn();
+      vi.mocked(persistActingContext).mockReturnValueOnce(stopPersist);
+      await failFirstRender();
+
+      await startApp(createRootElement());
+
+      expect(stopPersist).toHaveBeenCalledOnce();
+      expect(await screen.findByRole('alert')).toBeDefined();
+    });
+
+    it('stops saving the context of the failed attempt before it creates the next runtime', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const events: string[] = [];
+      vi.mocked(createApiRuntime)
+        .mockImplementationOnce(() => {
+          events.push('create first');
+
+          return Promise.resolve(createRuntime(() => {
+            events.push('close first');
+          }));
+        })
+        .mockImplementationOnce(() => {
+          events.push('create second');
+
+          return Promise.resolve(createRuntime());
+        });
+      vi.mocked(persistActingContext).mockReturnValueOnce(() => {
+        events.push('stop persist first');
+      });
+      await failFirstRender();
+
+      await startApp(createRootElement());
+      fireEvent.click(await screen.findByRole('button'));
+      await findBrand();
+
+      expect(events).toEqual(['create first', 'stop persist first', 'close first', 'create second']);
+    });
+
+    it('closes the runtime and reports the failure when stopping the saving throws', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const close = vi.fn();
+      vi.mocked(createApiRuntime).mockResolvedValueOnce(createRuntime(close));
+      vi.mocked(persistActingContext).mockReturnValueOnce(() => {
+        throw new Error('storage is gone');
+      });
+      await failFirstRender();
+
+      await startApp(createRootElement());
+
+      expect(close).toHaveBeenCalledOnce();
+      expect(getLoggedLabels(consoleError)).toContain('> startApp -> release:');
+    });
+
+    describe('on the demo engine', () => {
+      const closers: (() => Promise<void>)[] = [];
+
+      const startOnEngine = async (address: string): Promise<IMemoryLocation> => {
+        const inProcess = createInProcessEngineConnection();
+        const original = await vi.importActual<typeof import('@/shared/api')>('@/shared/api');
+        const location = createMemoryLocation(address);
+
+        closers.push(inProcess.close);
+        vi.mocked(createApiRuntime).mockImplementation(options => original.createApiRuntime({
+          ...options,
+          connection: inProcess.connection,
+        }));
+        vi.mocked(createHashLocation).mockReturnValue(location);
+
+        await startApp(createRootElement());
+
+        return location;
+      };
+
+      const getNavigationLinks = (): string[] => {
+        const navigation = screen.getByRole('navigation', { name: defaultLocaleCatalog['app.nav.label'] });
+
+        return within(navigation).getAllByRole('link').map(link => link.textContent);
+      };
+
+      afterEach(async () => {
+        cleanup();
+
+        for (const close of closers.splice(0)) {
+          await close();
+        }
+      });
+
+      it('opens the storekeeper from the address on the warehouse with the only section', async () => {
+        const location = await startOnEngine(`/?as=${SeedPersonaId.FRESH_STOREKEEPER}`);
+
+        expect(await screen.findByRole('heading', { level: 1, name: defaultLocaleCatalog['section.warehouse.title'] })).toBeDefined();
+        expect(getNavigationLinks()).toEqual([defaultLocaleCatalog['section.warehouse.title']]);
+        expect(location.history).toEqual(['/warehouse']);
+        expect(window.sessionStorage.getItem(ACTING_CONTEXT_STORAGE_KEY)).toContain(SeedUserId.STOREKEEPER_1);
+      });
+
+      it('opens the profile persona with all sections when the persona from the address is unknown', async () => {
+        const location = await startOnEngine('/deals?as=unknown-persona');
+
+        expect(await screen.findByRole('heading', { level: 1, name: defaultLocaleCatalog['section.deals.title'] })).toBeDefined();
+        expect(getNavigationLinks()).toHaveLength(APP_SECTIONS.length);
+        expect(location.history).toEqual(['/deals']);
+      });
+
+      it('opens the persona saved in the tab when the address names none', async () => {
+        window.sessionStorage.setItem(
+          ACTING_CONTEXT_STORAGE_KEY,
+          JSON.stringify({ organizationId: SeedOrganizationId.BUYER_1, userId: SeedUserId.STOREKEEPER_1 }),
+        );
+
+        const location = await startOnEngine('/');
+
+        expect(await screen.findByRole('heading', { level: 1, name: defaultLocaleCatalog['section.warehouse.title'] })).toBeDefined();
+        expect(location.history).toEqual(['/warehouse']);
+      });
+
+      it('lets the address win over the persona saved in the tab', async () => {
+        window.sessionStorage.setItem(
+          ACTING_CONTEXT_STORAGE_KEY,
+          JSON.stringify({ organizationId: SeedOrganizationId.BUYER_1, userId: SeedUserId.STOREKEEPER_1 }),
+        );
+
+        await startOnEngine(`/network?as=${SeedPersonaId.FRESH_BUYER}`);
+
+        expect(await screen.findByRole('heading', { level: 1, name: defaultLocaleCatalog['section.network.title'] })).toBeDefined();
+        expect(getNavigationLinks()).toHaveLength(APP_SECTIONS.length);
+      });
+    });
   });
 });

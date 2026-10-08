@@ -2,6 +2,10 @@ import type { ReactElement } from 'react';
 import type { Mock } from 'vitest';
 
 import {
+  Code,
+  ConnectError,
+} from '@connectrpc/connect';
+import {
   act,
   cleanup,
   fireEvent,
@@ -35,11 +39,13 @@ import {
 } from '@/shared/routing';
 import { createMemoryLocation } from '@/shared/routing/index.testing';
 
+import type { AvailableSectionsValue } from '../access';
 import type {
   SectionLoader,
   SectionPageProps,
 } from './sectionPages';
 
+import { AvailableSectionsProvider } from '../access';
 import { AppRoutes } from './AppRoutes';
 
 type StubLoadersValue = Record<AppSectionValue, Mock<SectionLoader>>;
@@ -47,6 +53,8 @@ type StubLoadersValue = Record<AppSectionValue, Mock<SectionLoader>>;
 const OBJECT_ID = 'f6000001-0000-4000-8000-000000000000';
 const OTHER_OBJECT_ID = 'f6000002-0000-4000-8000-000000000000';
 const CHUNK_ERROR = new Error('chunk is unavailable');
+const ALL_SECTIONS_VALUE: AvailableSectionsValue = { kind: 'ready', landingSection: 'network', sections: APP_SECTIONS };
+const WAREHOUSE_ONLY_VALUE: AvailableSectionsValue = { kind: 'ready', landingSection: 'warehouse', sections: ['warehouse'] };
 
 const createStubPage = (section: AppSectionValue): (props: SectionPageProps) => ReactElement => {
   const StubPage = ({ focus }: SectionPageProps): ReactElement => (
@@ -78,7 +86,11 @@ interface RenderedRoutesValue {
   location: IMemoryLocation;
 }
 
-const renderRoutes = async (initialPath: string, loaders: StubLoadersValue = createStubLoaders()): Promise<RenderedRoutesValue> => {
+const renderRoutes = async (
+  initialPath: string,
+  loaders: StubLoadersValue = createStubLoaders(),
+  availableSections: AvailableSectionsValue = ALL_SECTIONS_VALUE,
+): Promise<RenderedRoutesValue> => {
   const localizer = await createTestLocalizer();
   const location = createMemoryLocation(initialPath);
 
@@ -86,7 +98,9 @@ const renderRoutes = async (initialPath: string, loaders: StubLoadersValue = cre
     <StrictMode>
       <RoutingProvider location={location}>
         <LocalizerProvider localizer={localizer}>
-          <AppRoutes sectionLoaders={loaders} />
+          <AvailableSectionsProvider value={availableSections}>
+            <AppRoutes sectionLoaders={loaders} />
+          </AvailableSectionsProvider>
         </LocalizerProvider>
       </RoutingProvider>
     </StrictMode>,
@@ -548,5 +562,164 @@ describe('AppRoutes focus', () => {
     });
 
     expect(document.activeElement).not.toBe(screen.getByRole('main'));
+  });
+});
+
+describe('AppRoutes sections of the persona', () => {
+  it('replaces the empty address with the landing section of the persona', async () => {
+    const { location } = await renderRoutes('/', createStubLoaders(), WAREHOUSE_ONLY_VALUE);
+
+    expect(await screen.findByTestId('page-warehouse')).toBeDefined();
+    expect(location.history).toEqual(['/warehouse']);
+  });
+
+  it('replaces a section that is not available with the landing section and keeps the earlier history', async () => {
+    const { location } = await renderRoutes('/warehouse', createStubLoaders(), WAREHOUSE_ONLY_VALUE);
+    await screen.findByTestId('page-warehouse');
+
+    act(() => {
+      location.navigate('/catalog');
+    });
+
+    expect(await screen.findByTestId('page-warehouse')).toBeDefined();
+    expect(screen.queryByTestId('page-catalog')).toBeNull();
+    expect(location.history).toEqual(['/warehouse', '/warehouse']);
+  });
+
+  it('does not load the chunk of a section that is not available', async () => {
+    const { loaders } = await renderRoutes('/catalog', createStubLoaders(), WAREHOUSE_ONLY_VALUE);
+    await screen.findByTestId('page-warehouse');
+
+    expect(loaders.catalog).not.toHaveBeenCalled();
+  });
+
+  it('opens the object whose home section is available', async () => {
+    await renderRoutes(`/warehouses/${OBJECT_ID}`, createStubLoaders(), WAREHOUSE_ONLY_VALUE);
+
+    expect((await screen.findByTestId('page-warehouse')).textContent).toBe(`warehouse:${OBJECT_ID}`);
+  });
+
+  it('shows the screen without access for an object whose home section is not available, with a link to the landing section', async () => {
+    const { loaders, location } = await renderRoutes(`/deals/${OBJECT_ID}`, createStubLoaders(), WAREHOUSE_ONLY_VALUE);
+
+    const heading = screen.getByRole('heading', { level: 1, name: defaultLocaleCatalog['routing.objectUnavailable.title'] });
+    const link = screen.getByRole('link', {
+      name: defaultLocaleCatalog['routing.objectUnavailable.action'].replace('{section}', defaultLocaleCatalog['section.warehouse.title']),
+    });
+
+    expect(screen.getByRole('main').contains(heading)).toBe(true);
+    expect(link.getAttribute('href')).toBe('#/warehouse');
+    expect(APP_SECTIONS.filter(section => screen.queryByTestId(`page-${section}`) !== null)).toEqual([]);
+    expect(loaders.deals).not.toHaveBeenCalled();
+    expect(location.history).toEqual([`/deals/${OBJECT_ID}`]);
+
+    fireEvent.click(link);
+
+    expect(await screen.findByTestId('page-warehouse')).toBeDefined();
+    expect(location.history).toEqual([`/deals/${OBJECT_ID}`, '/warehouse']);
+  });
+
+  it('leads from the not found screen to the landing section of the persona', async () => {
+    await renderRoutes('/nope', createStubLoaders(), WAREHOUSE_ONLY_VALUE);
+
+    const link = screen.getByRole('link', {
+      name: defaultLocaleCatalog['routing.notFound.action'].replace('{section}', defaultLocaleCatalog['section.warehouse.title']),
+    });
+
+    expect(link.getAttribute('href')).toBe('#/warehouse');
+  });
+
+  it('preloads only the sections that are available', async () => {
+    const idle = stubIdleCallbacks();
+    const sections = ['network', 'warehouse'] as const;
+    const { loaders } = await renderRoutes('/network', createStubLoaders(), { kind: 'ready', landingSection: 'network', sections });
+    await screen.findByTestId('page-network');
+
+    idle.runIdle();
+
+    expect(loaders.warehouse).toHaveBeenCalledOnce();
+    expect(loaders.catalog).not.toHaveBeenCalled();
+    expect(loaders.deals).not.toHaveBeenCalled();
+  });
+});
+
+describe('AppRoutes session states', () => {
+  it('shows a busy landmark with a quiet status while the session loads, without redirecting', async () => {
+    const idle = stubIdleCallbacks();
+    const { loaders, location } = await renderRoutes('/', createStubLoaders(), { kind: 'loading' });
+
+    const waiting = screen.getByRole('main', { busy: true });
+
+    expect(waiting.textContent).toBe(defaultLocaleCatalog['session.loading']);
+    expect(waiting.querySelector('.sr-only')).not.toBeNull();
+    expect(location.history).toEqual(['/']);
+
+    idle.runIdle();
+
+    for (const section of APP_SECTIONS) {
+      expect(loaders[section]).not.toHaveBeenCalled();
+    }
+  });
+
+  it('keeps the address of a section while the session loads', async () => {
+    const { location } = await renderRoutes('/catalog', createStubLoaders(), { kind: 'loading' });
+
+    expect(screen.queryByTestId('page-catalog')).toBeNull();
+    expect(location.history).toEqual(['/catalog']);
+  });
+
+  it('shows the message by the code of the error and retries on the button', async () => {
+    const onRetry = vi.fn();
+    await renderRoutes('/network', createStubLoaders(), {
+      error: new ConnectError('the engine is unavailable', Code.Unavailable),
+      isRetrying: false,
+      kind: 'error',
+      onRetry,
+    });
+
+    const alert = screen.getByRole('alert');
+    const retryButton = screen.getByRole('button', { name: defaultLocaleCatalog['common.retry'] });
+
+    expect(alert.textContent).toBe(defaultLocaleCatalog['error.unavailable']);
+    expect(screen.getByRole('main').contains(alert)).toBe(true);
+    expect(screen.queryByTestId('page-network')).toBeNull();
+    expect(retryButton.getAttribute('aria-busy')).toBe('false');
+    expect(retryButton.hasAttribute('disabled')).toBe(false);
+
+    fireEvent.click(retryButton);
+
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the message and shows the button busy and disabled while the session loads again', async () => {
+    const onRetry = vi.fn();
+    await renderRoutes('/network', createStubLoaders(), {
+      error: new ConnectError('the engine is unavailable', Code.Unavailable),
+      isRetrying: true,
+      kind: 'error',
+      onRetry,
+    });
+
+    const retryButton = screen.getByRole('button', { name: defaultLocaleCatalog['common.retrying'] });
+
+    expect(screen.getByRole('alert').textContent).toBe(defaultLocaleCatalog['error.unavailable']);
+    expect(retryButton.getAttribute('aria-busy')).toBe('true');
+    expect(retryButton.hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByRole('button', { name: defaultLocaleCatalog['common.retry'] })).toBeNull();
+
+    fireEvent.click(retryButton);
+    fireEvent.click(retryButton);
+
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
+  it('shows the text about missing sections instead of redirecting when the organization has none', async () => {
+    const { location } = await renderRoutes('/', createStubLoaders(), { kind: 'empty' });
+
+    expect(screen.getByRole('main').textContent).toContain(defaultLocaleCatalog['session.noSections']);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(defaultLocaleCatalog['session.noSections']);
+    expect(screen.getByRole('main').getAttribute('aria-busy')).toBeNull();
+    expect(location.history).toEqual(['/']);
+    expect(APP_SECTIONS.filter(section => screen.queryByTestId(`page-${section}`) !== null)).toEqual([]);
   });
 });

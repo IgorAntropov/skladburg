@@ -18,7 +18,15 @@ const PERSONA = {
   id: 'persona-1',
   kind: DemoPersonaKind.BUYER,
   organizationId: 'organization-1',
+  organizationName: 'Organization 1',
   userId: 'user-1',
+};
+
+const PERSONA_WITHOUT_ORGANIZATION_NAME = {
+  id: PERSONA.id,
+  kind: PERSONA.kind,
+  organizationId: PERSONA.organizationId,
+  userId: PERSONA.userId,
 };
 
 beforeEach(() => {
@@ -106,6 +114,10 @@ describe('parseEngineHostMessage', () => {
     { events: [new ArrayBuffer(1), 'x'], subscriptionId: 's1', type: 'events' },
     { detail: 'x', subscriptionId: 's1', type: 'subscription_denied' },
     { personas: [{ ...PERSONA, kind: 'robot' }], requestId: 'c1', type: 'control_result' },
+    { personas: [PERSONA_WITHOUT_ORGANIZATION_NAME], requestId: 'c1', type: 'control_result' },
+    { personas: [{ ...PERSONA, organizationName: 7 }], requestId: 'c1', type: 'control_result' },
+    { personas: [{ ...PERSONA, organizationName: undefined }], requestId: 'c1', type: 'control_result' },
+    { personas: [{ ...PERSONA, organizationName: null }], requestId: 'c1', type: 'control_result' },
     { personas: {}, requestId: 'c1', type: 'control_result' },
     { coordination: 'shared', epoch: 'e1', role: 'boss', storage: 'memory', storageHealth: 'ok', type: 'status' },
     { coordination: 'shared', epoch: 'e1', role: 'leader', storage: 'cloud', storageHealth: 'ok', type: 'status' },

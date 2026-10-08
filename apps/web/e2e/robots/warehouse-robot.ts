@@ -10,6 +10,7 @@ import { getText } from '../fixtures/messages.ts';
 
 export interface WarehouseRobotValue {
   expectEngineData: () => Promise<void>;
+  expectWarehouses: (organizationName: string, warehouseNames: readonly string[]) => Promise<void>;
 }
 
 export const createWarehouseRobot = (page: Page): WarehouseRobotValue => {
@@ -17,11 +18,16 @@ export const createWarehouseRobot = (page: Page): WarehouseRobotValue => {
   const organizationCard = main.getByRole('region', { name: getText('warehouse.organization.title') });
   const warehouseList = main.getByRole('region', { name: getText('warehouse.warehouses.title') });
 
+  const expectWarehouses = async (organizationName: string, warehouseNames: readonly string[]): Promise<void> => {
+    await expect(organizationCard.getByRole('heading', { level: 2 })).toHaveText(organizationName);
+    await expect(warehouseList.getByRole('listitem')).toHaveText(warehouseNames.map(name => new RegExp(`^${name}`)));
+    await expect(warehouseList.getByText(getText('warehouse.warehouses.empty'))).toHaveCount(0);
+  };
+
   return {
     async expectEngineData(): Promise<void> {
-      await expect(organizationCard.getByRole('heading', { level: 2 })).toHaveText(ORGANIZATION_NAME);
-      await expect(warehouseList.getByRole('listitem')).toHaveText(WAREHOUSE_NAMES.map(name => new RegExp(`^${name}`)));
-      await expect(warehouseList.getByText(getText('warehouse.warehouses.empty'))).toHaveCount(0);
+      await expectWarehouses(ORGANIZATION_NAME, WAREHOUSE_NAMES);
     },
+    expectWarehouses,
   };
 };

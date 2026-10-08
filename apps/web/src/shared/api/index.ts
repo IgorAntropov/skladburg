@@ -1,4 +1,11 @@
 export type { ApiClient } from './client/apiClientTypes';
+export {
+  ACTING_CONTEXT_STORAGE_KEY,
+  getTabStorage,
+  persistActingContext,
+  readPersistedActingContext,
+  writePersistedActingContext,
+} from './context/actingContextPersistence';
 export type {
   ActingContextValue,
   IActingContextStore,
@@ -21,6 +28,8 @@ export { useActingContext } from './react/useActingContext';
 export { useApiClient } from './react/useApiClient';
 export { useDemoControl } from './react/useDemoControl';
 export { useRealtimeChannel } from './react/useRealtimeChannel';
+export type { SwitchActingContextResultValue } from './react/useSwitchActingContext';
+export { useSwitchActingContext } from './react/useSwitchActingContext';
 export { createBrowserFrameScheduler } from './realtime/createBrowserFrameScheduler';
 export type {
   IFrameScheduler,
@@ -35,9 +44,11 @@ export type {
   QueryNetworkModeValue,
 } from './runtime/apiRuntimeTypes';
 export { createApiRuntime } from './runtime/createApiRuntime';
-export { selectDefaultPersona } from './runtime/selectDefaultPersona';
+export type { InitialPersonaPreferenceValue } from './runtime/selectInitialPersona';
+export { selectInitialPersona } from './runtime/selectInitialPersona';
 export type {
   DemoEngineStatusValue,
-  DemoPersonaValue,
+  DemoPersonaListItemValue,
   IDemoControl,
 } from './transport/demo';
+export { DemoPersonaKind } from './transport/demo/demoPersonaKind';

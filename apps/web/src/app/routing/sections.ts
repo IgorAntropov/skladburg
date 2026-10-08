@@ -8,8 +8,6 @@ import { OBJECT_HOME_SECTION } from '@/shared/routing';
 
 export type PlacedAddressValue = Exclude<AppAddressValue, { kind: 'home' }>;
 
-export const DEFAULT_SECTION: AppSectionValue = 'network';
-
 export const SECTION_TITLE_KEYS = {
   catalog: 'section.catalog.title',
   deals: 'section.deals.title',

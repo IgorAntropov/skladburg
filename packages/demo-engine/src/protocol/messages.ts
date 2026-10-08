@@ -1,4 +1,4 @@
-import type { DemoPersonaValue } from '../core/state/index';
+import type { DemoPersonaListItemValue } from '../core/state/index';
 
 export const EngineControlCommand = {
   LIST_PERSONAS: 'list_personas',
@@ -32,7 +32,7 @@ export interface EngineControlMessageValue {
 }
 
 export interface EngineControlResultMessageValue {
-  personas?: DemoPersonaValue[];
+  personas?: DemoPersonaListItemValue[];
   requestId: string;
   type: 'control_result';
 }

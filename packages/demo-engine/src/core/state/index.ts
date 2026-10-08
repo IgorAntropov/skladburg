@@ -10,6 +10,7 @@ export {
 } from './engineState';
 export {
   DemoPersonaKind,
+  type DemoPersonaListItemValue,
   type DemoPersonaValue,
   type IdempotencyRecordValue,
 } from './records';

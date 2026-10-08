@@ -6,7 +6,8 @@ export type {
   DemoEngineStatusValue,
   IDemoControl,
 } from './demoControlTypes';
+export { DemoPersonaKind } from './demoPersonaKind';
 export type {
-  DemoPersonaValue,
+  DemoPersonaListItemValue,
   IEngineConnection,
 } from '@skladburg/demo-engine/client';

@@ -1,7 +1,11 @@
 export type { EngineChannelPositionValue } from '../core/events/index';
-export type { DemoPersonaValue } from '../core/state/index';
+export type {
+  DemoPersonaListItemValue,
+  DemoPersonaValue,
+} from '../core/state/index';
 export {
   DEMO_USER_HEADER,
+  DemoPersonaKind,
   ENGINE_BASE_URL,
   ENGINE_REQUEST_TIMEOUT_MS,
   EngineControlCommand,

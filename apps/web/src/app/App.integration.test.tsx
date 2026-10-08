@@ -1,4 +1,9 @@
-import { createInProcessEngineConnection } from '@skladburg/demo-engine/testing';
+import {
+  createInProcessEngineConnection,
+  SeedOrganizationId,
+  SeedPersonaId,
+  SeedUserId,
+} from '@skladburg/demo-engine/testing';
 import {
   cleanup,
   fireEvent,
@@ -23,9 +28,12 @@ import {
 } from 'vitest';
 
 import type {
+  ActingContextValue,
   ApiRuntimeValue,
   IFrameScheduler,
 } from '@/shared/api';
+import type { AppSectionValue } from '@/shared/routing';
+import type { IMemoryLocation } from '@/shared/routing/index.testing';
 
 import {
   createApiRuntime,
@@ -34,9 +42,11 @@ import {
   syncQueriesWithRealtime,
 } from '@/shared/api';
 import { createLocalizer } from '@/shared/i18n';
+import { APP_SECTIONS } from '@/shared/routing';
 import { createMemoryLocation } from '@/shared/routing/index.testing';
 
 import { App } from './App';
+import { SECTION_TITLE_KEYS } from './routing/sections';
 
 const BRAND_NAME = 'Покупатель 1';
 const SEED_WAREHOUSE_COUNT = 3;
@@ -46,6 +56,7 @@ interface HarnessValue {
   frames: ManualFramesValue;
   getBusyPlaceholderCount: () => number;
   getListWarehousesCallCount: () => number;
+  location: IMemoryLocation;
   runtime: ApiRuntimeValue;
 }
 
@@ -53,6 +64,11 @@ interface ManualFramesValue {
   flushFrame: () => void;
   isPending: () => boolean;
   scheduler: IFrameScheduler;
+}
+
+interface StartApplicationOptionsValue {
+  initialPath?: string;
+  preferredContext?: ActingContextValue;
 }
 
 const closers: (() => Promise<void>)[] = [];
@@ -129,7 +145,10 @@ const watchBusyPlaceholders = (): BusyPlaceholderWatchValue => {
   return { getBusyPlaceholderCount: () => busyPlaceholderCount, stop };
 };
 
-const startApplication = async (): Promise<HarnessValue> => {
+const startApplication = async ({
+  initialPath = '/warehouse',
+  preferredContext,
+}: StartApplicationOptionsValue = {}): Promise<HarnessValue> => {
   const inProcess = createInProcessEngineConnection();
   const frames = createManualFrames();
   let listWarehousesCallCount = 0;
@@ -158,6 +177,7 @@ const startApplication = async (): Promise<HarnessValue> => {
     },
     defaultOrganizationId: defaultTenant.tenantId,
     frameScheduler: frames.scheduler,
+    preferredContext,
   });
   const localizer = await createLocalizer({
     bundledLocales,
@@ -173,9 +193,11 @@ const startApplication = async (): Promise<HarnessValue> => {
     realtime: runtime.realtime,
   });
 
+  const location = createMemoryLocation(initialPath);
+
   render(
     <StrictMode>
-      <App localizer={localizer} location={createMemoryLocation('/warehouse')} queryClient={queryClient} runtime={runtime} />
+      <App localizer={localizer} location={location} queryClient={queryClient} runtime={runtime} />
     </StrictMode>,
   );
 
@@ -185,7 +207,7 @@ const startApplication = async (): Promise<HarnessValue> => {
     await inProcess.close();
   });
 
-  await screen.findByRole('heading', { level: 1, name: defaultLocaleCatalog['section.warehouse.title'] });
+  await screen.findByRole('heading', { level: 1 });
   await subscribed;
   const busyPlaceholderWatch = watchBusyPlaceholders();
 
@@ -199,6 +221,7 @@ const startApplication = async (): Promise<HarnessValue> => {
     frames,
     getBusyPlaceholderCount: busyPlaceholderWatch.getBusyPlaceholderCount,
     getListWarehousesCallCount: () => listWarehousesCallCount,
+    location,
     runtime,
   };
 };
@@ -299,5 +322,103 @@ describe('App with the demo engine in the same thread', () => {
     });
     expect(getBrand()).toBeDefined();
     expect(getBusyPlaceholderCount()).toBe(0);
+  });
+});
+
+const getNavigationTitles = (): string[] => {
+  const navigation = screen.getByRole('navigation', { name: defaultLocaleCatalog['app.nav.label'] });
+
+  return within(navigation).getAllByRole('link').map(link => link.textContent);
+};
+
+const getSectionTitle = (section: AppSectionValue): string => defaultLocaleCatalog[SECTION_TITLE_KEYS[section]];
+
+const findPersonaSelect = async (): Promise<HTMLSelectElement> => {
+  const select = await screen.findByRole<HTMLSelectElement>('combobox', { name: defaultLocaleCatalog['persona.label'] });
+
+  await waitFor(() => {
+    expect(select.options.length).toBeGreaterThan(1);
+  });
+
+  return select;
+};
+
+describe('App sections of the persona on the demo engine', () => {
+  it('opens the storekeeper on the warehouse with one section and one warehouse', async () => {
+    const { frames, location } = await startApplication({
+      initialPath: '/',
+      preferredContext: { organizationId: SeedOrganizationId.BUYER_1, userId: SeedUserId.STOREKEEPER_1 },
+    });
+
+    expect(location.history).toEqual(['/warehouse']);
+    expect(getNavigationTitles()).toEqual([getSectionTitle('warehouse')]);
+    await expectWarehouseCount(frames, 1);
+  });
+
+  it('replaces a section that the storekeeper cannot open with the warehouse', async () => {
+    const { location } = await startApplication({
+      initialPath: '/catalog',
+      preferredContext: { organizationId: SeedOrganizationId.BUYER_1, userId: SeedUserId.STOREKEEPER_1 },
+    });
+
+    expect(location.history).toEqual(['/warehouse']);
+  });
+
+  it('shows the administrator of the buyer all four sections', async () => {
+    await startApplication({ initialPath: '/network' });
+
+    expect(getNavigationTitles()).toEqual(APP_SECTIONS.map(getSectionTitle));
+  });
+
+  it('mounts the application again for the chosen persona and never shows the data of the previous one', async () => {
+    const { frames, location } = await startApplication();
+    await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
+    const previousRegion = screen.getByRole('region', { name: defaultLocaleCatalog['warehouse.warehouses.title'] });
+    const shownCounts: number[] = [];
+    const observer = new MutationObserver(() => {
+      const region = screen.queryByRole('region', { name: defaultLocaleCatalog['warehouse.warehouses.title'] });
+
+      if (region === null || region === previousRegion) {
+        return;
+      }
+
+      const loadedCount = within(region).queryAllByRole('listitem').filter(item => item.closest('[aria-busy="true"]') === null).length;
+
+      if (loadedCount > 0) {
+        shownCounts.push(loadedCount);
+      }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+    fireEvent.change(await findPersonaSelect(), { target: { value: SeedPersonaId.FRESH_STOREKEEPER } });
+    await expectWarehouseCount(frames, 1);
+    observer.disconnect();
+
+    expect(shownCounts.length).toBeGreaterThan(0);
+    expect(shownCounts.filter(count => count !== 1)).toEqual([]);
+    expect(getNavigationTitles()).toEqual([getSectionTitle('warehouse')]);
+    expect(location.read().path).toBe('/warehouse');
+  });
+
+  it('leads the persona that switches to the carrier away from the warehouse and changes the brand', async () => {
+    const { location } = await startApplication({ initialPath: '/deals' });
+
+    fireEvent.change(await findPersonaSelect(), { target: { value: SeedPersonaId.FRESH_CARRIER } });
+
+    expect(await screen.findByText('Логист 1', { selector: 'header p' })).toBeDefined();
+    await waitFor(() => {
+      expect(getNavigationTitles()).toEqual([getSectionTitle('network'), getSectionTitle('deals')]);
+    });
+    expect(location.read().path).toBe('/deals');
+  });
+
+  it('replaces the warehouse with the first section when the persona switches to the carrier', async () => {
+    const { frames, location } = await startApplication();
+    await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
+
+    fireEvent.change(await findPersonaSelect(), { target: { value: SeedPersonaId.FRESH_CARRIER } });
+
+    expect(await screen.findByRole('heading', { level: 1, name: getSectionTitle('network') })).toBeDefined();
+    expect(location.read().path).toBe('/network');
   });
 });

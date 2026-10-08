@@ -13,7 +13,6 @@ import {
 } from '@/shared/routing';
 
 import {
-  DEFAULT_SECTION,
   getAddressSection,
   SECTION_TITLE_KEYS,
 } from './sections';
@@ -35,11 +34,6 @@ describe('getAddressSection', () => {
 });
 
 describe('section constants', () => {
-  it('opens the network first', () => {
-    expect(DEFAULT_SECTION).toBe('network');
-    expect(APP_SECTIONS[0]).toBe(DEFAULT_SECTION);
-  });
-
   it('has a title key for every section', () => {
     expect(Object.keys(SECTION_TITLE_KEYS).sort()).toEqual([...APP_SECTIONS].sort());
   });

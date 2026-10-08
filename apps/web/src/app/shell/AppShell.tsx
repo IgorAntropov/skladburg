@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 
 import type { SectionLoadersValue } from '../routing/sectionPages';
 
+import { SessionSectionsProvider } from '../access';
 import { useDocumentSync } from '../lib/useDocumentSync';
 import { AppRoutes } from '../routing/AppRoutes';
 import { TopBar } from './TopBar';
@@ -15,8 +16,10 @@ export const AppShell = ({ sectionLoaders }: AppShellProps): ReactElement => {
 
   return (
     <div className="flex min-h-dvh flex-col bg-surface text-on-surface">
-      <TopBar />
-      <AppRoutes sectionLoaders={sectionLoaders} />
+      <SessionSectionsProvider>
+        <TopBar />
+        <AppRoutes sectionLoaders={sectionLoaders} />
+      </SessionSectionsProvider>
     </div>
   );
 };

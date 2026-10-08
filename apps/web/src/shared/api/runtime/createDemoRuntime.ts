@@ -7,7 +7,7 @@ import { createApiClient } from '../client/createApiClient';
 import { createActingContextStore } from '../context/createActingContextStore';
 import { createBrowserFrameScheduler } from '../realtime/createBrowserFrameScheduler';
 import { createRealtimeChannel } from '../realtime/createRealtimeChannel';
-import { selectDefaultPersona } from './selectDefaultPersona';
+import { selectInitialPersona } from './selectInitialPersona';
 
 export const createDemoRuntime = async (options: CreateApiRuntimeOptionsValue): Promise<ApiRuntimeValue> => {
   const demo = await import('../transport/demo');
@@ -26,10 +26,14 @@ export const createDemoRuntime = async (options: CreateApiRuntimeOptionsValue): 
 
     throw error;
   });
-  const persona = selectDefaultPersona(personas, options.defaultOrganizationId);
+  const persona = selectInitialPersona(personas, {
+    defaultOrganizationId: options.defaultOrganizationId,
+    preferredContext: options.preferredContext,
+    preferredPersonaId: options.preferredPersonaId,
+  });
 
   if (persona === undefined) {
-    console.log('> createApiRuntime -> selectDefaultPersona:', { organizationId: options.defaultOrganizationId });
+    console.log('> createApiRuntime -> selectInitialPersona:', { organizationId: options.defaultOrganizationId });
     connection.close();
 
     throw new Error(`The demo engine has no persona for organization "${options.defaultOrganizationId}"`);

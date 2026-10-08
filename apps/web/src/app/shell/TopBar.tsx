@@ -1,13 +1,14 @@
 import type { ReactElement } from 'react';
 
+import { PersonaSwitcher } from '@/features/switch-persona';
 import { useI18n } from '@/shared/i18n';
 import {
   AddressLink,
-  APP_SECTIONS,
   useAddress,
 } from '@/shared/routing';
 import { useTenantSettings } from '@/shared/tenant';
 
+import { useAvailableSections } from '../access';
 import {
   getAddressSection,
   SECTION_TITLE_KEYS,
@@ -23,8 +24,10 @@ export const TopBar = (): ReactElement => {
   const { t } = useI18n();
   const { brandName } = useTenantSettings();
   const { address } = useAddress();
+  const availableSections = useAvailableSections();
 
   const currentSection = address === undefined ? undefined : getAddressSection(address);
+  const navigationSections = availableSections.kind === 'ready' ? availableSections.sections : [];
 
   return (
     <header className="bg-panel text-on-panel">
@@ -34,7 +37,7 @@ export const TopBar = (): ReactElement => {
         </p>
         <nav aria-label={t('app.nav.label')}>
           <ul className="flex flex-wrap gap-1">
-            {APP_SECTIONS.map((section) => {
+            {navigationSections.map((section) => {
               const ariaCurrent = section === currentSection ? 'page' : undefined;
 
               return (
@@ -47,6 +50,9 @@ export const TopBar = (): ReactElement => {
             })}
           </ul>
         </nav>
+        <div className="ml-auto">
+          <PersonaSwitcher />
+        </div>
       </div>
     </header>
   );

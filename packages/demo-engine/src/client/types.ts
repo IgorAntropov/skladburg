@@ -2,7 +2,7 @@ import type { ErrorDetail } from '@skladburg/contracts/common/v1/error';
 import type { Event } from '@skladburg/contracts/event/v1/event';
 
 import type { EngineChannelPositionValue } from '../core/events/index';
-import type { DemoPersonaValue } from '../core/state/index';
+import type { DemoPersonaListItemValue } from '../core/state/index';
 import type {
   EngineStatusValue,
   EngineUnavailableMessageValue,
@@ -31,7 +31,7 @@ export interface IEngineConnection {
 }
 
 export interface IEngineControl {
-  listPersonas: () => Promise<readonly DemoPersonaValue[]>;
+  listPersonas: () => Promise<readonly DemoPersonaListItemValue[]>;
   onReset: (listener: (epoch: string) => void) => () => void;
   reset: () => Promise<void>;
 }

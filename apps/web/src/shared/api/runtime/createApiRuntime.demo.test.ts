@@ -112,6 +112,77 @@ describe('createApiRuntime with the demo engine', () => {
     runtime.close();
   });
 
+  it('starts as the persona chosen by id and calls the engine as that persona', async () => {
+    const inProcess = startInProcessEngine();
+
+    const runtime = await createApiRuntime({
+      connection: inProcess.connection,
+      defaultOrganizationId: SeedOrganizationId.BUYER_1,
+      preferredPersonaId: SeedPersonaId.FRESH_STOREKEEPER,
+    });
+
+    expect(runtime.actingContext.get()).toEqual({
+      organizationId: SeedOrganizationId.BUYER_1,
+      userId: SeedUserId.STOREKEEPER_1,
+    });
+    expect((await runtime.client.organization.listWarehouses({})).warehouses).toHaveLength(1);
+
+    runtime.close();
+  });
+
+  it('starts as the persona matching the preferred context', async () => {
+    const inProcess = startInProcessEngine();
+
+    const runtime = await createApiRuntime({
+      connection: inProcess.connection,
+      defaultOrganizationId: SeedOrganizationId.BUYER_1,
+      preferredContext: { organizationId: SeedOrganizationId.SELLER_1, userId: SeedUserId.ADMIN_2 },
+    });
+
+    expect(runtime.actingContext.get()).toEqual({
+      organizationId: SeedOrganizationId.SELLER_1,
+      userId: SeedUserId.ADMIN_2,
+    });
+
+    runtime.close();
+  });
+
+  it('prefers the persona id over the preferred context', async () => {
+    const inProcess = startInProcessEngine();
+
+    const runtime = await createApiRuntime({
+      connection: inProcess.connection,
+      defaultOrganizationId: SeedOrganizationId.BUYER_1,
+      preferredContext: { organizationId: SeedOrganizationId.SELLER_1, userId: SeedUserId.ADMIN_2 },
+      preferredPersonaId: SeedPersonaId.CONSTRUCTION_BUYER,
+    });
+
+    expect(runtime.actingContext.get()).toEqual({
+      organizationId: SeedOrganizationId.BUYER_2,
+      userId: SeedUserId.ADMIN_5,
+    });
+
+    runtime.close();
+  });
+
+  it('falls back to the persona of the profile organization when the preferences are unknown', async () => {
+    const inProcess = startInProcessEngine();
+
+    const runtime = await createApiRuntime({
+      connection: inProcess.connection,
+      defaultOrganizationId: SeedOrganizationId.BUYER_1,
+      preferredContext: { organizationId: SeedOrganizationId.SELLER_1, userId: SeedUserId.STOREKEEPER_2 },
+      preferredPersonaId: '99999999-0000-4000-8000-000000000000',
+    });
+
+    expect(runtime.actingContext.get()).toEqual({
+      organizationId: SeedOrganizationId.BUYER_1,
+      userId: SeedUserId.ADMIN_1,
+    });
+
+    runtime.close();
+  });
+
   it('exposes the engine control: personas and status', async () => {
     const inProcess = startInProcessEngine();
     const runtime = await createApiRuntime({

@@ -6,51 +6,61 @@ import { useAddress } from '@/shared/routing';
 
 import type { SectionLoadersValue } from './sectionPages';
 
+import { useAvailableSections } from '../access';
 import { createCachedSectionLoaders } from './createCachedSectionLoaders';
-import { HomeRedirect } from './HomeRedirect';
-import { NotFoundScreen } from './NotFoundScreen';
+import { NoSectionsScreen } from './NoSectionsScreen';
+import { ReadyRoutes } from './ReadyRoutes';
 import { RouteFrame } from './RouteFrame';
 import { createSectionPages } from './sectionPages';
-import { SectionPreloader } from './SectionPreloader';
-import { getPlacedAddressSection } from './sections';
+import { SessionErrorScreen } from './SessionErrorScreen';
+import { SessionPendingScreen } from './SessionPendingScreen';
 
-const NOT_FOUND_RESET_KEY = 'not-found';
+const SESSION_ERROR_RESET_KEY = 'session-error';
+const NO_SECTIONS_RESET_KEY = 'no-sections';
 
 interface AppRoutesProps {
   sectionLoaders: SectionLoadersValue;
 }
 
 export const AppRoutes = ({ sectionLoaders }: AppRoutesProps): ReactElement => {
-  const { address, path } = useAddress();
+  const { path } = useAddress();
+  const availableSections = useAvailableSections();
 
   const [cachedLoaders] = useState(() => createCachedSectionLoaders(sectionLoaders));
   const [sectionPages] = useState(() => createSectionPages(cachedLoaders));
 
-  if (address === undefined) {
-    return (
-      <>
-        <RouteFrame errorResetKey={NOT_FOUND_RESET_KEY} path={path}>
-          <NotFoundScreen />
+  switch (availableSections.kind) {
+    case 'empty':
+      return (
+        <RouteFrame errorResetKey={NO_SECTIONS_RESET_KEY} path={path}>
+          <NoSectionsScreen />
         </RouteFrame>
-        <SectionPreloader loaders={cachedLoaders} section={undefined} />
-      </>
-    );
+      );
+    case 'error':
+      return (
+        <RouteFrame errorResetKey={SESSION_ERROR_RESET_KEY} path={path}>
+          <SessionErrorScreen
+            error={availableSections.error}
+            isRetrying={availableSections.isRetrying}
+            onRetry={availableSections.onRetry}
+          />
+        </RouteFrame>
+      );
+    case 'loading':
+      return <SessionPendingScreen />;
+    case 'ready':
+      return (
+        <ReadyRoutes
+          cachedLoaders={cachedLoaders}
+          landingSection={availableSections.landingSection}
+          sectionPages={sectionPages}
+          sections={availableSections.sections}
+        />
+      );
+    default: {
+      const unhandledSections: never = availableSections;
+
+      return unhandledSections;
+    }
   }
-
-  if (address.kind === 'home') {
-    return <HomeRedirect />;
-  }
-
-  const section = getPlacedAddressSection(address);
-  const focus = address.kind === 'object' ? address.object : undefined;
-  const Page = sectionPages[section];
-
-  return (
-    <>
-      <RouteFrame errorResetKey={section} path={path}>
-        <Page focus={focus} />
-      </RouteFrame>
-      <SectionPreloader loaders={cachedLoaders} section={section} />
-    </>
-  );
 };

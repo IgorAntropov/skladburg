@@ -13,6 +13,9 @@ import type { ILocalizer } from '@/shared/i18n';
 import {
   createApiRuntime,
   createQueryClient,
+  getTabStorage,
+  persistActingContext,
+  readPersistedActingContext,
   syncQueriesWithRealtime,
 } from '@/shared/api';
 import {
@@ -25,6 +28,9 @@ import { createHashLocation } from '@/shared/routing';
 import { App } from '../App';
 import { StartErrorScreen } from '../shell/StartErrorScreen';
 import { readDeviceTimeZone } from './readDeviceTimeZone';
+import { removeSearchParam } from './removeSearchParam';
+
+const PERSONA_PARAM = 'as';
 
 const createProfileLocalizer = (userTimeZone: string): Promise<ILocalizer> => createLocalizer({
   bundledLocales,
@@ -58,19 +64,24 @@ const runReleaseStep = (step: string, release: (() => void) | undefined): void =
 export const startApp = async (rootElement: HTMLElement): Promise<void> => {
   const root = createRoot(rootElement);
   const userTimeZone = readDeviceTimeZone();
-  const location = createHashLocation(window);
+  const locationSource = createHashLocation(window);
+  const tabStorage = getTabStorage(window);
 
   let localizer: ILocalizer | undefined;
   let runtime: ApiRuntimeValue | undefined;
   let stopSync: (() => void) | undefined;
+  let stopPersist: (() => void) | undefined;
 
   const releaseRuntime = (): void => {
     const releasedStopSync = stopSync;
+    const releasedStopPersist = stopPersist;
     const releasedRuntime = runtime;
 
     stopSync = undefined;
+    stopPersist = undefined;
     runtime = undefined;
     runReleaseStep('stopSync', releasedStopSync);
+    runReleaseStep('stopPersist', releasedStopPersist);
     runReleaseStep('close', releasedRuntime === undefined
       ? undefined
       : () => {
@@ -102,8 +113,18 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
       const appLocalizer = localizer ?? await createProfileLocalizer(userTimeZone);
       localizer = appLocalizer;
 
-      const nextRuntime = await createApiRuntime({ defaultOrganizationId: defaultTenant.tenantId });
+      const addressSnapshot = locationSource.read();
+      const nextRuntime = await createApiRuntime({
+        defaultOrganizationId: defaultTenant.tenantId,
+        preferredContext: readPersistedActingContext(tabStorage),
+        preferredPersonaId: addressSnapshot.searchParams.get(PERSONA_PARAM) ?? undefined,
+      });
       runtime = nextRuntime;
+      stopPersist = persistActingContext(nextRuntime.actingContext, tabStorage);
+
+      if (nextRuntime.demoControl !== undefined && addressSnapshot.searchParams.has(PERSONA_PARAM)) {
+        locationSource.navigate(removeSearchParam(addressSnapshot, PERSONA_PARAM), { isReplace: true });
+      }
 
       const queryClient = createQueryClient({ networkMode: nextRuntime.networkMode });
       stopSync = syncQueriesWithRealtime({
@@ -114,7 +135,7 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
 
       root.render(
         <StrictMode>
-          <App localizer={appLocalizer} location={location} queryClient={queryClient} runtime={nextRuntime} />
+          <App localizer={appLocalizer} location={locationSource} queryClient={queryClient} runtime={nextRuntime} />
         </StrictMode>,
       );
     }

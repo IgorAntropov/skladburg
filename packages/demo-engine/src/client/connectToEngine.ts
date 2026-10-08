@@ -5,7 +5,7 @@ import {
   ConnectError,
 } from '@connectrpc/connect';
 
-import type { DemoPersonaValue } from '../core/state/index';
+import type { DemoPersonaListItemValue } from '../core/state/index';
 import type {
   EngineClientMessageValue,
   EngineControlResultMessageValue,
@@ -190,7 +190,7 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
     return reply;
   };
 
-  const listPersonas = async (): Promise<readonly DemoPersonaValue[]> => {
+  const listPersonas = async (): Promise<readonly DemoPersonaListItemValue[]> => {
     const { personas } = await callControl(EngineControlCommand.LIST_PERSONAS);
 
     if (personas === undefined) {

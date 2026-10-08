@@ -33,6 +33,7 @@ import { createLocalizer } from '@/shared/i18n';
 import { createMemoryLocation } from '@/shared/routing/index.testing';
 
 import { App } from './App';
+import { registerSessionRoute } from './lib/testing/sessionFixtures';
 
 const ORGANIZATION_ID = 'f4000002-0000-4000-8000-000000000000';
 const BRAND_NAME = 'Северный склад';
@@ -73,9 +74,12 @@ const renderApp = async ({ placeholder }: RenderAppOptionsValue = {}): Promise<v
     userTimeZone: 'UTC',
   });
   const runtime = createTestRuntime({
-    routes: router => router.service(OrganizationService, {
-      getOrganizationSettings: () => createSettingsResponse(placeholder),
-    }),
+    routes: (router) => {
+      registerSessionRoute(router);
+      router.service(OrganizationService, {
+        getOrganizationSettings: () => createSettingsResponse(placeholder),
+      });
+    },
   });
 
   render(

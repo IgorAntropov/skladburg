@@ -1,4 +1,8 @@
 import {
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query';
+import {
   act,
   cleanup,
   fireEvent,
@@ -14,10 +18,13 @@ import {
   it,
 } from 'vitest';
 
+import type { IDemoControl } from '@/shared/api';
 import type { ILocalizer } from '@/shared/i18n';
 import type { AppSectionValue } from '@/shared/routing';
 import type { IMemoryLocation } from '@/shared/routing/index.testing';
 
+import { ApiRuntimeProvider } from '@/shared/api';
+import { createTestRuntime } from '@/shared/api/index.testing';
 import {
   createLocalizer,
   LocalizerProvider,
@@ -31,10 +38,14 @@ import {
 import { createMemoryLocation } from '@/shared/routing/index.testing';
 import { TenantSettingsProvider } from '@/shared/tenant';
 
+import type { AvailableSectionsValue } from '../access';
+
+import { AvailableSectionsProvider } from '../access';
 import { SECTION_TITLE_KEYS } from '../routing/sections';
 import { TopBar } from './TopBar';
 
 const BRAND_NAME = 'Северный склад';
+const ALL_SECTIONS_VALUE: AvailableSectionsValue = { kind: 'ready', landingSection: 'network', sections: APP_SECTIONS };
 const OBJECT_ID = 'f6000001-0000-4000-8000-000000000000';
 const OBJECT_SEGMENTS = {
   cell: 'cells',
@@ -55,30 +66,52 @@ const createTestLocalizer = (): Promise<ILocalizer> => createLocalizer({
   userTimeZone: 'UTC',
 });
 
-const renderTopBar = async (initialPath: string): Promise<IMemoryLocation> => {
+interface RenderTopBarOptionsValue {
+  availableSections?: AvailableSectionsValue;
+  demoControl?: IDemoControl;
+}
+
+const renderTopBar = async (
+  initialPath: string,
+  { availableSections = ALL_SECTIONS_VALUE, demoControl }: RenderTopBarOptionsValue = {},
+): Promise<IMemoryLocation> => {
   const localizer = await createTestLocalizer();
   const location = createMemoryLocation(initialPath);
+  const runtime = createTestRuntime({ demoControl });
 
   render(
     <RoutingProvider location={location}>
       <LocalizerProvider localizer={localizer}>
-        <TenantSettingsProvider
-          tenantSettings={{
-            availableLocales: ['ru'],
-            brandName: BRAND_NAME,
-            defaultLocale: 'ru',
-            tenantId: 'f2000001-0000-4000-8000-000000000000',
-            termOverrides: {},
-          }}
-        >
-          <TopBar />
-        </TenantSettingsProvider>
+        <ApiRuntimeProvider runtime={runtime}>
+          <QueryClientProvider client={new QueryClient()}>
+            <TenantSettingsProvider
+              tenantSettings={{
+                availableLocales: ['ru'],
+                brandName: BRAND_NAME,
+                defaultLocale: 'ru',
+                tenantId: 'f2000001-0000-4000-8000-000000000000',
+                termOverrides: {},
+              }}
+            >
+              <AvailableSectionsProvider value={availableSections}>
+                <TopBar />
+              </AvailableSectionsProvider>
+            </TenantSettingsProvider>
+          </QueryClientProvider>
+        </ApiRuntimeProvider>
       </LocalizerProvider>
     </RoutingProvider>,
   );
 
   return location;
 };
+
+const createDemoControl = (): IDemoControl => ({
+  listPersonas: () => Promise.resolve([]),
+  onReset: () => () => undefined,
+  onStatus: () => () => undefined,
+  reset: () => Promise.resolve(),
+});
 
 const getSectionTitle = (section: AppSectionValue): string => defaultLocaleCatalog[SECTION_TITLE_KEYS[section]];
 
@@ -158,5 +191,50 @@ describe('TopBar', () => {
 
     expect(location.history).toEqual(['/network']);
     expect(getCurrentSections()).toEqual(['network']);
+  });
+
+  it('shows only the sections that are available, in the order of sections', async () => {
+    const sections: AppSectionValue[] = ['network', 'deals', 'warehouse'];
+    await renderTopBar('/warehouse', { availableSections: { kind: 'ready', landingSection: 'network', sections } });
+
+    const links = within(getNavigation()).getAllByRole('link');
+
+    expect(links.map(link => link.textContent)).toEqual(sections.map(getSectionTitle));
+    expect(within(getNavigation()).queryByRole('link', { name: getSectionTitle('catalog') })).toBeNull();
+  });
+
+  it('shows the single section of a persona that has one', async () => {
+    await renderTopBar('/warehouse', {
+      availableSections: { kind: 'ready', landingSection: 'warehouse', sections: ['warehouse'] },
+    });
+
+    expect(within(getNavigation()).getAllByRole('link').map(link => link.textContent)).toEqual([getSectionTitle('warehouse')]);
+  });
+
+  const UNREADY_VALUES: AvailableSectionsValue[] = [
+    { kind: 'loading' },
+    { kind: 'empty' },
+    { error: new Error('the session is unavailable'), isRetrying: false, kind: 'error', onRetry: () => undefined },
+  ];
+
+  it.each(UNREADY_VALUES)('keeps the brand and an empty navigation while the sections are $kind', async (availableSections) => {
+    await renderTopBar('/network', { availableSections });
+
+    expect(screen.getByText(BRAND_NAME)).toBeDefined();
+    expect(within(getNavigation()).queryAllByRole('link')).toEqual([]);
+  });
+
+  it('shows the persona switcher in the banner of the demo while the sections load', async () => {
+    await renderTopBar('/network', { availableSections: { kind: 'loading' }, demoControl: createDemoControl() });
+
+    const switcher = screen.getByRole('combobox', { name: defaultLocaleCatalog['persona.label'] });
+
+    expect(screen.getByRole('banner').contains(switcher)).toBe(true);
+  });
+
+  it('shows no persona switcher outside the demo', async () => {
+    await renderTopBar('/network');
+
+    expect(screen.queryByRole('combobox')).toBeNull();
   });
 });

@@ -38,6 +38,7 @@ import {
 } from '../seed/index';
 import {
   createEngineState,
+  type DemoPersonaListItemValue,
   isCurrentSnapshot,
   type LiveMetaValue,
 } from '../state/index';
@@ -51,6 +52,14 @@ import { createSwitchableRandom } from './switchableRandom';
 
 const createClockFromMeta = (meta: EngineMetaValue, realTime: IRealTimeSource): IClock =>
   createScaledClock({ initial: { timeScale: meta.timeScale, worldTimeMs: meta.worldTimeMs }, realTime });
+
+const compareIds = (current: string, prev: string): number => {
+  if (current === prev) {
+    return 0;
+  }
+
+  return current < prev ? -1 : 1;
+};
 
 const loadOrSeedSnapshot = async (options: CreateEngineOptionsValue): Promise<EngineSnapshotValue> => {
   const stored = await options.storage.load();
@@ -143,6 +152,26 @@ export const createEngineWithTasks = async (
     scheduler.restart();
   });
 
+  const listPersonas = (): readonly DemoPersonaListItemValue[] => {
+    const items: DemoPersonaListItemValue[] = [];
+
+    for (const persona of state.read.list('personas')) {
+      const organization = state.read.get('organizations', persona.organizationId);
+
+      if (organization !== undefined) {
+        items.push({
+          id: persona.id,
+          kind: persona.kind,
+          organizationId: persona.organizationId,
+          organizationName: organization.name,
+          userId: persona.userId,
+        });
+      }
+    }
+
+    return items.sort((current, prev) => compareIds(current.id, prev.id));
+  };
+
   const subscribe: IDemoEngine['subscribe'] = (channel, headers, listener): EngineSubscriptionValue => {
     const detail = subscriptionAccess.check(state.read, channel, headers);
 
@@ -161,7 +190,7 @@ export const createEngineWithTasks = async (
     epoch: () => epoch,
     getClockSnapshot: () => clock.getSnapshot(),
     handle,
-    listPersonas: () => state.read.list('personas'),
+    listPersonas,
     reset,
     subscribe,
     tick,

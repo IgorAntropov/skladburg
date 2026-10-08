@@ -14,6 +14,7 @@ import { RoutingProvider } from '@/shared/routing';
 import type { SectionLoadersValue } from './routing/sectionPages';
 
 import { DEFAULT_SECTION_LOADERS } from './routing/sectionPages';
+import { ActingContextBoundary } from './shell/ActingContextBoundary';
 import { AppShell } from './shell/AppShell';
 import { TenantSettingsGate } from './shell/TenantSettingsGate';
 import './styles/index.css';
@@ -38,9 +39,11 @@ export const App = ({
       <LocalizerProvider localizer={localizer}>
         <ApiRuntimeProvider runtime={runtime}>
           <QueryClientProvider client={queryClient}>
-            <TenantSettingsGate localizer={localizer}>
-              <AppShell sectionLoaders={sectionLoaders} />
-            </TenantSettingsGate>
+            <ActingContextBoundary>
+              <TenantSettingsGate localizer={localizer}>
+                <AppShell sectionLoaders={sectionLoaders} />
+              </TenantSettingsGate>
+            </ActingContextBoundary>
           </QueryClientProvider>
         </ApiRuntimeProvider>
       </LocalizerProvider>

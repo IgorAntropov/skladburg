@@ -53,6 +53,21 @@ describe('createApiRuntime with the connect transport', () => {
     }).not.toThrow();
   });
 
+  it('ignores the preferred persona and context', async () => {
+    vi.stubEnv('VITE_API_URL', API_URL);
+    const { createApiRuntime } = await importCreateApiRuntime();
+
+    const runtime = await createApiRuntime({
+      defaultOrganizationId: ORGANIZATION_ID,
+      preferredContext: { organizationId: '10000002-0000-4000-8000-000000000000', userId: '20000002-0000-4000-8000-000000000000' },
+      preferredPersonaId: '90000002-0000-4000-8000-000000000000',
+    });
+
+    expect(runtime.actingContext.get()).toEqual({ organizationId: ORGANIZATION_ID, userId: undefined });
+
+    runtime.close();
+  });
+
   it('asks the query client to pause requests offline in the pilot runtime', async () => {
     vi.stubEnv('VITE_API_URL', API_URL);
     const { createApiRuntime } = await importCreateApiRuntime();

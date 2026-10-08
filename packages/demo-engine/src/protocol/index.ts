@@ -6,6 +6,7 @@ export {
 } from './codecs';
 export {
   DEMO_USER_HEADER,
+  DemoPersonaKind,
   ENGINE_BASE_URL,
   ENGINE_PROTOCOL_VERSION,
   ENGINE_REQUEST_TIMEOUT_MS,

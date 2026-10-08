@@ -43,7 +43,8 @@ export {
   SeedWarehouseId,
 } from './core/seed/index';
 export {
+  DemoPersonaKind,
+  type DemoPersonaListItemValue,
   type DemoPersonaValue,
   ENGINE_SCHEMA_VERSION,
 } from './core/state/index';
-export { DemoPersonaKind } from './core/state/index';

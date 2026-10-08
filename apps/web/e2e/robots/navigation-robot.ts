@@ -13,6 +13,7 @@ import type {
 import { getText } from '../fixtures/messages.ts';
 import {
   FIRST_SECTION,
+  getSectionTitle,
   SECTIONS,
   toObjectHash,
   toSectionHash,
@@ -24,8 +25,6 @@ const PLACEHOLDER_KEYS = {
   network: 'section.network.placeholder',
   warehouse: 'warehouse.placeholder',
 } as const;
-
-const getSectionTitle = (section: SectionValue): string => getText(`section.${section}.title`);
 
 const getNotFoundActionText = (): string => getText('routing.notFound.action').replace(
   '{section}',

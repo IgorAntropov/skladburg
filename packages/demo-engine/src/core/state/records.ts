@@ -3,14 +3,17 @@ import type {
   StoredRecordValue,
 } from '../ports/index';
 
-export const DemoPersonaKind = {
-  BUYER: 'buyer',
-  CARRIER: 'carrier',
-  SELLER: 'seller',
-  STOREKEEPER: 'storekeeper',
-} as const;
+import { DemoPersonaKind } from '../../protocol/constants';
 
-export type DemoPersonaKind = typeof DemoPersonaKind[keyof typeof DemoPersonaKind];
+export { DemoPersonaKind };
+
+export interface DemoPersonaListItemValue {
+  id: string;
+  kind: DemoPersonaKind;
+  organizationId: string;
+  organizationName: string;
+  userId: string;
+}
 
 export interface DemoPersonaValue {
   id: string;

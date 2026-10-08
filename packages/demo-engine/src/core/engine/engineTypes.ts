@@ -7,7 +7,7 @@ import type {
   IRealTimeSource,
 } from '../ports/index';
 import type { EngineSeedValue } from '../seed/index';
-import type { DemoPersonaValue } from '../state/index';
+import type { DemoPersonaListItemValue } from '../state/index';
 
 export interface CreateEngineOptionsValue {
   epoch: string;
@@ -21,7 +21,7 @@ export interface IDemoEngine {
   epoch: () => string;
   getClockSnapshot: () => ClockSnapshotValue;
   handle: (request: Request) => Promise<Response>;
-  listPersonas: () => readonly DemoPersonaValue[];
+  listPersonas: () => readonly DemoPersonaListItemValue[];
   reset: (epoch: string) => Promise<void>;
   subscribe: (channel: string, headers: Headers, listener: (events: readonly Event[]) => void) => EngineSubscriptionValue;
   tick: () => Promise<void>;

@@ -5,8 +5,6 @@ import {
 
 import type { AppSectionValue } from '@/shared/routing';
 
-import { APP_SECTIONS } from '@/shared/routing';
-
 import type { CachedSectionLoadersValue } from './sectionPages';
 
 import { scheduleWhenIdle } from '../lib/scheduleWhenIdle';
@@ -14,14 +12,15 @@ import { scheduleWhenIdle } from '../lib/scheduleWhenIdle';
 interface SectionPreloaderProps {
   loaders: CachedSectionLoadersValue;
   section: AppSectionValue | undefined;
+  sections: readonly AppSectionValue[];
 }
 
-export const SectionPreloader = ({ loaders, section }: SectionPreloaderProps): null => {
+export const SectionPreloader = ({ loaders, section, sections }: SectionPreloaderProps): null => {
   const [initialSection] = useState(section);
 
   useEffect(() => {
     const preloadOtherSections = (): void => {
-      for (const otherSection of APP_SECTIONS) {
+      for (const otherSection of sections) {
         if (otherSection === initialSection) {
           continue;
         }
@@ -33,7 +32,7 @@ export const SectionPreloader = ({ loaders, section }: SectionPreloaderProps): n
     };
 
     return scheduleWhenIdle(preloadOtherSections);
-  }, [loaders, initialSection]);
+  }, [loaders, initialSection, sections]);
 
   return null;
 };

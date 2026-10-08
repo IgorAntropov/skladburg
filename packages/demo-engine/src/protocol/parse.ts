@@ -1,4 +1,4 @@
-import type { DemoPersonaValue } from '../core/state/index';
+import type { DemoPersonaListItemValue } from '../core/state/index';
 import type {
   EngineClientMessageValue,
   EngineControlResultMessageValue,
@@ -6,6 +6,7 @@ import type {
   HeaderPairValue,
 } from './messages';
 
+import { DemoPersonaKind } from './constants';
 import {
   ENGINE_COORDINATIONS,
   ENGINE_ROLES,
@@ -14,10 +15,6 @@ import {
   ENGINE_UNAVAILABLE_REASONS,
   EngineControlCommand,
 } from './messages';
-
-type DemoPersonaKindValue = DemoPersonaValue['kind'];
-
-const PERSONA_KINDS = ['buyer', 'carrier', 'seller', 'storekeeper'] as const satisfies readonly DemoPersonaKindValue[];
 
 const MIN_HTTP_STATUS = 200;
 const MAX_HTTP_STATUS = 599;
@@ -68,26 +65,26 @@ const isStorageHealth = (value: unknown): value is typeof ENGINE_STORAGE_HEALTHS
 const isUnavailableReason = (value: unknown): value is typeof ENGINE_UNAVAILABLE_REASONS[number] =>
   ENGINE_UNAVAILABLE_REASONS.some(reason => reason === value);
 
-const isPersonaKind = (value: unknown): value is DemoPersonaKindValue => PERSONA_KINDS.some(kind => kind === value);
+const isPersonaKind = (value: unknown): value is DemoPersonaKind => Object.values<unknown>(DemoPersonaKind).includes(value);
 
-const readPersona = (value: unknown): DemoPersonaValue | undefined => {
+const readPersona = (value: unknown): DemoPersonaListItemValue | undefined => {
   if (!isRecord(value)) {
     return undefined;
   }
 
-  const { id, kind, organizationId, userId } = value;
+  const { id, kind, organizationId, organizationName, userId } = value;
 
-  return isString(id) && isPersonaKind(kind) && isString(organizationId) && isString(userId)
-    ? { id, kind, organizationId, userId }
+  return isString(id) && isPersonaKind(kind) && isString(organizationId) && isString(organizationName) && isString(userId)
+    ? { id, kind, organizationId, organizationName, userId }
     : undefined;
 };
 
-const readPersonas = (value: unknown): DemoPersonaValue[] | undefined => {
+const readPersonas = (value: unknown): DemoPersonaListItemValue[] | undefined => {
   if (!Array.isArray(value)) {
     return undefined;
   }
 
-  const personas: DemoPersonaValue[] = [];
+  const personas: DemoPersonaListItemValue[] = [];
 
   for (const candidate of value) {
     const persona = readPersona(candidate);

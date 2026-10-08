@@ -16,7 +16,7 @@ import {
 
 const NAV_LINK_CLASS_NAME = [
   'inline-flex min-h-11 items-center rounded-md px-3 text-base',
-  'hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-panel',
+  'hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
   'aria-[current=page]:bg-primary aria-[current=page]:font-semibold aria-[current=page]:text-on-primary',
 ].join(' ');
 

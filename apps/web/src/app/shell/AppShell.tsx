@@ -15,7 +15,7 @@ export const AppShell = ({ sectionLoaders }: AppShellProps): ReactElement => {
   useDocumentSync();
 
   return (
-    <div className="flex min-h-dvh flex-col bg-surface text-on-surface">
+    <div className="flex min-h-dvh flex-col bg-canvas text-on-canvas">
       <SessionSectionsProvider>
         <TopBar />
         <AppRoutes sectionLoaders={sectionLoaders} />

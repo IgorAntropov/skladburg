@@ -46,6 +46,7 @@ import { APP_SECTIONS } from '@/shared/routing';
 import { createMemoryLocation } from '@/shared/routing/index.testing';
 
 import { App } from './App';
+import { createTestThemeStore } from './lib/testing/themeFixtures';
 import { SECTION_TITLE_KEYS } from './routing/sections';
 
 const BRAND_NAME = 'Покупатель 1';
@@ -197,7 +198,13 @@ const startApplication = async ({
 
   render(
     <StrictMode>
-      <App localizer={localizer} location={location} queryClient={queryClient} runtime={runtime} />
+      <App
+        localizer={localizer}
+        location={location}
+        queryClient={queryClient}
+        runtime={runtime}
+        themeStore={createTestThemeStore()}
+      />
     </StrictMode>,
   );
 

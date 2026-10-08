@@ -1,13 +1,29 @@
-@theme {
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme static {
   --color-*: initial;
   --color-primary: #3b5bdb;
   --color-on-primary: #ffffff;
   --color-accent: #f2711c;
   --color-on-accent: #1e2a4a;
-  --color-panel: #1e2a4a;
-  --color-on-panel: #e8e4dc;
-  --color-surface: #e8e4dc;
-  --color-on-surface: #1e2a4a;
+  --color-canvas: #edeae3;
+  --color-on-canvas: #1e2a4a;
+  --color-on-canvas-muted: #4a5674;
+  --color-panel: rgb(255 255 255 / 0.92);
+  --color-panel-solid: #ffffff;
+  --color-on-panel: #1e2a4a;
+  --color-on-panel-muted: #4a5674;
+  --color-line: rgb(30 42 74 / 0.14);
+  --color-line-strong: #737c96;
+  --color-link: #3b5bdb;
+  --color-focus: #0f1730;
+  --color-skeleton: rgb(30 42 74 / 0.08);
+  --color-scrim: rgb(14 20 38 / 0.45);
+  --radius-control: 0.5rem;
+  --radius-panel: 0.875rem;
+  --shadow-panel:
+    0 10px 30px -12px rgb(30 42 74 / 0.28), 0 1px 2px rgb(30 42 74 / 0.12);
+  --blur-panel: 16px;
   --font-sans:
     system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     sans-serif;
@@ -17,4 +33,50 @@
   --color-status-ok: #2fa36b;
   --color-status-warning: #f5c518;
   --color-status-alarm: #e5484d;
+  --color-on-status-ok: #0b1226;
+  --color-on-status-warning: #0b1226;
+  --color-on-status-alarm: #0b1226;
+}
+
+:root {
+  color-scheme: light;
+}
+
+@utility shadow-panel {
+  box-shadow: var(--shadow-panel);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --color-canvas: #121a30;
+  --color-on-canvas: #e8e4dc;
+  --color-on-canvas-muted: #a8b0c6;
+  --color-panel: rgb(30 42 74 / 0.92);
+  --color-panel-solid: #1e2a4a;
+  --color-on-panel: #e8e4dc;
+  --color-on-panel-muted: #aeb6cc;
+  --color-line: rgb(232 228 220 / 0.14);
+  --color-line-strong: #8693b5;
+  --color-link: #9fb2ff;
+  --color-focus: #e3e9ff;
+  --color-skeleton: rgb(232 228 220 / 0.1);
+  --color-scrim: rgb(0 0 0 / 0.6);
+  --shadow-panel:
+    0 12px 32px -12px rgb(0 0 0 / 0.6), 0 1px 2px rgb(0 0 0 / 0.4);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root,
+  [data-theme='dark'] {
+    --color-panel: var(--color-panel-solid);
+    --blur-panel: 0px;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root,
+  [data-theme='dark'] {
+    --color-panel: var(--color-panel-solid);
+    --blur-panel: 0px;
+  }
 }

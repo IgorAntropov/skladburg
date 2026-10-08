@@ -36,7 +36,7 @@ export const StartErrorScreen = ({ onRetry }: StartErrorScreenProps): ReactEleme
   };
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-surface px-4 text-center text-on-surface">
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-canvas px-4 text-center text-on-canvas">
       <p className="text-balance text-lg" role="alert">
         {t('app.startError.message')}
       </p>

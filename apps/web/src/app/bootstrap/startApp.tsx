@@ -24,9 +24,15 @@ import {
 } from '@/shared/i18n';
 import { observeLongTasks } from '@/shared/lib/performance';
 import { createHashLocation } from '@/shared/routing';
+import {
+  bindThemeToDocument,
+  createThemePreferenceStore,
+  getDeviceStorage,
+} from '@/shared/theme';
 
 import { App } from '../App';
 import { StartErrorScreen } from '../shell/StartErrorScreen';
+import { readColorSchemeQuery } from './readColorSchemeQuery';
 import { readDeviceTimeZone } from './readDeviceTimeZone';
 import { removeSearchParam } from './removeSearchParam';
 
@@ -62,6 +68,14 @@ const runReleaseStep = (step: string, release: (() => void) | undefined): void =
 };
 
 export const startApp = async (rootElement: HTMLElement): Promise<void> => {
+  const themeStore = createThemePreferenceStore({
+    colorSchemeQuery: readColorSchemeQuery(window),
+    storage: getDeviceStorage(window),
+    storageEvents: window,
+  });
+
+  bindThemeToDocument(themeStore, document.documentElement);
+
   const root = createRoot(rootElement);
   const userTimeZone = readDeviceTimeZone();
   const locationSource = createHashLocation(window);
@@ -135,7 +149,13 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
 
       root.render(
         <StrictMode>
-          <App localizer={appLocalizer} location={locationSource} queryClient={queryClient} runtime={nextRuntime} />
+          <App
+            localizer={appLocalizer}
+            location={locationSource}
+            queryClient={queryClient}
+            runtime={nextRuntime}
+            themeStore={themeStore}
+          />
         </StrictMode>,
       );
     }

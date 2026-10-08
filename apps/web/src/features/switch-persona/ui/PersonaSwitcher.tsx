@@ -19,8 +19,8 @@ import { usePersonasQuery } from '../api/usePersonasQuery';
 import { PERSONA_KIND_MESSAGE_KEYS } from '../model/personaKindMessageKeys';
 
 const SELECT_CLASS_NAME = [
-  'min-h-11 w-64 max-w-full rounded-md border border-on-panel bg-panel px-3 text-base text-on-panel',
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-panel',
+  'min-h-11 w-64 max-w-full rounded-md border border-line-strong bg-panel-solid px-3 text-base text-on-panel',
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
   'disabled:opacity-60',
 ].join(' ');
 

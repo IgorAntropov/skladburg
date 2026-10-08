@@ -59,6 +59,10 @@ import {
   createHashLocation,
 } from '@/shared/routing';
 import { createMemoryLocation } from '@/shared/routing/index.testing';
+import {
+  createFakeStorage,
+  FakeMediaQueryList,
+} from '@/shared/theme/index.testing';
 
 import { registerSessionRoute } from '../lib/testing/sessionFixtures';
 import { readDeviceTimeZone } from './readDeviceTimeZone';
@@ -99,6 +103,7 @@ vi.mock('@/shared/i18n', async (importOriginal) => {
 });
 
 const WAREHOUSE_PATH = '/warehouse';
+const THEME_STORAGE_KEY = 'theme-preference';
 const ENGINE_BRAND = 'Северный склад';
 const ENGINE_ORGANIZATION_ID = 'f4000001-0000-4000-8000-000000000000';
 
@@ -169,10 +174,47 @@ const failFirstRender = async (): Promise<void> => {
   });
 };
 
+const recordThemeAtRender = async (): Promise<(string | undefined)[]> => {
+  const original = await vi.importActual<typeof import('react-dom/client')>('react-dom/client');
+  const themesAtRender: (string | undefined)[] = [];
+
+  vi.mocked(createRoot).mockImplementationOnce((container) => {
+    const root = original.createRoot(container);
+
+    return {
+      render: (children) => {
+        themesAtRender.push(document.documentElement.dataset.theme);
+        root.render(children);
+      },
+      unmount: () => {
+        root.unmount();
+      },
+    };
+  });
+
+  return themesAtRender;
+};
+
+const restoreDocumentTheme = (): void => {
+  document.documentElement.removeAttribute('data-theme');
+  document.documentElement.style.removeProperty('color-scheme');
+};
+
+const unsubscribeFromStorageEvents = (spy: MockInstance<typeof window.addEventListener>): void => {
+  for (const [type, listener] of spy.mock.calls) {
+    if (type === 'storage') {
+      window.removeEventListener(type, listener);
+    }
+  }
+};
+
 const findBrand = async (): Promise<HTMLElement> => within(await screen.findByRole('banner')).findByText(ENGINE_BRAND);
 
 describe('startApp', () => {
+  let addEventListener: MockInstance<typeof window.addEventListener>;
+
   beforeEach(() => {
+    addEventListener = vi.spyOn(window, 'addEventListener');
     vi.mocked(createApiRuntime).mockReset();
     vi.mocked(createApiRuntime).mockImplementation(() => Promise.resolve(createRuntime()));
     vi.mocked(createQueryClient).mockReset();
@@ -188,7 +230,11 @@ describe('startApp', () => {
   afterEach(() => {
     cleanup();
     document.body.replaceChildren();
+    unsubscribeFromStorageEvents(addEventListener);
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    window.localStorage.clear();
+    restoreDocumentTheme();
   });
 
   it('renders the application with the settings from the engine', async () => {
@@ -485,6 +531,116 @@ describe('startApp', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: defaultLocaleCatalog['section.network.title'] })).toBeDefined();
     expect(location.history).toEqual(['/network']);
+  });
+
+  describe('theme of the device', () => {
+    it('puts the light theme on the document before the first render when nothing is stored', async () => {
+      const themesAtRender = await recordThemeAtRender();
+
+      await startApp(createRootElement());
+      await findBrand();
+
+      expect(themesAtRender).toEqual(['light']);
+      expect(document.documentElement.style.colorScheme).toBe('light');
+    });
+
+    it('puts the stored dark theme on the document before the first render', async () => {
+      window.localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+      const themesAtRender = await recordThemeAtRender();
+
+      await startApp(createRootElement());
+      await findBrand();
+
+      expect(themesAtRender).toEqual(['dark']);
+      expect(document.documentElement.style.colorScheme).toBe('dark');
+    });
+
+    it('resolves the system preference by the color scheme of the device before the first render', async () => {
+      window.localStorage.setItem(THEME_STORAGE_KEY, 'system');
+      vi.stubGlobal('matchMedia', () => new FakeMediaQueryList(true));
+      const themesAtRender = await recordThemeAtRender();
+
+      await startApp(createRootElement());
+      await findBrand();
+
+      expect(themesAtRender).toEqual(['dark']);
+    });
+
+    it('puts the theme on the document before the start error screen', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      window.localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+      vi.mocked(createApiRuntime).mockRejectedValueOnce(new Error('the engine is unavailable'));
+      const themesAtRender = await recordThemeAtRender();
+
+      await startApp(createRootElement());
+
+      expect(await screen.findByRole('alert')).toBeDefined();
+      expect(themesAtRender).toEqual(['dark']);
+    });
+
+    it('starts with the light theme when the storage of the device throws on access', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+        throw new DOMException('access denied', 'SecurityError');
+      });
+      const themesAtRender = await recordThemeAtRender();
+
+      await startApp(createRootElement());
+
+      expect(await findBrand()).toBeDefined();
+      expect(themesAtRender).toEqual(['light']);
+      expect(getLoggedLabels(consoleError)).toEqual(['> themePersistence -> getDeviceStorage:']);
+    });
+
+    it('starts with the light theme when the storage of the device throws on read', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => createFakeStorage({ isGetFailing: true }));
+      const themesAtRender = await recordThemeAtRender();
+
+      await startApp(createRootElement());
+
+      expect(await findBrand()).toBeDefined();
+      expect(themesAtRender).toEqual(['light']);
+      expect(getLoggedLabels(consoleError)).toEqual(['> themePersistence -> readStoredThemePreference:']);
+    });
+
+    it('starts with the light theme when the stored value is corrupted', async () => {
+      window.localStorage.setItem(THEME_STORAGE_KEY, 'purple');
+      const themesAtRender = await recordThemeAtRender();
+
+      await startApp(createRootElement());
+      await findBrand();
+
+      expect(themesAtRender).toEqual(['light']);
+    });
+
+    it('follows the theme chosen in another tab', async () => {
+      await startApp(createRootElement());
+      await findBrand();
+
+      window.localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: THEME_STORAGE_KEY,
+        newValue: 'dark',
+        storageArea: window.localStorage,
+      }));
+
+      expect(document.documentElement.dataset.theme).toBe('dark');
+      expect(document.documentElement.style.colorScheme).toBe('dark');
+    });
+
+    it('creates the theme store once and keeps it across retries', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      vi.mocked(createApiRuntime).mockRejectedValueOnce(new Error('the engine is unavailable'));
+
+      await startApp(createRootElement());
+      fireEvent.click(await screen.findByRole('button'));
+      await findBrand();
+
+      const storageSubscriptions = addEventListener.mock.calls.filter(([type]) => type === 'storage');
+
+      expect(storageSubscriptions).toHaveLength(1);
+    });
   });
 
   describe('acting context of the tab', () => {

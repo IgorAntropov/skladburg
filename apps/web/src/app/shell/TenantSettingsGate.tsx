@@ -90,7 +90,7 @@ export const TenantSettingsGate = ({ children, localizer }: TenantSettingsGatePr
   }
 
   if (appliedSettings === undefined) {
-    return <main aria-busy className="min-h-dvh bg-surface" />;
+    return <main aria-busy className="min-h-dvh bg-canvas" />;
   }
 
   return <TenantSettingsProvider tenantSettings={appliedSettings}>{children}</TenantSettingsProvider>;

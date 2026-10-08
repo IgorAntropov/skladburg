@@ -9,6 +9,9 @@ export default mergeConfig(
   viteConfig,
   defineConfig({
     test: {
+      css: {
+        include: [/\.css\?raw$/],
+      },
       projects: [
         {
           extends: true,

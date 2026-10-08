@@ -60,6 +60,7 @@ import { createMemoryLocation } from '@/shared/routing/index.testing';
 
 import { App } from './App';
 import { createSessionFixture } from './lib/testing/sessionFixtures';
+import { createTestThemeStore } from './lib/testing/themeFixtures';
 import { SECTION_TITLE_KEYS } from './routing/sections';
 
 const BRAND_NAME = 'Северный склад';
@@ -121,7 +122,15 @@ const renderApp = async (initialPath: string, { getSession }: RenderAppOptionsVa
   });
   const location = createMemoryLocation(initialPath);
 
-  render(<App localizer={localizer} location={location} queryClient={createQueryClient({ networkMode: 'always' })} runtime={runtime} />);
+  render(
+    <App
+      localizer={localizer}
+      location={location}
+      queryClient={createQueryClient({ networkMode: 'always' })}
+      runtime={runtime}
+      themeStore={createTestThemeStore()}
+    />,
+  );
 
   return location;
 };

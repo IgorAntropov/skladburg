@@ -34,6 +34,7 @@ import { createMemoryLocation } from '@/shared/routing/index.testing';
 
 import { App } from './App';
 import { registerSessionRoute } from './lib/testing/sessionFixtures';
+import { createTestThemeStore } from './lib/testing/themeFixtures';
 
 const ORGANIZATION_ID = 'f4000002-0000-4000-8000-000000000000';
 const BRAND_NAME = 'Северный склад';
@@ -88,6 +89,7 @@ const renderApp = async ({ placeholder }: RenderAppOptionsValue = {}): Promise<v
       location={createMemoryLocation(WAREHOUSE_PATH)}
       queryClient={createQueryClient({ networkMode: 'always' })}
       runtime={runtime}
+      themeStore={createTestThemeStore()}
     />,
   );
 };

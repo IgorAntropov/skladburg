@@ -14,6 +14,7 @@ export interface ApiRuntimeValue {
   client: ApiClient;
   close: () => void;
   demoControl: IDemoControl | undefined;
+  networkMode: QueryNetworkModeValue;
   realtime: IRealtimeChannel;
 }
 
@@ -22,3 +23,5 @@ export interface CreateApiRuntimeOptionsValue {
   defaultOrganizationId: string;
   frameScheduler?: IFrameScheduler | undefined;
 }
+
+export type QueryNetworkModeValue = 'always' | 'online';

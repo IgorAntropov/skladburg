@@ -39,7 +39,7 @@ describe('invalidateQueriesByChannel', () => {
   };
 
   beforeEach(() => {
-    queryClient = createQueryClient();
+    queryClient = createQueryClient({ networkMode: 'always' });
     stops = [];
   });
 

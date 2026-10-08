@@ -51,6 +51,7 @@ export const createDemoRuntime = async (options: CreateApiRuntimeOptionsValue): 
       connection.close();
     },
     demoControl,
+    networkMode: 'always',
     realtime,
   };
 };

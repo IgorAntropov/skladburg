@@ -30,7 +30,7 @@ export const catalog = {
   'validation.repeated.unique': 'Значения не должны повторяться',
   'validation.required': 'Обязательное поле',
   'validation.string.max_len': 'Слишком длинное значение',
-  'validation.string.min_len': 'Заполните поле',
+  'validation.string.min_len': 'Слишком короткое значение',
   'validation.string.pattern': 'Неверный формат',
   'validation.string.uuid': 'Значение выбрано неверно',
   'validation.string.uuid_empty': 'Выберите значение из списка',

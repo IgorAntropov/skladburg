@@ -3,6 +3,13 @@ import type {
   ReactNode,
 } from 'react';
 
+import { create } from '@bufbuild/protobuf';
+import {
+  GetOrganizationSettingsResponseSchema,
+  OrganizationService,
+  OrganizationSettingsSchema,
+} from '@skladburg/contracts/organization/v1/organization';
+import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
 import {
   act,
   cleanup,
@@ -20,7 +27,11 @@ import type { ApiRuntimeValue } from '../runtime/apiRuntimeTypes';
 import type { IDemoControl } from '../transport/demo';
 
 import { ApiRuntimeProvider } from './ApiRuntimeProvider';
-import { createTestRuntime } from './testing/createTestRuntime';
+import {
+  createTestRuntime,
+  TEST_ORGANIZATION_ID,
+  TEST_USER_ID,
+} from './testing/createTestRuntime';
 import { useActingContext } from './useActingContext';
 import { useApiClient } from './useApiClient';
 import { useDemoControl } from './useDemoControl';
@@ -83,7 +94,7 @@ describe('ApiRuntimeProvider hooks', () => {
 
     const { result } = renderHook(useActingContext, { wrapper: createWrapper(runtime) });
 
-    expect(result.current).toEqual({ organizationId: 'org-1', userId: 'user-1' });
+    expect(result.current).toEqual({ organizationId: TEST_ORGANIZATION_ID, userId: TEST_USER_ID });
   });
 
   it('rerenders when the acting context changes', () => {
@@ -120,7 +131,7 @@ describe('ApiRuntimeProvider hooks', () => {
     const initialContext = result.current;
 
     act(() => {
-      runtime.actingContext.set({ organizationId: 'org-1', userId: 'user-1' });
+      runtime.actingContext.set({ organizationId: TEST_ORGANIZATION_ID, userId: TEST_USER_ID });
     });
 
     expect(renderCount).toBe(initialRenderCount);
@@ -139,6 +150,50 @@ describe('ApiRuntimeProvider hooks', () => {
     unmount();
 
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers client calls with the routes of the test runtime', async () => {
+    const runtime = createTestRuntime({
+      routes: (router) => {
+        router.service(OrganizationService, {
+          getOrganizationSettings: () => create(GetOrganizationSettingsResponseSchema, {
+            settings: create(OrganizationSettingsSchema, { brandName: 'Тестовая марка', organizationId: TEST_ORGANIZATION_ID }),
+          }),
+        });
+      },
+    });
+
+    const response = await runtime.client.organization.getOrganizationSettings({});
+
+    expect(response.settings?.brandName).toBe('Тестовая марка');
+    expect(response.settings?.organizationId).toBe(TEST_ORGANIZATION_ID);
+  });
+
+  it('lets a route read the acting organization from the request header', async () => {
+    const runtime = createTestRuntime({
+      routes: (router) => {
+        router.service(OrganizationService, {
+          getOrganizationSettings: (_request, context) => create(GetOrganizationSettingsResponseSchema, {
+            settings: create(OrganizationSettingsSchema, { organizationId: context.requestHeader.get(ACTING_ORGANIZATION_HEADER) ?? '' }),
+          }),
+        });
+      },
+    });
+
+    const response = await runtime.client.organization.getOrganizationSettings({});
+
+    expect(response.settings?.organizationId).toBe(TEST_ORGANIZATION_ID);
+  });
+
+  it('rejects calls to services without routes', async () => {
+    const runtime = createTestRuntime();
+
+    await expect(runtime.client.organization.getOrganizationSettings({})).rejects.toThrow();
+  });
+
+  it('uses the always network mode by default and accepts an override', () => {
+    expect(createTestRuntime().networkMode).toBe('always');
+    expect(createTestRuntime({ networkMode: 'online' }).networkMode).toBe('online');
   });
 
   const hooksByName: readonly (readonly [string, () => unknown])[] = [

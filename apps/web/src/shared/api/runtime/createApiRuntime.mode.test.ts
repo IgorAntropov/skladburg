@@ -43,6 +43,16 @@ describe('createApiRuntime transport choice', () => {
     runtime.close();
   });
 
+  it('asks the query client to work offline in the demo runtime', async () => {
+    vi.stubEnv('VITE_API_TRANSPORT', 'demo');
+
+    const runtime = await startDemoRuntime();
+
+    expect(runtime.networkMode).toBe('always');
+
+    runtime.close();
+  });
+
   it('uses the demo engine when it is chosen explicitly', async () => {
     vi.stubEnv('VITE_API_TRANSPORT', 'demo');
 

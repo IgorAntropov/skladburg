@@ -68,7 +68,6 @@ describe('createRealtimeChannel', () => {
 
   beforeEach(() => {
     harness = createHarness();
-    vi.spyOn(console, 'log').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -374,6 +373,30 @@ describe('createRealtimeChannel', () => {
       harness.frames.flushFrame();
 
       expect(batches.map(batch => batch.kind)).toEqual(['denied', 'events']);
+    });
+
+    it('drops the pending resync of the same frame and delivers only the error', () => {
+      const { batches } = collect(harness.channel);
+      const [subscription] = harness.source.subscriptions;
+      subscription?.subscribed({ epoch: 'epoch-1', seq: 0n });
+      harness.frames.flushFrame();
+
+      subscription?.subscribed({ epoch: 'epoch-2', seq: 0n });
+      subscription?.deny(DENIED_ERROR);
+      harness.frames.flushFrame();
+
+      expect(batches).toEqual([{ error: DENIED_ERROR, kind: 'denied' }]);
+    });
+
+    it('delivers only the error when the new subscription after a context change is denied', () => {
+      const { batches } = collect(harness.channel);
+      harness.source.subscriptions.at(0)?.subscribed({ epoch: 'epoch-1', seq: 2n });
+
+      harness.actingContext.set({ organizationId: 'org-2', userId: 'user-2' });
+      harness.source.subscriptions.at(1)?.deny(DENIED_ERROR);
+      harness.frames.flushFrame();
+
+      expect(batches).toEqual([{ error: DENIED_ERROR, kind: 'denied' }]);
     });
   });
 

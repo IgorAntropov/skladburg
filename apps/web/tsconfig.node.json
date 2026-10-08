@@ -6,5 +6,5 @@
     "allowImportingTsExtensions": true,
     "erasableSyntaxOnly": true
   },
-  "include": ["vite.config.ts", "vitest.config.ts", "steiger.config.ts", "build-profile/**/*.ts"]
+  "include": ["vite.config.ts", "vitest.config.ts", "vitest.setup.ts", "steiger.config.ts", "build-profile/**/*.ts"]
 }

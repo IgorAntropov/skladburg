@@ -53,6 +53,17 @@ describe('createApiRuntime with the connect transport', () => {
     }).not.toThrow();
   });
 
+  it('asks the query client to pause requests offline in the pilot runtime', async () => {
+    vi.stubEnv('VITE_API_URL', API_URL);
+    const { createApiRuntime } = await importCreateApiRuntime();
+
+    const runtime = await createApiRuntime({ defaultOrganizationId: ORGANIZATION_ID });
+
+    expect(runtime.networkMode).toBe('online');
+
+    runtime.close();
+  });
+
   it('gives a realtime channel without a source that stays silent and stops with the runtime', async () => {
     vi.stubEnv('VITE_API_URL', API_URL);
     const { createApiRuntime } = await importCreateApiRuntime();

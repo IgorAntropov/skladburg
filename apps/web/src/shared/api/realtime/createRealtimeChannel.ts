@@ -72,7 +72,9 @@ export const createRealtimeChannel = (options: CreateRealtimeChannelOptionsValue
     }
 
     if (isResyncPending) {
-      notify(entry, RESYNC_BATCH);
+      if (denied === undefined) {
+        notify(entry, RESYNC_BATCH);
+      }
     }
     else if (pendingEvents !== undefined) {
       notify(entry, { events: pendingEvents, kind: 'events' });

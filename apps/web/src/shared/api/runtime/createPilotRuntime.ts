@@ -36,6 +36,7 @@ export const createPilotRuntime = (options: CreateApiRuntimeOptionsValue): ApiRu
       realtime.stop();
     },
     demoControl: undefined,
+    networkMode: 'online',
     realtime,
   };
 };

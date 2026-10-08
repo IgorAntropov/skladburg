@@ -3,12 +3,13 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./registry": "./src/registry/index.ts",
     "./runtime": "./src/runtime/index.ts",
     "./*": "./src/gen/*_pb.ts"
   },
   "scripts": {
     "deps:proto": "buf export https://github.com/bufbuild/protovalidate.git#ref=4baed765070e580226a0a30bf2a357cc027dc1f7,subdir=proto/protovalidate -o proto-deps/protovalidate",
-    "generate": "buf generate && buf build proto --exclude-source-info -o src/gen/contract.binpb",
+    "generate": "buf generate && buf build proto --exclude-source-info -o src/gen/contract.binpb && buf build proto --exclude-source-info --exclude-imports -o src/gen/contract_runtime.binpb && node scripts/embedContractImage.ts",
     "lint:proto": "buf lint proto && buf format proto --diff --exit-code",
     "format:proto": "buf format proto --write",
     "typecheck": "tsc -p tsconfig.json",

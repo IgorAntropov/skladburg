@@ -1,10 +1,12 @@
 import type {
   DescMessage,
+  FileRegistry,
   MessageShape,
 } from '@bufbuild/protobuf';
 
 import { pathToString } from '@bufbuild/protobuf/reflect';
 import { createValidator } from '@bufbuild/protovalidate';
+import { getRuleSchema } from '@skladburg/contracts/registry';
 
 import type {
   IDomainErrors,
@@ -16,11 +18,11 @@ export interface IRequestValidator {
   validate: <TDesc extends DescMessage>(schema: TDesc, message: MessageShape<TDesc>) => void;
 }
 
-export const createRequestValidator = (errors: IDomainErrors): IRequestValidator => {
+export const createRequestValidator = (errors: IDomainErrors, registry: FileRegistry): IRequestValidator => {
   const validator = createValidator();
 
   const collect = <TDesc extends DescMessage>(schema: TDesc, message: MessageShape<TDesc>): ViolationValue[] => {
-    const result = validator.validate(schema, message);
+    const result = validator.validate(getRuleSchema(registry, schema), message);
 
     if (result.kind === 'error') {
       throw errors.internal(result.error);

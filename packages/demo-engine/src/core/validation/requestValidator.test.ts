@@ -3,6 +3,7 @@ import {
   fromJson,
   type MessageShape,
 } from '@bufbuild/protobuf';
+import { createValidator } from '@bufbuild/protovalidate';
 import {
   Code,
   ConnectError,
@@ -18,6 +19,7 @@ import {
   ListWarehousesRequestSchema,
   WarehouseCapability,
 } from '@skladburg/contracts/organization/v1/organization';
+import { getContractRegistry } from '@skladburg/contracts/registry';
 import {
   describe,
   expect,
@@ -34,7 +36,10 @@ import {
 const UUID = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
 const OTHER_UUID = '8d14e6a2-0b3c-4f57-9a68-12cd45ef7890';
 
-const createValidatorForTest = (): IRequestValidator => createRequestValidator(createDomainErrors(createSeededRandom(1)));
+const registry = getContractRegistry();
+
+const createValidatorForTest = (): IRequestValidator =>
+  createRequestValidator(createDomainErrors(createSeededRandom(1)), registry);
 
 const createWarehouseRequest = (
   overrides: Partial<MessageShape<typeof CreateWarehouseRequestSchema>> = {},
@@ -75,6 +80,14 @@ describe('createRequestValidator.collect', () => {
       { fieldPath: 'board_node_id', ruleId: 'string.uuid_empty' },
       { fieldPath: 'time_zone', ruleId: 'string.pattern' },
     ]);
+  });
+
+  it('takes the rules from the contract image and not from the description it is given', () => {
+    const request = create(CreateWarehouseRequestSchema);
+    const generatedViolations = createValidator().validate(CreateWarehouseRequestSchema, request);
+
+    expect(generatedViolations.kind).toBe('valid');
+    expect(createValidatorForTest().collect(CreateWarehouseRequestSchema, request).length).toBeGreaterThan(0);
   });
 
   it('reports crooked fields with their paths', () => {

@@ -6,6 +6,11 @@ import type {
 import { pathToString } from '@bufbuild/protobuf/reflect';
 import { createValidator } from '@bufbuild/protovalidate';
 
+import {
+  getContractRegistry,
+  getRuleSchema,
+} from '../registry/contractRegistry';
+
 export interface ViolationValue {
   fieldPath: string;
   ruleId: string;
@@ -17,7 +22,7 @@ export const collectViolations = <Desc extends DescMessage>(
   schema: Desc,
   message: MessageShape<Desc>,
 ): ViolationValue[] => {
-  const result = validator.validate(schema, message);
+  const result = validator.validate(getRuleSchema(getContractRegistry(), schema), message);
 
   if (result.kind === 'error') {
     throw result.error;

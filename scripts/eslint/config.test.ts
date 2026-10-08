@@ -539,6 +539,61 @@ describe('eslint.config.ts with the local rules', () => {
     });
   });
 
+  describe('boundary of the contract registry in the web application', () => {
+    const registrySpecifier = '@skladburg/contracts/registry';
+
+    describe.each(importForms)('with %s', (_formName, toCode) => {
+      it.each([
+        ['a page', pageFilePath],
+        ['a test of a page', pageTestFilePath],
+        ['the client of the api layer', apiClientFilePath],
+        ['a test of the api client', apiClientTestFilePath],
+        ['the demo transport', demoTransportFilePath],
+        ['a test of the demo transport', demoTransportTestFilePath],
+        ['shared/i18n', i18nFilePath],
+        ['a test in shared/i18n', i18nTestFilePath],
+        ['app/bootstrap', bootstrapFilePath],
+        ['a test in app/bootstrap', bootstrapTestFilePath],
+        ['the location of shared/routing', routingLocationFilePath],
+        ['a test of the location of shared/routing', routingLocationTestFilePath],
+      ])('reports the registry in %s', async (_name, filePath) => {
+        const outcome = await lint(untypedEslint, toCode(registrySpecifier), filePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(true);
+      });
+
+      it.each([
+        ['the core of the engine', engineCoreFilePath],
+        ['a test in the core of the engine', engineCoreTestFilePath],
+      ])('allows the registry in %s', async (_name, filePath) => {
+        const outcome = await lint(untypedEslint, toCode(registrySpecifier), filePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(false);
+      });
+    });
+
+    it.each([
+      ['a page', pageFilePath],
+      ['a test of a page', pageTestFilePath],
+      ['the demo transport', demoTransportFilePath],
+    ])('allows the runtime entry of the contracts in %s', async (_name, filePath) => {
+      const outcome = await lint(untypedEslint, toValueImport('@skladburg/contracts/runtime'), filePath);
+
+      expect(isRestricted(outcome.ruleIds)).toBe(false);
+    });
+
+    it('explains why the registry is closed to the web application', async () => {
+      if (untypedEslint === undefined) {
+        throw new Error('ESLint is not initialized');
+      }
+
+      const [result] = await untypedEslint.lintText(toValueImport(registrySpecifier), { filePath: pageFilePath });
+      const message = result?.messages.find(item => item.ruleId === 'no-restricted-imports');
+
+      expect(message?.message).toContain('initial bundle');
+    });
+  });
+
   describe('boundary of the testing entry of shared/api in the web application', () => {
     const testingEntrySpecifier = '@/shared/api/index.testing';
 

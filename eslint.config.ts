@@ -42,6 +42,12 @@ const engineRestrictionForTests: BoundaryRestrictionValue = {
   selectorPattern: '^@skladburg.demo-engine($|[^-a-z0-9_](?!testing$))',
 };
 
+const registryRestriction: BoundaryRestrictionValue = {
+  importPattern: '^@skladburg/contracts/registry$',
+  message: 'The contract registry is for the engine only; importing it here pulls the contract image into the initial bundle',
+  selectorPattern: '^@skladburg.contracts.registry$',
+};
+
 const apiTestingEntryRestriction: BoundaryRestrictionValue = {
   importPattern: '^@/shared/api/index\\.testing$',
   message: 'The testing entry of shared/api is for tests only',
@@ -341,46 +347,43 @@ export default defineConfig(
   {
     files: engineBoundaryFiles,
     rules: createBoundaryRules(
-      [engineRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
+      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
       webSyntaxRestrictions,
     ),
   },
   {
     files: engineBoundaryTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests], webSyntaxRestrictions),
+    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction], webSyntaxRestrictions),
   },
   {
     files: engineBoundaryAllowedFiles,
-    rules: createBoundaryRules([apiTestingEntryRestriction, routingTestingEntryRestriction], webSyntaxRestrictions),
+    rules: createBoundaryRules([registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction], webSyntaxRestrictions),
   },
   {
     files: engineBoundaryAllowedTestFiles,
-    rules: {
-      'no-restricted-imports': 'off',
-      'no-restricted-syntax': ['error', ...webSyntaxRestrictions],
-    },
+    rules: createBoundaryRules([registryRestriction], webSyntaxRestrictions),
   },
   {
     files: timeZoneExemptFiles,
     rules: createBoundaryRules(
-      [engineRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
+      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
       navigationRestrictions,
     ),
   },
   {
     files: timeZoneExemptTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests], navigationRestrictions),
+    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction], navigationRestrictions),
   },
   {
     files: navigationOwnerFiles,
     rules: createBoundaryRules(
-      [engineRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
+      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
       webTimeZoneRestrictions,
     ),
   },
   {
     files: navigationOwnerTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests], webTimeZoneRestrictions),
+    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction], webTimeZoneRestrictions),
   },
   {
     extends: [tseslint.configs.disableTypeChecked],

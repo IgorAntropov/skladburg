@@ -24,7 +24,7 @@
     },
     "generate": {
       "dependsOn": ["deps:proto"],
-      "inputs": ["proto/**", "buf.yaml", "buf.gen.yaml", "package.json"],
+      "inputs": ["proto/**", "scripts/**", "buf.yaml", "buf.gen.yaml", "package.json"],
       "outputs": ["src/gen/**"]
     },
     "lint:fsd": {

@@ -22,6 +22,7 @@ import {
   OrganizationService,
   WarehouseCapability,
 } from '@skladburg/contracts/organization/v1/organization';
+import { getContractRegistry } from '@skladburg/contracts/registry';
 import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
 import {
   describe,
@@ -48,7 +49,7 @@ import { createProbeMethod } from './testingProbeMethod';
 const UNKNOWN_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 
 const errors = createDomainErrors(createSeededRandom(5));
-const guard = createCallGuard({ errors, validator: createRequestValidator(errors) });
+const guard = createCallGuard({ errors, validator: createRequestValidator(errors, getContractRegistry()) });
 const { read } = createEngineState(createSeedSnapshot());
 
 const headersOf = (userId: string | undefined, organizationId?: string): Headers => {

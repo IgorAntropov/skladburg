@@ -1,3 +1,5 @@
+import { getContractRegistry } from '@skladburg/contracts/registry';
+
 import type { EngineSubscriptionValue } from '../events/index';
 import type { IModuleRuntime } from '../modules/index';
 import type {
@@ -112,7 +114,7 @@ export const createEngineWithTasks = async (
   const runtime: IModuleRuntime = {
     command,
     errors,
-    guard: createCallGuard({ errors, validator: createRequestValidator(errors) }),
+    guard: createCallGuard({ errors, validator: createRequestValidator(errors, getContractRegistry()) }),
     idempotency: createIdempotencyGuard(errors),
     outbox: bus.outbox,
     random,

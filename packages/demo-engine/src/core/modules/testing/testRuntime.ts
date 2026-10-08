@@ -1,5 +1,7 @@
 import type { Event } from '@skladburg/contracts/event/v1/event';
 
+import { getContractRegistry } from '@skladburg/contracts/registry';
+
 import type { IEventBus } from '../../events/index';
 import type {
   EngineChangeSetValue,
@@ -98,7 +100,7 @@ export const createTestRuntime = (): TestRuntimeValue => {
       storage,
     }),
     errors,
-    guard: createCallGuard({ errors, validator: createRequestValidator(errors) }),
+    guard: createCallGuard({ errors, validator: createRequestValidator(errors, getContractRegistry()) }),
     idempotency: createIdempotencyGuard(errors),
     outbox: createCollectingOutbox(bus, events),
     random,

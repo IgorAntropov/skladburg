@@ -23,6 +23,7 @@ import {
 } from 'vitest';
 
 import type { IFakeViewport } from '@/shared/lib/viewport/index.testing';
+import type { TabsItemValue } from '@/shared/ui';
 
 import { withTestLocalizer } from '@/shared/i18n/index.testing';
 import { installFakeViewport } from '@/shared/lib/viewport/index.testing';
@@ -37,6 +38,10 @@ const catalog = defaultLocaleCatalog;
 const PROBE_TEXT = 'Probe';
 const FIELD_LABEL = 'Inside';
 const PLACEHOLDER_LABEL = 'Map soon';
+const LISTS_HEADER_TEXT = 'Lists header';
+const TRIPS_TEXT = 'Trips slot';
+const DEALS_TAB_LABEL = 'Deals tab';
+const TRIPS_TAB_LABEL = 'Trips tab';
 
 const SLOT_TEXT = {
   inspector: 'Inspector slot',
@@ -57,6 +62,11 @@ const ZONE_TEST_IDS: Readonly<Record<SlotNameValue, string>> = {
   scene: 'hud-zone-scene',
   tracker: 'hud-zone-tracker',
 };
+
+const createListTabs = (): readonly TabsItemValue[] => [
+  { content: <p>{SLOT_TEXT.lists}</p>, id: 'deals', label: DEALS_TAB_LABEL },
+  { content: <p>{TRIPS_TEXT}</p>, id: 'trips', label: TRIPS_TAB_LABEL },
+];
 
 interface MountProbeProps {
   onMount: () => void;
@@ -114,7 +124,7 @@ const createProps = (overrides: Partial<HudLayoutProps> = {}): HudLayoutProps =>
   inspector: <p>{SLOT_TEXT.inspector}</p>,
   isInspectorOpen: false,
   kpi: <p>{SLOT_TEXT.kpi}</p>,
-  lists: <p>{SLOT_TEXT.lists}</p>,
+  listTabs: createListTabs(),
   onInspectorClose: vi.fn(),
   panel: <p>{SLOT_TEXT.panel}</p>,
   scene: <p>{SLOT_TEXT.scene}</p>,
@@ -230,12 +240,37 @@ describe('HudLayout', () => {
     it.each([
       ['kpi', { kpi: undefined }],
       ['tracker', { tracker: null }],
-      ['lists', { lists: false }],
+      ['lists', { listTabs: [] }],
       ['panel', { panel: undefined }],
     ] as const)('draws no zone for an empty %s slot', (slot, overrides) => {
       renderLayout(createProps(overrides));
 
       expect(screen.queryByTestId(ZONE_TEST_IDS[slot])).toBeNull();
+    });
+
+    it('puts the header of the lists above their tabs in the lists zone', () => {
+      renderLayout(createProps({ listsHeader: <p>{LISTS_HEADER_TEXT}</p> }));
+
+      const zone = screen.getByTestId('hud-zone-lists');
+      const header = within(zone).getByText(LISTS_HEADER_TEXT);
+      const tablist = within(zone).getByRole('tablist', { name: catalog['hud.lists.label'] });
+
+      expect(header.compareDocumentPosition(tablist) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(within(tablist).getAllByRole('tab').map(tab => tab.textContent)).toEqual([DEALS_TAB_LABEL, TRIPS_TAB_LABEL]);
+    });
+
+    it('draws the lists zone for a header without tabs', () => {
+      renderLayout(createProps({ listsHeader: <p>{LISTS_HEADER_TEXT}</p>, listTabs: undefined }));
+
+      expect(within(screen.getByTestId('hud-zone-lists')).getByText(LISTS_HEADER_TEXT)).toBeDefined();
+      expect(screen.queryByRole('tablist')).toBeNull();
+    });
+
+    it('keeps the tracker out of the tabs of the lists', () => {
+      renderLayout(createProps());
+
+      expect(within(screen.getByTestId('hud-zone-lists')).getAllByRole('tab')).toHaveLength(2);
+      expect(within(screen.getByTestId('hud-zone-tracker')).queryByRole('tab')).toBeNull();
     });
 
     it('keeps the inspector visible without an open object', () => {
@@ -338,48 +373,217 @@ describe('HudLayout', () => {
       expect(props.onInspectorClose).not.toHaveBeenCalled();
     });
 
-    it('puts the tracker and the lists into the tabs of one bottom zone', () => {
+    it('puts the tracker and the tabs of the lists into one flat row of tabs', () => {
       renderLayout(createProps());
 
       const tablist = screen.getByRole('tablist', { name: catalog['hud.bottom.label'] });
 
+      expect(screen.getAllByRole('tablist')).toHaveLength(1);
+      expect(within(tablist).getAllByRole('tab').map(tab => tab.textContent)).toEqual([
+        catalog['hud.tracker.label'],
+        DEALS_TAB_LABEL,
+        TRIPS_TAB_LABEL,
+      ]);
+    });
+
+    it('selects the tracker first and shows only its content', () => {
+      renderLayout(createProps());
+
+      expect(screen.getByRole('tab', { name: catalog['hud.tracker.label'] }).getAttribute('aria-selected')).toBe('true');
+      expect(within(screen.getByTestId('hud-zone-tracker')).getByText(SLOT_TEXT.tracker)).toBeDefined();
+      expect(screen.queryByText(SLOT_TEXT.lists)).toBeNull();
+    });
+
+    it('marks the root of the bottom zone as the lists zone and the row as the bottom tabs', () => {
+      renderLayout(createProps());
+
+      const zone = screen.getByTestId('hud-zone-lists');
+      const tabs = screen.getByTestId('hud-bottom-tabs');
+
+      expect(zone).toBe(screen.getByRole('region', { name: catalog['hud.bottom.label'] }));
+      expect(zone.contains(tabs)).toBe(true);
+      expect(within(tabs).getByRole('tablist')).toBe(screen.getByRole('tablist'));
+      expect(tabs.contains(screen.getByTestId('hud-zone-tracker'))).toBe(true);
+    });
+
+    it('shows the content of a list after its tab is pressed', () => {
+      renderLayout(createProps());
+
+      fireEvent.mouseDown(screen.getByRole('tab', { name: DEALS_TAB_LABEL }));
+
+      expect(within(screen.getByTestId('hud-zone-lists')).getByText(SLOT_TEXT.lists)).toBeDefined();
+      expect(screen.queryByText(SLOT_TEXT.tracker)).toBeNull();
+
+      fireEvent.mouseDown(screen.getByRole('tab', { name: TRIPS_TAB_LABEL }));
+
+      expect(screen.getByText(TRIPS_TEXT)).toBeDefined();
+      expect(screen.queryByText(SLOT_TEXT.lists)).toBeNull();
+    });
+
+    it('keeps the pressed tab while the tabs get new counts', () => {
+      const { rerender } = render(withTestLocalizer(<HudLayout {...createProps()} />));
+      fireEvent.mouseDown(screen.getByRole('tab', { name: TRIPS_TAB_LABEL }));
+
+      const countedTabs = createListTabs().map(tab => ({ ...tab, count: 5 }));
+      rerender(withTestLocalizer(<HudLayout {...createProps({ listTabs: countedTabs })} />));
+
+      expect(screen.getByRole('tab', { name: `${TRIPS_TAB_LABEL} 5` }).getAttribute('aria-selected')).toBe('true');
+      expect(screen.getByText(TRIPS_TEXT)).toBeDefined();
+    });
+
+    it('keeps the pressed tab when other zones change', () => {
+      const { rerender } = render(withTestLocalizer(<HudLayout {...createProps()} />));
+      fireEvent.mouseDown(screen.getByRole('tab', { name: DEALS_TAB_LABEL }));
+
+      rerender(withTestLocalizer(<HudLayout {...createProps({ kpi: undefined, panel: undefined })} />));
+
+      expect(screen.getByRole('tab', { name: DEALS_TAB_LABEL }).getAttribute('aria-selected')).toBe('true');
+      expect(screen.getByText(SLOT_TEXT.lists)).toBeDefined();
+    });
+
+    it('puts the header of the lists above the content of every list tab and not into the tracker', () => {
+      renderLayout(createProps({ listsHeader: <p>{LISTS_HEADER_TEXT}</p> }));
+
+      expect(screen.queryByText(LISTS_HEADER_TEXT)).toBeNull();
+
+      fireEvent.mouseDown(screen.getByRole('tab', { name: DEALS_TAB_LABEL }));
+
+      const header = screen.getByText(LISTS_HEADER_TEXT);
+      const content = screen.getByText(SLOT_TEXT.lists);
+
+      expect(header.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(screen.getAllByRole('tablist')).toHaveLength(1);
+
+      fireEvent.mouseDown(screen.getByRole('tab', { name: TRIPS_TAB_LABEL }));
+
+      expect(screen.getByText(LISTS_HEADER_TEXT)).toBeDefined();
+    });
+
+    it('keeps one bottom zone with two tabs for the tracker and a header without tabs', () => {
+      renderLayout(createProps({ listsHeader: <p>{LISTS_HEADER_TEXT}</p>, listTabs: undefined }));
+
+      const tablist = screen.getByRole('tablist', { name: catalog['hud.bottom.label'] });
+
+      expect(screen.getAllByRole('region', { name: catalog['hud.bottom.label'] })).toHaveLength(1);
+      expect(screen.getAllByTestId('hud-zone-lists')).toHaveLength(1);
+      expect(screen.queryByRole('region', { name: catalog['hud.tracker.label'] })).toBeNull();
+      expect(screen.queryByRole('region', { name: catalog['hud.lists.label'] })).toBeNull();
       expect(within(tablist).getAllByRole('tab').map(tab => tab.textContent)).toEqual([
         catalog['hud.tracker.label'],
         catalog['hud.lists.label'],
       ]);
+      expect(within(screen.getByTestId('hud-zone-tracker')).getByText(SLOT_TEXT.tracker)).toBeDefined();
+      expect(screen.queryByText(LISTS_HEADER_TEXT)).toBeNull();
+    });
+
+    it('shows the header without tabs as the content of the lists tab', () => {
+      renderLayout(createProps({ listsHeader: <p>{LISTS_HEADER_TEXT}</p>, listTabs: undefined }));
+
+      fireEvent.mouseDown(screen.getByRole('tab', { name: catalog['hud.lists.label'] }));
+
+      expect(within(screen.getByTestId('hud-zone-lists')).getByText(LISTS_HEADER_TEXT)).toBeDefined();
+      expect(screen.queryByText(SLOT_TEXT.tracker)).toBeNull();
+    });
+
+    it('keeps the tabs of the lists without the extra lists tab when there are tabs and a header', () => {
+      renderLayout(createProps({ listsHeader: <p>{LISTS_HEADER_TEXT}</p> }));
+
+      expect(screen.queryByRole('tab', { name: catalog['hud.lists.label'] })).toBeNull();
+      expect(screen.getAllByRole('tab')).toHaveLength(3);
+    });
+
+    it('puts the only tracker into the bottom zone without tabs', () => {
+      renderLayout(createProps({ listTabs: undefined }));
+
+      expect(screen.queryByRole('tablist')).toBeNull();
+      expect(screen.queryByTestId('hud-bottom-tabs')).toBeNull();
       expectInZone('tracker');
       expectNoZone('lists');
     });
 
-    it('shows the lists after the lists tab is pressed', () => {
-      renderLayout(createProps());
+    it('puts the only lists into the bottom zone with their own tabs and without the tracker', () => {
+      renderLayout(createProps({ tracker: undefined }));
 
-      fireEvent.mouseDown(screen.getByRole('tab', { name: catalog['hud.lists.label'] }));
+      const tablist = screen.getByRole('tablist', { name: catalog['hud.lists.label'] });
 
+      expect(within(tablist).getAllByRole('tab').map(tab => tab.textContent)).toEqual([DEALS_TAB_LABEL, TRIPS_TAB_LABEL]);
+      expect(screen.queryByTestId('hud-bottom-tabs')).toBeNull();
       expectInZone('lists');
-      expect(screen.queryByText(SLOT_TEXT.tracker)).toBeNull();
+      expectNoZone('tracker');
     });
 
-    it.each([
-      ['tracker', { lists: undefined }],
-      ['lists', { tracker: undefined }],
-    ] as const)('puts the only %s slot into the bottom zone without tabs', (slot, overrides) => {
-      renderLayout(createProps(overrides));
+    it('puts the header of the only lists above their tabs', () => {
+      renderLayout(createProps({ listsHeader: <p>{LISTS_HEADER_TEXT}</p>, tracker: undefined }));
 
-      expect(screen.queryByRole('tablist')).toBeNull();
-      expectInZone(slot);
+      const header = screen.getByText(LISTS_HEADER_TEXT);
+      const tablist = screen.getByRole('tablist', { name: catalog['hud.lists.label'] });
+
+      expect(header.compareDocumentPosition(tablist) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    describe('when the tracker comes and goes', () => {
+      const selectedTabLabel = (): string | undefined => {
+        return screen.getAllByRole('tab').find(tab => tab.getAttribute('aria-selected') === 'true')?.textContent ?? undefined;
+      };
+
+      it('selects the first list tab again when the tracker leaves the tabs while another tab is pressed', () => {
+        const { rerender } = render(withTestLocalizer(<HudLayout {...createProps()} />));
+        fireEvent.mouseDown(screen.getByRole('tab', { name: TRIPS_TAB_LABEL }));
+
+        expect(selectedTabLabel()).toBe(TRIPS_TAB_LABEL);
+
+        rerender(withTestLocalizer(<HudLayout {...createProps({ tracker: undefined })} />));
+
+        expect(selectedTabLabel()).toBe(DEALS_TAB_LABEL);
+        expect(screen.queryByTestId('hud-bottom-tabs')).toBeNull();
+      });
+
+      it('selects the tracker when it joins the lists while a list tab is pressed', () => {
+        const { rerender } = render(withTestLocalizer(<HudLayout {...createProps({ tracker: undefined })} />));
+        fireEvent.mouseDown(screen.getByRole('tab', { name: TRIPS_TAB_LABEL }));
+
+        expect(selectedTabLabel()).toBe(TRIPS_TAB_LABEL);
+
+        rerender(withTestLocalizer(<HudLayout {...createProps()} />));
+
+        expect(selectedTabLabel()).toBe(catalog['hud.tracker.label']);
+        expect(screen.getByTestId('hud-bottom-tabs')).toBeDefined();
+      });
+
+      it('selects the tracker again when the lists leave and come back', () => {
+        const { rerender } = render(withTestLocalizer(<HudLayout {...createProps()} />));
+        fireEvent.mouseDown(screen.getByRole('tab', { name: DEALS_TAB_LABEL }));
+
+        rerender(withTestLocalizer(<HudLayout {...createProps({ listTabs: undefined })} />));
+
+        expect(screen.queryByRole('tablist')).toBeNull();
+
+        rerender(withTestLocalizer(<HudLayout {...createProps()} />));
+
+        expect(selectedTabLabel()).toBe(catalog['hud.tracker.label']);
+      });
+
+      it('keeps the pressed tab while the tracker stays and only its content changes', () => {
+        const { rerender } = render(withTestLocalizer(<HudLayout {...createProps()} />));
+        fireEvent.mouseDown(screen.getByRole('tab', { name: TRIPS_TAB_LABEL }));
+
+        rerender(withTestLocalizer(<HudLayout {...createProps({ tracker: <p>{SLOT_TEXT.lists}</p> })} />));
+
+        expect(selectedTabLabel()).toBe(TRIPS_TAB_LABEL);
+      });
     });
 
     it('draws no bottom zone and no empty main zone without the slots', () => {
       renderLayout(createProps({
         kpi: undefined,
-        lists: undefined,
+        listTabs: undefined,
         panel: undefined,
         tracker: undefined,
       }));
 
       expect(screen.queryByTestId('hud-zone-kpi')).toBeNull();
       expect(screen.queryByTestId('hud-zone-panel')).toBeNull();
+      expect(screen.queryByTestId('hud-zone-lists')).toBeNull();
       expect(screen.queryByRole('tablist')).toBeNull();
     });
   });
@@ -397,10 +601,20 @@ describe('HudLayout', () => {
     });
 
     it('shows the panel as the main zone when there are no lists', () => {
-      renderLayout(createProps({ lists: undefined }));
+      renderLayout(createProps({ listTabs: undefined }));
 
       expectInZone('panel');
       expectNoZone('lists');
+    });
+
+    it('puts the header of the lists above their tabs in the main zone', () => {
+      renderLayout(createProps({ listsHeader: <p>{LISTS_HEADER_TEXT}</p> }));
+
+      const zone = screen.getByTestId('hud-zone-lists');
+      const header = within(zone).getByText(LISTS_HEADER_TEXT);
+      const tablist = within(zone).getByRole('tablist', { name: catalog['hud.lists.label'] });
+
+      expect(header.compareDocumentPosition(tablist) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it('does not mount the kpi and the tracker', () => {
@@ -536,7 +750,7 @@ describe('HudLayout', () => {
         const firstProps = createProps({
           inspectorKey: 'deal:first',
           isInspectorOpen: true,
-          lists: <MountProbe onMount={onListsMount} />,
+          listTabs: [{ content: <MountProbe onMount={onListsMount} />, id: 'deals', label: DEALS_TAB_LABEL }],
           scene: <MountProbe onMount={onSceneMount} />,
         });
         const { rerender } = render(withTestLocalizer(<HudLayout {...firstProps} />));
@@ -569,7 +783,7 @@ describe('HudLayout', () => {
         inspector: createProbe('inspector'),
         isInspectorOpen: true,
         kpi: createProbe('kpi'),
-        lists: createProbe('lists'),
+        listTabs: [{ content: createProbe('lists'), id: 'deals', label: DEALS_TAB_LABEL }],
         onInspectorClose: vi.fn(),
         panel: createProbe('panel'),
         scene: createProbe('scene'),
@@ -650,7 +864,7 @@ describe('HudLayout', () => {
     });
 
     it.each([
-      ['tracker', { lists: undefined }],
+      ['tracker', { listTabs: undefined }],
       ['lists', { tracker: undefined }],
     ] as const)('keeps the lone %s zone of a tablet above the safe area', (slot, overrides) => {
       viewport.setViewportClass('tablet');
@@ -685,7 +899,70 @@ describe('HudLayout', () => {
     });
   });
 
+  describe('heights of the zones', () => {
+    it('gives the kpi and the tracker of a desktop the same minimum height', () => {
+      renderLayout(createProps());
+      const kpi = screen.getByTestId('hud-zone-kpi').className;
+      const tracker = screen.getByTestId('hud-zone-tracker').className;
+
+      expect(kpi).toContain('min-h-48');
+      expect(tracker).toContain('min-h-48');
+    });
+
+    it('splits the right column of a desktop without overflowing it', () => {
+      renderLayout(createProps());
+
+      expect(screen.getByTestId('hud-zone-inspector').className).toContain('max-h-[calc(55%-0.5rem)]');
+      expect(screen.getByTestId('hud-zone-lists').className).toContain('max-h-[calc(45%-0.5rem)]');
+    });
+
+    it('keeps the minimum content height of every panel of the bottom tabs of a tablet', () => {
+      viewport.setViewportClass('tablet');
+      renderLayout(createProps());
+
+      expect(screen.getByTestId('hud-bottom-tabs').className).toContain('[&_[role=tabpanel]]:min-h-32');
+    });
+
+    it('keeps the tracker tab of a tablet centered like the other tabs', () => {
+      viewport.setViewportClass('tablet');
+      renderLayout(createProps());
+
+      expect(screen.getByTestId('hud-zone-tracker').className).toContain('flex-1');
+    });
+  });
+
+  describe('motion of the drawer and the sheet', () => {
+    it('slides the drawer on the panel tokens', () => {
+      viewport.setViewportClass('tablet');
+      renderLayout(createProps({ isInspectorOpen: true }));
+      const { className } = screen.getByTestId('hud-zone-inspector');
+
+      expect(className).toContain('motion-safe:duration-(--duration-panel)');
+      expect(className).toContain('motion-safe:ease-out');
+      expect(className).not.toMatch(/duration-300|cubic-bezier/);
+    });
+
+    it('lifts the sheet on the panel tokens', () => {
+      viewport.setViewportClass('phone');
+      renderLayout(createProps({ isInspectorOpen: true }));
+      const { className } = screen.getByTestId('hud-inspector-sheet');
+
+      expect(className).toContain('motion-safe:duration-(--duration-panel)');
+      expect(className).toContain('motion-safe:ease-out');
+      expect(className).not.toMatch(/duration-300|cubic-bezier/);
+    });
+  });
+
   describe('ScenePlaceholder', () => {
+    it('draws a wider and quieter grid that is not denser around the label', () => {
+      const { container } = render(<ScenePlaceholder label={PLACEHOLDER_LABEL} />);
+      const html = container.innerHTML;
+
+      expect(html).toContain('transparent_0_95px');
+      expect(html).toContain('color-mix(in_srgb,var(--color-line)_55%,transparent)');
+      expect(html).toContain('radial-gradient(ellipse_at_center,transparent_0,black_70%)');
+    });
+
     it('shows its label and hides itself from screen readers as a decoration', () => {
       render(<ScenePlaceholder label={PLACEHOLDER_LABEL} />);
       const label = screen.getByText(PLACEHOLDER_LABEL);

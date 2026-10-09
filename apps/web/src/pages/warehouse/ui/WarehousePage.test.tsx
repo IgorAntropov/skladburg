@@ -238,6 +238,53 @@ describe('WarehousePage zones', () => {
     expect((await screen.findByRole('tab', { name: `${defaultLocaleCatalog['hud.lists.warehouses']} 0` }))).toBeDefined();
   });
 
+  it('puts the organization card above the only tab of the lists in the bottom zone of a tablet', async () => {
+    viewport.setViewportClass('tablet');
+    renderPage();
+
+    const lists = screen.getByTestId('hud-zone-lists');
+    const card = await within(lists).findByRole('region', { name: defaultLocaleCatalog['warehouse.organization.title'] });
+    const tablist = within(lists).getByRole('tablist', { name: defaultLocaleCatalog['hud.lists.label'] });
+
+    expect(card.compareDocumentPosition(tablist) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(tablist).getAllByRole('tab')).toHaveLength(1);
+    expect(screen.queryByTestId('hud-bottom-tabs')).toBeNull();
+    expect(screen.queryByTestId('hud-zone-tracker')).toBeNull();
+  });
+
+  it('puts the organization card above the tab of the lists on a phone', async () => {
+    viewport.setViewportClass('phone');
+    renderPage();
+
+    const lists = screen.getByTestId('hud-zone-lists');
+    const card = await within(lists).findByRole('region', { name: defaultLocaleCatalog['warehouse.organization.title'] });
+    const tablist = within(lists).getByRole('tablist', { name: defaultLocaleCatalog['hud.lists.label'] });
+
+    expect(card.compareDocumentPosition(tablist) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('wraps the warehouse list, whatever its state, into one block inside the panel of its tab', async () => {
+    const response = createDeferred();
+    renderPage({
+      listWarehouses: async () => {
+        await response.promise;
+
+        return createWarehousesResponse([FIRST_WAREHOUSE, SECOND_WAREHOUSE]);
+      },
+    });
+
+    const block = screen.getByTestId('warehouse-list-scroll');
+
+    expect(within(block).getByRole('status', { name: defaultLocaleCatalog['warehouse.warehouses.loading'] })).toBeDefined();
+    expect(getWarehouseSection().contains(block)).toBe(true);
+    expect(screen.getByRole('tabpanel').contains(block)).toBe(true);
+
+    response.resolve();
+
+    expect(await within(block).findByRole('list')).toBeDefined();
+    expect(screen.getAllByTestId('warehouse-list-scroll')).toHaveLength(1);
+  });
+
   it('shows the lists as the main zone on a phone', async () => {
     viewport.setViewportClass('phone');
     renderPage();
@@ -438,6 +485,47 @@ describe('WarehousePage warehouse list', () => {
     expect(nameElement).toBeDefined();
     expect(item.textContent).toBe(warehouseWithoutAddress.name);
     expect(item.querySelectorAll('p')).toHaveLength(1);
+  });
+
+  it('holds the height of a two-line card for a warehouse without an address', async () => {
+    const warehouseWithoutAddress = { ...FIRST_WAREHOUSE, address: '' };
+    renderPage({ listWarehouses: () => createWarehousesResponse([warehouseWithoutAddress, SECOND_WAREHOUSE]) });
+    await screen.findByText(warehouseWithoutAddress.name);
+
+    const cards = within(screen.getByRole('list')).getAllByRole('listitem').map(item => item.firstElementChild);
+
+    expect(cards.map(card => card?.className.includes('min-h-[5.375rem]'))).toEqual([true, true]);
+  });
+
+  it('marks the scrolling panel of the lists tabs with the shadow of its edges', async () => {
+    renderPage();
+    await screen.findByText(FIRST_WAREHOUSE.name);
+
+    const panel = screen.getByRole('tabpanel');
+
+    expect(panel.parentElement?.className).toContain('[&>[role=tabpanel]]:scroll-shadow-y');
+    expect(screen.getByTestId('warehouse-list-scroll').className).not.toContain('scroll-shadow-y');
+  });
+
+  it('keeps the panel of the tab the only focusable block that scrolls and leaves the list without its own stop', async () => {
+    renderPage();
+    await screen.findByText(FIRST_WAREHOUSE.name);
+
+    const zone = screen.getByTestId('hud-zone-lists');
+    const panel = screen.getByRole('tabpanel');
+    const block = screen.getByTestId('warehouse-list-scroll');
+    const scrollingBlocks = [...zone.querySelectorAll('.overflow-y-auto')];
+    const focusableScrollingBlocks = scrollingBlocks.filter(element => element.getAttribute('tabindex') === '0');
+
+    expect(panel.getAttribute('tabindex')).toBe('0');
+    expect(panel.className).toContain('overflow-y-auto');
+    expect(panel.className).toContain('focus-visible:outline-focus');
+    expect(focusableScrollingBlocks).toEqual([panel]);
+    expect(block.hasAttribute('tabindex')).toBe(false);
+    expect(block.hasAttribute('role')).toBe(false);
+    expect(block.querySelectorAll('[tabindex]')).toHaveLength(0);
+    expect(block.className).not.toContain('overflow');
+    expect(screen.getAllByRole('region', { name: defaultLocaleCatalog['warehouse.warehouses.title'] })).toHaveLength(1);
   });
 
   it('shows three empty frames without text while the warehouses are loading', async () => {

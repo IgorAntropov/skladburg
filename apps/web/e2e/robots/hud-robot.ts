@@ -11,14 +11,16 @@ import type { TopBarLayoutValue } from '../fixtures/viewports.ts';
 
 import { getText } from '../fixtures/messages.ts';
 import {
+  createReadHorizontalOverflowScript,
   createSetHashScript,
   createStoreThemeScript,
   READ_HORIZONTAL_OVERFLOW,
   READ_VERTICAL_OVERFLOW,
+  SETTLE_FINITE_ANIMATIONS,
 } from '../fixtures/pageScripts.ts';
 import { toObjectHash } from '../fixtures/routes.ts';
 
-export type BottomTabValue = 'lists' | 'tracker';
+export type BottomTabValue = 'deals' | 'tracker' | 'trips' | 'warehouses';
 
 export type HudThemeValue = 'dark' | 'light';
 
@@ -37,10 +39,21 @@ const NETWORK_ZONES: readonly HudZoneNameValue[] = ['scene', 'kpi', 'inspector',
 
 const NON_SCENE_ZONES: readonly HudZoneNameValue[] = ['kpi', 'inspector', 'tracker', 'lists'];
 
+export const BOTTOM_TABS: readonly BottomTabValue[] = ['tracker', 'deals', 'trips', 'warehouses'];
+
 const BOTTOM_TAB_LABEL_KEYS = {
-  lists: 'hud.lists.label',
+  deals: 'hud.lists.deals',
   tracker: 'hud.tracker.label',
-} as const satisfies Record<BottomTabValue, 'hud.lists.label' | 'hud.tracker.label'>;
+  trips: 'hud.lists.trips',
+  warehouses: 'hud.lists.warehouses',
+} as const satisfies Record<
+  BottomTabValue,
+  'hud.lists.deals' | 'hud.lists.trips' | 'hud.lists.warehouses' | 'hud.tracker.label'
+>;
+
+const SAME_SIZE_TOLERANCE_PX = 1;
+
+const BOTTOM_TAB_LIST_SELECTOR = '[data-testid="hud-bottom-tabs"] [role="tablist"]';
 
 const isInsideWindow = ({ height, width, x, y }: RectValue, windowSize: { height: number; width: number }): boolean => (
   x >= 0 && y >= 0 && x + width <= windowSize.width && y + height <= windowSize.height
@@ -58,10 +71,13 @@ export interface HudRobotValue {
   closeInspectorWithEscape: () => Promise<void>;
   expectBottomTabs: () => Promise<void>;
   expectBottomTabSelected: (tab: BottomTabValue) => Promise<void>;
+  expectBottomTabsInOneRow: () => Promise<void>;
+  expectBottomZoneStableAcrossTabs: () => Promise<void>;
   expectInspectorAbsent: () => Promise<void>;
   expectInspectorEmpty: () => Promise<void>;
   expectInspectorOpen: (route: ObjectRouteValue) => Promise<void>;
   expectInspectorSlidIn: () => Promise<void>;
+  expectKpiAndTrackerOfSameHeight: () => Promise<void>;
   expectNetworkZonesOnDesktop: () => Promise<void>;
   expectNoHorizontalScroll: () => Promise<void>;
   expectNoVerticalScroll: () => Promise<void>;
@@ -78,6 +94,8 @@ export interface HudRobotValue {
   openObjectInPlace: (route: ObjectRouteValue) => Promise<void>;
   preferTheme: (theme: HudThemeValue) => Promise<void>;
   pressArrowOnBottomTab: (key: 'ArrowLeft' | 'ArrowRight') => Promise<void>;
+  readInspectorHeight: () => Promise<number>;
+  selectBottomTab: (tab: BottomTabValue) => Promise<void>;
   toggleSheet: () => Promise<void>;
 }
 
@@ -132,18 +150,73 @@ export const createHudRobot = (page: Page, layout: TopBarLayoutValue): HudRobotV
     },
     async expectBottomTabs(): Promise<void> {
       await expect(bottomTabList).toBeVisible();
-      await expect(bottomTabList.getByRole('tab')).toHaveText([
-        getText('hud.tracker.label'),
-        getText('hud.lists.label'),
-      ]);
+      await expect(bottomTabList.getByRole('tab')).toHaveText(BOTTOM_TABS.map(tab => getText(BOTTOM_TAB_LABEL_KEYS[tab])));
+      await expect(getZone('lists').getByRole('tablist')).toHaveCount(1);
     },
     async expectBottomTabSelected(tab: BottomTabValue): Promise<void> {
-      const other: BottomTabValue = tab === 'lists' ? 'tracker' : 'lists';
+      for (const candidate of BOTTOM_TABS) {
+        await expect(getBottomTab(candidate)).toHaveAttribute('aria-selected', candidate === tab ? 'true' : 'false');
+      }
 
-      await expect(getBottomTab(tab)).toHaveAttribute('aria-selected', 'true');
-      await expect(getBottomTab(other)).toHaveAttribute('aria-selected', 'false');
-      await expectZoneShown(tab);
-      await expectZoneAbsent(other);
+      await expectZoneShown('lists');
+
+      if (tab === 'tracker') {
+        await expectZoneShown('tracker');
+      }
+      else {
+        await expectZoneAbsent('tracker');
+      }
+    },
+    async expectBottomTabsInOneRow(): Promise<void> {
+      await expect(bottomTabList).toBeVisible();
+
+      const listBox = await bottomTabList.boundingBox();
+
+      if (listBox === null) {
+        throw new Error('The bottom tab list has no box');
+      }
+
+      const overflow = await page.evaluate<null | number>(createReadHorizontalOverflowScript(BOTTOM_TAB_LIST_SELECTOR));
+
+      expect(overflow, 'the tab row does not scroll or clip').toBe(0);
+
+      let firstTop: number | undefined;
+
+      for (const tab of BOTTOM_TABS) {
+        const box = await getBottomTab(tab).boundingBox();
+
+        if (box === null) {
+          throw new Error(`The tab ${tab} has no box`);
+        }
+
+        firstTop ??= box.y;
+
+        expect(Math.abs(box.y - firstTop), `${tab} is in the same row`).toBeLessThanOrEqual(SAME_SIZE_TOLERANCE_PX);
+        expect(box.x, `${tab} starts inside the row`).toBeGreaterThanOrEqual(listBox.x - SAME_SIZE_TOLERANCE_PX);
+        expect(box.x + box.width, `${tab} ends inside the row`).toBeLessThanOrEqual(listBox.x + listBox.width + SAME_SIZE_TOLERANCE_PX);
+      }
+    },
+    async expectBottomZoneStableAcrossTabs(): Promise<void> {
+      const rects: { rect: RectValue; tab: BottomTabValue }[] = [];
+
+      for (const tab of BOTTOM_TABS) {
+        await getBottomTab(tab).click();
+        await expect(getBottomTab(tab)).toHaveAttribute('aria-selected', 'true');
+        await page.evaluate(SETTLE_FINITE_ANIMATIONS);
+        rects.push({ rect: await readRect('lists'), tab });
+      }
+
+      const [first] = rects;
+
+      if (first === undefined) {
+        throw new Error('No bottom tabs were measured');
+      }
+
+      for (const { rect, tab } of rects) {
+        expect(Math.abs(rect.height - first.rect.height), `${tab} zone height`).toBeLessThanOrEqual(SAME_SIZE_TOLERANCE_PX);
+        expect(Math.abs(rect.y - first.rect.y), `${tab} zone top`).toBeLessThanOrEqual(SAME_SIZE_TOLERANCE_PX);
+        expect(Math.abs(rect.width - first.rect.width), `${tab} zone width`).toBeLessThanOrEqual(SAME_SIZE_TOLERANCE_PX);
+      }
     },
     async expectInspectorAbsent(): Promise<void> {
       await expect(inspectorRoot).toHaveCount(0);
@@ -182,6 +255,12 @@ export const createHudRobot = (page: Page, layout: TopBarLayoutValue): HudRobotV
       expect(rect.width).toBeLessThanOrEqual(windowSize.width * 0.9);
       expect(rect.height).toBeGreaterThan(0);
       expect(isInsideWindow(rect, { height: windowSize.height, width: windowSize.width })).toBe(true);
+    },
+    async expectKpiAndTrackerOfSameHeight(): Promise<void> {
+      const kpi = await readRect('kpi');
+      const tracker = await readRect('tracker');
+
+      expect(Math.abs(kpi.height - tracker.height)).toBeLessThanOrEqual(SAME_SIZE_TOLERANCE_PX);
     },
     async expectNetworkZonesOnDesktop(): Promise<void> {
       for (const zone of NETWORK_ZONES) {
@@ -278,6 +357,13 @@ export const createHudRobot = (page: Page, layout: TopBarLayoutValue): HudRobotV
     },
     async pressArrowOnBottomTab(key: 'ArrowLeft' | 'ArrowRight'): Promise<void> {
       await page.keyboard.press(key);
+    },
+    async readInspectorHeight(): Promise<number> {
+      return (await readRect('inspector')).height;
+    },
+    async selectBottomTab(tab: BottomTabValue): Promise<void> {
+      await getBottomTab(tab).click();
+      await expect(getBottomTab(tab)).toHaveAttribute('aria-selected', 'true');
     },
     async toggleSheet(): Promise<void> {
       await sheetToggle.click();

@@ -38,6 +38,8 @@ const IDLE_STATE: ProfileMenuLaunchStateValue = { kind: 'idle' };
 
 const loadCachedProfileMenu = createCachedModuleLoader(loadProfileMenu);
 
+const LAUNCHER_CLASS_NAME = 'relative flex';
+
 const LOAD_ERROR_CLASS_NAME = [
   'absolute top-full right-0 z-20 mt-2 w-72 max-w-[calc(100vw-2rem)]',
   'rounded-control border border-line bg-panel-solid p-3 text-sm text-on-panel shadow-panel',
@@ -132,7 +134,7 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
     const { ProfileMenu, ProfileResetConfirmLayer } = launchState;
 
     return (
-      <div className="relative">
+      <div className={LAUNCHER_CLASS_NAME}>
         <ProfileMenu
           buttonRef={buttonRef}
           currentSection={currentSection}
@@ -148,7 +150,7 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
   }
 
   return (
-    <div className="relative">
+    <div className={LAUNCHER_CLASS_NAME}>
       <ProfileButton
         aria-expanded={false}
         busyReason={isLoading ? 'loadingMenu' : undefined}

@@ -11,6 +11,7 @@ import {
   getAddressSection,
   useAddress,
 } from '@/shared/routing';
+import { useDelayedVisibility } from '@/shared/ui';
 
 import type { SectionLoadersValue } from './sectionPages';
 
@@ -20,6 +21,7 @@ import { NoSectionsScreen } from './NoSectionsScreen';
 import { ReadyRoutes } from './ReadyRoutes';
 import { RouteFrame } from './RouteFrame';
 import { createSectionPages } from './sectionPages';
+import { getSkeletonZones } from './sectionSkeletonZones';
 import { SessionErrorScreen } from './SessionErrorScreen';
 import { SessionPendingScreen } from './SessionPendingScreen';
 
@@ -38,6 +40,8 @@ export const AppRoutes = ({ sectionLoaders }: AppRoutesProps): ReactElement => {
   const [sectionPages] = useState(() => createSectionPages(cachedLoaders));
 
   const isSessionLoading = availableSections.kind === 'loading';
+  const isSkeletonHeld = useDelayedVisibility(isSessionLoading);
+  const isSessionPending = isSessionLoading || isSkeletonHeld;
   const sectionToPrewarm = isSessionLoading && address !== undefined ? getAddressSection(address) : undefined;
 
   useEffect(() => {
@@ -51,6 +55,10 @@ export const AppRoutes = ({ sectionLoaders }: AppRoutesProps): ReactElement => {
       prewarmSection(sectionToPrewarm);
     }
   }, [cachedLoaders, sectionToPrewarm]);
+
+  if (isSessionPending) {
+    return <SessionPendingScreen zones={getSkeletonZones(address)} />;
+  }
 
   switch (availableSections.kind) {
     case 'empty':
@@ -69,8 +77,6 @@ export const AppRoutes = ({ sectionLoaders }: AppRoutesProps): ReactElement => {
           />
         </RouteFrame>
       );
-    case 'loading':
-      return <SessionPendingScreen />;
     case 'ready':
       return (
         <ReadyRoutes

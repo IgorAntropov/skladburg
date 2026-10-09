@@ -11,6 +11,7 @@ import type {
 } from '../fixtures/routes.ts';
 
 import { getText } from '../fixtures/messages.ts';
+import { createSetHashScript } from '../fixtures/pageScripts.ts';
 import {
   FIRST_SECTION,
   getSectionTitle,
@@ -52,6 +53,7 @@ export interface NavigationRobotValue {
   openObject: (route: ObjectRouteValue) => Promise<void>;
   openRoot: () => Promise<void>;
   openSection: (section: SectionValue) => Promise<void>;
+  openSectionInPlace: (section: SectionValue) => Promise<void>;
   reload: () => Promise<void>;
 }
 
@@ -137,6 +139,9 @@ export const createNavigationRobot = (page: Page): NavigationRobotValue => {
     },
     async openSection(section: SectionValue): Promise<void> {
       await page.goto(`/${toSectionHash(section)}`);
+    },
+    async openSectionInPlace(section: SectionValue): Promise<void> {
+      await page.evaluate(createSetHashScript(toSectionHash(section)));
     },
     async reload(): Promise<void> {
       await page.reload();

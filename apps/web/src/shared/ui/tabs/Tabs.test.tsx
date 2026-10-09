@@ -84,6 +84,19 @@ describe('Tabs', () => {
     expect(screen.getByRole('tab', { name: 'Trips' }).className).toContain('min-h-11');
   });
 
+  it('lights an inactive tab with the hover token and keeps no styles of nested tabs', () => {
+    render(<Tabs items={ITEMS} label={LIST_LABEL} />);
+    const classNames = [
+      screen.getByRole('tablist').className,
+      screen.getByRole('tab', { name: 'Trips' }).className,
+      screen.getByRole('tabpanel').className,
+    ].join(' ');
+
+    expect(classNames).toContain('data-[state=inactive]:hover:bg-hover');
+    expect(classNames).not.toContain('hover:bg-skeleton');
+    expect(classNames).not.toContain('in-[[role=tabpanel]]');
+  });
+
   it('moves the selection with the arrow keys', async () => {
     render(<Tabs items={ITEMS} label={LIST_LABEL} />);
     const firstTab = screen.getByRole('tab', { name: 'Deals 3' });

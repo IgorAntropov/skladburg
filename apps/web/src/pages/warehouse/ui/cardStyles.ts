@@ -2,6 +2,8 @@ export const ORGANIZATION_NAME_CLASS_NAME = 'text-lg font-semibold break-words';
 
 export const ORGANIZATION_LEGAL_NAME_CLASS_NAME = 'break-words';
 
+export const WAREHOUSE_CARD_CLASS_NAME = 'min-h-[5.375rem] justify-center';
+
 export const WAREHOUSE_NAME_CLASS_NAME = 'font-medium break-words';
 
 export const WAREHOUSE_ADDRESS_CLASS_NAME = 'break-words';

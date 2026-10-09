@@ -9,9 +9,9 @@ import {
 } from 'lucide-react';
 
 import type { ObjectRefValue } from '@/shared/routing';
+import type { TabsItemValue } from '@/shared/ui';
 
 import { useI18n } from '@/shared/i18n';
-import { Tabs } from '@/shared/ui';
 import {
   HudLayout,
   ScenePlaceholder,
@@ -28,28 +28,23 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
   const { t } = useI18n();
   const inspectorFocus = useInspectorFocus('network', focus);
 
-  const lists = (
-    <Tabs
-      items={[
-        {
-          content: <ZoneEmptyState icon={Handshake} text={t('hud.lists.empty.deals')} />,
-          id: 'deals',
-          label: t('hud.lists.deals'),
-        },
-        {
-          content: <ZoneEmptyState icon={Truck} text={t('hud.lists.empty.trips')} />,
-          id: 'trips',
-          label: t('hud.lists.trips'),
-        },
-        {
-          content: <ZoneEmptyState icon={Warehouse} text={t('hud.lists.empty.warehouses')} />,
-          id: 'warehouses',
-          label: t('hud.lists.warehouses'),
-        },
-      ]}
-      label={t('hud.lists.label')}
-    />
-  );
+  const listTabs: readonly TabsItemValue[] = [
+    {
+      content: <ZoneEmptyState icon={Handshake} text={t('hud.lists.empty.deals')} />,
+      id: 'deals',
+      label: t('hud.lists.deals'),
+    },
+    {
+      content: <ZoneEmptyState icon={Truck} text={t('hud.lists.empty.trips')} />,
+      id: 'trips',
+      label: t('hud.lists.trips'),
+    },
+    {
+      content: <ZoneEmptyState icon={Warehouse} text={t('hud.lists.empty.warehouses')} />,
+      id: 'warehouses',
+      label: t('hud.lists.warehouses'),
+    },
+  ];
 
   return (
     <>
@@ -58,7 +53,7 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
         {...inspectorFocus}
         inspector={<ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
         kpi={<ZoneEmptyState icon={ChartNoAxesColumn} text={t('hud.kpi.empty')} />}
-        lists={lists}
+        listTabs={listTabs}
         scene={<ScenePlaceholder label={t('section.network.placeholder')} />}
         tracker={<ZoneEmptyState icon={ListChecks} text={t('hud.tracker.empty')} />}
       />

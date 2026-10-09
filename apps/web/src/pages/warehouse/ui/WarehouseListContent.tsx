@@ -14,6 +14,7 @@ import { useWarehousesQuery } from '../api/useWarehousesQuery';
 import {
   WAREHOUSE_ADDRESS_CLASS_NAME,
   WAREHOUSE_ADDRESS_SKELETON_CLASS_NAME,
+  WAREHOUSE_CARD_CLASS_NAME,
   WAREHOUSE_NAME_CLASS_NAME,
   WAREHOUSE_NAME_SKELETON_CLASS_NAME,
 } from './cardStyles';
@@ -39,7 +40,7 @@ export const WarehouseListContent = (): ReactElement => {
   const skeleton = (
     <div className="flex flex-col gap-3">
       {SKELETON_ROW_IDS.map(rowId => (
-        <Card key={rowId}>
+        <Card className={WAREHOUSE_CARD_CLASS_NAME} key={rowId}>
           <Skeleton className={WAREHOUSE_NAME_SKELETON_CLASS_NAME} />
           <Skeleton className={WAREHOUSE_ADDRESS_SKELETON_CLASS_NAME} />
         </Card>
@@ -65,7 +66,7 @@ export const WarehouseListContent = (): ReactElement => {
 
             return (
               <li key={warehouse.id}>
-                <Card>
+                <Card className={WAREHOUSE_CARD_CLASS_NAME}>
                   <p className={WAREHOUSE_NAME_CLASS_NAME} translate="no">
                     {warehouse.name}
                   </p>

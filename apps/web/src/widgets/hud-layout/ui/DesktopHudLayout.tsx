@@ -5,24 +5,28 @@ import { cn } from '@/shared/lib/cn';
 
 import type { HudZonesProps } from '../lib/hudLayoutTypes';
 
+import { hasLists } from '../lib/hasLists';
 import { hasSlot } from '../lib/hasSlot';
+import {
+  HUD_DESKTOP_CENTER_COLUMN_CLASS_NAME,
+  HUD_DESKTOP_INSPECTOR_ZONE_CLASS_NAME,
+  HUD_DESKTOP_KPI_ZONE_CLASS_NAME,
+  HUD_DESKTOP_LISTS_ZONE_CLASS_NAME,
+  HUD_DESKTOP_OVERLAY_CLASS_NAME,
+  HUD_DESKTOP_PANEL_ZONE_CLASS_NAME,
+  HUD_DESKTOP_SIDE_COLUMN_CLASS_NAME,
+  HUD_DESKTOP_TRACKER_ZONE_CLASS_NAME,
+} from './hudStyles';
 import { HudZone } from './HudZone';
-
-const OVERLAY_CLASS_NAME = [
-  'pointer-events-none absolute inset-0 flex gap-4 pt-4',
-  'pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))]',
-].join(' ');
-
-const SIDE_COLUMN_CLASS_NAME = 'flex min-h-0 w-[clamp(18rem,24vw,24rem)] shrink-0 flex-col gap-4';
-
-const CENTER_COLUMN_CLASS_NAME = 'flex min-h-0 min-w-0 flex-1 items-start justify-center';
+import { ListsZoneContent } from './ListsZoneContent';
 
 const ZONE_CLASS_NAME = 'pointer-events-auto';
 
 export const DesktopHudLayout = ({
   inspector,
   kpi,
-  lists,
+  listsHeader,
+  listTabs,
   panel,
   tracker,
 }: HudZonesProps): ReactElement => {
@@ -30,22 +34,22 @@ export const DesktopHudLayout = ({
 
   const isKpiShown = hasSlot(kpi);
   const isTrackerShown = hasSlot(tracker);
-  const isListsShown = hasSlot(lists);
+  const isListsShown = hasLists({ listsHeader, listTabs });
   const isPanelShown = hasSlot(panel);
   const isLeftColumnShown = isKpiShown || isTrackerShown;
 
   return (
-    <div className={OVERLAY_CLASS_NAME}>
+    <div className={HUD_DESKTOP_OVERLAY_CLASS_NAME}>
       {isLeftColumnShown && (
-        <div className={SIDE_COLUMN_CLASS_NAME}>
+        <div className={HUD_DESKTOP_SIDE_COLUMN_CLASS_NAME}>
           {isKpiShown && (
-            <HudZone className={cn(ZONE_CLASS_NAME, 'max-h-[45%]')} label={t('hud.kpi.label')} testId="hud-zone-kpi">
+            <HudZone className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_KPI_ZONE_CLASS_NAME)} label={t('hud.kpi.label')} testId="hud-zone-kpi">
               {kpi}
             </HudZone>
           )}
           {isTrackerShown && (
             <HudZone
-              className={cn(ZONE_CLASS_NAME, 'mt-auto max-h-[45%]')}
+              className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_TRACKER_ZONE_CLASS_NAME)}
               label={t('hud.tracker.label')}
               testId="hud-zone-tracker"
             >
@@ -55,9 +59,9 @@ export const DesktopHudLayout = ({
         </div>
       )}
       {isPanelShown && (
-        <div className={CENTER_COLUMN_CLASS_NAME}>
+        <div className={HUD_DESKTOP_CENTER_COLUMN_CLASS_NAME}>
           <HudZone
-            className={cn(ZONE_CLASS_NAME, 'max-h-full w-full max-w-4xl')}
+            className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_PANEL_ZONE_CLASS_NAME)}
             label={t('hud.panel.label')}
             testId="hud-zone-panel"
           >
@@ -65,9 +69,9 @@ export const DesktopHudLayout = ({
           </HudZone>
         </div>
       )}
-      <div className={cn(SIDE_COLUMN_CLASS_NAME, 'ml-auto')}>
+      <div className={cn(HUD_DESKTOP_SIDE_COLUMN_CLASS_NAME, 'ml-auto')}>
         <HudZone
-          className={cn(ZONE_CLASS_NAME, 'max-h-[55%]')}
+          className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_INSPECTOR_ZONE_CLASS_NAME)}
           label={t('hud.inspector.title')}
           testId="hud-zone-inspector"
         >
@@ -75,11 +79,11 @@ export const DesktopHudLayout = ({
         </HudZone>
         {isListsShown && (
           <HudZone
-            className={cn(ZONE_CLASS_NAME, 'mt-auto max-h-[45%]')}
+            className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_LISTS_ZONE_CLASS_NAME)}
             label={t('hud.lists.label')}
             testId="hud-zone-lists"
           >
-            {lists}
+            <ListsZoneContent header={listsHeader} tabs={listTabs} />
           </HudZone>
         )}
       </div>

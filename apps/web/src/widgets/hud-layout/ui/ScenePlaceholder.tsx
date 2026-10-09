@@ -10,17 +10,17 @@ const ROOT_CLASS_NAME = 'relative flex size-full items-center justify-center ove
 
 const BOARD_CLASS_NAME = [
   'pointer-events-none absolute inset-0',
-  '[mask-image:radial-gradient(ellipse_at_center,black_20%,transparent_75%)]',
+  '[mask-image:radial-gradient(ellipse_at_center,transparent_0,black_70%)]',
 ].join(' ');
 
 const RISING_LINES_CLASS_NAME = [
   'absolute inset-0',
-  'bg-[repeating-linear-gradient(60deg,transparent_0_62px,var(--color-line)_63px,transparent_64px)]',
+  'bg-[repeating-linear-gradient(60deg,transparent_0_95px,color-mix(in_srgb,var(--color-line)_55%,transparent)_96px,transparent_97px)]',
 ].join(' ');
 
 const FALLING_LINES_CLASS_NAME = [
   'absolute inset-0',
-  'bg-[repeating-linear-gradient(120deg,transparent_0_62px,var(--color-line)_63px,transparent_64px)]',
+  'bg-[repeating-linear-gradient(120deg,transparent_0_95px,color-mix(in_srgb,var(--color-line)_55%,transparent)_96px,transparent_97px)]',
 ].join(' ');
 
 const LABEL_CLASS_NAME = [

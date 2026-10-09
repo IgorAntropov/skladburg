@@ -7,7 +7,7 @@ import type {
 import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
 
-import { HUD_EDGE_SURFACE_CLASS_NAME } from './hudStyles';
+import { HUD_EDGE_SURFACE_CLASS_NAME } from './edgeSurfaceStyles';
 
 interface InspectorDrawerProps {
   children: ReactNode;
@@ -19,7 +19,7 @@ const DRAWER_CLASS_NAME = cn(
   'absolute inset-y-0 right-0 z-20 flex min-h-0 w-[min(24rem,90%)] flex-col overflow-y-auto @container',
   'rounded-l-panel border-l',
   'pt-4 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-4',
-  'motion-safe:transition-[translate,opacity] motion-safe:duration-300 motion-safe:ease-[cubic-bezier(0.16,1,0.3,1)]',
+  'motion-safe:transition-[translate,opacity] motion-safe:duration-(--duration-panel) motion-safe:ease-out',
   'motion-safe:starting:translate-x-full motion-safe:starting:opacity-0',
 );
 

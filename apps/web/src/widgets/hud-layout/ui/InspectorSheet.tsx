@@ -18,7 +18,7 @@ import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
 import { Button } from '@/shared/ui';
 
-import { HUD_EDGE_SURFACE_CLASS_NAME } from './hudStyles';
+import { HUD_EDGE_SURFACE_CLASS_NAME } from './edgeSurfaceStyles';
 
 interface InspectorSheetProps {
   children: ReactNode;
@@ -28,7 +28,7 @@ const SHEET_CLASS_NAME = cn(
   HUD_EDGE_SURFACE_CLASS_NAME,
   'sticky bottom-0 z-30 mt-auto flex max-h-[70dvh] flex-col rounded-t-panel border-t',
   'pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]',
-  'motion-safe:transition-[translate,opacity] motion-safe:duration-300 motion-safe:ease-[cubic-bezier(0.16,1,0.3,1)]',
+  'motion-safe:transition-[translate,opacity] motion-safe:duration-(--duration-panel) motion-safe:ease-out',
   'motion-safe:starting:translate-y-6 motion-safe:starting:opacity-0',
 );
 

@@ -1,11 +1,14 @@
 import type { ReactNode } from 'react';
 
+import type { TabsItemValue } from '@/shared/ui';
+
 export interface HudLayoutProps {
   inspector: ReactNode;
   inspectorKey?: string | undefined;
   isInspectorOpen: boolean;
   kpi?: ReactNode | undefined;
-  lists?: ReactNode | undefined;
+  listsHeader?: ReactNode | undefined;
+  listTabs?: readonly TabsItemValue[] | undefined;
   onInspectorClose: () => void;
   panel?: ReactNode | undefined;
   scene: ReactNode;

@@ -10,12 +10,11 @@ import type {
 } from '../lib/hudLayoutTypes';
 
 import { DesktopHudLayout } from './DesktopHudLayout';
-import {
-  HUD_ROOT_CLASS_NAMES,
-  HUD_SCENE_CLASS_NAME,
-} from './hudStyles';
+import { HUD_ROOT_CLASS_NAMES } from './hudStyles';
 import { PhoneHudLayout } from './PhoneHudLayout';
 import { TabletHudLayout } from './TabletHudLayout';
+
+const SCENE_CLASS_NAME = 'absolute inset-0 -z-10';
 
 const ZONES_LAYOUTS: Readonly<Record<ViewportClassValue, (props: HudZonesProps) => ReactElement>> = {
   desktop: DesktopHudLayout,
@@ -30,7 +29,7 @@ export const HudLayout = ({ scene, ...zones }: HudLayoutProps): ReactElement => 
 
   return (
     <div className={HUD_ROOT_CLASS_NAMES[viewportClass]}>
-      <div className={HUD_SCENE_CLASS_NAME} data-testid="hud-zone-scene">{scene}</div>
+      <div className={SCENE_CLASS_NAME} data-testid="hud-zone-scene">{scene}</div>
       <ZonesLayout {...zones} />
     </div>
   );

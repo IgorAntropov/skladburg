@@ -924,3 +924,166 @@ describe('AppRoutes session states', () => {
     expect(APP_SECTIONS.filter(section => screen.queryByTestId(`page-${section}`) !== null)).toEqual([]);
   });
 });
+
+describe('AppRoutes session skeleton timing', () => {
+  const SKELETON_DELAY_MS = 250;
+  const SKELETON_MIN_VISIBLE_MS = 400;
+
+  const advance = async (ms: number): Promise<void> => {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  };
+
+  const isSkeletonShown = (): boolean => {
+    const skeleton = screen.queryByTestId('hud-layout-skeleton');
+
+    return skeleton !== null && !skeleton.classList.contains('invisible');
+  };
+
+  const renderWithFakeTimers = async (): Promise<RenderedRoutesValue> => {
+    stubIdleCallbacks();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+    return renderRoutes('/catalog', createStubLoaders(), { kind: 'loading' });
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('draws the page at once when the session answers before the skeleton delay', async () => {
+    const { setAvailableSections } = await renderWithFakeTimers();
+
+    await advance(100);
+
+    expect(isSkeletonShown()).toBe(false);
+
+    setAvailableSections(ALL_SECTIONS_VALUE);
+    await advance(0);
+
+    expect(screen.getByTestId('page-catalog')).toBeDefined();
+    expect(screen.queryByRole('main', { busy: true })).toBeNull();
+    expect(screen.queryByTestId('hud-layout-skeleton')).toBeNull();
+  });
+
+  it('holds the skeleton until it has been visible for the minimum time when the session answers after the delay', async () => {
+    const { setAvailableSections } = await renderWithFakeTimers();
+
+    await advance(SKELETON_DELAY_MS - 1);
+
+    expect(isSkeletonShown()).toBe(false);
+
+    await advance(1);
+
+    expect(isSkeletonShown()).toBe(true);
+
+    await advance(50);
+    setAvailableSections(ALL_SECTIONS_VALUE);
+    await advance(0);
+
+    expect(isSkeletonShown()).toBe(true);
+    expect(screen.queryByTestId('page-catalog')).toBeNull();
+
+    await advance(SKELETON_MIN_VISIBLE_MS - 51);
+
+    expect(isSkeletonShown()).toBe(true);
+    expect(screen.queryByTestId('page-catalog')).toBeNull();
+
+    await advance(1);
+
+    expect(screen.getByTestId('page-catalog')).toBeDefined();
+    expect(screen.queryByTestId('hud-layout-skeleton')).toBeNull();
+    expect(screen.queryByRole('main', { busy: true })).toBeNull();
+  });
+
+  it('keeps the same skeleton element while the hold lasts', async () => {
+    const { setAvailableSections } = await renderWithFakeTimers();
+
+    await advance(SKELETON_DELAY_MS + 50);
+
+    const skeleton = screen.getByTestId('hud-layout-skeleton');
+
+    setAvailableSections(ALL_SECTIONS_VALUE);
+    await advance(100);
+
+    expect(screen.getByTestId('hud-layout-skeleton')).toBe(skeleton);
+    expect(isSkeletonShown()).toBe(true);
+  });
+
+  it('draws the page at once when the session answers long after the skeleton appeared', async () => {
+    const { setAvailableSections } = await renderWithFakeTimers();
+
+    await advance(SKELETON_DELAY_MS);
+    await advance(1000 - SKELETON_DELAY_MS);
+
+    expect(isSkeletonShown()).toBe(true);
+
+    setAvailableSections(ALL_SECTIONS_VALUE);
+    await advance(0);
+
+    expect(screen.getByTestId('page-catalog')).toBeDefined();
+    expect(screen.queryByTestId('hud-layout-skeleton')).toBeNull();
+  });
+
+  it('warms the chunk of the section while the session loads and not again after the hold', async () => {
+    const { loaders, setAvailableSections } = await renderWithFakeTimers();
+
+    await advance(0);
+
+    expect(loaders.catalog).toHaveBeenCalledOnce();
+
+    await advance(SKELETON_DELAY_MS + 50);
+    setAvailableSections(ALL_SECTIONS_VALUE);
+    await advance(SKELETON_MIN_VISIBLE_MS);
+
+    expect(screen.getByTestId('page-catalog')).toBeDefined();
+    expect(loaders.catalog).toHaveBeenCalledOnce();
+  });
+
+  it('shows the error of the session only after the hold when it answers after the delay', async () => {
+    const { setAvailableSections } = await renderWithFakeTimers();
+
+    await advance(SKELETON_DELAY_MS + 50);
+    setAvailableSections({
+      error: new ConnectError('down', Code.Unavailable),
+      isRetrying: false,
+      kind: 'error',
+      onRetry: () => undefined,
+    });
+    await advance(0);
+
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    await advance(SKELETON_MIN_VISIBLE_MS);
+
+    expect(screen.getByRole('alert')).toBeDefined();
+  });
+});
+
+describe('AppRoutes session skeleton zones', () => {
+  const getDrawnFrames = (): readonly string[] => {
+    return [...screen.getByTestId('hud-layout-skeleton').querySelectorAll('[data-testid^="hud-skeleton-"]')]
+      .map(frame => frame.getAttribute('data-testid') ?? '');
+  };
+
+  it.each([
+    ['/network', ['hud-skeleton-kpi', 'hud-skeleton-tracker', 'hud-skeleton-inspector', 'hud-skeleton-lists']],
+    ['/warehouse', ['hud-skeleton-inspector', 'hud-skeleton-lists']],
+    ['/catalog', ['hud-skeleton-panel', 'hud-skeleton-inspector']],
+    ['/deals/order-1', ['hud-skeleton-panel', 'hud-skeleton-inspector']],
+  ] as const)('draws the frames of the section from the address %s while the session loads', async (path, frames) => {
+    stubIdleCallbacks();
+    await renderRoutes(path, createStubLoaders(), { kind: 'loading' });
+
+    expect(getDrawnFrames()).toEqual(frames);
+  });
+
+  it.each(['/', '/nope'])('draws only the scene without frames for the address %s while the session loads', async (path) => {
+    stubIdleCallbacks();
+    await renderRoutes(path, createStubLoaders(), { kind: 'loading' });
+
+    expect(getDrawnFrames()).toEqual([]);
+    expect(screen.getByRole('main', { busy: true })).toBeDefined();
+  });
+});

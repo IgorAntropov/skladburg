@@ -17,7 +17,7 @@ export interface ObjectInspectorProps {
 
 const ROOT_CLASS_NAME = 'flex flex-1 flex-col gap-3';
 
-const HEADER_CLASS_NAME = 'flex items-center justify-between gap-2';
+const HEADER_CLASS_NAME = 'flex min-h-9 items-center justify-between gap-2';
 
 const TITLE_CLASS_NAME = 'text-lg font-semibold tracking-tight';
 
@@ -30,14 +30,11 @@ const IDENTIFIER_CLASS_NAME = [
   'font-mono text-sm break-all',
 ].join(' ');
 
-const EMPTY_CLASS_NAME = [
-  'flex flex-1 flex-col items-center justify-center gap-3 py-2 text-center',
-  '@md:flex-row @md:justify-start @md:text-left',
-].join(' ');
+const EMPTY_CLASS_NAME = 'flex flex-1 flex-col items-center justify-center gap-3 text-center';
 
-const EMPTY_ICON_CLASS_NAME = 'flex size-10 shrink-0 items-center justify-center rounded-full bg-skeleton text-on-panel-muted';
+const EMPTY_ICON_CLASS_NAME = 'flex size-10 shrink-0 items-center justify-center rounded-full bg-hover text-on-panel-muted';
 
-const EMPTY_TEXT_CLASS_NAME = 'max-w-xs text-base text-on-panel-muted @md:max-w-none';
+const EMPTY_TEXT_CLASS_NAME = 'max-w-80 text-base text-pretty text-on-panel-muted @xl:max-w-none';
 
 export const ObjectInspector = ({ focus, onClose }: ObjectInspectorProps): ReactElement => {
   const { t } = useI18n();

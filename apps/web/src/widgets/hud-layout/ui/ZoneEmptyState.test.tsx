@@ -31,4 +31,21 @@ describe('ZoneEmptyState', () => {
     expect(iconWrapper?.getAttribute('aria-hidden')).toBe('true');
     expect(iconWrapper?.querySelector('svg')).not.toBeNull();
   });
+
+  it('stacks the icon above a centered phrase on every width', () => {
+    const { container } = render(<ZoneEmptyState icon={Truck} text="No trips yet" />);
+    const root = container.firstElementChild;
+
+    expect(root?.className).toContain('flex-col');
+    expect(root?.className).toContain('text-center');
+    expect(root?.className).not.toMatch(/@md:|flex-row/);
+  });
+
+  it('puts the icon on a quiet hover circle', () => {
+    const { container } = render(<ZoneEmptyState icon={Truck} text="No trips yet" />);
+    const circle = container.querySelector('span');
+
+    expect(circle?.className).toContain('bg-hover');
+    expect(circle?.className).not.toContain('bg-skeleton');
+  });
 });

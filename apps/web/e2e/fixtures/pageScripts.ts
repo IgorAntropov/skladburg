@@ -175,3 +175,66 @@ export const createReadContainsFocusScript = (selector: string): string => creat
   selector,
   'element.contains(document.activeElement)',
 );
+
+export const createDelayEngineRequestScript = (urlPart: string, delayMs: number): string => [
+  '(() => {',
+  'const originalPostMessage = Worker.prototype.postMessage;',
+  'Worker.prototype.postMessage = function (message, transfer) {',
+  'const isDelayed = message !== null && typeof message === "object" && message.type === "request"',
+  `&& typeof message.url === "string" && message.url.includes(${JSON.stringify(urlPart)});`,
+  'if (isDelayed) {',
+  'const worker = this;',
+  `setTimeout(() => { originalPostMessage.call(worker, message, transfer); }, ${JSON.stringify(delayMs)});`,
+  'return;',
+  '}',
+  'return originalPostMessage.call(this, message, transfer);',
+  '};',
+  '})()',
+].join(' ');
+
+export const INSTALL_SKELETON_RECORDER = [
+  '(() => {',
+  'let labels = {};',
+  'let pageShownAt = null;',
+  'const readLabel = (skeleton) => {',
+  'const group = skeleton.closest("[role=status]");',
+  'return group === null ? "" : (group.getAttribute("aria-label") ?? "");',
+  '};',
+  'const sample = () => {',
+  'const now = performance.now();',
+  'const current = new Map();',
+  'for (const skeleton of document.querySelectorAll("[data-testid=hud-layout-skeleton]")) {',
+  'current.set(readLabel(skeleton), getComputedStyle(skeleton).visibility);',
+  '}',
+  'for (const [label, visibility] of current) {',
+  'if (labels[label] === undefined) {',
+  'labels[label] = { firstSeenAt: now, firstSeenVisibility: visibility, visibleEndedAt: null, visibleStartedAt: null };',
+  '}',
+  'if (visibility === "visible" && labels[label].visibleStartedAt === null) { labels[label].visibleStartedAt = now; }',
+  '}',
+  'for (const [label, entry] of Object.entries(labels)) {',
+  'const isVisible = current.get(label) === "visible";',
+  'if (!isVisible && entry.visibleStartedAt !== null && entry.visibleEndedAt === null) { entry.visibleEndedAt = now; }',
+  '}',
+  'if (pageShownAt === null && document.querySelector("[data-testid=hud-zone-scene]") !== null) { pageShownAt = now; }',
+  '};',
+  'new MutationObserver(sample).observe(document, { attributeFilter: ["class"], attributes: true, childList: true, subtree: true });',
+  'window.skeletonRecorder = {',
+  'read: () => ({ labels: JSON.parse(JSON.stringify(labels)), pageShownAt }),',
+  'reset: () => { labels = {}; pageShownAt = null; },',
+  '};',
+  '})()',
+].join(' ');
+
+export const READ_SKELETON_RECORD = '(() => window.skeletonRecorder.read())()';
+
+export const RESET_SKELETON_RECORD = '(() => { window.skeletonRecorder.reset(); })()';
+
+export const createReadHorizontalOverflowScript = (selector: string): string => createReadElementScript(
+  selector,
+  'element.scrollWidth - element.clientWidth',
+);
+
+export const createReadHeightsScript = (selector: string): string => (
+  `(() => [...document.querySelectorAll(${JSON.stringify(selector)})].map((element) => element.getBoundingClientRect().height))()`
+);

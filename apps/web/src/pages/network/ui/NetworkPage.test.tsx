@@ -170,6 +170,42 @@ describe('NetworkPage', () => {
       expect(within(screen.getByTestId('hud-zone-inspector')).getByText(OBJECT_ID)).toBeDefined();
     });
 
+    it('puts the tracker and the lists into one flat row of four tabs', () => {
+      renderPage(undefined);
+
+      const tablist = screen.getByRole('tablist');
+
+      expect(screen.getAllByRole('tablist')).toHaveLength(1);
+      expect(tablist.getAttribute('aria-label')).toBe(catalog['hud.bottom.label']);
+      expect(within(tablist).getAllByRole('tab').map(tab => tab.textContent)).toEqual([
+        catalog['hud.tracker.label'],
+        catalog['hud.lists.deals'],
+        catalog['hud.lists.trips'],
+        catalog['hud.lists.warehouses'],
+      ]);
+      expect(screen.getByTestId('hud-bottom-tabs').contains(tablist)).toBe(true);
+    });
+
+    it('opens on the tracker and shows its honest empty state', () => {
+      renderPage(undefined);
+
+      expect(within(screen.getByTestId('hud-zone-tracker')).getByText(catalog['hud.tracker.empty'])).toBeDefined();
+      expect(screen.getByRole('tab', { name: catalog['hud.tracker.label'] }).getAttribute('aria-selected')).toBe('true');
+    });
+
+    it.each([
+      ['deals', 'hud.lists.empty.deals'],
+      ['trips', 'hud.lists.empty.trips'],
+      ['warehouses', 'hud.lists.empty.warehouses'],
+    ] as const)('shows the empty state of the %s tab inside the lists zone', (tab, emptyKey) => {
+      renderPage(undefined);
+
+      fireEvent.mouseDown(screen.getByRole('tab', { name: catalog[`hud.lists.${tab}`] }));
+
+      expect(within(screen.getByTestId('hud-zone-lists')).getByText(catalog[emptyKey])).toBeDefined();
+      expect(screen.queryByText(catalog['hud.tracker.empty'])).toBeNull();
+    });
+
     it('closes the inspector into the section on Escape', () => {
       const location = renderPage({ id: OBJECT_ID, type: 'trip' });
 

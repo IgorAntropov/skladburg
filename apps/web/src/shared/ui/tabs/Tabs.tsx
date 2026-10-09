@@ -28,32 +28,23 @@ export interface TabsProps {
 
 const ROOT_CLASS_NAME = 'flex min-h-0 flex-1 flex-col';
 
-const LIST_CLASS_NAME = [
-  'flex shrink-0 gap-1 overflow-x-auto border-b border-line',
-  'in-[[role=tabpanel]]:gap-2 in-[[role=tabpanel]]:border-b-0 in-[[role=tabpanel]]:pb-2',
-].join(' ');
+const LIST_CLASS_NAME = 'flex shrink-0 gap-1 overflow-x-auto border-b border-line';
 
 const TRIGGER_CLASS_NAME = [
-  'group/tab relative inline-flex min-h-11 min-w-11 cursor-pointer touch-manipulation items-center justify-center gap-2',
+  'relative inline-flex min-h-11 min-w-11 cursor-pointer touch-manipulation items-center justify-center gap-2',
   'rounded-t-control px-3 text-base font-medium whitespace-nowrap text-on-panel-muted select-none',
   'motion-safe:transition-[background-color,color]',
-  'data-[state=inactive]:hover:bg-skeleton data-[state=inactive]:hover:text-on-panel',
+  'data-[state=inactive]:hover:bg-hover data-[state=inactive]:hover:text-on-panel',
   'data-[state=active]:font-semibold data-[state=active]:text-on-panel',
   'after:absolute after:inset-x-2 after:bottom-0 after:h-[3px] after:rounded-t-full',
   'data-[state=active]:after:bg-indicator',
   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
-  'in-[[role=tabpanel]]:rounded-full in-[[role=tabpanel]]:px-4 in-[[role=tabpanel]]:after:hidden',
-  'in-[[role=tabpanel]]:data-[state=active]:bg-indicator in-[[role=tabpanel]]:data-[state=active]:text-panel-solid',
 ].join(' ');
 
-const COUNT_CLASS_NAME = [
-  'inline-block min-w-6 rounded-full bg-skeleton px-2 text-center text-sm text-on-panel tabular-nums',
-  'in-[[role=tabpanel]]:group-data-[state=active]/tab:bg-panel-solid',
-].join(' ');
+const COUNT_CLASS_NAME = 'inline-block min-w-6 rounded-full bg-skeleton px-2 text-center text-sm text-on-panel tabular-nums';
 
 const CONTENT_CLASS_NAME = [
   'flex min-h-0 flex-1 flex-col overflow-y-auto rounded-control p-3',
-  'in-[[role=tabpanel]]:p-0 in-[[role=tabpanel]]:pt-1',
   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
 ].join(' ');
 

@@ -16,7 +16,10 @@ import {
   WAREHOUSE_ROUTE,
 } from './fixtures/routes.ts';
 import { VIEWPORT_SCENARIOS } from './fixtures/viewports.ts';
-import { createHudRobot } from './robots/hud-robot.ts';
+import {
+  BOTTOM_TABS,
+  createHudRobot,
+} from './robots/hud-robot.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';
 import { createPersonaChunkRobot } from './robots/persona-chunk-robot.ts';
 import { createPersonaRobot } from './robots/persona-robot.ts';
@@ -66,6 +69,16 @@ for (const viewport of VIEWPORT_SCENARIOS) {
           await hud.expectZonesApartInsideWindow();
           await hud.expectNoVerticalScroll();
           await hud.expectNoHorizontalScroll();
+        });
+
+        test('shows the indicators and the tracker of the same height', async ({ page }) => {
+          const navigation = createNavigationRobot(page);
+          const hud = createHudRobot(page, viewport.layout);
+
+          await navigation.openSection('network');
+          await hud.expectNetworkZonesOnDesktop();
+
+          await hud.expectKpiAndTrackerOfSameHeight();
         });
 
         test('keeps the inspector in the empty state while no object is open', async ({ page }) => {
@@ -173,7 +186,30 @@ for (const viewport of VIEWPORT_SCENARIOS) {
           await hud.expectInspectorAbsent();
         });
 
-        test('switches the bottom tabs between the tracker and the lists with the arrow keys', async ({ page }) => {
+        test('shows one row of four tabs in the bottom zone without nested tabs, wrapping or clipping', async ({ page }) => {
+          const navigation = createNavigationRobot(page);
+          const hud = createHudRobot(page, viewport.layout);
+
+          await navigation.openSection('network');
+
+          await hud.expectBottomTabs();
+          await hud.expectBottomTabSelected('tracker');
+          await hud.expectBottomTabsInOneRow();
+          await hud.expectNoHorizontalScroll();
+        });
+
+        test('keeps the height and the top of the bottom zone on every tab', async ({ page }) => {
+          const navigation = createNavigationRobot(page);
+          const hud = createHudRobot(page, viewport.layout);
+
+          await navigation.openSection('network');
+          await hud.expectBottomTabs();
+
+          await hud.expectBottomZoneStableAcrossTabs();
+          await hud.expectNoHorizontalScroll();
+        });
+
+        test('walks over the four bottom tabs with the arrow keys and wraps around', async ({ page }) => {
           const navigation = createNavigationRobot(page);
           const hud = createHudRobot(page, viewport.layout);
 
@@ -182,13 +218,31 @@ for (const viewport of VIEWPORT_SCENARIOS) {
           await hud.expectBottomTabSelected('tracker');
 
           await hud.focusBottomTab('tracker');
-          await hud.pressArrowOnBottomTab('ArrowRight');
 
-          await hud.expectBottomTabSelected('lists');
+          for (const tab of BOTTOM_TABS.slice(1)) {
+            await hud.pressArrowOnBottomTab('ArrowRight');
+            await hud.expectBottomTabSelected(tab);
+          }
+
+          await hud.pressArrowOnBottomTab('ArrowRight');
+          await hud.expectBottomTabSelected('tracker');
 
           await hud.pressArrowOnBottomTab('ArrowLeft');
+          await hud.expectBottomTabSelected('warehouses');
 
-          await hud.expectBottomTabSelected('tracker');
+          await hud.pressArrowOnBottomTab('ArrowLeft');
+          await hud.expectBottomTabSelected('trips');
+        });
+
+        test('shows the lists of the warehouse page in one zone without the tracker tab', async ({ page }) => {
+          const navigation = createNavigationRobot(page);
+          const hud = createHudRobot(page, viewport.layout);
+
+          await navigation.openSection('warehouse');
+
+          await hud.expectZoneShown('lists');
+          await hud.expectZoneAbsent('tracker');
+          await hud.expectNoHorizontalScroll();
         });
       });
     }
@@ -267,6 +321,44 @@ for (const viewport of VIEWPORT_SCENARIOS) {
         await warehouse.expectEngineData();
         await warehouse.expectWarehousesTab(WAREHOUSE_NAMES.length);
         await hud.expectNoHorizontalScroll();
+      });
+
+      test('draws the skeleton of a warehouse card as high as the loaded card', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const warehouse = createWarehouseRobot(page);
+
+        await warehouse.delayWarehouses(1500);
+        await navigation.openSection('warehouse');
+
+        await warehouse.expectSkeletonCardsOfLoadedCardHeight();
+      });
+
+      test('marks the scrolling list of the warehouses with the scroll shadow', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const warehouse = createWarehouseRobot(page);
+
+        await navigation.openSection('warehouse');
+        await warehouse.expectEngineData();
+
+        await warehouse.expectScrollIndicator();
+
+        if (isDesktop) {
+          await warehouse.expectListScrollable();
+        }
+      });
+
+      test('gives the list of the warehouses one focus stop that scrolls it', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const warehouse = createWarehouseRobot(page);
+
+        await navigation.openSection('warehouse');
+        await warehouse.expectEngineData();
+
+        if (isDesktop) {
+          await warehouse.expectListScrollable();
+        }
+
+        await warehouse.expectOneFocusStopInList();
       });
     });
 
@@ -455,6 +547,23 @@ for (const viewport of VIEWPORT_SCENARIOS) {
             await hud.expectNoViolationsOfAccessibility();
           });
 
+          if (isDesktop) {
+            test('has no violations of WCAG 2.1 A and AA in the warehouse while the tab panel of the list scrolls', async ({ page }) => {
+              const navigation = createNavigationRobot(page);
+              const topBar = createTopBarRobot(page, viewport.layout);
+              const warehouse = createWarehouseRobot(page);
+              const hud = createHudRobot(page, viewport.layout);
+
+              await navigation.openSection('warehouse');
+              await warehouse.expectEngineData();
+              await warehouse.expectListScrollable();
+              await warehouse.expectScrollIndicator();
+              await topBar.expectDocumentTheme(theme);
+
+              await hud.expectNoViolationsOfAccessibility();
+            });
+          }
+
           test('has no violations of WCAG 2.1 A and AA in the warehouse with an open object', async ({ page }) => {
             const navigation = createNavigationRobot(page);
             const topBar = createTopBarRobot(page, viewport.layout);
@@ -482,20 +591,21 @@ for (const viewport of VIEWPORT_SCENARIOS) {
           });
 
           if (isTablet) {
-            test('has no violations of WCAG 2.1 A and AA with the lists tab of the bottom zone', async ({ page }) => {
-              const navigation = createNavigationRobot(page);
-              const topBar = createTopBarRobot(page, viewport.layout);
-              const hud = createHudRobot(page, viewport.layout);
+            for (const tab of BOTTOM_TABS) {
+              test(`has no violations of WCAG 2.1 A and AA with the tab ${tab} of the bottom zone`, async ({ page }) => {
+                const navigation = createNavigationRobot(page);
+                const topBar = createTopBarRobot(page, viewport.layout);
+                const hud = createHudRobot(page, viewport.layout);
 
-              await navigation.openSection('network');
-              await hud.expectBottomTabSelected('tracker');
-              await hud.focusBottomTab('tracker');
-              await hud.pressArrowOnBottomTab('ArrowRight');
-              await hud.expectBottomTabSelected('lists');
-              await topBar.expectDocumentTheme(theme);
+                await navigation.openSection('network');
+                await hud.expectBottomTabSelected('tracker');
+                await hud.selectBottomTab(tab);
+                await hud.expectBottomTabSelected(tab);
+                await topBar.expectDocumentTheme(theme);
 
-              await hud.expectNoViolationsOfAccessibility();
-            });
+                await hud.expectNoViolationsOfAccessibility();
+              });
+            }
           }
 
           if (isPhone) {

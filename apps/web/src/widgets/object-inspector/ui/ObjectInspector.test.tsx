@@ -43,6 +43,17 @@ describe('ObjectInspector', () => {
       expect(screen.getByText(defaultLocaleCatalog['hud.inspector.empty'])).toBeDefined();
     });
 
+    it('draws the empty state as a quiet circle above a centered phrase', () => {
+      renderInspector(undefined);
+      const phrase = screen.getByText(defaultLocaleCatalog['hud.inspector.empty']);
+      const root = phrase.parentElement;
+
+      expect(root?.className).toContain('flex-col');
+      expect(root?.className).toContain('text-center');
+      expect(root?.className).not.toContain('flex-row');
+      expect(root?.querySelector('span')?.className).toContain('bg-hover');
+    });
+
     it('has no close button and never asks to close', () => {
       const onClose = renderInspector(undefined);
 

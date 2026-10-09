@@ -196,6 +196,31 @@ describe('ProfileMenuLauncher', () => {
       expect(loadProfileMenu).not.toHaveBeenCalled();
     });
 
+    it('keeps the button in a positioned flex container before and after the menu loads, with the failure notice inside it', async () => {
+      const { loadProfileMenu } = await renderLauncher({ rejectedLoadCount: 1 });
+      await waitForReadyButton();
+
+      const container = getButton().parentElement;
+
+      expect(container?.classList.contains('relative')).toBe(true);
+      expect(container?.classList.contains('flex')).toBe(true);
+
+      fireEvent.click(getButton());
+
+      const alert = await screen.findByRole('alert');
+
+      expect(alert.parentElement).toBe(container);
+
+      fireEvent.click(getButton());
+      await screen.findByRole('menu', { name: MENU_NAME });
+
+      const readyContainer = getButton().parentElement;
+
+      expect(readyContainer?.classList.contains('relative')).toBe(true);
+      expect(readyContainer?.classList.contains('flex')).toBe(true);
+      expect(loadProfileMenu).toHaveBeenCalledTimes(2);
+    });
+
     it('warms the menu up on hover and on focus and loads it once', async () => {
       const { loadProfileMenu } = await renderLauncher();
 

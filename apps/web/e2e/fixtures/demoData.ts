@@ -145,3 +145,5 @@ export const ORGANIZATION_NAME = DEFAULT_PERSONA.organizationName;
 export const WAREHOUSE_NAMES = ['Склад 1', 'Склад 2', 'Склад 3'] as const;
 
 export const STOREKEEPER_WAREHOUSE_NAMES = ['Склад 1'] as const;
+
+export const SEED_WORLD_START_MS = Date.UTC(2026, 9, 12, 6, 0, 0);

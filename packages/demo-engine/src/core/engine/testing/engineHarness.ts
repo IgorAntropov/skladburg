@@ -10,6 +10,7 @@ import {
 } from '@connectrpc/connect';
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { AccessService } from '@skladburg/contracts/access/v1/access';
+import { ClockService } from '@skladburg/contracts/clock/v1/clock';
 import {
   type CreateWarehouseRequest,
   CreateWarehouseRequestSchema,
@@ -46,6 +47,7 @@ export const WORLD_REAL_TIME_START_MS = 1_000_000;
 
 export interface EngineCallerValue {
   access: Client<typeof AccessService>;
+  clock: Client<typeof ClockService>;
   options: (userId: string | undefined, organizationId?: string) => CallOptions;
   organization: Client<typeof OrganizationService>;
 }
@@ -176,6 +178,7 @@ export const createEngineCaller = (engine: IDemoEngine, useBinaryFormat = true):
 
   return {
     access: createClient(AccessService, transport),
+    clock: createClient(ClockService, transport),
     options: callAs,
     organization: createClient(OrganizationService, transport),
   };

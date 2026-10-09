@@ -11,17 +11,20 @@ import { Panel } from '@/shared/ui';
 import { ProductMark } from './ProductMark';
 import { SearchField } from './SearchField';
 import { SectionNav } from './SectionNav';
+import { WorldClock } from './WorldClock';
 
 const PANEL_CLASS_NAME = [
   'relative z-20 rounded-none border-x-0 border-t-0',
   'pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]',
 ].join(' ');
 
-const ROW_CLASS_NAME = 'flex min-h-15 flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 sm:flex-nowrap lg:gap-x-4';
+const ROW_CLASS_NAME = 'flex min-h-15 flex-wrap items-center gap-x-2 gap-y-2 px-4 py-2 sm:flex-nowrap sm:gap-x-3 lg:gap-x-4';
 
 const PRODUCT_CLASS_NAME = 'flex shrink-0 items-center gap-2.5';
 
-const PRODUCT_NAME_CLASS_NAME = 'text-lg font-bold tracking-tight';
+const PRODUCT_NAME_CLASS_NAME = 'text-lg font-bold tracking-tight max-[359px]:sr-only';
+
+const TRAILING_GROUP_CLASS_NAME = 'flex shrink-0 items-center gap-2 sm:ml-auto sm:gap-3';
 
 export interface TopBarProps {
   currentSection: AppSectionValue | undefined;
@@ -43,8 +46,8 @@ export const TopBar = ({ currentSection, profileMenu, sections }: TopBarProps): 
         </div>
         <SectionNav currentSection={currentSection} sections={sections} />
         <SearchField />
-        <div className="contents" data-testid="top-bar-clock-slot" />
-        <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
+        <div className={TRAILING_GROUP_CLASS_NAME}>
+          <WorldClock />
           {profileMenu}
         </div>
       </div>

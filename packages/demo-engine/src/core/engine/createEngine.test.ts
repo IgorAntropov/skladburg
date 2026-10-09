@@ -1,4 +1,5 @@
 import type { CallOptions } from '@connectrpc/connect';
+import type { GetWorldClockResponse } from '@skladburg/contracts/clock/v1/clock';
 import type { Event } from '@skladburg/contracts/event/v1/event';
 
 import {
@@ -84,6 +85,9 @@ const failInvalidWarehouse = (caller: EngineCallerValue, key: string): Promise<C
 
 const readOccurredAtMs = (event: Event | undefined): number | undefined =>
   event?.occurredAt === undefined ? undefined : timestampMs(event.occurredAt);
+
+const readWorldMs = (response: GetWorldClockResponse): number =>
+  response.worldTime === undefined ? Number.NaN : timestampMs(response.worldTime);
 
 const buyerOptions = (caller: EngineCallerValue): CallOptions =>
   caller.options(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
@@ -1250,6 +1254,54 @@ describe('determinism', () => {
     expect(after.getClockSnapshot().worldTimeMs).toBe(DEFAULT_ENGINE_SEED.worldStartMs + 10_000);
     realTime.advance(500);
     expect(after.getClockSnapshot().worldTimeMs).toBe(DEFAULT_ENGINE_SEED.worldStartMs + 10_500);
+  });
+});
+
+describe('world clock', () => {
+  it('serves the world time and the scale of the engine clock', async () => {
+    const { engine } = await createTestEngine();
+    const caller = createEngineCaller(engine);
+
+    const response = await caller.clock.getWorldClock({}, buyerOptions(caller));
+
+    expect(response.timeScale).toBe(1);
+    expect(readWorldMs(response)).toBe(DEFAULT_ENGINE_SEED.worldStartMs);
+  });
+
+  it('moves the served time with the real time and the stored scale', async () => {
+    const snapshot = createSeedSnapshot();
+    const storage = createSpyStorage({ ...snapshot, meta: { ...snapshot.meta, timeScale: 60 } });
+    const { engine, realTime } = await createTestEngine({ storage });
+    const caller = createEngineCaller(engine);
+
+    realTime.advance(2_000);
+    const response = await caller.clock.getWorldClock({}, buyerOptions(caller));
+
+    expect(response.timeScale).toBe(60);
+    expect(readWorldMs(response)).toBe(DEFAULT_ENGINE_SEED.worldStartMs + 120_000);
+  });
+
+  it('serves the seed time again after a reset', async () => {
+    const { engine, realTime } = await createTestEngine();
+    const caller = createEngineCaller(engine);
+    realTime.advance(30_000);
+    await engine.tick();
+
+    const before = await caller.clock.getWorldClock({}, buyerOptions(caller));
+    await engine.reset('epoch-2');
+    const after = await caller.clock.getWorldClock({}, buyerOptions(caller));
+
+    expect(readWorldMs(before)).toBe(DEFAULT_ENGINE_SEED.worldStartMs + 30_000);
+    expect(readWorldMs(after)).toBe(DEFAULT_ENGINE_SEED.worldStartMs);
+  });
+
+  it('rejects a call without a session', async () => {
+    const { engine } = await createTestEngine();
+    const caller = createEngineCaller(engine);
+
+    const error = await captureError(caller.clock.getWorldClock({}, caller.options(undefined)));
+
+    expect(readErrorDetail(error).code).toBe(ErrorCode.SESSION_REQUIRED);
   });
 });
 

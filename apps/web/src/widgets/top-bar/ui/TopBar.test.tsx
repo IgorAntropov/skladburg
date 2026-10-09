@@ -1,11 +1,16 @@
 import type { ReactElement } from 'react';
 
 import {
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query';
+import {
   act,
   cleanup,
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from '@testing-library/react';
 import { defaultLocaleCatalog } from 'virtual:build-profile';
@@ -21,11 +26,14 @@ import type { IFakeViewport } from '@/shared/lib/viewport/index.testing';
 import type { AppSectionValue } from '@/shared/routing';
 import type { IMemoryLocation } from '@/shared/routing/index.testing';
 
+import { createTestRuntime } from '@/shared/api/index.testing';
 import { installFakeViewport } from '@/shared/lib/viewport/index.testing';
 import {
   APP_SECTIONS,
   SECTION_TITLE_KEYS,
 } from '@/shared/routing';
+
+import { createWorldClockRoutes } from '../lib/testing/worldClockHarness';
 
 const BRAND_NAME = 'Северный склад';
 const PRODUCT_NAME = defaultLocaleCatalog['app.productName'];
@@ -58,12 +66,14 @@ const renderTopBar = async ({
   installedViewport = viewport;
 
   const [
+    { ApiRuntimeProvider },
     { createLocalizer, LocalizerProvider },
     { RoutingProvider },
     { createMemoryLocation },
     { TenantSettingsProvider },
     { TopBar },
   ] = await Promise.all([
+    import('@/shared/api'),
     import('@/shared/i18n'),
     import('@/shared/routing'),
     import('@/shared/routing/index.testing'),
@@ -91,15 +101,26 @@ const renderTopBar = async ({
     ? <div data-testid={PROFILE_NODE_TEST_ID}>{PROFILE_NODE_TEXT}</div>
     : undefined;
 
+  const runtime = createTestRuntime({ routes: createWorldClockRoutes().routes });
+  const queryClient = new QueryClient({ defaultOptions: { queries: { networkMode: 'always', retry: false } } });
+
   render(
     <RoutingProvider location={location}>
       <LocalizerProvider localizer={localizer}>
-        <TenantSettingsProvider tenantSettings={tenantSettings}>
-          <TopBar currentSection={shownSection} profileMenu={profileMenu} sections={sections} />
-        </TenantSettingsProvider>
+        <ApiRuntimeProvider runtime={runtime}>
+          <QueryClientProvider client={queryClient}>
+            <TenantSettingsProvider tenantSettings={tenantSettings}>
+              <TopBar currentSection={shownSection} profileMenu={profileMenu} sections={sections} />
+            </TenantSettingsProvider>
+          </QueryClientProvider>
+        </ApiRuntimeProvider>
       </LocalizerProvider>
     </RoutingProvider>,
   );
+
+  await waitFor(() => {
+    expect(screen.getByTestId('top-bar-clock-slot').querySelector('time')).not.toBeNull();
+  });
 
   return { location, viewport };
 };
@@ -204,13 +225,47 @@ describe('TopBar', () => {
       expect(getNavigation().className).toContain('sm:flex');
     });
 
-    it('reserves an empty place for the clock without any size', async () => {
+    it.each(VIEWPORT_CLASSES)('shows the clock of the world with a time on a %s', async (viewportClass) => {
+      await renderTopBar({ viewportClass });
+
+      const clock = screen.getByRole('group', { name: defaultLocaleCatalog['clock.label'] });
+
+      expect(clock).toBe(screen.getByTestId('top-bar-clock-slot'));
+      expect(clock.querySelector('time')?.textContent).toMatch(/^\d{2}:\d{2}$/);
+      expect(clock.className).not.toContain('hidden');
+    });
+
+    it('keeps the clock from shrinking and from wrapping', async () => {
       await renderTopBar();
 
-      const slot = screen.getByTestId('top-bar-clock-slot');
+      const clock = screen.getByTestId('top-bar-clock-slot');
 
-      expect(slot.childNodes).toHaveLength(0);
-      expect(slot.className).toBe('contents');
+      expect(clock.className).toContain('shrink-0');
+      expect(clock.className).toContain('whitespace-nowrap');
+      expect(clock.querySelector('time')?.className).toContain('tabular-nums');
+    });
+
+    it('puts the clock between the search field and the profile menu', async () => {
+      await renderTopBar();
+
+      const clock = screen.getByTestId('top-bar-clock-slot');
+      const searchField = screen.getByRole('searchbox', { name: defaultLocaleCatalog['search.label'] });
+      const profileNode = screen.getByTestId(PROFILE_NODE_TEST_ID);
+
+      expect(searchField.compareDocumentPosition(clock) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(clock.compareDocumentPosition(profileNode) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it.each(VIEWPORT_CLASSES)('keeps the clock next to the profile menu in one group pushed to the end on a %s', async (viewportClass) => {
+      await renderTopBar({ viewportClass });
+
+      const clock = screen.getByTestId('top-bar-clock-slot');
+      const profileNode = screen.getByTestId(PROFILE_NODE_TEST_ID);
+      const trailingGroup = clock.parentElement;
+
+      expect(profileNode.parentElement).toBe(trailingGroup);
+      expect(clock.nextElementSibling).toBe(profileNode);
+      expect(trailingGroup?.className).toContain('sm:ml-auto');
     });
 
     it('has the search field', async () => {

@@ -9,6 +9,7 @@ import {
 } from '@connectrpc/connect';
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { AccessService } from '@skladburg/contracts/access/v1/access';
+import { ClockService } from '@skladburg/contracts/clock/v1/clock';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import {
@@ -49,6 +50,7 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
   };
   const handler = createEngineHandler({
     accessService: { getSession, listPermissions: unused, listRoles: unused },
+    clockService: { getWorldClock: unused },
     errors,
     organizationService: {
       createWarehouse: unused,
@@ -165,7 +167,7 @@ describe('engine router', () => {
     expect(response.status).toBe(404);
   });
 
-  it('serves the paths of both registered services', async () => {
+  it('serves the paths of all registered services', async () => {
     const { engine } = await createTestEngine();
     const bodyFor = (service: string, method: string): Promise<Response> => engine.handle(
       new Request(`${ENGINE_BASE_URL}/${service}/${method}`, {
@@ -176,9 +178,11 @@ describe('engine router', () => {
     );
 
     const access = await bodyFor(AccessService.typeName, AccessService.method.getSession.name);
+    const clock = await bodyFor(ClockService.typeName, ClockService.method.getWorldClock.name);
     const organization = await bodyFor(OrganizationService.typeName, OrganizationService.method.listSpheres.name);
 
     expect(access.status).toBe(401);
+    expect(clock.status).toBe(401);
     expect(organization.status).toBe(401);
   });
 

@@ -1,3 +1,4 @@
+export { createClockService } from './clock/index';
 export { createAccessService } from './identity/index';
 export {
   type IEventOutbox,

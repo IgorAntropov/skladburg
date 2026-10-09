@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package clock.v1;
+
+import "common/v1/method_options.proto";
+import "google/protobuf/timestamp.proto";
+
+message GetWorldClockRequest {}
+
+message GetWorldClockResponse {
+  google.protobuf.Timestamp world_time = 1;
+  double time_scale = 2;
+}
+
+service ClockService {
+  rpc GetWorldClock(GetWorldClockRequest) returns (GetWorldClockResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).session = {};
+  }
+}

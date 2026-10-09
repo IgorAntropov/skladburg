@@ -73,3 +73,17 @@ export const READ_LANDMARKS_HIDDEN_FROM_READERS = [
   '})()',
 ].join(' ');
 
+export const READ_PAGE_CLOCK_NOW = '(() => Date.now())()';
+
+export const createReadWorldClockScript = (testId: string, timeZone: string): string => [
+  '(() => {',
+  `const group = document.querySelector("[data-testid=${testId}]");`,
+  'const time = group === null ? null : group.querySelector("time");',
+  'if (time === null) { return null; }',
+  'const dateTime = time.getAttribute("datetime");',
+  'if (dateTime === null) { return null; }',
+  'const date = new Date(dateTime);',
+  'const format = (zone) => new Intl.DateTimeFormat("ru", { hour: "2-digit", minute: "2-digit", timeZone: zone }).format(date);',
+  `return { dateTime, expected: format(${JSON.stringify(timeZone)}), expectedUtc: format("UTC"), text: time.textContent };`,
+  '})()',
+].join(' ');

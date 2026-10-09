@@ -1,7 +1,9 @@
 export const DROPDOWN_MENU_CONTENT_CLASS_NAME = [
   'z-50 max-h-(--radix-dropdown-menu-content-available-height) min-w-48 overflow-y-auto',
   'rounded-panel border border-line bg-panel-solid p-1.5 text-on-panel shadow-panel',
-  'motion-safe:transition-opacity motion-safe:duration-100 motion-safe:starting:opacity-0',
+  'origin-(--radix-dropdown-menu-content-transform-origin) data-[state=open]:motion-safe:animate-menu-in',
+  'data-[side=bottom]:[--menu-in-y:-4px] data-[side=top]:[--menu-in-y:4px]',
+  'data-[side=left]:[--menu-in-x:4px] data-[side=right]:[--menu-in-x:-4px]',
 ].join(' ');
 
 export const DROPDOWN_MENU_CONTENT_WIDTH_CLASS_NAMES = {
@@ -16,8 +18,6 @@ export const DROPDOWN_MENU_ITEM_CLASS_NAME = [
 ].join(' ');
 
 export const DROPDOWN_MENU_INDICATOR_SLOT_CLASS_NAME = 'flex size-4 shrink-0 items-center justify-center';
-
-export const DROPDOWN_MENU_INDICATOR_SLOT_END_CLASS_NAME = 'ml-auto';
 
 export const DROPDOWN_MENU_LABEL_CLASS_NAME = 'px-3 py-2 text-sm font-medium text-on-panel-muted';
 

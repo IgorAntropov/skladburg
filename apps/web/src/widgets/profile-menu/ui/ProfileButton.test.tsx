@@ -38,25 +38,35 @@ import {
 import { ProfileButton } from './ProfileButton';
 
 const LOADING_NAME = defaultLocaleCatalog['profile.button.loading'];
+const RESETTING_NAME = defaultLocaleCatalog['profile.button.resetting'];
 const READY_NAME = defaultLocaleCatalog['profile.button.label']
   .replace('{name}', PROFILE_CUSTOMER_PERSONA.userDisplayName)
   .replace('{organization}', PROFILE_CUSTOMER_PERSONA.organizationName);
 
-const renderButton = async (ui: ReactElement, sessionOptions: ProfileSessionOptionsValue = {}): Promise<void> => {
+interface RenderedButtonValue {
+  rerender: (ui: ReactElement) => void;
+}
+
+const renderButton = async (ui: ReactElement, sessionOptions: ProfileSessionOptionsValue = {}): Promise<RenderedButtonValue> => {
   const localizer = await createProfileLocalizer();
   const runtime = createTestRuntime({ routes: createProfileRoutes(sessionOptions) });
   runtime.actingContext.set(PROFILE_ACTING_CONTEXT);
+  const location = createMemoryLocation('/network');
+  const themeStore = createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined });
 
-  render(
-    <ProfileTreeProviders
-      localizer={localizer}
-      location={createMemoryLocation('/network')}
-      runtime={runtime}
-      themeStore={createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined })}
-    >
-      {ui}
-    </ProfileTreeProviders>,
+  const toTree = (content: ReactElement): ReactElement => (
+    <ProfileTreeProviders localizer={localizer} location={location} runtime={runtime} themeStore={themeStore}>
+      {content}
+    </ProfileTreeProviders>
   );
+
+  const rendered = render(toTree(ui));
+
+  return {
+    rerender: (nextUi) => {
+      rendered.rerender(toTree(nextUi));
+    },
+  };
 };
 
 const FocusClaimProbe = (): ReactElement => {
@@ -121,18 +131,58 @@ describe('ProfileButton', () => {
     expect(button.querySelector('svg.lucide-user')).not.toBeNull();
   });
 
-  it('is busy and ignores presses while the pending flag is set', async () => {
+  it('is busy under the neutral name and ignores presses while the menu loads', async () => {
     let pressCount = 0;
     const handleClick = (): void => {
       pressCount += 1;
     };
-    await renderButton(<ProfileButton onClick={handleClick} pending />);
+    const gate = createGate();
+    await renderButton(<ProfileButton busyReason="loadingMenu" onClick={handleClick} />, { sessionGate: gate });
 
     const button = screen.getByRole('button', { name: LOADING_NAME });
     fireEvent.click(button);
 
     expect(button.getAttribute('aria-busy')).toBe('true');
     expect(pressCount).toBe(0);
+
+    gate.open();
+    await screen.findByRole('button', { name: READY_NAME });
+  });
+
+  it('keeps the name of the user and the organization while the menu loads', async () => {
+    await renderButton(<ProfileButton busyReason="loadingMenu" />);
+
+    const button = await screen.findByRole('button', { name: READY_NAME });
+
+    expect(button.getAttribute('aria-busy')).toBe('true');
+  });
+
+  it('is busy under the name of the reset and ignores presses while the demo resets', async () => {
+    let pressCount = 0;
+    const handleClick = (): void => {
+      pressCount += 1;
+    };
+    await renderButton(<ProfileButton busyReason="resetting" onClick={handleClick} />);
+
+    const button = await screen.findByRole('button', { name: RESETTING_NAME });
+    fireEvent.click(button);
+
+    expect(button.getAttribute('aria-busy')).toBe('true');
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(button.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    expect(pressCount).toBe(0);
+  });
+
+  it('returns to the name of the user when the reset is over', async () => {
+    const view = await renderButton(<ProfileButton busyReason="resetting" />);
+    await screen.findByRole('button', { name: RESETTING_NAME });
+
+    view.rerender(<ProfileButton busyReason={undefined} />);
+
+    const button = await screen.findByRole('button', { name: READY_NAME });
+
+    expect(button.getAttribute('aria-busy')).toBeNull();
+    expect(button.textContent).toBe('АС');
   });
 
   it('fills the ref of the owner', async () => {

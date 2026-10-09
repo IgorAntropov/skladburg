@@ -1,3 +1,5 @@
+import type { ReactElement } from 'react';
+
 import {
   cleanup,
   fireEvent,
@@ -5,6 +7,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
+import { useState } from 'react';
 import { defaultLocaleCatalog } from 'virtual:build-profile';
 import {
   afterEach,
@@ -12,6 +15,7 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from 'vitest';
 
 import {
@@ -31,15 +35,46 @@ const localizer = await createLocalizer({
 
 const LABEL = defaultLocaleCatalog['search.label'];
 const OPEN_LABEL = defaultLocaleCatalog['search.open'];
+const CLOSE_LABEL = defaultLocaleCatalog['search.close'];
 const UNAVAILABLE = defaultLocaleCatalog['search.unavailable'];
 
 const PAGE_LINK_LABEL = 'Склад';
 
-const renderField = (): void => {
+interface SearchHostProps {
+  onOpenChange?: ((isOpen: boolean) => void) | undefined;
+}
+
+const SearchHost = ({ onOpenChange }: SearchHostProps): ReactElement => {
+  const [isPhoneFieldOpen, setIsPhoneFieldOpen] = useState(false);
+
+  const handlePhoneFieldOpenChange = (isOpen: boolean): void => {
+    onOpenChange?.(isOpen);
+    setIsPhoneFieldOpen(isOpen);
+  };
+
+  return <SearchField isPhoneFieldOpen={isPhoneFieldOpen} onPhoneFieldOpenChange={handlePhoneFieldOpenChange} />;
+};
+
+const PROFILE_LABEL = 'Профиль';
+
+const SearchHostWithHiddenNeighbour = (): ReactElement => {
+  const [isPhoneFieldOpen, setIsPhoneFieldOpen] = useState(false);
+
+  return (
+    <>
+      <div style={isPhoneFieldOpen ? { display: 'none' } : undefined}>
+        <button type="button">{PROFILE_LABEL}</button>
+      </div>
+      <SearchField isPhoneFieldOpen={isPhoneFieldOpen} onPhoneFieldOpenChange={setIsPhoneFieldOpen} />
+    </>
+  );
+};
+
+const renderField = (onOpenChange?: (isOpen: boolean) => void): void => {
   render(
     <LocalizerProvider localizer={localizer}>
       <a href="#warehouse">{PAGE_LINK_LABEL}</a>
-      <SearchField />
+      <SearchHost onOpenChange={onOpenChange} />
     </LocalizerProvider>,
   );
 };
@@ -65,6 +100,10 @@ const getInput = (): HTMLInputElement => {
 };
 
 const getToggle = (): HTMLElement => screen.getByRole('button', { name: OPEN_LABEL });
+
+const getCloseButton = (): HTMLElement => screen.getByRole('button', { name: CLOSE_LABEL });
+
+const queryCloseButton = (): HTMLElement | null => screen.queryByRole('button', { name: CLOSE_LABEL });
 
 const getStatus = (): HTMLElement => screen.getByRole('status');
 
@@ -207,13 +246,15 @@ describe('SearchField', () => {
   });
 
   describe('on a phone', () => {
-    it('hides the field behind a collapsed button', () => {
+    it('hides the field behind a collapsed button and offers no close button', () => {
       renderField();
       const toggle = getToggle();
 
       expect(toggle.getAttribute('aria-expanded')).toBe('false');
       expect(toggle.className).toContain('sm:hidden');
+      expect(toggle.className).not.toContain('max-sm:hidden');
       expect(screen.getByRole('search').className).toContain('max-sm:hidden');
+      expect(queryCloseButton()).toBeNull();
     });
 
     it('points the button at the field', () => {
@@ -222,42 +263,75 @@ describe('SearchField', () => {
       expect(getToggle().getAttribute('aria-controls')).toBe(screen.getByRole('search').id);
     });
 
-    it('opens the field below the panel and puts the focus into it on the button', async () => {
-      renderField();
+    it('opens the field in the row of the panel, hides the magnifier and puts the focus into the field', async () => {
+      const onOpenChange = vi.fn();
+      renderField(onOpenChange);
 
       fireEvent.click(getToggle());
 
+      expect(onOpenChange).toHaveBeenCalledWith(true);
       expect(getToggle().getAttribute('aria-expanded')).toBe('true');
+      expect(getToggle().className).toContain('max-sm:hidden');
       expect(screen.getByRole('search').className).not.toContain('max-sm:hidden');
-      expect(screen.getByRole('search').className).toContain('max-sm:basis-full');
+      expect(screen.getByRole('search').className).toContain('max-sm:flex-1');
+      expect(screen.getByRole('search').className).not.toContain('basis-full');
       await waitFor(() => {
         expect(document.activeElement).toBe(getInput());
       });
     });
 
-    it('closes the field on the second press of the button', () => {
+    it('shows the close button after the field, only on a phone', () => {
       renderField();
-      fireEvent.click(getToggle());
 
       fireEvent.click(getToggle());
 
+      const closeButton = getCloseButton();
+
+      expect(closeButton.className).toContain('sm:hidden');
+      expect(screen.getByRole('search').compareDocumentPosition(closeButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(closeButton.querySelector('svg')).not.toBeNull();
+    });
+
+    it('closes the field, clears the text and the message and returns the focus to the magnifier on the close button', async () => {
+      const onOpenChange = vi.fn();
+      renderField(onOpenChange);
+      fireEvent.click(getToggle());
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getInput());
+      });
+      type('молоко');
+      fireEvent.keyDown(getInput(), { key: 'Enter' });
+
+      fireEvent.click(getCloseButton());
+
+      expect(onOpenChange).toHaveBeenLastCalledWith(false);
       expect(getToggle().getAttribute('aria-expanded')).toBe('false');
+      expect(getToggle().className).not.toContain('max-sm:hidden');
       expect(screen.getByRole('search').className).toContain('max-sm:hidden');
+      expect(queryCloseButton()).toBeNull();
+      expect(getInput().value).toBe('');
+      expect(getStatus().textContent).toBe('');
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getToggle());
+      });
     });
 
     it('opens the field and focuses it on the slash key', async () => {
-      renderField();
+      const onOpenChange = vi.fn();
+      renderField(onOpenChange);
 
       fireEvent.keyDown(document.body, { code: 'Slash', key: '/' });
 
+      expect(onOpenChange).toHaveBeenCalledWith(true);
       expect(getToggle().getAttribute('aria-expanded')).toBe('true');
       await waitFor(() => {
         expect(document.activeElement).toBe(getInput());
       });
     });
 
-    it('folds the field and returns the focus to the button on Escape', async () => {
-      renderField();
+    it('folds the field, clears it and returns the focus to the magnifier on Escape', async () => {
+      const onOpenChange = vi.fn();
+      renderField(onOpenChange);
       fireEvent.click(getToggle());
       await waitFor(() => {
         expect(document.activeElement).toBe(getInput());
@@ -266,9 +340,86 @@ describe('SearchField', () => {
 
       fireEvent.keyDown(getInput(), { key: 'Escape' });
 
+      expect(onOpenChange).toHaveBeenLastCalledWith(false);
       expect(getToggle().getAttribute('aria-expanded')).toBe('false');
-      expect(document.activeElement).toBe(getToggle());
       expect(getInput().value).toBe('');
+      expect(queryCloseButton()).toBeNull();
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getToggle());
+      });
+    });
+
+    it('returns the focus to the page link on Escape when the field was opened by the slash key from it', async () => {
+      renderField();
+      getPageLink().focus();
+
+      fireEvent.keyDown(getPageLink(), { code: 'Slash', key: '/' });
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getInput());
+      });
+      fireEvent.keyDown(getInput(), { key: 'Escape' });
+
+      expect(getToggle().getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(getPageLink());
+    });
+
+    it('returns the focus to the magnifier on Escape when the open field hides the element that had the focus', async () => {
+      render(
+        <LocalizerProvider localizer={localizer}>
+          <SearchHostWithHiddenNeighbour />
+        </LocalizerProvider>,
+      );
+      screen.getByRole('button', { name: PROFILE_LABEL }).focus();
+
+      fireEvent.keyDown(screen.getByRole('button', { name: PROFILE_LABEL }), { code: 'Slash', key: '/' });
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getInput());
+      });
+      type('молоко');
+      fireEvent.keyDown(getInput(), { key: 'Escape' });
+
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getToggle());
+      });
+      expect(getInput().value).toBe('');
+    });
+
+    it('returns the focus to the magnifier on the close button when the open field hides the element that had the focus', async () => {
+      render(
+        <LocalizerProvider localizer={localizer}>
+          <SearchHostWithHiddenNeighbour />
+        </LocalizerProvider>,
+      );
+      screen.getByRole('button', { name: PROFILE_LABEL }).focus();
+
+      fireEvent.keyDown(screen.getByRole('button', { name: PROFILE_LABEL }), { code: 'Slash', key: '/' });
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getInput());
+      });
+      fireEvent.click(getCloseButton());
+
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getToggle());
+      });
+    });
+
+    it('opens again after it was closed and puts the focus into the field again', async () => {
+      renderField();
+      fireEvent.click(getToggle());
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getInput());
+      });
+      fireEvent.click(getCloseButton());
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getToggle());
+      });
+
+      fireEvent.click(getToggle());
+
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getInput());
+      });
+      expect(getToggle().getAttribute('aria-expanded')).toBe('true');
     });
   });
 

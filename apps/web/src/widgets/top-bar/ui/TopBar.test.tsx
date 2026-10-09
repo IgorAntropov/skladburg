@@ -127,6 +127,30 @@ const renderTopBar = async ({
 
 const getSectionTitle = (section: AppSectionValue): string => defaultLocaleCatalog[SECTION_TITLE_KEYS[section]];
 
+const SEARCH_OPEN_LABEL = defaultLocaleCatalog['search.open'];
+const SEARCH_CLOSE_LABEL = defaultLocaleCatalog['search.close'];
+const HIDDEN_ON_PHONE_CLASS = 'max-sm:hidden';
+
+const getProductBlock = (): HTMLElement => {
+  const block = screen.getByText(PRODUCT_NAME).parentElement;
+
+  if (block === null) {
+    throw new TypeError('The product name has no block');
+  }
+
+  return block;
+};
+
+const getTrailingGroup = (): HTMLElement => {
+  const group = screen.getByTestId(PROFILE_NODE_TEST_ID).parentElement;
+
+  if (group === null) {
+    throw new TypeError('The profile node has no trailing group');
+  }
+
+  return group;
+};
+
 const getNavigation = (): HTMLElement => screen.getByRole('navigation', { name: defaultLocaleCatalog['app.nav.label'] });
 
 describe('TopBar', () => {
@@ -199,6 +223,16 @@ describe('TopBar', () => {
       const current = within(getNavigation()).getAllByRole('link').filter(link => link.hasAttribute('aria-current'));
 
       expect(current).toEqual([]);
+    });
+
+    it('keeps the label of every section in a wrapper that reserves the bold width', async () => {
+      const sections: AppSectionValue[] = ['network', 'deals', 'warehouse'];
+      await renderTopBar({ sections });
+
+      const labels = within(getNavigation()).getAllByRole('link').map(link => link.firstElementChild);
+
+      expect(labels.map(label => label?.getAttribute('data-label'))).toEqual(sections.map(getSectionTitle));
+      expect(labels.every(label => label?.className.includes('after:font-semibold') === true)).toBe(true);
     });
 
     it('shows the product name and an empty navigation without sections', async () => {
@@ -353,6 +387,130 @@ describe('TopBar', () => {
       await renderTopBar({ viewportClass });
 
       expect(within(screen.getByRole('banner')).queryByRole('button', { hidden: true, name: /^Меню$/ })).toBeNull();
+    });
+  });
+
+  describe('search on a phone', () => {
+    const getSearchToggle = (): HTMLElement => screen.getByRole('button', { name: SEARCH_OPEN_LABEL });
+
+    const getSearchInput = (): HTMLInputElement => {
+      const input = screen.getByRole('searchbox', { name: defaultLocaleCatalog['search.label'] });
+
+      if (!(input instanceof HTMLInputElement)) {
+        throw new TypeError('The search field is not an input');
+      }
+
+      return input;
+    };
+
+    it('keeps the product mark, the clock and the profile menu in the row while the search is closed', async () => {
+      await renderTopBar({ viewportClass: 'phone' });
+
+      expect(getProductBlock().className).not.toContain(HIDDEN_ON_PHONE_CLASS);
+      expect(getTrailingGroup().className).not.toContain(HIDDEN_ON_PHONE_CLASS);
+      expect(getSearchToggle().className).not.toContain(HIDDEN_ON_PHONE_CLASS);
+      expect(screen.queryByRole('button', { name: SEARCH_CLOSE_LABEL })).toBeNull();
+    });
+
+    it('takes the row of the panel while the search is open: the product mark, the clock and the profile menu give way', async () => {
+      await renderTopBar({ viewportClass: 'phone' });
+
+      fireEvent.click(getSearchToggle());
+
+      expect(getProductBlock().className).toContain(HIDDEN_ON_PHONE_CLASS);
+      expect(getTrailingGroup().className).toContain(HIDDEN_ON_PHONE_CLASS);
+      expect(getSearchToggle().className).toContain(HIDDEN_ON_PHONE_CLASS);
+      expect(screen.getByRole('button', { name: SEARCH_CLOSE_LABEL })).toBeDefined();
+      expect(screen.getByRole('search').className).not.toContain(HIDDEN_ON_PHONE_CLASS);
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getSearchInput());
+      });
+    });
+
+    it('does not add a second line: the field neither wraps nor takes a whole line of its own', async () => {
+      await renderTopBar({ viewportClass: 'phone' });
+
+      fireEvent.click(getSearchToggle());
+
+      const field = screen.getByRole('search');
+      const row = field.parentElement;
+
+      expect(field.className).not.toContain('basis-full');
+      expect(field.className).not.toContain('order-last');
+      expect(row?.className).toContain('min-h-15');
+    });
+
+    it('keeps the very same nodes of the clock and of the profile menu while the search opens and closes', async () => {
+      await renderTopBar({ viewportClass: 'phone' });
+      const clock = screen.getByTestId('top-bar-clock-slot');
+      const profileNode = screen.getByTestId(PROFILE_NODE_TEST_ID);
+
+      fireEvent.click(getSearchToggle());
+
+      expect(screen.getByTestId('top-bar-clock-slot')).toBe(clock);
+      expect(screen.getByTestId(PROFILE_NODE_TEST_ID)).toBe(profileNode);
+
+      fireEvent.click(screen.getByRole('button', { name: SEARCH_CLOSE_LABEL }));
+
+      expect(screen.getByTestId('top-bar-clock-slot')).toBe(clock);
+      expect(screen.getByTestId(PROFILE_NODE_TEST_ID)).toBe(profileNode);
+    });
+
+    it('brings the row back and focuses the magnifier on the close button', async () => {
+      await renderTopBar({ viewportClass: 'phone' });
+      fireEvent.click(getSearchToggle());
+      fireEvent.change(getSearchInput(), { target: { value: 'молоко' } });
+
+      fireEvent.click(screen.getByRole('button', { name: SEARCH_CLOSE_LABEL }));
+
+      expect(getProductBlock().className).not.toContain(HIDDEN_ON_PHONE_CLASS);
+      expect(getTrailingGroup().className).not.toContain(HIDDEN_ON_PHONE_CLASS);
+      expect(getSearchToggle().className).not.toContain(HIDDEN_ON_PHONE_CLASS);
+      expect(screen.queryByRole('button', { name: SEARCH_CLOSE_LABEL })).toBeNull();
+      expect(screen.getByRole('search').className).toContain(HIDDEN_ON_PHONE_CLASS);
+      expect(getSearchInput().value).toBe('');
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getSearchToggle());
+      });
+    });
+
+    it('brings the row back and focuses the magnifier on Escape', async () => {
+      await renderTopBar({ viewportClass: 'phone' });
+      fireEvent.click(getSearchToggle());
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getSearchInput());
+      });
+
+      fireEvent.keyDown(getSearchInput(), { key: 'Escape' });
+
+      expect(getProductBlock().className).not.toContain(HIDDEN_ON_PHONE_CLASS);
+      expect(getTrailingGroup().className).not.toContain(HIDDEN_ON_PHONE_CLASS);
+      expect(screen.queryByRole('button', { name: SEARCH_CLOSE_LABEL })).toBeNull();
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getSearchToggle());
+      });
+    });
+
+    it('opens the search on the slash key and gives the row to it', async () => {
+      await renderTopBar({ viewportClass: 'phone' });
+
+      fireEvent.keyDown(document.body, { code: 'Slash', key: '/' });
+
+      expect(getProductBlock().className).toContain(HIDDEN_ON_PHONE_CLASS);
+      expect(getTrailingGroup().className).toContain(HIDDEN_ON_PHONE_CLASS);
+      await waitFor(() => {
+        expect(document.activeElement).toBe(getSearchInput());
+      });
+    });
+
+    it('hides the product mark and the trailing group only below the small breakpoint', async () => {
+      await renderTopBar({ viewportClass: 'desktop' });
+
+      fireEvent.keyDown(document.body, { code: 'Slash', key: '/' });
+
+      expect(getProductBlock().className).not.toMatch(/(^|\s)hidden(\s|$)/);
+      expect(getTrailingGroup().className).not.toMatch(/(^|\s)hidden(\s|$)/);
+      expect(getTrailingGroup().className).toContain('sm:ml-auto');
     });
   });
 });

@@ -8,13 +8,16 @@ import {
   PERSONAS,
 } from './fixtures/demoData.ts';
 import { toSectionHash } from './fixtures/routes.ts';
-import { VIEWPORT_SCENARIOS } from './fixtures/viewports.ts';
+import {
+  LAPTOP_VIEWPORT,
+  NARROW_PHONE_VIEWPORT,
+  PHONE_VIEWPORT_SCENARIOS,
+  VIEWPORT_SCENARIOS,
+} from './fixtures/viewports.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';
 import { createPersonaRobot } from './robots/persona-robot.ts';
 import { createTopBarRobot } from './robots/top-bar-robot.ts';
 import { createWarehouseRobot } from './robots/warehouse-robot.ts';
-
-const NARROW_PHONE_VIEWPORT = { height: 740, width: 360 };
 
 for (const viewport of VIEWPORT_SCENARIOS) {
   const isPhone = viewport.layout === 'phone';
@@ -295,30 +298,47 @@ for (const viewport of VIEWPORT_SCENARIOS) {
         await topBar.expectFocusOnSearchField();
       });
 
-      test('clears the field and returns the focus to the element that had it before the slash key on Escape', async ({ page }) => {
-        const navigation = createNavigationRobot(page);
-        const topBar = createTopBarRobot(page, viewport.layout);
+      if (isPhone) {
+        test('returns the focus to the search button on Escape when the open search hides the element that had it', async ({ page }) => {
+          const navigation = createNavigationRobot(page);
+          const topBar = createTopBarRobot(page, viewport.layout);
 
-        await navigation.openSection('catalog');
-        await topBar.expectProfileButton(DEFAULT_PERSONA);
-        await topBar.focusKnownElement('catalog');
-        await topBar.pressSlash();
-        await topBar.expectFocusOnSearchField();
-        await topBar.typeInSearch('abc');
-        await topBar.expectSearchValue('abc');
+          await navigation.openSection('catalog');
+          await topBar.expectProfileButton(DEFAULT_PERSONA);
+          await topBar.focusKnownElement('catalog');
+          await topBar.pressSlash();
+          await topBar.expectFocusOnSearchField();
+          await topBar.typeInSearch('abc');
+          await topBar.expectSearchValue('abc');
 
-        await topBar.closeSearchWithEscape();
+          await topBar.closeSearchWithEscape();
 
-        await topBar.expectFocusOnKnownElement('catalog');
-        await topBar.expectFocusNotOnBody();
-
-        if (isPhone) {
           await topBar.expectSearchFolded();
-        }
-        else {
+          await topBar.expectFocusOnSearchToggle();
+          await topBar.expectFocusNotOnBody();
+          await topBar.expectPhoneSearchClosed();
+        });
+      }
+      else {
+        test('clears the field and returns the focus to the element that had it before the slash key on Escape', async ({ page }) => {
+          const navigation = createNavigationRobot(page);
+          const topBar = createTopBarRobot(page, viewport.layout);
+
+          await navigation.openSection('catalog');
+          await topBar.expectProfileButton(DEFAULT_PERSONA);
+          await topBar.focusKnownElement('catalog');
+          await topBar.pressSlash();
+          await topBar.expectFocusOnSearchField();
+          await topBar.typeInSearch('abc');
+          await topBar.expectSearchValue('abc');
+
+          await topBar.closeSearchWithEscape();
+
+          await topBar.expectFocusOnKnownElement('catalog');
+          await topBar.expectFocusNotOnBody();
           await topBar.expectSearchEmpty();
-        }
-      });
+        });
+      }
 
       if (isPhone) {
         test('folds the field and returns the focus to the search button on Escape after opening it with the button', async ({ page }) => {
@@ -356,7 +376,7 @@ for (const viewport of VIEWPORT_SCENARIOS) {
           await topBar.expectFocusNotOnBody();
         });
 
-        test('keeps the profile button inside the panel with the search open and no horizontal scroll', async ({ page }) => {
+        test('keeps the open field and the close button inside the panel with no horizontal scroll', async ({ page }) => {
           const navigation = createNavigationRobot(page);
           const topBar = createTopBarRobot(page, viewport.layout);
 
@@ -365,8 +385,7 @@ for (const viewport of VIEWPORT_SCENARIOS) {
 
           await topBar.openSearchWithToggle();
 
-          await topBar.expectProfileButton(DEFAULT_PERSONA);
-          await topBar.expectProfileButtonLast();
+          await topBar.expectSearchRowInsidePanel();
           await topBar.expectNoHorizontalScroll();
         });
       }
@@ -558,9 +577,9 @@ for (const viewport of VIEWPORT_SCENARIOS) {
 
 test.describe('profile menu on a laptop 1280x800', () => {
   test.use({
-    hasTouch: false,
-    isMobile: false,
-    viewport: { height: 800, width: 1280 },
+    hasTouch: LAPTOP_VIEWPORT.hasTouch,
+    isMobile: LAPTOP_VIEWPORT.isMobile,
+    viewport: { height: LAPTOP_VIEWPORT.height, width: LAPTOP_VIEWPORT.width },
   });
 
   test('keeps the reset item reachable with the keyboard and inside the window', async ({ page }) => {
@@ -579,23 +598,24 @@ test.describe('profile menu on a laptop 1280x800', () => {
 
 test.describe('top bar on phone 360x740', () => {
   test.use({
-    hasTouch: true,
-    isMobile: true,
-    viewport: NARROW_PHONE_VIEWPORT,
+    hasTouch: NARROW_PHONE_VIEWPORT.hasTouch,
+    isMobile: NARROW_PHONE_VIEWPORT.isMobile,
+    viewport: { height: NARROW_PHONE_VIEWPORT.height, width: NARROW_PHONE_VIEWPORT.width },
   });
 
-  test('keeps the product mark, search and profile button inside the panel with the search open and no scroll', async ({ page }) => {
+  test('keeps the closed row and the open search row inside the panel with no scroll', async ({ page }) => {
     const navigation = createNavigationRobot(page);
     const topBar = createTopBarRobot(page, 'phone');
 
     await navigation.openSection('network');
     await topBar.expectProfileButton(DEFAULT_PERSONA);
     await topBar.expectProductMark();
+    await topBar.expectSearchRowInsidePanel();
+    await topBar.expectNoHorizontalScroll();
 
     await topBar.openSearchWithToggle();
 
-    await topBar.expectProfileButton(DEFAULT_PERSONA);
-    await topBar.expectProfileButtonLast();
+    await topBar.expectSearchRowInsidePanel();
     await topBar.expectNoHorizontalScroll();
   });
 
@@ -612,3 +632,130 @@ test.describe('top bar on phone 360x740', () => {
     await topBar.expectNoHorizontalScroll();
   });
 });
+
+for (const viewport of PHONE_VIEWPORT_SCENARIOS) {
+  test.describe(`search that replaces the panel row on ${viewport.name}`, () => {
+    test.use({
+      hasTouch: viewport.hasTouch,
+      isMobile: viewport.isMobile,
+      viewport: { height: viewport.height, width: viewport.width },
+    });
+
+    test('opens with the button, takes the focus, hides the mark, clock and profile button and keeps the geometry', async ({ page }) => {
+      const navigation = createNavigationRobot(page);
+      const topBar = createTopBarRobot(page, viewport.layout);
+
+      await navigation.openSection('catalog');
+      await topBar.expectProfileButton(DEFAULT_PERSONA);
+      await topBar.expectPhoneSearchClosed();
+      const geometryBefore = await topBar.readPanelGeometry();
+
+      await topBar.openSearchWithToggle();
+
+      await topBar.expectPhoneSearchOpen();
+      await topBar.expectPanelGeometryKept(geometryBefore);
+      await topBar.expectNoHorizontalScroll();
+    });
+
+    test('returns the row, the focus on the search button and the same geometry on the close button', async ({ page }) => {
+      const navigation = createNavigationRobot(page);
+      const topBar = createTopBarRobot(page, viewport.layout);
+
+      await navigation.openSection('catalog');
+      await topBar.expectProfileButton(DEFAULT_PERSONA);
+      const geometryBefore = await topBar.readPanelGeometry();
+      await topBar.openSearchWithToggle();
+      await topBar.typeInSearch('abc');
+
+      await topBar.closeSearchWithButton();
+
+      await topBar.expectPhoneSearchClosed();
+      await topBar.expectFocusOnSearchToggle();
+      await topBar.expectSearchFolded();
+      await topBar.expectPanelGeometryKept(geometryBefore);
+    });
+
+    test('returns the row, the focus on the search button and the same geometry on Escape', async ({ page }) => {
+      const navigation = createNavigationRobot(page);
+      const topBar = createTopBarRobot(page, viewport.layout);
+
+      await navigation.openSection('catalog');
+      await topBar.expectProfileButton(DEFAULT_PERSONA);
+      const geometryBefore = await topBar.readPanelGeometry();
+      await topBar.openSearchWithToggle();
+      await topBar.typeInSearch('abc');
+
+      await topBar.closeSearchWithEscape();
+
+      await topBar.expectPhoneSearchClosed();
+      await topBar.expectFocusOnSearchToggle();
+      await topBar.expectSearchFolded();
+      await topBar.expectPanelGeometryKept(geometryBefore);
+    });
+
+    test('opens on the slash key and shows the cleared field again after a close and a new opening', async ({ page }) => {
+      const navigation = createNavigationRobot(page);
+      const topBar = createTopBarRobot(page, viewport.layout);
+
+      await navigation.openSection('catalog');
+      await topBar.expectProfileButton(DEFAULT_PERSONA);
+      await topBar.pressSlash();
+      await topBar.expectPhoneSearchOpen();
+      await topBar.typeInSearch('abc');
+      await topBar.closeSearchWithButton();
+
+      await topBar.openSearchWithToggle();
+
+      await topBar.expectSearchEmpty();
+      await topBar.expectPhoneSearchOpen();
+    });
+
+    test('keeps the profile menu usable after the search was opened and closed', async ({ page }) => {
+      const navigation = createNavigationRobot(page);
+      const topBar = createTopBarRobot(page, viewport.layout);
+
+      await navigation.openSection('catalog');
+      await topBar.expectProfileButton(DEFAULT_PERSONA);
+      await topBar.openSearchWithToggle();
+      await topBar.closeSearchWithButton();
+
+      await topBar.openMenu();
+
+      await topBar.expectMenuContent(DEFAULT_PERSONA);
+    });
+  });
+}
+
+for (const viewport of VIEWPORT_SCENARIOS) {
+  const isPhone = viewport.layout === 'phone';
+
+  test.describe(`sections and themes of the profile menu on ${viewport.name}`, () => {
+    test.use({
+      hasTouch: viewport.hasTouch,
+      isMobile: viewport.isMobile,
+      viewport: { height: viewport.height, width: viewport.width },
+    });
+
+    if (isPhone) {
+      test('marks the current section in the menu with a checked item and an indicator line, without a checkmark', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openSection('deals');
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+
+        await topBar.expectCurrentSectionMarkedWithoutCheckmark('deals');
+      });
+    }
+
+    test('names every theme item by its visible text', async ({ page }) => {
+      const navigation = createNavigationRobot(page);
+      const topBar = createTopBarRobot(page, viewport.layout);
+
+      await navigation.openSection('network');
+      await topBar.expectProfileButton(DEFAULT_PERSONA);
+
+      await topBar.expectThemeItemsNamedByVisibleText();
+    });
+  });
+}

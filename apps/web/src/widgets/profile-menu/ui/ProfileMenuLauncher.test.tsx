@@ -43,6 +43,7 @@ const RESET_PROMPT_NAME = defaultLocaleCatalog['demo.reset.confirm.prompt'];
 const READY_BUTTON_NAME = defaultLocaleCatalog['profile.button.label']
   .replace('{name}', 'Анна Смирнова')
   .replace('{organization}', 'Заказчик 1');
+const RESETTING_BUTTON_NAME = defaultLocaleCatalog['profile.button.resetting'];
 const CHUNK_ERROR_MESSAGE = defaultLocaleCatalog['routing.chunkError.message'];
 
 interface RenderedLauncherValue {
@@ -455,21 +456,22 @@ describe('ProfileMenuLauncher', () => {
       expect(demoControl.reset).not.toHaveBeenCalled();
     });
 
-    it('does not open the menu and keeps the confirmation while the reset runs', async () => {
+    it('does not open the menu and keeps the confirmation while the reset runs, then opens it again', async () => {
       const response = createGate();
       const { demoControl } = await renderLauncher({ hasDemo: true });
       vi.mocked(demoControl.reset).mockImplementation(() => response.promise);
       const group = await openResetConfirm();
       await waitForSettledFocus();
+      const button = getButton();
       fireEvent.click(within(group).getByRole('button', { name: defaultLocaleCatalog['demo.reset.confirm.accept'] }));
       await within(group).findByRole('button', { name: defaultLocaleCatalog['demo.reset.pending'] });
 
-      fireEvent.keyDown(getButton(), { key: 'ArrowDown' });
-      fireEvent.click(getButton());
+      fireEvent.keyDown(button, { key: 'ArrowDown' });
+      fireEvent.click(button);
       await settleMicrotasks();
 
       expect(screen.queryByRole('menu')).toBeNull();
-      expect(getButton().getAttribute('aria-expanded')).toBe('false');
+      expect(button.getAttribute('aria-expanded')).toBe('false');
       expect(screen.getByRole('group', { name: RESET_PROMPT_NAME })).toBe(group);
 
       await act(async () => {
@@ -478,6 +480,54 @@ describe('ProfileMenuLauncher', () => {
       });
       await waitFor(() => {
         expect(screen.queryByRole('group', { name: RESET_PROMPT_NAME })).toBeNull();
+      });
+
+      fireEvent.keyDown(getButton(), { key: 'ArrowDown' });
+
+      expect(await screen.findByRole('menu', { name: MENU_NAME })).toBeDefined();
+    });
+
+    it('shows the button of the profile busy under its own name while the reset runs', async () => {
+      const response = createGate();
+      const { demoControl } = await renderLauncher({ hasDemo: true });
+      vi.mocked(demoControl.reset).mockImplementation(() => response.promise);
+      const group = await openResetConfirm();
+      await waitForSettledFocus();
+      const button = getButton();
+
+      expect(button.getAttribute('aria-busy')).toBeNull();
+
+      fireEvent.click(within(group).getByRole('button', { name: defaultLocaleCatalog['demo.reset.confirm.accept'] }));
+      await within(group).findByRole('button', { name: defaultLocaleCatalog['demo.reset.pending'] });
+
+      expect(button.getAttribute('aria-busy')).toBe('true');
+      expect(button.getAttribute('aria-label')).toBe(RESETTING_BUTTON_NAME);
+      expect(screen.getByRole('button', { hidden: true, name: RESETTING_BUTTON_NAME })).toBe(button);
+
+      await act(async () => {
+        response.open();
+        await response.promise;
+      });
+      await waitFor(() => {
+        expect(button.getAttribute('aria-busy')).toBeNull();
+      });
+
+      expect(button.getAttribute('aria-label')).toBe(READY_BUTTON_NAME);
+    });
+
+    it('hides the closing confirmation from assistive technology and takes it away after the fade', async () => {
+      await renderLauncher({ hasDemo: true });
+      const group = await openResetConfirm();
+      await waitForSettledFocus();
+      const layer = screen.getByTestId('profile-reset-confirm-layer');
+
+      fireEvent.click(within(group).getByRole('button', { name: defaultLocaleCatalog['demo.reset.confirm.cancel'] }));
+
+      expect(layer.getAttribute('aria-hidden')).toBe('true');
+      expect(layer.hasAttribute('inert')).toBe(true);
+      expect(document.activeElement).toBe(getButton());
+      await waitFor(() => {
+        expect(screen.queryByTestId('profile-reset-confirm-layer')).toBeNull();
       });
     });
 

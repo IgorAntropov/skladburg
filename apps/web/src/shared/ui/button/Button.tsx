@@ -16,6 +16,10 @@ import type {
 
 import { buttonClassName } from './buttonClassName';
 
+const LABEL_CELL_CLASS_NAME = 'col-start-1 row-start-1 inline-flex items-center justify-center gap-2';
+
+const SPINNER_CLASS_NAME = 'size-4 shrink-0';
+
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type'> {
   pending?: boolean | undefined;
   pendingLabel?: string | undefined;
@@ -36,7 +40,7 @@ export const Button = ({
   variant,
   ...rest
 }: ButtonProps): ReactElement => {
-  const label = pending ? (pendingLabel ?? children) : children;
+  const isLabelPairShown = pendingLabel !== undefined;
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>): void => {
     console.log('> Button -> handleClick:', { pending, type });
@@ -56,8 +60,24 @@ export const Button = ({
       onClick={handleClick}
       type={type}
     >
-      {pending && <LoaderCircle aria-hidden className="size-4 shrink-0 motion-safe:animate-spin" />}
-      {label}
+      {isLabelPairShown
+        ? (
+            <span className="inline-grid">
+              <span aria-hidden={pending ? true : undefined} className={cn(LABEL_CELL_CLASS_NAME, pending && 'invisible')}>
+                {children}
+              </span>
+              <span aria-hidden={pending ? undefined : true} className={cn(LABEL_CELL_CLASS_NAME, !pending && 'invisible')}>
+                <LoaderCircle aria-hidden className={cn(SPINNER_CLASS_NAME, pending && 'motion-safe:animate-spin')} />
+                {pendingLabel}
+              </span>
+            </span>
+          )
+        : (
+            <>
+              {pending && <LoaderCircle aria-hidden className={cn(SPINNER_CLASS_NAME, 'motion-safe:animate-spin')} />}
+              {children}
+            </>
+          )}
     </button>
   );
 };

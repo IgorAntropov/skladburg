@@ -1,11 +1,23 @@
+import type { IThemeTransitions } from '../themeTypes';
+
 export interface FakeStorageOptionsValue {
   initial?: Readonly<Record<string, string>>;
   isGetFailing?: boolean;
   isSetFailing?: boolean;
 }
 
+export interface FakeThemeTransitionsOptionsValue {
+  isApiAvailable?: boolean;
+  isMotionAllowed?: boolean;
+}
+
 export interface IFakeStorage extends Storage {
   readonly values: Map<string, string>;
+}
+
+export interface IFakeThemeTransitions extends IThemeTransitions {
+  finishAll: () => void;
+  readonly startedCount: number;
 }
 
 export const createFakeStorage = ({
@@ -41,6 +53,36 @@ export const createFakeStorage = ({
       values.set(key, value);
     },
     values,
+  };
+};
+
+export const createFakeThemeTransitions = ({
+  isApiAvailable = true,
+  isMotionAllowed = true,
+}: FakeThemeTransitionsOptionsValue = {}): IFakeThemeTransitions => {
+  let startedCount = 0;
+  let pendingUpdates: (() => void)[] = [];
+
+  return {
+    finishAll: () => {
+      const updates = pendingUpdates;
+
+      pendingUpdates = [];
+
+      for (const update of updates) {
+        update();
+      }
+    },
+    isMotionAllowed: () => isMotionAllowed,
+    get startedCount() {
+      return startedCount;
+    },
+    startViewTransition: isApiAvailable
+      ? (update) => {
+          startedCount += 1;
+          pendingUpdates.push(update);
+        }
+      : undefined,
   };
 };
 

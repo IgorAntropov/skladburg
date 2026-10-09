@@ -171,7 +171,10 @@ describe('ResetDemoConfirm', () => {
     const group = getConfirmGroup();
 
     expect(within(group).getByText(defaultLocaleCatalog['demo.reset.confirm.hint'])).toBeDefined();
-    expect(within(group).getAllByRole('button').map(button => button.textContent)).toEqual([CANCEL_LABEL, ACCEPT_LABEL]);
+    expect(within(group).getAllByRole('button')).toEqual([
+      within(group).getByRole('button', { name: CANCEL_LABEL }),
+      within(group).getByRole('button', { name: ACCEPT_LABEL }),
+    ]);
     expect(document.activeElement).toBe(within(group).getByRole('button', { name: CANCEL_LABEL }));
     expect(getAnnouncement()).toBe(PROMPT);
   });

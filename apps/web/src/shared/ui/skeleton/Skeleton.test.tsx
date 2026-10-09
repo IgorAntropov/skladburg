@@ -56,7 +56,7 @@ describe('SkeletonGroup', () => {
     const group = renderGroup(true);
 
     expect([...group.children].every(shape => shape.className.includes('bg-skeleton'))).toBe(true);
-    expect([...group.children].every(shape => shape.className.includes('motion-safe:animate-pulse'))).toBe(true);
+    expect([...group.children].every(shape => shape.className.includes('motion-safe:animate-skeleton-pulse'))).toBe(true);
   });
 });
 

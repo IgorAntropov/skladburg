@@ -1,12 +1,71 @@
 @import 'tailwindcss';
+@import './fonts.css';
 @import './theme.css';
 
 @source not '../../**/*.test.*';
 @source not '../../**/testing';
 
 @layer base {
+  html {
+    font-synthesis-weight: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   ::selection {
     background-color: var(--color-primary);
     color: var(--color-on-primary);
+  }
+
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  summary,
+  [role='button'],
+  [role='tab'],
+  [role^='menuitem'],
+  [tabindex] {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@utility scroll-shadow-y {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+  background-color: var(--color-panel-solid);
+  background-image:
+    linear-gradient(var(--color-panel-solid) 30%, transparent),
+    linear-gradient(transparent, var(--color-panel-solid) 70%),
+    radial-gradient(
+      farthest-side at 50% 0,
+      color-mix(in srgb, var(--color-on-panel) 22%, transparent),
+      transparent
+    ),
+    radial-gradient(
+      farthest-side at 50% 100%,
+      color-mix(in srgb, var(--color-on-panel) 22%, transparent),
+      transparent
+    );
+  background-position:
+    center top,
+    center bottom,
+    center top,
+    center bottom;
+  background-size:
+    100% 1.5rem,
+    100% 1.5rem,
+    100% 0.5rem,
+    100% 0.5rem;
+  background-attachment: local, local, scroll, scroll;
+  background-repeat: no-repeat;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: var(--duration-theme);
+    animation-timing-function: var(--ease-out);
   }
 }

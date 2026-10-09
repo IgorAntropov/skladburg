@@ -30,6 +30,7 @@ export interface ProfileMenuLocatorsValue {
   allItems: Locator;
   banner: Locator;
   button: Locator;
+  buttonIncludingHidden: Locator;
   getPersonaGroup: (group: PersonaGroupValue) => Locator;
   getPersonaItem: (persona: PersonaValue) => Locator;
   getThemeItem: (theme: ThemePreferenceValue) => Locator;
@@ -43,7 +44,8 @@ export interface ProfileMenuLocatorsValue {
 
 export const createProfileMenuLocators = (page: Page): ProfileMenuLocatorsValue => {
   const banner = page.getByRole('banner');
-  const button = banner.getByRole('button', { name: getText('profile.button.loading') });
+  const button = banner.getByRole('button').and(page.locator('[aria-haspopup="menu"]'));
+  const buttonIncludingHidden = banner.getByRole('button', { includeHidden: true }).and(page.locator('[aria-haspopup="menu"]'));
   const menu = page.getByRole('menu', { name: getText('profile.menu.label') });
   const personaGroupPrefix = getText('persona.group.label').replace('{group}', '');
   const personaGroups = menu.getByRole('group', { name: new RegExp(`^${escapeRegExp(personaGroupPrefix)}`) });
@@ -52,6 +54,7 @@ export const createProfileMenuLocators = (page: Page): ProfileMenuLocatorsValue 
     allItems: menu.locator('[role^="menuitem"]'),
     banner,
     button,
+    buttonIncludingHidden,
     getPersonaGroup: (group: PersonaGroupValue): Locator => menu.getByRole('group', {
       exact: true,
       name: getGroupLabel(group),

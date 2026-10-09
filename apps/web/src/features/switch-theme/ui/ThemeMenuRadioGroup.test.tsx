@@ -96,14 +96,26 @@ describe('ThemeMenuRadioGroup', () => {
     await renderMenu(store);
 
     expect(screen.getByRole('group', { name: defaultLocaleCatalog['theme.label'] })).toBeDefined();
-    expect(screen.getAllByRole('menuitemradio').map(item => item.getAttribute('aria-label'))).toEqual([
+    expect(screen.getAllByRole('menuitemradio').map(item => item.textContent)).toEqual([
       defaultLocaleCatalog['theme.light'],
       defaultLocaleCatalog['theme.dark'],
       defaultLocaleCatalog['theme.system'],
     ]);
   });
 
-  it('shows the variants as icons only, in one row of three', async () => {
+  it('names every variant by its visible text without an extra label', async () => {
+    const store = createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined });
+    await renderMenu(store);
+
+    for (const labelKey of ['theme.light', 'theme.dark', 'theme.system'] as const) {
+      const item = screen.getByRole('menuitemradio', { name: defaultLocaleCatalog[labelKey] });
+
+      expect(item.hasAttribute('aria-label')).toBe(false);
+      expect(item.textContent).toBe(defaultLocaleCatalog[labelKey]);
+    }
+  });
+
+  it('shows every variant as an icon with a visible label after it, in one row of three', async () => {
     const store = createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined });
     await renderMenu(store);
 
@@ -111,8 +123,15 @@ describe('ThemeMenuRadioGroup', () => {
     const rows = new Set(items.map(item => item.parentElement));
 
     expect(rows.size).toBe(1);
-    expect(items.map(item => item.textContent)).toEqual(['', '', '']);
-    expect(items.every(item => item.querySelector('svg[aria-hidden="true"]') !== null)).toBe(true);
+    expect(items).toHaveLength(3);
+
+    for (const item of items) {
+      expect(item.firstElementChild?.getAttribute('aria-hidden')).toBe('true');
+      expect(item.firstElementChild?.tagName.toLowerCase()).toBe('svg');
+      expect(item.lastElementChild?.tagName.toLowerCase()).toBe('span');
+      expect(item.lastElementChild?.getAttribute('aria-hidden')).toBeNull();
+      expect(item.childElementCount).toBe(2);
+    }
   });
 
   it('walks over the three variants with the arrow keys of the menu', async () => {
@@ -148,7 +167,7 @@ describe('ThemeMenuRadioGroup', () => {
     expect(screen.getByRole('menuitemradio', { name: defaultLocaleCatalog['theme.dark'] }).getAttribute('aria-checked')).toBe('false');
   });
 
-  it('draws no check in the chosen cell, only the icon of the theme', async () => {
+  it('draws no check in the chosen cell, only the icon of the theme and its label', async () => {
     const store = createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined });
     store.setPreference('dark');
     await renderMenu(store);
@@ -157,7 +176,7 @@ describe('ThemeMenuRadioGroup', () => {
 
     expect(dark.getAttribute('aria-checked')).toBe('true');
     expect(dark.querySelectorAll('svg')).toHaveLength(1);
-    expect(dark.childElementCount).toBe(1);
+    expect(dark.childElementCount).toBe(2);
   });
 
   it('changes the theme only by the choice of an item and closes the menu', async () => {

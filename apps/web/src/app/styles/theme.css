@@ -18,7 +18,8 @@
   --color-link: #3b5bdb;
   --color-indicator: #3b5bdb;
   --color-focus: #0f1730;
-  --color-skeleton: rgb(30 42 74 / 0.08);
+  --color-hover: rgb(30 42 74 / 0.08);
+  --color-skeleton: rgb(30 42 74 / 0.15);
   --color-scrim: rgb(14 20 38 / 0.45);
   --color-side-label-customer: #8344b9;
   --color-side-label-supplier: #596517;
@@ -42,9 +43,42 @@
   --radius-control: 0.5rem;
   --radius-panel: 0.875rem;
   --blur-panel: 16px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-press: 100ms;
+  --duration-fast: 150ms;
+  --duration-theme: 200ms;
+  --duration-panel: 300ms;
   --font-sans:
-    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
+    'Manrope', 'Manrope Fallback', system-ui, -apple-system, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+@theme static {
+  --animate-menu-in: menu-in var(--duration-fast) var(--ease-out);
+  --animate-skeleton-pulse: skeleton-pulse 1.6s ease-in-out infinite;
+
+  @keyframes menu-in {
+    from {
+      opacity: 0;
+      transform: translate(var(--menu-in-x, 0), var(--menu-in-y, 0)) scale(0.98);
+    }
+
+    to {
+      opacity: 1;
+      transform: translate(0, 0) scale(1);
+    }
+  }
+
+  @keyframes skeleton-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.6;
+    }
+  }
 }
 
 @theme inline {
@@ -66,10 +100,20 @@
   color-scheme: light;
   --shadow-panel:
     0 10px 30px -12px rgb(30 42 74 / 0.28), 0 1px 2px rgb(30 42 74 / 0.12);
+  --shadow-raised:
+    0 20px 44px -14px rgb(30 42 74 / 0.5), 0 4px 10px -2px rgb(30 42 74 / 0.22);
 }
 
 @utility shadow-panel {
   --tw-shadow: var(--shadow-panel);
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow);
+}
+
+@utility shadow-raised {
+  --tw-shadow: var(--shadow-raised);
   box-shadow:
     var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
     var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
@@ -90,7 +134,8 @@
   --color-link: #9fb2ff;
   --color-indicator: #9fb2ff;
   --color-focus: #e3e9ff;
-  --color-skeleton: rgb(232 228 220 / 0.1);
+  --color-hover: rgb(232 228 220 / 0.1);
+  --color-skeleton: rgb(232 228 220 / 0.11);
   --color-scrim: rgb(0 0 0 / 0.6);
   --color-side-label-customer: #c794f2;
   --color-side-label-supplier: #a2b563;
@@ -113,6 +158,8 @@
   --color-on-avatar-8: #0b1226;
   --shadow-panel:
     0 12px 32px -12px rgb(0 0 0 / 0.6), 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-raised:
+    0 20px 44px -14px rgb(0 0 0 / 0.85), 0 4px 10px -2px rgb(0 0 0 / 0.5);
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {

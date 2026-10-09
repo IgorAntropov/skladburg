@@ -289,15 +289,30 @@ describe('ProfileMenu', () => {
       expect((await within(menu).findByTestId('profile-menu-name')).textContent).toBe(PROFILE_CUSTOMER_PERSONA.userDisplayName);
     });
 
-    it('shows only the user icon when the session fails', async () => {
+    it('shows the user icon and tells that the profile did not load when the session fails', async () => {
       await renderMenu({ sessionMode: 'error' });
       const menu = await findMenu();
 
-      await waitFor(() => {
-        expect(menu.querySelector('svg.lucide-user')).not.toBeNull();
-      });
+      const errorHeader = await within(menu).findByTestId('profile-menu-header-error');
+
+      expect(errorHeader.querySelector('svg.lucide-user')).not.toBeNull();
+      expect(within(errorHeader).getByText(defaultLocaleCatalog['profile.header.error'])).toBeDefined();
+      expect(within(menu).queryByTestId('profile-menu-header')).toBeNull();
       expect(within(menu).queryByTestId('profile-menu-name')).toBeNull();
       expect(within(menu).queryByTestId('profile-menu-sides')).toBeNull();
+    });
+
+    it('does not show the error text while the session loads or after it loaded', async () => {
+      const sessionGate = createGate();
+      await renderMenu({ sessionGate });
+      const menu = await findMenu();
+
+      expect(within(menu).queryByText(defaultLocaleCatalog['profile.header.error'])).toBeNull();
+
+      sessionGate.open();
+      await within(menu).findByTestId('profile-menu-header');
+
+      expect(within(menu).queryByText(defaultLocaleCatalog['profile.header.error'])).toBeNull();
     });
 
     it('is not an item of the menu and is not reachable by the keyboard', async () => {
@@ -347,6 +362,23 @@ describe('ProfileMenu', () => {
       expect(checkedItems.map(item => item.textContent)).toEqual([getSectionTitle('deals')]);
     });
 
+    it('marks the current section by the checked state without a check mark', async () => {
+      await renderMenu({ currentSection: 'deals', viewportClass: 'phone' });
+      const menu = await findReadyMenu();
+
+      const group = within(menu).getByRole('group', { name: NAV_GROUP_NAME });
+      const current = within(group).getByRole('menuitemradio', { name: getSectionTitle('deals') });
+
+      expect(current.getAttribute('aria-checked')).toBe('true');
+
+      for (const item of within(group).getAllByRole('menuitemradio')) {
+        expect(item.querySelector('svg')).toBeNull();
+        expect(item.childElementCount).toBe(1);
+        expect(item.firstElementChild?.tagName).toBe('SPAN');
+        expect(item.firstElementChild?.textContent).toBe(item.textContent);
+      }
+    });
+
     it('puts the sections right after the header, before the personas and the theme', async () => {
       await renderMenu({ hasDemo: true, viewportClass: 'phone' });
       const menu = await findReadyMenu();
@@ -386,6 +418,130 @@ describe('ProfileMenu', () => {
 
       expect(separators).toHaveLength(4);
       expect(hasNeighbours).toBe(false);
+    });
+  });
+
+  describe('scrolling part and footer', () => {
+    interface MenuStructureValue {
+      footer: HTMLElement;
+      menu: HTMLElement;
+      scroll: HTMLElement | null;
+    }
+
+    const readStructure = async (options: RenderMenuOptionsValue): Promise<MenuStructureValue> => {
+      await renderMenu(options);
+      const menu = await findReadyMenu();
+
+      return {
+        footer: within(menu).getByTestId('profile-menu-footer'),
+        menu,
+        scroll: within(menu).queryByTestId('profile-menu-scroll'),
+      };
+    };
+
+    it('scrolls only the personas and keeps the header and the footer outside of the scroll', async () => {
+      const { footer, menu, scroll } = await readStructure({ hasDemo: true });
+      await within(menu).findByText(defaultLocaleCatalog['persona.group.fresh']);
+
+      const header = within(menu).getByTestId('profile-menu-header');
+
+      expect(scroll).not.toBeNull();
+      expect(scroll?.className).toContain('overflow-y-auto');
+      expect(scroll?.className).toContain('min-h-0');
+      expect(scroll?.contains(within(menu).getByText(defaultLocaleCatalog['persona.group.fresh']))).toBe(true);
+      expect(scroll?.contains(within(menu).getByText(defaultLocaleCatalog['persona.group.construction']))).toBe(true);
+      expect(scroll?.contains(header)).toBe(false);
+      expect(scroll?.contains(footer)).toBe(false);
+      expect(footer.contains(header)).toBe(false);
+      expect(footer.className).not.toContain('overflow');
+    });
+
+    it('limits the height of the menu to the height available on the screen', async () => {
+      const { menu } = await readStructure({ hasDemo: true });
+
+      const root = within(menu).getByTestId('profile-menu-scroll').parentElement;
+
+      expect(root?.className).toContain('--radix-dropdown-menu-content-available-height');
+      expect(root?.className).toContain('flex-col');
+    });
+
+    it('keeps the theme and the reset in the footer, after the personas', async () => {
+      const { footer, menu, scroll } = await readStructure({ hasDemo: true });
+      await within(menu).findByText(defaultLocaleCatalog['persona.group.fresh']);
+
+      expect(within(footer).getByText(THEME_GROUP_NAME)).toBeDefined();
+      expect(within(footer).getByRole('group', { name: THEME_GROUP_NAME })).toBeDefined();
+      expect(within(footer).getByRole('menuitem', { name: RESET_ITEM_NAME })).toBeDefined();
+      expect(scroll?.compareDocumentPosition(footer)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+
+    it('keeps the sections of a phone in the scrolling part', async () => {
+      const { menu, scroll } = await readStructure({ hasDemo: true, viewportClass: 'phone' });
+      await within(menu).findByText(defaultLocaleCatalog['persona.group.fresh']);
+
+      expect(scroll?.contains(within(menu).getByRole('group', { name: NAV_GROUP_NAME }))).toBe(true);
+    });
+
+    it('has no scrolling part when there is nothing to scroll', async () => {
+      const { footer, menu, scroll } = await readStructure({});
+
+      expect(scroll).toBeNull();
+      expect(within(footer).getByRole('group', { name: THEME_GROUP_NAME })).toBeDefined();
+      expect(within(menu).getAllByRole('separator')).toHaveLength(1);
+    });
+
+    it('has no reset item in the footer outside the demo', async () => {
+      const { footer } = await readStructure({});
+
+      expect(within(footer).queryByRole('menuitem')).toBeNull();
+    });
+
+    it('walks over the items through the blocks with the arrow keys, Home and End', async () => {
+      const { footer, menu, scroll } = await readStructure({ hasDemo: true });
+      await within(menu).findByText(defaultLocaleCatalog['persona.group.fresh']);
+      const personas = within(scroll ?? menu).getAllByRole('menuitemradio');
+      const lastPersona = personas.at(-1);
+      const firstPersona = personas[0];
+      const firstTheme = within(footer).getAllByRole('menuitemradio')[0];
+      const reset = within(footer).getByRole('menuitem', { name: RESET_ITEM_NAME });
+
+      lastPersona?.focus();
+      fireEvent.keyDown(lastPersona ?? menu, { key: 'ArrowDown' });
+
+      await waitFor(() => {
+        expect(document.activeElement).toBe(firstTheme);
+      });
+
+      fireEvent.keyDown(firstTheme ?? menu, { key: 'ArrowUp' });
+
+      await waitFor(() => {
+        expect(document.activeElement).toBe(lastPersona);
+      });
+
+      fireEvent.keyDown(menu, { key: 'End' });
+
+      await waitFor(() => {
+        expect(document.activeElement).toBe(reset);
+      });
+
+      fireEvent.keyDown(menu, { key: 'Home' });
+
+      await waitFor(() => {
+        expect(document.activeElement).toBe(firstPersona);
+      });
+    });
+
+    it('finds a persona by the first letters of the name from the footer', async () => {
+      const { footer, menu } = await readStructure({ hasDemo: true });
+      await within(menu).findByText(defaultLocaleCatalog['persona.group.fresh']);
+      const reset = within(footer).getByRole('menuitem', { name: RESET_ITEM_NAME });
+      reset.focus();
+
+      fireEvent.keyDown(reset, { key: 'С' });
+
+      await waitFor(() => {
+        expect(document.activeElement?.textContent).toContain('Сергей Кузнецов');
+      });
     });
   });
 
@@ -472,7 +628,7 @@ describe('ProfileMenu', () => {
       await waitFor(() => {
         expect(document.activeElement).toBe(within(menu).getAllByRole('menuitemradio')[0]);
       });
-      expect(document.activeElement?.getAttribute('aria-label')).toBe(defaultLocaleCatalog['theme.light']);
+      expect(document.activeElement?.textContent).toBe(defaultLocaleCatalog['theme.light']);
     });
   });
 });

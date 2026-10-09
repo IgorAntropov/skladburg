@@ -40,6 +40,7 @@ const THEME_NAMES: readonly ThemeNameValue[] = ['light', 'dark'];
 
 const TEXT_THRESHOLD = 4.5;
 const GRAPHIC_THRESHOLD = 3;
+const SKELETON_SEPARATION_THRESHOLD = 1.3;
 
 const BARE_STATUS_ICON_THEMES: readonly ThemeNameValue[] = ['dark'];
 
@@ -102,6 +103,7 @@ const THEME_DEPENDENT_TOKEN_NAMES: readonly string[] = [
   'link',
   'indicator',
   'focus',
+  'hover',
   'skeleton',
   'scrim',
   ...SIDE_LABEL_TOKEN_NAMES,
@@ -363,6 +365,44 @@ describe('top bar state contrast', () => {
 
   it.each(THEME_NAMES)('keeps the muted section link text readable on the panel in the %s theme', (theme) => {
     const ratio = readWorstRatio(readColor(theme, 'on-panel-muted'), readPanelBackdrops(theme));
+
+    expect(ratio).toBeGreaterThanOrEqual(TEXT_THRESHOLD);
+  });
+});
+
+const readHoverBackdrops = (theme: ThemeNameValue): RgbaColorValue[] => {
+  const hover = readColor(theme, 'hover');
+  const canvasBackdrop = compositeOver(hover, readColor(theme, 'canvas'));
+
+  return [canvasBackdrop, ...readPanelBackdrops(theme).map(panel => compositeOver(hover, panel))];
+};
+
+const readSkeletonBackdrops = (theme: ThemeNameValue): RgbaColorValue[] => {
+  return [readColor(theme, 'panel-solid'), ...readPanelBackdrops(theme)];
+};
+
+describe('skeleton and hover fills', () => {
+  it.each(THEME_NAMES)('separates the skeleton fill from the solid panel and the panel over every world in the %s theme', (theme) => {
+    const skeleton = readColor(theme, 'skeleton');
+    const ratios = readSkeletonBackdrops(theme).map(backdrop => contrastRatio(compositeOver(skeleton, backdrop), backdrop));
+    const worst = Math.min(...ratios);
+
+    expect(worst).toBeGreaterThanOrEqual(SKELETON_SEPARATION_THRESHOLD);
+  });
+
+  it.each(THEME_NAMES)('keeps the hover fill weaker than the skeleton fill in the %s theme', (theme) => {
+    expect(readColor(theme, 'hover').alpha).toBeLessThan(readColor(theme, 'skeleton').alpha);
+  });
+
+  it.each(THEME_NAMES)('keeps the text of a hovered control readable on the hover fill in the %s theme', (theme) => {
+    const ratio = readWorstRatio(readColor(theme, 'on-panel'), readHoverBackdrops(theme));
+
+    expect(ratio).toBeGreaterThanOrEqual(TEXT_THRESHOLD);
+  });
+
+  it.each(THEME_NAMES)('keeps the muted text readable on the hover fill of a selected menu cell in the %s theme', (theme) => {
+    const solidHover = compositeOver(readColor(theme, 'hover'), readColor(theme, 'panel-solid'));
+    const ratio = contrastRatio(readColor(theme, 'on-panel-muted'), solidHover);
 
     expect(ratio).toBeGreaterThanOrEqual(TEXT_THRESHOLD);
   });

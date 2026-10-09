@@ -1,11 +1,13 @@
 import type { ReactElement } from 'react';
 
+import { Pause } from 'lucide-react';
 import {
   useEffect,
   useMemo,
 } from 'react';
 
 import { useI18n } from '@/shared/i18n';
+import { cn } from '@/shared/lib/cn';
 import {
   Skeleton,
   SkeletonGroup,
@@ -20,11 +22,15 @@ const ROOT_CLASS_NAME = [
   'sm:min-h-6 sm:text-base sm:leading-6',
 ].join(' ');
 
-const TIME_CLASS_NAME = 'min-w-[2.65em] text-center font-medium tabular-nums';
+const TIME_CLASS_NAME = 'min-w-[2.8em] text-center font-medium tabular-nums';
 
 const SCALE_CLASS_NAME = 'rounded-control border border-line px-1.5 text-xs leading-4 font-medium tabular-nums text-on-panel-muted';
 
-const SKELETON_CLASS_NAME = 'h-4 w-[2.65em] sm:h-5';
+const PAUSE_ICON_CLASS_NAME = 'size-3 shrink-0 text-on-panel-muted';
+
+const BADGE_WITH_ICON_CLASS_NAME = 'inline-flex items-center gap-1';
+
+const SKELETON_CLASS_NAME = 'h-4 w-[2.8em] sm:h-5';
 
 export const WorldClock = (): null | ReactElement => {
   const { formatDateTime, formatNumber, t, userTimeZone } = useI18n();
@@ -36,15 +42,17 @@ export const WorldClock = (): null | ReactElement => {
   const isSkeletonFilled = useDelayedVisibility(isClockWaiting);
 
   const timeScale = clockQuery.data?.snapshot.timeScale;
-  const isScaleShown = timeScale !== undefined && timeScale !== 1;
+  const isPaused = timeScale === 0;
+  const isBadgeShown = timeScale !== undefined && timeScale !== 1 && !isClockWaiting;
 
   const timeText = useMemo(
     () => (minuteMs === undefined ? '' : formatDateTime(minuteMs, { timeZone: userTimeZone })),
     [formatDateTime, minuteMs, userTimeZone],
   );
-  const dateTimeValue = useMemo(() => (minuteMs === undefined ? undefined : new Date(minuteMs).toISOString()), [minuteMs]);
-  const isScaleBadgeShown = isScaleShown && !isClockWaiting;
-  const scaleText = isScaleShown ? formatNumber(timeScale) : '';
+  const dateTimeValue = minuteMs === undefined ? undefined : new Date(minuteMs).toISOString();
+  const scale = isBadgeShown ? formatNumber(timeScale) : '';
+  const badgeText = isPaused ? t('clock.paused') : t('clock.scale', { scale });
+  const badgeLabel = isPaused ? t('clock.paused.label') : t('clock.scale.label', { scale });
 
   useEffect(() => {
     if (clockQuery.error !== null) {
@@ -65,11 +73,14 @@ export const WorldClock = (): null | ReactElement => {
             </SkeletonGroup>
           )
         : <time className={TIME_CLASS_NAME} dateTime={dateTimeValue}>{timeText}</time>}
-      {isScaleBadgeShown
+      {isBadgeShown
         ? (
             <>
-              <span aria-hidden className={SCALE_CLASS_NAME}>{t('clock.scale', { scale: scaleText })}</span>
-              <span className="sr-only">{t('clock.scale.label', { scale: scaleText })}</span>
+              <span aria-hidden className={cn(SCALE_CLASS_NAME, isPaused && BADGE_WITH_ICON_CLASS_NAME)}>
+                {isPaused && <Pause aria-hidden className={PAUSE_ICON_CLASS_NAME} />}
+                {badgeText}
+              </span>
+              <span className="sr-only">{badgeLabel}</span>
             </>
           )
         : null}

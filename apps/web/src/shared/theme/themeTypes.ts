@@ -12,6 +12,11 @@ export interface IThemePreferenceStore {
   subscribe: (listener: () => void) => () => void;
 }
 
+export interface IThemeTransitions {
+  isMotionAllowed: () => boolean;
+  startViewTransition: ((update: () => void) => void) | undefined;
+}
+
 export type ResolvedThemeValue = 'dark' | 'light';
 
 export interface ThemePreferenceHandleValue {

@@ -68,13 +68,67 @@ describe('Button', () => {
     expect(button.hasAttribute('disabled')).toBe(false);
   });
 
-  it('shows an aria-hidden spinner and the pending label while pending', () => {
+  it('shows an aria-hidden spinner and names the button by the pending label while pending', () => {
     render(<Button pending pendingLabel={SAVING_LABEL}>{SAVE_LABEL}</Button>);
     const button = screen.getByRole('button', { name: SAVING_LABEL });
 
-    expect(screen.queryByText(SAVE_LABEL)).toBeNull();
     expect(button.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
     expect(button.querySelector('svg')?.getAttribute('class')).toContain('motion-safe:animate-spin');
+  });
+
+  it('keeps both labels in one grid cell so the width does not change, hiding the inactive one', () => {
+    const { rerender } = render(<Button pendingLabel={SAVING_LABEL}>{SAVE_LABEL}</Button>);
+
+    const readCells = (): { idle: HTMLElement; pending: HTMLElement } => {
+      const idle = screen.getByText(SAVE_LABEL);
+      const pending = screen.getByText(SAVING_LABEL);
+
+      return { idle, pending };
+    };
+
+    let cells = readCells();
+
+    expect(cells.idle.parentElement).toBe(cells.pending.parentElement);
+    expect(cells.idle.parentElement?.className).toContain('inline-grid');
+    expect(cells.idle.className).toContain('col-start-1');
+    expect(cells.idle.className).toContain('row-start-1');
+    expect(cells.pending.className).toContain('col-start-1');
+    expect(cells.pending.className).toContain('row-start-1');
+    expect(cells.idle.hasAttribute('aria-hidden')).toBe(false);
+    expect(cells.idle.className).not.toContain('invisible');
+    expect(cells.pending.getAttribute('aria-hidden')).toBe('true');
+    expect(cells.pending.className).toContain('invisible');
+    expect(screen.getByRole('button', { name: SAVE_LABEL })).toBeTruthy();
+
+    rerender(<Button pending pendingLabel={SAVING_LABEL}>{SAVE_LABEL}</Button>);
+    cells = readCells();
+
+    expect(cells.pending.hasAttribute('aria-hidden')).toBe(false);
+    expect(cells.pending.className).not.toContain('invisible');
+    expect(cells.idle.getAttribute('aria-hidden')).toBe('true');
+    expect(cells.idle.className).toContain('invisible');
+    expect(screen.getByRole('button', { name: SAVING_LABEL })).toBeTruthy();
+  });
+
+  it('does not spin the hidden spinner while idle', () => {
+    render(<Button pendingLabel={SAVING_LABEL}>{SAVE_LABEL}</Button>);
+
+    expect(screen.getByRole('button', { name: SAVE_LABEL }).querySelector('svg')?.getAttribute('class')).not.toContain('animate-spin');
+  });
+
+  it('ignores the clicks while pending with a pending label', () => {
+    const onClick = vi.fn();
+    render(<Button onClick={onClick} pending pendingLabel={SAVING_LABEL}>{SAVE_LABEL}</Button>);
+
+    fireEvent.click(screen.getByRole('button', { name: SAVING_LABEL }));
+
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('renders no label wrappers without a pending label', () => {
+    render(<Button>{SAVE_LABEL}</Button>);
+
+    expect(screen.getByRole('button', { name: SAVE_LABEL }).querySelector('span')).toBeNull();
   });
 
   it('keeps the children as the label while pending without a pending label', () => {

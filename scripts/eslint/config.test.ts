@@ -69,6 +69,8 @@ const profileMenuChunkFilePath = fileURLToPath(
 const profileMenuChunkTestFilePath = fileURLToPath(
   new URL('../../apps/web/src/widgets/profile-menu/ui/menu/ProfileMenu.test.tsx', import.meta.url),
 );
+const motionSegmentFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/motion/probe-scope.ts', import.meta.url));
+const motionSegmentTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/motion/probe-scope.test.tsx', import.meta.url));
 const scriptsProbeFilePath = fileURLToPath(new URL('./probe-tool.ts', import.meta.url));
 
 const formattingRuleIds: ReadonlySet<string> = new Set([
@@ -560,6 +562,152 @@ describe('eslint.config.ts with the local rules', () => {
       const message = result?.messages.find(item => item.ruleId === 'no-restricted-imports' || item.ruleId === 'no-restricted-syntax');
 
       expect(message?.message).toContain('shared/api/transport/demo');
+    });
+  });
+
+  describe('boundary of the animation library in the web application', () => {
+    const packageEntries: readonly (readonly [string, string])[] = [
+      ['the package entry', 'motion'],
+      ['the react entry', 'motion/react'],
+      ['the lazy entry', 'motion/react-m'],
+      ['the mini entry', 'motion/mini'],
+    ];
+    const segmentEntries: readonly (readonly [string, string])[] = [
+      ['the public entry of the segment', '@/shared/lib/motion'],
+      ['a nested path of the segment', '@/shared/lib/motion/MotionScope'],
+    ];
+    const restrictedPlaces: readonly (readonly [string, string])[] = [
+      ['a page', pageFilePath],
+      ['a test of a page', pageTestFilePath],
+      ['app', applicationScriptFilePath],
+      ['a test in app', applicationTestFilePath],
+      ['a feature view', featureViewFilePath],
+      ['a widget', widgetFilePath],
+      ['a test of a widget', widgetTestFilePath],
+      ['widgets/profile-menu outside of the chunk', profileMenuFilePath],
+      ['a test of widgets/profile-menu outside of the chunk', profileMenuTestFilePath],
+      ['shared/ui', sharedUiFilePath],
+      ['shared/lib outside of the segment', sharedLibFilePath],
+      ['the client of the api layer', apiClientFilePath],
+      ['the demo transport', demoTransportFilePath],
+      ['shared/i18n', i18nFilePath],
+      ['app/bootstrap', bootstrapFilePath],
+      ['the location of shared/routing', routingLocationFilePath],
+    ];
+
+    describe.each(importForms)('with %s', (_formName, toCode) => {
+      describe.each(restrictedPlaces)('in %s', (_placeName, filePath) => {
+        it.each(packageEntries)('reports %s', async (_name, specifier) => {
+          const outcome = await lint(untypedEslint, toCode(specifier), filePath);
+
+          expect(isRestricted(outcome.ruleIds)).toBe(true);
+        });
+
+        it.each(segmentEntries)('reports %s', async (_name, specifier) => {
+          const outcome = await lint(untypedEslint, toCode(specifier), filePath);
+
+          expect(isRestricted(outcome.ruleIds)).toBe(true);
+        });
+      });
+
+      it.each(packageEntries)('allows %s in the segment', async (_name, specifier) => {
+        const outcome = await lint(untypedEslint, toCode(specifier), motionSegmentFilePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(false);
+      });
+
+      it.each(packageEntries)('allows %s in a test of the segment', async (_name, specifier) => {
+        const outcome = await lint(untypedEslint, toCode(specifier), motionSegmentTestFilePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(false);
+      });
+
+      it.each(segmentEntries)('allows %s in the lazy chunk of the profile menu', async (_name, specifier) => {
+        const outcome = await lint(untypedEslint, toCode(specifier), profileMenuChunkFilePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(false);
+      });
+
+      it.each(segmentEntries)('allows %s in a test of the lazy chunk of the profile menu', async (_name, specifier) => {
+        const outcome = await lint(untypedEslint, toCode(specifier), profileMenuChunkTestFilePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(false);
+      });
+
+      it.each(packageEntries)('reports %s in the lazy chunk of the profile menu', async (_name, specifier) => {
+        const outcome = await lint(untypedEslint, toCode(specifier), profileMenuChunkFilePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(true);
+      });
+
+      it.each(packageEntries)('reports %s in a test of the lazy chunk of the profile menu', async (_name, specifier) => {
+        const outcome = await lint(untypedEslint, toCode(specifier), profileMenuChunkTestFilePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(true);
+      });
+    });
+
+    it.each([
+      ['a package with a similar name', 'motion-dom'],
+      ['a package that starts with the same letters', 'motions'],
+      ['a sibling segment', '@/shared/lib/motion-tools'],
+      ['another segment', '@/shared/lib/cn'],
+      ['a relative module', './motion'],
+    ])('does not report %s in a page', async (_name, specifier) => {
+      const outcome = await lint(untypedEslint, toValueImport(specifier), pageFilePath);
+
+      expect(isRestricted(outcome.ruleIds)).toBe(false);
+    });
+
+    it.each([
+      ['a static import', toValueImport],
+      ['a dynamic import', toDynamicImport],
+    ])('explains where the animation library is allowed for %s', async (_name, toCode) => {
+      if (untypedEslint === undefined) {
+        throw new Error('ESLint is not initialized');
+      }
+
+      const [packageResult] = await untypedEslint.lintText(toCode('motion/react'), { filePath: pageFilePath });
+      const [segmentResult] = await untypedEslint.lintText(toCode('@/shared/lib/motion'), { filePath: pageFilePath });
+      const readMessage = (messages: readonly Linter.LintMessage[] | undefined): string | undefined =>
+        messages?.find(item => item.ruleId === 'no-restricted-imports' || item.ruleId === 'no-restricted-syntax')?.message;
+
+      expect(readMessage(packageResult?.messages)).toContain('shared/lib/motion');
+      expect(readMessage(segmentResult?.messages)).toContain('widgets/profile-menu/ui/menu');
+    });
+
+    it('keeps the engine boundary in the segment and in the lazy chunk', async () => {
+      const code = toValueImport('@skladburg/demo-engine/client');
+
+      for (const filePath of [motionSegmentFilePath, profileMenuChunkFilePath]) {
+        const outcome = await lint(untypedEslint, code, filePath);
+
+        expect(isRestricted(outcome.ruleIds), filePath).toBe(true);
+      }
+    });
+
+    it('keeps the testing entries closed in the segment and in the lazy chunk and open in their tests', async () => {
+      const code = `${toValueImport('@/shared/api/index.testing')}${toValueImport('@/shared/routing/index.testing')}`;
+
+      for (const filePath of [motionSegmentFilePath, profileMenuChunkFilePath]) {
+        const outcome = await lint(untypedEslint, code, filePath);
+
+        expect(outcome.ruleIds.filter(ruleId => ruleId === 'no-restricted-imports'), filePath).toHaveLength(2);
+      }
+
+      for (const filePath of [motionSegmentTestFilePath, profileMenuChunkTestFilePath]) {
+        const outcome = await lint(untypedEslint, code, filePath);
+
+        expect(isRestricted(outcome.ruleIds), filePath).toBe(false);
+      }
+    });
+
+    it('keeps the lazy module restrictions of the persona switcher feature in the widgets next to the animation library', async () => {
+      const code = `${toValueImport('motion/react')}${toValueImport('@/features/switch-persona')}`;
+      const outcome = await lint(untypedEslint, code, widgetFilePath);
+
+      expect(outcome.ruleIds).toContain('no-restricted-imports');
+      expect(outcome.ruleIds).toContain('@typescript-eslint/no-restricted-imports');
     });
   });
 

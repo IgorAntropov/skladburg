@@ -30,6 +30,9 @@ const lazyAppFiles: string[] = ['apps/web/src/app/**/*.{ts,tsx}'];
 const lazyWidgetFiles: string[] = ['apps/web/src/widgets/**/*.{ts,tsx}'];
 const lazyProfileMenuFiles: string[] = ['apps/web/src/widgets/profile-menu/**/*.{ts,tsx}'];
 const lazyProfileMenuChunkFiles: string[] = ['apps/web/src/widgets/profile-menu/ui/menu/**/*.{ts,tsx}'];
+const motionSegmentFiles: string[] = ['apps/web/src/shared/lib/motion/**/*.{ts,tsx}'];
+const motionSegmentTestFiles: string[] = ['apps/web/src/shared/lib/motion/**/*.test.{ts,tsx}'];
+const lazyProfileMenuChunkTestFiles: string[] = ['apps/web/src/widgets/profile-menu/ui/menu/**/*.test.{ts,tsx}'];
 
 interface BoundaryRestrictionValue {
   importPattern: string;
@@ -54,6 +57,22 @@ const registryRestriction: BoundaryRestrictionValue = {
   message: 'The contract registry is for the engine only; importing it here pulls the contract image into the initial bundle',
   selectorPattern: '^@skladburg.contracts.registry$',
 };
+
+const motionPackageRestriction: BoundaryRestrictionValue = {
+  importPattern: '^motion(/|$)',
+  message: 'The animation library is imported only inside shared/lib/motion; take MotionScope, m and AnimatePresence from it '
+    + 'in the lazy chunk of the profile menu',
+  selectorPattern: '^motion($|[^-a-z0-9_])',
+};
+
+const motionSegmentRestriction: BoundaryRestrictionValue = {
+  importPattern: '^@/shared/lib/motion(/|$)',
+  message: 'shared/lib/motion pulls the animation library into the bundle; use it only in the lazy chunk of the profile menu '
+    + '(widgets/profile-menu/ui/menu) so that the initial bundle stays free of it',
+  selectorPattern: '^@.shared.lib.motion($|[^-a-z0-9_])',
+};
+
+const motionRestrictions: BoundaryRestrictionValue[] = [motionPackageRestriction, motionSegmentRestriction];
 
 const apiTestingEntryRestriction: BoundaryRestrictionValue = {
   importPattern: '^@/shared/api/index\\.testing$',
@@ -435,46 +454,71 @@ export default defineConfig(
   {
     files: engineBoundaryFiles,
     rules: createBoundaryRules(
-      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
+      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...motionRestrictions],
       webSourceSyntaxRestrictions,
     ),
   },
   {
     files: engineBoundaryTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction], webSyntaxRestrictions),
+    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction, ...motionRestrictions], webSyntaxRestrictions),
   },
   {
     files: engineBoundaryAllowedFiles,
     rules: createBoundaryRules(
-      [registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
+      [registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...motionRestrictions],
       webSourceSyntaxRestrictions,
     ),
   },
   {
     files: engineBoundaryAllowedTestFiles,
-    rules: createBoundaryRules([registryRestriction], webSyntaxRestrictions),
+    rules: createBoundaryRules([registryRestriction, ...motionRestrictions], webSyntaxRestrictions),
   },
   {
     files: timeZoneExemptFiles,
     rules: createBoundaryRules(
-      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
+      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...motionRestrictions],
       timeZoneExemptSourceSyntaxRestrictions,
     ),
   },
   {
     files: timeZoneExemptTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction], navigationRestrictions),
+    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction, ...motionRestrictions], navigationRestrictions),
   },
   {
     files: navigationOwnerFiles,
     rules: createBoundaryRules(
-      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
+      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...motionRestrictions],
       navigationOwnerSourceSyntaxRestrictions,
     ),
   },
   {
     files: navigationOwnerTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction], webTimeZoneRestrictions),
+    rules: createBoundaryRules(
+      [engineRestrictionForTests, registryRestriction, ...motionRestrictions],
+      webTimeZoneRestrictions,
+    ),
+  },
+  {
+    files: motionSegmentFiles,
+    rules: createBoundaryRules(
+      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
+      webSourceSyntaxRestrictions,
+    ),
+  },
+  {
+    files: motionSegmentTestFiles,
+    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction], webSyntaxRestrictions),
+  },
+  {
+    files: lazyProfileMenuChunkFiles,
+    rules: createBoundaryRules(
+      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, motionPackageRestriction],
+      webSourceSyntaxRestrictions,
+    ),
+  },
+  {
+    files: lazyProfileMenuChunkTestFiles,
+    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction, motionPackageRestriction], webSyntaxRestrictions),
   },
   {
     files: lazyAppFiles,

@@ -42,7 +42,7 @@ const OUTSIDE_LABEL = 'Outside action';
 const OUTSIDE_REGION_LABEL = 'Outside region';
 
 interface RoleMenuProps {
-  onReset?: (() => void) | undefined;
+  onReset?: ((event: Event) => void) | undefined;
   onValueChange: (value: RoleValue) => void;
   value: RoleValue | undefined;
 }
@@ -353,6 +353,51 @@ describe('DropdownMenu', () => {
     });
   });
 
+  it('passes the select event of the menu to onSelect', async () => {
+    const onReset = vi.fn<(event: Event) => void>();
+    render(<RoleMenu onReset={onReset} onValueChange={vi.fn()} value="customer" />);
+
+    await openWithArrowDown();
+    const reset = screen.getByRole('menuitem', { name: ACTION_TEXT });
+    reset.focus();
+    fireEvent.keyDown(reset, { key: 'Enter' });
+
+    const selectEvent = onReset.mock.calls[0]?.[0];
+
+    expect(selectEvent).toBeInstanceOf(Event);
+    expect(selectEvent?.target).toBe(reset);
+    expect(selectEvent?.defaultPrevented).toBe(false);
+  });
+
+  it('keeps the menu open and the focus on the item when onSelect prevents the default', async () => {
+    const onReset = vi.fn((event: Event): void => {
+      event.preventDefault();
+    });
+    render(<RoleMenu onReset={onReset} onValueChange={vi.fn()} value="customer" />);
+
+    await openWithArrowDown();
+    const reset = screen.getByRole('menuitem', { name: ACTION_TEXT });
+    reset.focus();
+    fireEvent.keyDown(reset, { key: 'Enter' });
+
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('menu', { name: MENU_LABEL })).toBeTruthy();
+    expect(document.activeElement).toBe(reset);
+  });
+
+  it('keeps the menu open on a click when onSelect prevents the default', async () => {
+    const onReset = vi.fn((event: Event): void => {
+      event.preventDefault();
+    });
+    render(<RoleMenu onReset={onReset} onValueChange={vi.fn()} value="customer" />);
+
+    await openWithArrowDown();
+    fireEvent.click(screen.getByRole('menuitem', { name: ACTION_TEXT }));
+
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('menu', { name: MENU_LABEL })).toBeTruthy();
+  });
+
   it('selects an item once on a click and closes the menu', async () => {
     const onValueChange = vi.fn();
     render(<RoleMenu onValueChange={onValueChange} value="customer" />);
@@ -471,7 +516,7 @@ describe('DropdownMenu', () => {
     expect(item.getAttribute('aria-checked')).toBe('true');
   });
 
-  it('puts the check after the content, pushed to the end, when the indicator is placed at the end', async () => {
+  it('puts the check before the content of the checked item by default and selects by click', async () => {
     const onValueChange = vi.fn();
     render(
       <DropdownMenu open>
@@ -480,8 +525,8 @@ describe('DropdownMenu', () => {
         </DropdownMenuTrigger>
         <DropdownMenuContent label={MENU_LABEL}>
           <DropdownMenuRadioGroup label={GROUP_LABEL} onValueChange={onValueChange} value="customer">
-            <DropdownMenuRadioItem indicatorPlacement="end" value="customer">{CUSTOMER_TEXT}</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem indicatorPlacement="end" value="carrier">{CARRIER_TEXT}</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="customer">{CUSTOMER_TEXT}</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="carrier">{CARRIER_TEXT}</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>,
@@ -489,10 +534,9 @@ describe('DropdownMenu', () => {
 
     const customer = await screen.findByRole('menuitemradio', { name: CUSTOMER_TEXT });
 
-    expect(customer.firstChild?.textContent).toBe(CUSTOMER_TEXT);
-    expect(customer.lastElementChild?.className).toContain('ml-auto');
-    expect(customer.lastElementChild?.querySelector('svg')).not.toBeNull();
-    expect(screen.getByRole('menuitemradio', { name: CARRIER_TEXT }).lastElementChild?.querySelector('svg')).toBeNull();
+    expect(customer.firstElementChild?.querySelector('svg')).not.toBeNull();
+    expect(customer.lastChild?.textContent).toBe(CUSTOMER_TEXT);
+    expect(screen.getByRole('menuitemradio', { name: CARRIER_TEXT }).querySelector('svg')).toBeNull();
 
     fireEvent.click(screen.getByRole('menuitemradio', { name: CARRIER_TEXT }));
 

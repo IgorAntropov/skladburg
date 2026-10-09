@@ -23,6 +23,7 @@ import {
   READ_HORIZONTAL_OVERFLOW,
   READ_IS_FOCUS_ON_BODY,
   READ_LANDMARKS_HIDDEN_FROM_READERS,
+  SETTLE_FINITE_ANIMATIONS,
 } from '../fixtures/pageScripts.ts';
 import {
   getPersonaLabel,
@@ -31,7 +32,10 @@ import {
   getSideLabel,
 } from '../fixtures/personaLabels.ts';
 import { getSectionTitle } from '../fixtures/routes.ts';
-import { createProfileMenuLocators } from './profile-menu-locators.ts';
+import {
+  createProfileMenuLocators,
+  getThemeLabel,
+} from './profile-menu-locators.ts';
 
 export type { ThemePreferenceValue } from './profile-menu-locators.ts';
 
@@ -41,6 +45,14 @@ const MIN_TOUCH_TARGET_PX = 44;
 
 const THEMES: readonly ThemePreferenceValue[] = ['light', 'dark', 'system'];
 
+const SAME_POSITION_TOLERANCE_PX = 1;
+
+export interface PanelGeometryValue {
+  mainTop: number;
+  panelHeight: number;
+  panelWidth: number;
+}
+
 export interface TopBarRobotValue {
   blurActiveElement: () => Promise<void>;
   cancelResetConfirm: () => Promise<void>;
@@ -49,12 +61,14 @@ export interface TopBarRobotValue {
   clickSectionLinkWhileMenuOpen: (section: SectionValue) => Promise<void>;
   closeMenuWithEscape: () => Promise<void>;
   closeResetConfirmWithEscape: () => Promise<void>;
+  closeSearchWithButton: () => Promise<void>;
   closeSearchWithEscape: () => Promise<void>;
   expectBannerAndMainExposed: () => Promise<void>;
   expectBannerShown: () => Promise<void>;
   expectButtonBusy: (isBusy: boolean) => Promise<void>;
   expectButtonTouchTarget: () => Promise<void>;
   expectCurrentSection: (section: SectionValue) => Promise<void>;
+  expectCurrentSectionMarkedWithoutCheckmark: (section: SectionValue) => Promise<void>;
   expectDocumentTheme: (theme: 'dark' | 'light') => Promise<void>;
   expectFocusNotOnBody: () => Promise<void>;
   expectFocusNotOnProfileButton: () => Promise<void>;
@@ -71,7 +85,10 @@ export interface TopBarRobotValue {
   expectNoSectionsInMenu: () => Promise<void>;
   expectNoSignInLabel: () => Promise<void>;
   expectPanelBackgroundFromTheme: () => Promise<string>;
+  expectPanelGeometryKept: (before: PanelGeometryValue) => Promise<void>;
   expectPersonaPicker: (currentPersona: PersonaValue) => Promise<void>;
+  expectPhoneSearchClosed: () => Promise<void>;
+  expectPhoneSearchOpen: () => Promise<void>;
   expectProductMark: () => Promise<void>;
   expectProfileButton: (persona: PersonaValue) => Promise<void>;
   expectProfileButtonLast: () => Promise<void>;
@@ -85,11 +102,13 @@ export interface TopBarRobotValue {
   expectSearchEmpty: () => Promise<void>;
   expectSearchFolded: () => Promise<void>;
   expectSearchNoteHidden: () => Promise<void>;
+  expectSearchRowInsidePanel: () => Promise<void>;
   expectSearchUnavailableNote: () => Promise<void>;
   expectSearchValue: (value: string) => Promise<void>;
   expectSections: (sections: readonly SectionValue[]) => Promise<void>;
   expectThemeChecked: (theme: ThemePreferenceValue) => Promise<void>;
   expectThemeFocusMovesWithoutChange: (theme: ThemePreferenceValue) => Promise<void>;
+  expectThemeItemsNamedByVisibleText: () => Promise<void>;
   expectThemeRow: () => Promise<void>;
   focusKnownElement: (section: SectionValue) => Promise<void>;
   focusProfileButton: () => Promise<void>;
@@ -104,6 +123,7 @@ export interface TopBarRobotValue {
   pressSlashOfRussianLayout: () => Promise<void>;
   pressTab: () => Promise<void>;
   pressTabInMenu: () => Promise<void>;
+  readPanelGeometry: () => Promise<PanelGeometryValue>;
   requestReset: () => Promise<void>;
   resetFromConfirm: () => Promise<void>;
   selectMenuSection: (section: SectionValue) => Promise<void>;
@@ -125,6 +145,7 @@ export const createTopBarRobot = (page: Page, layout: TopBarLayoutValue): TopBar
     allItems,
     banner,
     button: profileButton,
+    buttonIncludingHidden: profileButtonIncludingHidden,
     getPersonaGroup,
     getThemeItem,
     menu,
@@ -139,6 +160,10 @@ export const createTopBarRobot = (page: Page, layout: TopBarLayoutValue): TopBar
   const searchField = banner.getByRole('searchbox', { name: getText('search.label') });
   const foldedSearchField = banner.getByRole('searchbox', { includeHidden: true, name: getText('search.label') });
   const searchToggle = banner.getByRole('button', { name: getText('search.open') });
+  const searchToggleIncludingHidden = banner.getByRole('button', { includeHidden: true, name: getText('search.open') });
+  const searchClose = banner.getByRole('button', { name: getText('search.close') });
+  const productMarkIcon = page.getByTestId('product-mark');
+  const clockSlot = page.getByTestId('top-bar-clock-slot');
   const searchNote = banner.getByRole('status').filter({ hasText: getText('search.unavailable') });
   const resetConfirm = page.getByRole('group', { name: getText('demo.reset.confirm.prompt') });
   const cancelResetButton = resetConfirm.getByRole('button', { exact: true, name: getText('demo.reset.confirm.cancel') });
@@ -162,13 +187,18 @@ export const createTopBarRobot = (page: Page, layout: TopBarLayoutValue): TopBar
 
   const expectMenuClosed = async (): Promise<void> => {
     await expect(menu).toHaveCount(0);
-    await expect(profileButton).toHaveAttribute('aria-expanded', 'false');
+    await expect(profileButtonIncludingHidden).toHaveAttribute('aria-expanded', 'false');
+  };
+
+  const settleAnimations = async (): Promise<void> => {
+    await page.evaluate<number>(SETTLE_FINITE_ANIMATIONS);
   };
 
   const openMenu = async (): Promise<void> => {
     await expect(profileButton).toBeVisible();
     await profileButton.click();
     await expectMenuOpen();
+    await settleAnimations();
   };
 
   const closeMenuWithEscape = async (): Promise<void> => {
@@ -189,6 +219,23 @@ export const createTopBarRobot = (page: Page, layout: TopBarLayoutValue): TopBar
     expect(box, description).not.toBeNull();
     expect(box?.width ?? 0, `${description} width`).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX);
     expect(box?.height ?? 0, `${description} height`).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX);
+  };
+
+  const readBox = async (target: Locator, description: string): Promise<{ height: number; width: number; x: number; y: number }> => {
+    const box = await target.boundingBox();
+
+    if (box === null) {
+      throw new Error(`The box of ${description} is not available`);
+    }
+
+    return box;
+  };
+
+  const readPanelGeometry = async (): Promise<PanelGeometryValue> => {
+    const bannerBox = await readBox(banner, 'the banner');
+    const mainBox = await readBox(main, 'the main area');
+
+    return { mainTop: mainBox.y, panelHeight: bannerBox.height, panelWidth: bannerBox.width };
   };
 
   const expectCurrentSectionIndicator = async (section: SectionValue): Promise<void> => {
@@ -233,6 +280,9 @@ export const createTopBarRobot = (page: Page, layout: TopBarLayoutValue): TopBar
     async closeResetConfirmWithEscape(): Promise<void> {
       await page.keyboard.press('Escape');
     },
+    async closeSearchWithButton(): Promise<void> {
+      await searchClose.click();
+    },
     async closeSearchWithEscape(): Promise<void> {
       await page.keyboard.press('Escape');
     },
@@ -267,6 +317,27 @@ export const createTopBarRobot = (page: Page, layout: TopBarLayoutValue): TopBar
       }
 
       await expectCurrentSectionIndicator(section);
+    },
+    async expectCurrentSectionMarkedWithoutCheckmark(section: SectionValue): Promise<void> {
+      await openMenu();
+
+      const currentItem = sectionsGroup.getByRole('menuitemradio', { checked: true });
+
+      await expect(currentItem).toHaveCount(1);
+      await expect(currentItem).toHaveAttribute('aria-checked', 'true');
+      await expect(currentItem).toHaveText(getSectionTitle(section));
+      await expect(sectionsGroup.locator('svg')).toHaveCount(0);
+
+      const indicatorColor = await readTokenColor('--color-indicator');
+      const label = currentItem.locator('span');
+
+      await expect(label).toHaveCSS('background-color', indicatorColor, { pseudo: 'after' });
+      await expect(label).toHaveCSS('height', '3px', { pseudo: 'after' });
+
+      const otherItems = sectionsGroup.getByRole('menuitemradio', { checked: false });
+
+      await expect(otherItems.locator('span').first()).not.toHaveCSS('height', '3px', { pseudo: 'after' });
+      await closeMenuWithEscape();
     },
     async expectDocumentTheme(theme: 'dark' | 'light'): Promise<void> {
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
@@ -311,6 +382,7 @@ export const createTopBarRobot = (page: Page, layout: TopBarLayoutValue): TopBar
     },
     async expectMenuItemsTouchTargets(): Promise<void> {
       await expectMenuOpen();
+      await settleAnimations();
       await expect(personaItems).toHaveCount(PERSONA_COUNT);
 
       const itemCount = await allItems.count();
@@ -343,11 +415,41 @@ export const createTopBarRobot = (page: Page, layout: TopBarLayoutValue): TopBar
 
       return panelColor;
     },
+    async expectPanelGeometryKept(before: PanelGeometryValue): Promise<void> {
+      await expect.poll(async () => {
+        const current = await readPanelGeometry();
+
+        return {
+          mainTop: Math.abs(current.mainTop - before.mainTop) <= SAME_POSITION_TOLERANCE_PX,
+          panelHeight: Math.abs(current.panelHeight - before.panelHeight) <= SAME_POSITION_TOLERANCE_PX,
+          panelWidth: Math.abs(current.panelWidth - before.panelWidth) <= SAME_POSITION_TOLERANCE_PX,
+        };
+      }).toEqual({ mainTop: true, panelHeight: true, panelWidth: true });
+    },
     async expectPersonaPicker(currentPersona: PersonaValue): Promise<void> {
       await openMenu();
       await expect(personaItems).toHaveCount(PERSONA_COUNT);
       await expect(menu.getByRole('menuitemradio', { checked: true, name: getPersonaLabel(currentPersona) })).toHaveCount(1);
       await closeMenuWithEscape();
+    },
+    async expectPhoneSearchClosed(): Promise<void> {
+      await expect(searchField).toBeHidden();
+      await expect(searchClose).toBeHidden();
+      await expect(searchToggle).toBeVisible();
+      await expect(searchToggle).toHaveAttribute('aria-expanded', 'false');
+      await expect(productMarkIcon).toBeVisible();
+      await expect(clockSlot).toBeVisible();
+      await expect(profileButton).toBeVisible();
+    },
+    async expectPhoneSearchOpen(): Promise<void> {
+      await expect(searchField).toBeVisible();
+      await expect(searchField).toBeFocused();
+      await expect(searchClose).toBeVisible();
+      await expect(searchToggle).toBeHidden();
+      await expect(searchToggleIncludingHidden).toHaveAttribute('aria-expanded', 'true');
+      await expect(productMarkIcon).toBeHidden();
+      await expect(clockSlot).toBeHidden();
+      await expect(profileButton).toBeHidden();
     },
     async expectProductMark(): Promise<void> {
       await expect(productMark).toBeVisible();
@@ -411,8 +513,13 @@ export const createTopBarRobot = (page: Page, layout: TopBarLayoutValue): TopBar
         await expect(searchToggle).toBeVisible();
         await expect(searchToggle).toHaveAttribute('aria-expanded', 'false');
         await searchToggle.click();
-        await expect(searchToggle).toHaveAttribute('aria-expanded', 'true');
+        await expect(searchToggleIncludingHidden).toHaveAttribute('aria-expanded', 'true');
         await expect(searchField).toBeFocused();
+        await expect(searchClose).toBeVisible();
+        await searchClose.click();
+        await expect(searchToggle).toBeFocused();
+        await expect(searchToggle).toHaveAttribute('aria-expanded', 'false');
+        await expect(searchField).toBeHidden();
 
         return;
       }
@@ -430,6 +537,21 @@ export const createTopBarRobot = (page: Page, layout: TopBarLayoutValue): TopBar
     },
     async expectSearchNoteHidden(): Promise<void> {
       await expect(searchNote).toHaveCount(0);
+    },
+    async expectSearchRowInsidePanel(): Promise<void> {
+      const bannerBox = await readBox(banner, 'the banner');
+      const visibleControls = isPhone && (await searchClose.isVisible())
+        ? [searchField, searchClose]
+        : [productMarkIcon, searchToggle, clockSlot, profileButton];
+
+      for (const control of visibleControls) {
+        const box = await readBox(control, 'a control of the panel row');
+
+        expect(box.x).toBeGreaterThanOrEqual(bannerBox.x);
+        expect(box.x + box.width).toBeLessThanOrEqual(bannerBox.x + bannerBox.width);
+        expect(box.y).toBeGreaterThanOrEqual(bannerBox.y);
+        expect(box.y + box.height).toBeLessThanOrEqual(bannerBox.y + bannerBox.height);
+      }
     },
     async expectSearchUnavailableNote(): Promise<void> {
       await expect(searchNote).toBeVisible();
@@ -477,6 +599,20 @@ export const createTopBarRobot = (page: Page, layout: TopBarLayoutValue): TopBar
       await expect(page.locator('html')).toHaveAttribute('data-theme', documentTheme ?? '');
       await closeMenuWithEscape();
     },
+    async expectThemeItemsNamedByVisibleText(): Promise<void> {
+      await openMenu();
+
+      for (const theme of THEMES) {
+        const item = getThemeItem(theme);
+        const label = getThemeLabel(theme);
+
+        await expect(item).toHaveText(label);
+        await expect(item).toHaveAccessibleName(label);
+        await expect(item).not.toHaveAttribute('aria-label', /.*/);
+      }
+
+      await closeMenuWithEscape();
+    },
     async expectThemeRow(): Promise<void> {
       await openMenu();
       await expect(themeGroup.getByRole('menuitemradio')).toHaveCount(THEMES.length);
@@ -512,7 +648,7 @@ export const createTopBarRobot = (page: Page, layout: TopBarLayoutValue): TopBar
     async openSearchWithToggle(): Promise<void> {
       await expect(searchToggle).toBeVisible();
       await searchToggle.click();
-      await expect(searchToggle).toHaveAttribute('aria-expanded', 'true');
+      await expect(searchToggleIncludingHidden).toHaveAttribute('aria-expanded', 'true');
       await expect(searchField).toBeFocused();
     },
     async pressEnterInSearch(): Promise<void> {
@@ -543,6 +679,7 @@ export const createTopBarRobot = (page: Page, layout: TopBarLayoutValue): TopBar
       await expectMenuOpen();
       await page.keyboard.press('Tab');
     },
+    readPanelGeometry,
     async requestReset(): Promise<void> {
       await chooseInMenu(resetItem);
     },

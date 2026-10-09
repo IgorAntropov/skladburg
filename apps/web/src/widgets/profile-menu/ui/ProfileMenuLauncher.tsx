@@ -15,7 +15,7 @@ import { useI18n } from '@/shared/i18n';
 import { createCachedModuleLoader } from '@/shared/lib/module-loader';
 
 import type { ProfileMenuProps } from './menu/ProfileMenu';
-import type { ProfileResetConfirmProps } from './menu/ProfileResetConfirm';
+import type { ProfileResetConfirmLayerProps } from './menu/ProfileResetConfirmLayer';
 
 import { loadProfileMenu } from './loadProfileMenu';
 import { ProfileButton } from './ProfileButton';
@@ -30,9 +30,9 @@ type ProfileMenuLaunchStateValue
   = | { kind: 'error' }
     | { kind: 'idle' }
     | { kind: 'loading' }
-    | { kind: 'ready'; ProfileMenu: ProfileMenuComponent; ProfileResetConfirm: ProfileResetConfirmComponent };
+    | { kind: 'ready'; ProfileMenu: ProfileMenuComponent; ProfileResetConfirmLayer: ProfileResetConfirmLayerComponent };
 
-type ProfileResetConfirmComponent = ComponentType<ProfileResetConfirmProps>;
+type ProfileResetConfirmLayerComponent = ComponentType<ProfileResetConfirmLayerProps>;
 
 const IDLE_STATE: ProfileMenuLaunchStateValue = { kind: 'idle' };
 
@@ -42,8 +42,6 @@ const LOAD_ERROR_CLASS_NAME = [
   'absolute top-full right-0 z-20 mt-2 w-72 max-w-[calc(100vw-2rem)]',
   'rounded-control border border-line bg-panel-solid p-3 text-sm text-on-panel shadow-panel',
 ].join(' ');
-
-const RESET_CONFIRM_CLASS_NAME = 'absolute top-full right-0 z-20 mt-2 w-max max-w-[calc(100vw-2rem)]';
 
 export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLauncherProps): ReactElement => {
   const { t } = useI18n();
@@ -76,7 +74,7 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
         setLaunchState({
           kind: 'ready',
           ProfileMenu: loadedModule.ProfileMenu,
-          ProfileResetConfirm: loadedModule.ProfileResetConfirm,
+          ProfileResetConfirmLayer: loadedModule.ProfileResetConfirmLayer,
         });
         setIsOpenedByLaunch(true);
         setIsOpen(true);
@@ -131,7 +129,7 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
   }, [isOpen, isResetRequested]);
 
   if (launchState.kind === 'ready') {
-    const { ProfileMenu, ProfileResetConfirm } = launchState;
+    const { ProfileMenu, ProfileResetConfirmLayer } = launchState;
 
     return (
       <div className="relative">
@@ -144,11 +142,7 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
           onResetRequest={handleResetRequest}
           sections={sections}
         />
-        {isResetConfirmShown && (
-          <div className={RESET_CONFIRM_CLASS_NAME}>
-            <ProfileResetConfirm onClose={handleResetConfirmClose} />
-          </div>
-        )}
+        <ProfileResetConfirmLayer isShown={isResetConfirmShown} onClose={handleResetConfirmClose} />
       </div>
     );
   }
@@ -157,11 +151,11 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
     <div className="relative">
       <ProfileButton
         aria-expanded={false}
+        busyReason={isLoading ? 'loadingMenu' : undefined}
         buttonRef={buttonRef}
         onClick={handleButtonClick}
         onFocus={handleWarmUp}
         onPointerEnter={handleWarmUp}
-        pending={isLoading}
       />
       {isLoadFailed && (
         <p className={LOAD_ERROR_CLASS_NAME} role="alert">{t('routing.chunkError.message')}</p>

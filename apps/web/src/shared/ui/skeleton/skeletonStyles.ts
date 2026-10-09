@@ -14,4 +14,4 @@ export const SKELETON_SHAPE_SIZE_CLASS_NAMES: Readonly<Record<SkeletonShapeValue
 
 export const SKELETON_EMPTY_CLASS_NAME = 'bg-transparent';
 
-export const SKELETON_FILLED_CLASS_NAME = 'bg-skeleton motion-safe:animate-pulse';
+export const SKELETON_FILLED_CLASS_NAME = 'bg-skeleton motion-safe:animate-skeleton-pulse';

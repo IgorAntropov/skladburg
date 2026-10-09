@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 import { ResetDemoConfirm } from '@/features/reset-demo';
 import { useViewportClass } from '@/shared/lib/viewport';
 
-const PLATE_CLASS_NAME = 'rounded-panel border border-line bg-panel-solid p-4 text-on-panel shadow-panel';
+const PLATE_CLASS_NAME = 'rounded-panel border border-line bg-panel-solid p-4 text-on-panel shadow-raised';
 
 export interface ProfileResetConfirmProps {
   onClose: () => void;

@@ -16,23 +16,30 @@ import { mergeRefs } from '../lib/mergeRefs';
 import { PROFILE_MENU_FOCUS_KEY } from '../lib/profileMenuFocusKey';
 import { ProfileButtonIcon } from './ProfileButtonIcon';
 
-export interface ProfileButtonProps extends Omit<IconButtonProps, 'icon' | 'label'> {
+export type ProfileButtonBusyReasonValue = 'loadingMenu' | 'resetting';
+
+export interface ProfileButtonProps extends Omit<IconButtonProps, 'icon' | 'label' | 'pending'> {
+  busyReason?: ProfileButtonBusyReasonValue | undefined;
   buttonRef?: IconButtonProps['ref'];
 }
 
-export const ProfileButton = ({ buttonRef, className, ref, ...rest }: ProfileButtonProps): ReactElement => {
+export const ProfileButton = ({ busyReason, buttonRef, className, ref, ...rest }: ProfileButtonProps): ReactElement => {
   const { t } = useI18n();
   const summaryState = useProfileSummary();
   const { ref: handoffRef } = useFocusHandoff<HTMLButtonElement>(PROFILE_MENU_FOCUS_KEY);
 
   const mergedRef = useMemo(() => mergeRefs(ref, buttonRef, handoffRef), [buttonRef, handoffRef, ref]);
 
-  const label = summaryState.kind === 'ready'
+  const isResetting = busyReason === 'resetting';
+  const isSummaryReady = summaryState.kind === 'ready';
+
+  const readyLabel = isSummaryReady
     ? t('profile.button.label', {
         name: summaryState.summary.userDisplayName,
         organization: summaryState.summary.organizationName,
       })
     : t('profile.button.loading');
+  const label = isResetting ? t('profile.button.resetting') : readyLabel;
 
   return (
     <IconButton
@@ -40,6 +47,7 @@ export const ProfileButton = ({ buttonRef, className, ref, ...rest }: ProfileBut
       className={cn('rounded-full', className)}
       icon={<ProfileButtonIcon state={summaryState} />}
       label={label}
+      pending={busyReason !== undefined}
       variant="ghost"
       {...rest}
       ref={mergedRef}

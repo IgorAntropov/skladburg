@@ -316,6 +316,18 @@ describe('PersonaMenuGroups', () => {
     expect(screen.queryByRole('group')).toBeNull();
   });
 
+  it('draws the loading skeleton as two groups of four rows like the loaded list', async () => {
+    await renderMenu(createRuntime(() => new Promise(() => undefined)));
+    await openMenu();
+
+    const skeleton = await screen.findByRole('status', { name: defaultLocaleCatalog['persona.loading'] });
+    const groups = [...skeleton.children];
+
+    expect(groups).toHaveLength(2);
+    expect(groups.map(group => group.children.length)).toEqual([5, 5]);
+    expect(groups.every(group => [...group.children].slice(1).every(row => row.className.includes('min-h-11')))).toBe(true);
+  });
+
   it('offers a retry item with the failure announced, and the item asks for the list again', async () => {
     const listPersonas = vi.fn<IDemoControl['listPersonas']>()
       .mockRejectedValueOnce(new Error('list failed'))

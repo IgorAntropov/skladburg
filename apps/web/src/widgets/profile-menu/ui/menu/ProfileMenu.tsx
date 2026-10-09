@@ -34,9 +34,21 @@ import { ProfileButton } from '../ProfileButton';
 import { ProfileMenuHeader } from './ProfileMenuHeader';
 import { ProfileSections } from './ProfileSections';
 
-export { ProfileResetConfirm } from './ProfileResetConfirm';
+export { ProfileResetConfirmLayer } from './ProfileResetConfirmLayer';
 
 const MENU_ITEM_SELECTOR = '[role^="menuitem"]';
+
+const MENU_ROOT_CLASS_NAME = [
+  'flex max-h-[calc(var(--radix-dropdown-menu-content-available-height)-0.875rem)] flex-col',
+  '[&_[role^=menuitem]:active:not([data-disabled])]:bg-on-panel/20!',
+].join(' ');
+
+const MENU_FIXED_PART_CLASS_NAME = 'shrink-0';
+
+const MENU_SCROLL_PART_CLASS_NAME = [
+  'min-h-0 flex-auto overflow-y-auto overscroll-contain scroll-shadow-y',
+  '[&_[role=menuitemradio]]:py-1',
+].join(' ');
 
 export interface ProfileMenuProps {
   buttonRef: Ref<HTMLButtonElement> | undefined;
@@ -74,6 +86,8 @@ const ProfileMenuItems = ({
 
   const isDemoActive = demoControl !== undefined;
   const isSectionsShown = viewportClass === 'phone' && sections.length > 0;
+  const isScrollPartShown = isSectionsShown || isDemoActive;
+  const isSectionsSeparatorShown = isSectionsShown && isDemoActive;
 
   const handleResetSelect = (): void => {
     console.log('> ProfileMenu -> handleResetSelect:', {});
@@ -87,32 +101,34 @@ const ProfileMenuItems = ({
   }, [isFirstItemFocused]);
 
   return (
-    <div ref={rootRef}>
-      <ProfileMenuHeader />
-      <DropdownMenuSeparator />
-      {isSectionsShown && (
+    <div className={MENU_ROOT_CLASS_NAME} ref={rootRef}>
+      <div className={MENU_FIXED_PART_CLASS_NAME}>
+        <ProfileMenuHeader />
+        <DropdownMenuSeparator />
+      </div>
+      {isScrollPartShown && (
         <>
-          <ProfileSections currentSection={currentSection} sections={sections} />
+          <div className={MENU_SCROLL_PART_CLASS_NAME} data-testid="profile-menu-scroll">
+            {isSectionsShown && <ProfileSections currentSection={currentSection} sections={sections} />}
+            {isSectionsSeparatorShown && <DropdownMenuSeparator />}
+            {isDemoActive && <PersonaMenuGroups focusKey={PROFILE_MENU_FOCUS_KEY} />}
+          </div>
           <DropdownMenuSeparator />
         </>
       )}
-      {isDemoActive && (
-        <>
-          <PersonaMenuGroups focusKey={PROFILE_MENU_FOCUS_KEY} />
-          <DropdownMenuSeparator />
-        </>
-      )}
-      <DropdownMenuLabel>{t('theme.label')}</DropdownMenuLabel>
-      <ThemeMenuRadioGroup />
-      {isDemoResetAvailable && (
-        <>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={handleResetSelect}>
-            <RotateCcw aria-hidden className="size-4 shrink-0 text-on-panel-muted" />
-            {t('demo.reset.menuItem')}
-          </DropdownMenuItem>
-        </>
-      )}
+      <div className={MENU_FIXED_PART_CLASS_NAME} data-testid="profile-menu-footer">
+        <DropdownMenuLabel>{t('theme.label')}</DropdownMenuLabel>
+        <ThemeMenuRadioGroup />
+        {isDemoResetAvailable && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={handleResetSelect}>
+              <RotateCcw aria-hidden className="size-4 shrink-0 text-on-panel-muted" />
+              {t('demo.reset.menuItem')}
+            </DropdownMenuItem>
+          </>
+        )}
+      </div>
     </div>
   );
 };
@@ -137,7 +153,7 @@ export const ProfileMenu = ({
   return (
     <DropdownMenu onOpenChange={handleOpenChange} open={isOpen}>
       <DropdownMenuTrigger>
-        <ProfileButton buttonRef={buttonRef} />
+        <ProfileButton busyReason={isResetPending ? 'resetting' : undefined} buttonRef={buttonRef} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" label={t('profile.menu.label')} width="profile">
         <ProfileMenuItems {...itemsProps} />

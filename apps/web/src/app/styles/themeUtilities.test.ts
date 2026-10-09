@@ -6,11 +6,13 @@ import {
   it,
 } from 'vitest';
 
+import fontsCss from './fonts.css?raw';
 import indexCss from './index.css?raw';
 import { readThemeTokens } from './testing/readThemeTokens';
 import themeCss from './theme.css?raw';
 
 const STYLESHEET_SOURCES: Readonly<Record<string, string>> = {
+  './fonts.css': fontsCss,
   './index.css': indexCss,
   './theme.css': themeCss,
   'tailwindcss': tailwindCss,
@@ -195,6 +197,51 @@ describe('side and avatar utilities', () => {
     const css = await readBuiltCss(['text-side-label-supplier']);
 
     expect(css).toMatch(/\.text-side-label-supplier\s*\{\s*color:\s*var\(--color-side-label-supplier\);?\s*\}/);
+  });
+});
+
+describe('motion tokens', () => {
+  it('defines one easing curve and four durations in the light block', () => {
+    const { tokens } = readThemeTokens(themeCss);
+
+    expect(tokens.light.get('--ease-out')).toBe('cubic-bezier(0.16, 1, 0.3, 1)');
+    expect(tokens.light.get('--duration-press')).toBe('100ms');
+    expect(tokens.light.get('--duration-fast')).toBe('150ms');
+    expect(tokens.light.get('--duration-theme')).toBe('200ms');
+    expect(tokens.light.get('--duration-panel')).toBe('300ms');
+  });
+
+  it('generates the menu and skeleton animations together with their keyframes', async () => {
+    const css = await readBuiltCss(['animate-menu-in', 'animate-skeleton-pulse']);
+
+    expect(css).toMatch(/\.animate-menu-in\s*\{\s*animation:\s*var\(--animate-menu-in\)/);
+    expect(css).toMatch(/\.animate-skeleton-pulse\s*\{\s*animation:\s*var\(--animate-skeleton-pulse\)/);
+    expect(css).toContain('@keyframes menu-in');
+    expect(css).toContain('@keyframes skeleton-pulse');
+  });
+
+  it('keeps the skeleton pulse between full and 0.6 opacity', () => {
+    const keyframes = /@keyframes skeleton-pulse\s*\{[\s\S]*?50%\s*\{\s*opacity:\s*0\.6;/;
+
+    expect(themeCss).toMatch(keyframes);
+  });
+
+  it('points the press utilities at the duration token', async () => {
+    const css = await readBuiltCss(['duration-(--duration-press)', 'ease-out']);
+
+    expect(css).toContain('transition-duration: var(--duration-press)');
+    expect(css).toMatch(/\.ease-out\s*\{[^}]*var\(--ease-out\)/);
+  });
+
+  it('adds the theme crossfade only for users without a reduced motion preference', () => {
+    const crossfade = /\(prefers-reduced-motion: no-preference\) \{\s*::view-transition-old\(root\),\s*::view-transition-new\(root\)/;
+
+    expect(indexCss).toMatch(crossfade);
+    expect(indexCss).toContain('animation-duration: var(--duration-theme)');
+  });
+
+  it('clears the iOS tap highlight on interactive elements', () => {
+    expect(indexCss).toContain('-webkit-tap-highlight-color: transparent');
   });
 });
 

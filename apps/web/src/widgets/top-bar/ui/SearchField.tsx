@@ -5,7 +5,10 @@ import type {
   ReactElement,
 } from 'react';
 
-import { Search } from 'lucide-react';
+import {
+  Search,
+  X,
+} from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -24,7 +27,10 @@ import {
 import { useSlashHotkey } from '../lib/useSlashHotkey';
 
 const FIELD_CLASS_NAME = 'relative min-w-0 sm:max-w-72 sm:min-w-28 sm:flex-1';
-const INPUT_CLASS_NAME = 'ps-10 pe-3 xl:pe-10 [&::-webkit-search-cancel-button]:appearance-none';
+const INPUT_CLASS_NAME = [
+  'ps-10 pe-3 focus-visible:border-focus focus-visible:outline-offset-0 xl:pe-10',
+  '[&::-webkit-search-cancel-button]:appearance-none',
+].join(' ');
 const SEARCH_ICON_CLASS_NAME = 'pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-on-panel-muted';
 const SHORTCUT_HINT_CLASS_NAME = [
   'pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 rounded-sm border border-line px-1.5 text-xs text-on-panel-muted',
@@ -36,22 +42,43 @@ const UNAVAILABLE_NOTE_CLASS_NAME = [
   'empty:hidden',
 ].join(' ');
 const PHONE_FIELD_CLOSED_CLASS_NAME = 'max-sm:hidden';
-const PHONE_FIELD_OPEN_CLASS_NAME = 'max-sm:order-last max-sm:basis-full';
+const PHONE_FIELD_OPEN_CLASS_NAME = 'max-sm:flex-1';
 
-export const SearchField = (): ReactElement => {
+const isDisplayed = (element: HTMLElement): boolean => {
+  for (let node: HTMLElement | null = element; node !== null; node = node.parentElement) {
+    if (getComputedStyle(node).display === 'none') {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const focusIfVisible = (element: HTMLElement | null): void => {
+  if (element !== null && isDisplayed(element)) {
+    element.focus();
+  }
+};
+
+export interface SearchFieldProps {
+  isPhoneFieldOpen: boolean;
+  onPhoneFieldOpenChange: (isOpen: boolean) => void;
+}
+
+export const SearchField = ({ isPhoneFieldOpen, onPhoneFieldOpenChange }: SearchFieldProps): ReactElement => {
   const { t } = useI18n();
   const fieldId = useId();
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | undefined>(undefined);
+  const isToggleFocusPendingRef = useRef(false);
   const [query, setQuery] = useState('');
-  const [isPhoneFieldOpen, setIsPhoneFieldOpen] = useState(false);
   const [unavailableSequence, setUnavailableSequence] = useState(0);
 
   const hotkeyActivate = useCallback((): void => {
-    setIsPhoneFieldOpen(true);
-  }, []);
+    onPhoneFieldOpenChange(true);
+  }, [onPhoneFieldOpenChange]);
 
   useSlashHotkey(inputRef, hotkeyActivate);
 
@@ -59,7 +86,13 @@ export const SearchField = (): ReactElement => {
 
   const handleToggleClick = (): void => {
     console.log('> SearchField -> handleToggleClick:', { isPhoneFieldOpen });
-    setIsPhoneFieldOpen(current => !current);
+    onPhoneFieldOpenChange(true);
+  };
+
+  const closeField = (): void => {
+    setQuery('');
+    setUnavailableSequence(0);
+    onPhoneFieldOpenChange(false);
   };
 
   const handleQueryChange = (event: ChangeEvent<HTMLInputElement>): void => {
@@ -72,21 +105,36 @@ export const SearchField = (): ReactElement => {
     previousFocusRef.current = relatedTarget instanceof HTMLElement ? relatedTarget : undefined;
   };
 
-  const returnFocus = (input: HTMLInputElement): void => {
+  const returnFocus = (): void => {
     const previous = previousFocusRef.current;
     previousFocusRef.current = undefined;
 
-    if (previous?.isConnected === true && previous !== input) {
+    const isPreviousReturnable = previous !== undefined
+      && previous.isConnected
+      && previous !== inputRef.current
+      && previous !== toggleRef.current
+      && isDisplayed(previous);
+
+    if (isPreviousReturnable) {
       previous.focus();
 
       return;
     }
 
-    const toggle = toggleRef.current;
+    if (isPhoneFieldOpen) {
+      isToggleFocusPendingRef.current = true;
 
-    if (toggle !== null && getComputedStyle(toggle).display !== 'none') {
-      toggle.focus();
+      return;
     }
+
+    focusIfVisible(toggleRef.current);
+  };
+
+  const handleCloseClick = (): void => {
+    console.log('> SearchField -> handleCloseClick:', {});
+    previousFocusRef.current = undefined;
+    closeField();
+    returnFocus();
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
@@ -103,16 +151,21 @@ export const SearchField = (): ReactElement => {
     if (event.key === 'Escape') {
       console.log('> SearchField -> handleKeyDown:', { key: event.key });
       event.preventDefault();
-      setQuery('');
-      setUnavailableSequence(0);
-      setIsPhoneFieldOpen(false);
-      returnFocus(event.currentTarget);
+      closeField();
+      returnFocus();
     }
   };
 
   useEffect(() => {
     if (isPhoneFieldOpen) {
       inputRef.current?.focus();
+
+      return;
+    }
+
+    if (isToggleFocusPendingRef.current) {
+      isToggleFocusPendingRef.current = false;
+      focusIfVisible(toggleRef.current);
     }
   }, [isPhoneFieldOpen]);
 
@@ -121,7 +174,7 @@ export const SearchField = (): ReactElement => {
       <IconButton
         aria-controls={fieldId}
         aria-expanded={isPhoneFieldOpen}
-        className="ml-auto sm:hidden"
+        className={cn('ml-auto sm:hidden', isPhoneFieldOpen && 'max-sm:hidden')}
         icon={<Search className="size-5" />}
         label={t('search.open')}
         onClick={handleToggleClick}
@@ -157,6 +210,15 @@ export const SearchField = (): ReactElement => {
           <span className={UNAVAILABLE_NOTE_CLASS_NAME} key={unavailableSequence}>{isUnavailableShown ? t('search.unavailable') : ''}</span>
         </p>
       </div>
+      {isPhoneFieldOpen && (
+        <IconButton
+          className="sm:hidden"
+          icon={<X className="size-5" />}
+          label={t('search.close')}
+          onClick={handleCloseClick}
+          variant="ghost"
+        />
+      )}
     </>
   );
 };

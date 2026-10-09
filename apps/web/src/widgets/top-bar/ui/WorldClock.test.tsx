@@ -1,5 +1,13 @@
+import type { ConnectRouter } from '@connectrpc/connect';
+import type { GetWorldClockResponse } from '@skladburg/contracts/clock/v1/clock';
 import type { ReactElement } from 'react';
 
+import { create } from '@bufbuild/protobuf';
+import { timestampFromMs } from '@bufbuild/protobuf/wkt';
+import {
+  ClockService,
+  GetWorldClockResponseSchema,
+} from '@skladburg/contracts/clock/v1/clock';
 import {
   QueryClient,
   QueryClientProvider,
@@ -39,6 +47,7 @@ import {
   createUnavailableFailure,
   createWorldClockRoutes,
   WORLD_MINUTE_START_MS,
+  WORLD_START_MS,
 } from '../lib/testing/worldClockHarness';
 import { WorldClock } from './WorldClock';
 
@@ -46,6 +55,8 @@ const MINUTE_MS = 60_000;
 const CLOCK_TEST_ID = 'top-bar-clock-slot';
 const CLOCK_LABEL = defaultLocaleCatalog['clock.label'];
 const LOADING_LABEL = defaultLocaleCatalog['clock.loading'];
+const PAUSED_TEXT = defaultLocaleCatalog['clock.paused'];
+const PAUSED_LABEL = defaultLocaleCatalog['clock.paused.label'];
 
 let visibilityState: DocumentVisibilityState = 'visible';
 
@@ -77,14 +88,50 @@ const changeVisibility = (nextState: DocumentVisibilityState): void => {
 };
 
 interface RenderClockOptionsValue extends WorldClockRoutesOptionsValue {
+  routes?: ((router: ConnectRouter) => void) | undefined;
   userTimeZone?: string;
 }
 
+interface SwitchableFailureRoutesValue {
+  getFailedCallCount: () => number;
+  routes: (router: ConnectRouter) => void;
+  startFailing: () => void;
+}
+
+const createSwitchableFailureRoutes = (): SwitchableFailureRoutesValue => {
+  let isFailing = false;
+  let failedCallCount = 0;
+
+  const routes = (router: ConnectRouter): void => {
+    router.service(ClockService, {
+      getWorldClock: (): GetWorldClockResponse => {
+        if (isFailing) {
+          failedCallCount += 1;
+          throw createUnavailableFailure();
+        }
+
+        return create(GetWorldClockResponseSchema, {
+          timeScale: 1,
+          worldTime: timestampFromMs(Math.round(WORLD_START_MS + performance.now())),
+        });
+      },
+    });
+  };
+
+  return {
+    getFailedCallCount: () => failedCallCount,
+    routes,
+    startFailing: () => {
+      isFailing = true;
+    },
+  };
+};
+
 const renderClock = async (
-  { userTimeZone = 'UTC', ...routesOptions }: RenderClockOptionsValue = {},
+  { routes, userTimeZone = 'UTC', ...routesOptions }: RenderClockOptionsValue = {},
 ): Promise<WorldClockRoutesValue> => {
   const clockRoutes = createWorldClockRoutes(routesOptions);
-  const runtime = createTestRuntime({ routes: clockRoutes.routes });
+  const runtime = createTestRuntime({ routes: routes ?? clockRoutes.routes });
   const localizer = await createClockLocalizer(userTimeZone);
   const queryClient = new QueryClient({ defaultOptions: { queries: { networkMode: 'always', retry: false } } });
 
@@ -232,10 +279,53 @@ describe('WorldClock', () => {
       expect(within(screen.getByTestId(CLOCK_TEST_ID)).getByText('×0,5')).toBeDefined();
     });
 
-    it('shows the pause as the scale 0', async () => {
+    it('shows the pause with an icon and a text instead of the scale 0', async () => {
       await renderClock({ timeScale: 0 });
 
-      expect(within(screen.getByTestId(CLOCK_TEST_ID)).getByText('×0')).toBeDefined();
+      const clock = screen.getByTestId(CLOCK_TEST_ID);
+      const badge = within(clock).getByText(PAUSED_TEXT);
+
+      expect(within(clock).queryByText(/×/)).toBeNull();
+      expect(badge.getAttribute('aria-hidden')).toBe('true');
+      expect(badge.querySelector('svg.lucide-pause')?.getAttribute('aria-hidden')).toBe('true');
+      expect(getTime().textContent).toBe('12:07');
+    });
+
+    it('tells assistive technology that the time of the world is paused', async () => {
+      await renderClock({ timeScale: 0 });
+
+      const label = within(screen.getByTestId(CLOCK_TEST_ID)).getByText(PAUSED_LABEL);
+
+      expect(label.className).toContain('sr-only');
+      expect(label.getAttribute('aria-hidden')).toBeNull();
+    });
+
+    it('shows neither the pause nor the scale at the scale 1', async () => {
+      await renderClock();
+
+      const clock = screen.getByTestId(CLOCK_TEST_ID);
+
+      expect(within(clock).queryByText(PAUSED_TEXT)).toBeNull();
+      expect(within(clock).queryByText(PAUSED_LABEL)).toBeNull();
+      expect(clock.querySelector('svg')).toBeNull();
+    });
+
+    it('shows the scale without the pause at the scale 60', async () => {
+      await renderClock({ timeScale: 60 });
+
+      const clock = screen.getByTestId(CLOCK_TEST_ID);
+
+      expect(within(clock).queryByText(PAUSED_TEXT)).toBeNull();
+      expect(clock.querySelector('svg')).toBeNull();
+    });
+
+    it('shows neither the pause nor the scale while the time is loading', async () => {
+      await renderClock({ gate: new Promise<void>(() => undefined), timeScale: 0 });
+
+      const clock = screen.getByTestId(CLOCK_TEST_ID);
+
+      expect(within(clock).queryByText(PAUSED_TEXT)).toBeNull();
+      expect(clock.querySelector('svg')).toBeNull();
     });
   });
 
@@ -276,6 +366,24 @@ describe('WorldClock', () => {
       await renderClock({ failure: createUnavailableFailure() });
 
       expect(screen.queryByTestId(CLOCK_TEST_ID)).toBeNull();
+      expect(screen.queryByRole('status')).toBeNull();
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('keeps the time in place when the repeated request fails and the earlier answer is there', async () => {
+      const { getFailedCallCount, routes, startFailing } = createSwitchableFailureRoutes();
+      await renderClock({ routes });
+      expect(getTime().textContent).toBe('12:07');
+
+      startFailing();
+      changeVisibility('hidden');
+      advance(10 * MINUTE_MS);
+      changeVisibility('visible');
+      await flushPromises();
+
+      expect(getFailedCallCount()).toBe(1);
+      expect(screen.getByTestId(CLOCK_TEST_ID)).toBeDefined();
+      expect(getTime().textContent).toBe('12:17');
       expect(screen.queryByRole('status')).toBeNull();
       expect(screen.queryByRole('alert')).toBeNull();
     });

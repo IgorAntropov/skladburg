@@ -148,6 +148,18 @@ describe('ThemeMenuRadioGroup', () => {
     expect(screen.getByRole('menuitemradio', { name: defaultLocaleCatalog['theme.dark'] }).getAttribute('aria-checked')).toBe('false');
   });
 
+  it('draws no check in the chosen cell, only the icon of the theme', async () => {
+    const store = createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined });
+    store.setPreference('dark');
+    await renderMenu(store);
+
+    const dark = screen.getByRole('menuitemradio', { name: defaultLocaleCatalog['theme.dark'] });
+
+    expect(dark.getAttribute('aria-checked')).toBe('true');
+    expect(dark.querySelectorAll('svg')).toHaveLength(1);
+    expect(dark.childElementCount).toBe(1);
+  });
+
   it('changes the theme only by the choice of an item and closes the menu', async () => {
     const store = createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined });
     unbind = bindThemeToDocument(store, document.documentElement);

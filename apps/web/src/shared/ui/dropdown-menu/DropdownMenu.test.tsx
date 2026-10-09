@@ -498,4 +498,27 @@ describe('DropdownMenu', () => {
 
     expect(onValueChange).toHaveBeenCalledWith('carrier');
   });
+
+  it('draws no check but keeps the checked state when the indicator is turned off', async () => {
+    render(
+      <DropdownMenu open>
+        <DropdownMenuTrigger>
+          <Button aria-label={TRIGGER_LABEL}>{TRIGGER_TEXT}</Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent label={MENU_LABEL}>
+          <DropdownMenuRadioGroup label={GROUP_LABEL} onValueChange={vi.fn()} value="buyer">
+            <DropdownMenuRadioItem indicatorPlacement="none" value="buyer">{BUYER_TEXT}</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem indicatorPlacement="none" value="carrier">{CARRIER_TEXT}</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>,
+    );
+
+    const buyer = await screen.findByRole('menuitemradio', { name: BUYER_TEXT });
+
+    expect(buyer.getAttribute('aria-checked')).toBe('true');
+    expect(buyer.querySelector('svg')).toBeNull();
+    expect(buyer.childElementCount).toBe(0);
+    expect(buyer.textContent).toBe(BUYER_TEXT);
+  });
 });

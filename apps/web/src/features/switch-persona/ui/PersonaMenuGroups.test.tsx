@@ -168,6 +168,19 @@ describe('PersonaMenuGroups', () => {
     expect(checked[0]?.getAttribute('aria-label')).toBe(formatOption(CONSTRUCTION_BUYER_FIXTURE));
   });
 
+  it('marks the current persona by the ring of the avatar and draws no check', async () => {
+    await renderMenu(createRuntime(listAllPersonas, CONSTRUCTION_BUYER_FIXTURE));
+    await openMenu();
+
+    const current = await getOption(CONSTRUCTION_BUYER_FIXTURE);
+    const avatar = current.firstElementChild;
+
+    expect(current.getAttribute('aria-checked')).toBe('true');
+    expect(current.querySelector('svg')).toBeNull();
+    expect(current.childElementCount).toBe(2);
+    expect(avatar?.getAttribute('class')).toContain('in-aria-checked:ring-indicator');
+  });
+
   it('names an item by the persona option and shows the name and the role with the organization on two lines', async () => {
     await renderMenu(createRuntime());
     await openMenu();

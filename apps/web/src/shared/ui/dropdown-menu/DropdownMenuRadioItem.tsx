@@ -20,7 +20,7 @@ import {
 interface DropdownMenuRadioItemProps {
   children: ReactNode;
   disabled?: boolean | undefined;
-  indicatorPlacement?: 'end' | 'start' | undefined;
+  indicatorPlacement?: 'end' | 'none' | 'start' | undefined;
   label?: string | undefined;
   value: string;
 }
@@ -33,14 +33,17 @@ export const DropdownMenuRadioItem = ({
   value,
 }: DropdownMenuRadioItemProps): ReactElement => {
   const isIndicatorAtEnd = indicatorPlacement === 'end';
+  const isIndicatorShown = indicatorPlacement !== 'none';
 
-  const indicator = (
-    <span className={cn(DROPDOWN_MENU_INDICATOR_SLOT_CLASS_NAME, isIndicatorAtEnd && DROPDOWN_MENU_INDICATOR_SLOT_END_CLASS_NAME)}>
-      <ItemIndicator>
-        <Check aria-hidden className="size-4" />
-      </ItemIndicator>
-    </span>
-  );
+  const indicator = isIndicatorShown
+    ? (
+        <span className={cn(DROPDOWN_MENU_INDICATOR_SLOT_CLASS_NAME, isIndicatorAtEnd && DROPDOWN_MENU_INDICATOR_SLOT_END_CLASS_NAME)}>
+          <ItemIndicator>
+            <Check aria-hidden className="size-4" />
+          </ItemIndicator>
+        </span>
+      )
+    : null;
 
   return (
     <RadioItem aria-label={label} className={DROPDOWN_MENU_ITEM_CLASS_NAME} disabled={disabled} value={value}>

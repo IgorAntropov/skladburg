@@ -12,21 +12,21 @@ export const SECTION_ACCESS_RULES: Readonly<Record<AppSectionValue, SectionAcces
   catalog: {
     isOrganizationWideRoleRequired: true,
     permission: undefined,
-    profiles: [ProfileKind.BUYER, ProfileKind.SELLER],
+    profiles: [ProfileKind.CUSTOMER, ProfileKind.SUPPLIER],
   },
   deals: {
     isOrganizationWideRoleRequired: true,
     permission: undefined,
-    profiles: [ProfileKind.SELLER, ProfileKind.BUYER, ProfileKind.CARRIER],
+    profiles: [ProfileKind.SUPPLIER, ProfileKind.CUSTOMER, ProfileKind.CARRIER],
   },
   network: {
     isOrganizationWideRoleRequired: true,
     permission: undefined,
-    profiles: [ProfileKind.SELLER, ProfileKind.BUYER, ProfileKind.CARRIER],
+    profiles: [ProfileKind.SUPPLIER, ProfileKind.CUSTOMER, ProfileKind.CARRIER],
   },
   warehouse: {
     isOrganizationWideRoleRequired: false,
     permission: 'warehouse_view',
-    profiles: [ProfileKind.BUYER, ProfileKind.SELLER],
+    profiles: [ProfileKind.CUSTOMER, ProfileKind.SUPPLIER],
   },
 };

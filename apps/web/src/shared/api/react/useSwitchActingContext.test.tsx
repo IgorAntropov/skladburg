@@ -109,7 +109,7 @@ const startEngineRuntime = async (
   };
   const runtime = await createApiRuntime({
     connection,
-    defaultOrganizationId: SeedOrganizationId.BUYER_1,
+    defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
     preferredPersonaId: personaId,
   });
 
@@ -136,7 +136,7 @@ describe('useSwitchActingContext', () => {
 
   describe('with the demo engine', () => {
     it('shows the warehouses of the new persona instead of the cached ones of the previous one', async () => {
-      const { runtime } = await startEngineRuntime(SeedPersonaId.FRESH_BUYER);
+      const { runtime } = await startEngineRuntime(SeedPersonaId.FRESH_CUSTOMER);
       const queryClient = createQueryClient({ networkMode: 'always' });
       const { result } = renderHook(useWarehousesWithSwitcher, { wrapper: createWrapper(runtime, queryClient) });
 
@@ -146,13 +146,13 @@ describe('useSwitchActingContext', () => {
 
       await act(async () => {
         await result.current.switcher.switchActingContext({
-          organizationId: SeedOrganizationId.BUYER_1,
+          organizationId: SeedOrganizationId.CUSTOMER_1,
           userId: SeedUserId.STOREKEEPER_1,
         });
       });
 
       expect(queryClient.getQueryCache().find({
-        queryKey: ['warehouses', SeedOrganizationId.BUYER_1, SeedUserId.ADMIN_1],
+        queryKey: ['warehouses', SeedOrganizationId.CUSTOMER_1, SeedUserId.ADMIN_1],
       })).toBeUndefined();
 
       await waitFor(() => {
@@ -160,7 +160,7 @@ describe('useSwitchActingContext', () => {
       });
 
       expect(runtime.actingContext.get()).toEqual({
-        organizationId: SeedOrganizationId.BUYER_1,
+        organizationId: SeedOrganizationId.CUSTOMER_1,
         userId: SeedUserId.STOREKEEPER_1,
       });
       expect(queryClient.getQueryCache().findAll()).toHaveLength(1);
@@ -169,11 +169,11 @@ describe('useSwitchActingContext', () => {
     });
 
     it('never sends a request with the organization of one persona and the user of another', async () => {
-      const { recorded, runtime } = await startEngineRuntime(SeedPersonaId.FRESH_BUYER);
+      const { recorded, runtime } = await startEngineRuntime(SeedPersonaId.FRESH_CUSTOMER);
       const queryClient = createQueryClient({ networkMode: 'always' });
       const { result } = renderHook(useWarehousesWithSwitcher, { wrapper: createWrapper(runtime, queryClient) });
-      const previous = { organizationId: SeedOrganizationId.BUYER_1, userId: SeedUserId.ADMIN_1 };
-      const next = { organizationId: SeedOrganizationId.SELLER_1, userId: SeedUserId.ADMIN_2 };
+      const previous = { organizationId: SeedOrganizationId.CUSTOMER_1, userId: SeedUserId.ADMIN_1 };
+      const next = { organizationId: SeedOrganizationId.SUPPLIER_1, userId: SeedUserId.ADMIN_2 };
 
       await act(async () => {
         await result.current.switcher.switchActingContext(next);
@@ -195,14 +195,14 @@ describe('useSwitchActingContext', () => {
       expect(recorded.every(request => isPrevious(request) || isNext(request))).toBe(true);
       expect(recorded.slice(firstNextIndex).every(isNext)).toBe(true);
       expect(result.current.warehouses.data?.warehouses.every(warehouse => (
-        warehouse.tenantId === SeedOrganizationId.SELLER_1
+        warehouse.tenantId === SeedOrganizationId.SUPPLIER_1
       ))).toBe(true);
 
       runtime.close();
     });
 
     it('does not show the answer to a request started before the switch', async () => {
-      const { runtime } = await startEngineRuntime(SeedPersonaId.FRESH_BUYER);
+      const { runtime } = await startEngineRuntime(SeedPersonaId.FRESH_CUSTOMER);
       const queryClient = createQueryClient({ networkMode: 'always' });
       const { result } = renderHook(useWarehousesWithSwitcher, { wrapper: createWrapper(runtime, queryClient) });
 
@@ -210,7 +210,7 @@ describe('useSwitchActingContext', () => {
 
       await act(async () => {
         await result.current.switcher.switchActingContext({
-          organizationId: SeedOrganizationId.SELLER_1,
+          organizationId: SeedOrganizationId.SUPPLIER_1,
           userId: SeedUserId.ADMIN_2,
         });
       });
@@ -220,14 +220,14 @@ describe('useSwitchActingContext', () => {
       });
 
       expect(result.current.warehouses.data?.warehouses.every(warehouse => (
-        warehouse.tenantId === SeedOrganizationId.SELLER_1
+        warehouse.tenantId === SeedOrganizationId.SUPPLIER_1
       ))).toBe(true);
 
       runtime.close();
     });
 
     it('does nothing when the chosen persona is the current one', async () => {
-      const { recorded, runtime } = await startEngineRuntime(SeedPersonaId.FRESH_BUYER);
+      const { recorded, runtime } = await startEngineRuntime(SeedPersonaId.FRESH_CUSTOMER);
       const queryClient = createQueryClient({ networkMode: 'always' });
       const clear = vi.spyOn(queryClient, 'clear');
       const cancelQueries = vi.spyOn(queryClient, 'cancelQueries');
@@ -242,7 +242,7 @@ describe('useSwitchActingContext', () => {
 
       await act(async () => {
         await result.current.switcher.switchActingContext({
-          organizationId: SeedOrganizationId.BUYER_1,
+          organizationId: SeedOrganizationId.CUSTOMER_1,
           userId: SeedUserId.ADMIN_1,
         });
       });

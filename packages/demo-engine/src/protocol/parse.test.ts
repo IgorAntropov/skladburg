@@ -16,11 +16,12 @@ import {
   parseEngineClientMessage,
   parseEngineHostMessage,
 } from './parse';
+import { LEGACY_PERSONA_KIND } from './testLegacyNames';
 
 const PERSONA = {
   group: DemoPersonaGroup.FRESH,
   id: 'persona-1',
-  kind: DemoPersonaKind.BUYER,
+  kind: DemoPersonaKind.CUSTOMER,
   organizationId: 'organization-1',
   organizationName: 'Organization 1',
   roleName: 'Role 1',
@@ -123,6 +124,7 @@ describe('parseEngineHostMessage', () => {
     { events: [new ArrayBuffer(1), 'x'], subscriptionId: 's1', type: 'events' },
     { detail: 'x', subscriptionId: 's1', type: 'subscription_denied' },
     { personas: [{ ...PERSONA, kind: 'robot' }], requestId: 'c1', type: 'control_result' },
+    { personas: [{ ...PERSONA, kind: LEGACY_PERSONA_KIND }], requestId: 'c1', type: 'control_result' },
     { personas: [PERSONA_WITHOUT_ORGANIZATION_NAME], requestId: 'c1', type: 'control_result' },
     { personas: [{ ...PERSONA, organizationName: 7 }], requestId: 'c1', type: 'control_result' },
     { personas: [{ ...PERSONA, organizationName: undefined }], requestId: 'c1', type: 'control_result' },

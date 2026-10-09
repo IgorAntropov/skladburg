@@ -207,7 +207,7 @@ describe('worker host options', () => {
         : status.state);
     });
 
-    const response = await organization.listWarehouses({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
+    const response = await organization.listWarehouses({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
     expect(response.warehouses).toHaveLength(3);
     await vi.waitFor(() => {
@@ -244,7 +244,7 @@ describe('worker host options without locks and randomUUID', () => {
       statuses.push(status);
     });
 
-    const response = await organization.listWarehouses({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
+    const response = await organization.listWarehouses({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
     expect(response.warehouses).toHaveLength(3);
     await vi.waitFor(() => {

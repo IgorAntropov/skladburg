@@ -55,7 +55,7 @@ describe('resolveAvailableSections', () => {
     const session = createSession({
       actingOrganizationId: OTHER_ORGANIZATION_ID,
       permissions: ORGANIZATION_WIDE_PERMISSIONS,
-      profiles: [ProfileKind.BUYER],
+      profiles: [ProfileKind.CUSTOMER],
     });
 
     expect(resolveAvailableSections(session)).toEqual([]);
@@ -65,8 +65,8 @@ describe('resolveAvailableSections', () => {
     expect(resolveAvailableSections(create(GetSessionResponseSchema))).toEqual([]);
   });
 
-  it('gives a buyer with organization-wide permissions all four sections in the order of sections', () => {
-    const session = createSession({ permissions: ORGANIZATION_WIDE_PERMISSIONS, profiles: [ProfileKind.BUYER] });
+  it('gives a customer with organization-wide permissions all four sections in the order of sections', () => {
+    const session = createSession({ permissions: ORGANIZATION_WIDE_PERMISSIONS, profiles: [ProfileKind.CUSTOMER] });
 
     expect(resolveAvailableSections(session)).toEqual(['network', 'catalog', 'deals', 'warehouse']);
   });
@@ -77,10 +77,10 @@ describe('resolveAvailableSections', () => {
     expect(resolveAvailableSections(session)).toEqual(['network', 'deals']);
   });
 
-  it('keeps the warehouse for an organization that is both seller and carrier', () => {
+  it('keeps the warehouse for an organization that is both supplier and carrier', () => {
     const session = createSession({
       permissions: ORGANIZATION_WIDE_PERMISSIONS,
-      profiles: [ProfileKind.SELLER, ProfileKind.CARRIER],
+      profiles: [ProfileKind.SUPPLIER, ProfileKind.CARRIER],
     });
 
     expect(resolveAvailableSections(session)).toEqual(['network', 'catalog', 'deals', 'warehouse']);
@@ -89,7 +89,7 @@ describe('resolveAvailableSections', () => {
   it('gives only the warehouse for a permission limited to warehouses', () => {
     const session = createSession({
       permissions: [{ isOrganizationWide: false, permission: 'warehouse_view', warehouseIds: [WAREHOUSE_ID] }],
-      profiles: [ProfileKind.BUYER],
+      profiles: [ProfileKind.CUSTOMER],
     });
 
     expect(resolveAvailableSections(session)).toEqual(['warehouse']);
@@ -98,14 +98,14 @@ describe('resolveAvailableSections', () => {
   it('hides the warehouse without the warehouse permission', () => {
     const session = createSession({
       permissions: [{ isOrganizationWide: true, permission: 'deal_view' }],
-      profiles: [ProfileKind.SELLER],
+      profiles: [ProfileKind.SUPPLIER],
     });
 
     expect(resolveAvailableSections(session)).toEqual(['network', 'catalog', 'deals']);
   });
 
   it('returns nothing without any permission', () => {
-    const session = createSession({ permissions: [], profiles: [ProfileKind.BUYER, ProfileKind.SELLER, ProfileKind.CARRIER] });
+    const session = createSession({ permissions: [], profiles: [ProfileKind.CUSTOMER, ProfileKind.SUPPLIER, ProfileKind.CARRIER] });
 
     expect(resolveAvailableSections(session)).toEqual([]);
   });
@@ -117,7 +117,7 @@ describe('resolveAvailableSections', () => {
         create(OrganizationSchema, { id: ORGANIZATION_ID, profiles: [] }),
         create(OrganizationSchema, {
           id: OTHER_ORGANIZATION_ID,
-          profiles: [create(OrganizationProfileSchema, { kind: ProfileKind.BUYER })],
+          profiles: [create(OrganizationProfileSchema, { kind: ProfileKind.CUSTOMER })],
         }),
       ],
       permissions: ORGANIZATION_WIDE_PERMISSIONS.map(permission => create(EffectivePermissionSchema, permission)),

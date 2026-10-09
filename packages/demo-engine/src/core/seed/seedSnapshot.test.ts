@@ -125,40 +125,40 @@ describe('seed contents', () => {
     const reader = createSeedReader();
 
     expect(reader.list('organizations').map(organization => organization.name).sort()).toEqual([
-      'Логист 1',
-      'Логист 2',
-      'Покупатель 1',
-      'Покупатель 2',
-      'Продавец 1',
-      'Продавец 2',
-      'Продавец 3',
-      'Продавец 4',
-      'Продавец 5',
+      'Заказчик 1',
+      'Заказчик 2',
+      'Перевозчик 1',
+      'Перевозчик 2',
+      'Поставщик 1',
+      'Поставщик 2',
+      'Поставщик 3',
+      'Поставщик 4',
+      'Поставщик 5',
     ]);
   });
 
-  it('gives the first buyer exactly three warehouses in three cities', () => {
-    const warehouses = createSeedReader().listBy('warehouses', 'tenantId', SeedOrganizationId.BUYER_1);
+  it('gives the first customer exactly three warehouses in three cities', () => {
+    const warehouses = createSeedReader().listBy('warehouses', 'tenantId', SeedOrganizationId.CUSTOMER_1);
 
     expect(warehouses).toHaveLength(3);
     expect(new Set(warehouses.map(warehouse => warehouse.cityId)).size).toBe(3);
   });
 
-  it('gives the second buyer two sites', () => {
-    expect(createSeedReader().listBy('warehouses', 'tenantId', SeedOrganizationId.BUYER_2)).toHaveLength(2);
+  it('gives the second customer two sites', () => {
+    expect(createSeedReader().listBy('warehouses', 'tenantId', SeedOrganizationId.CUSTOMER_2)).toHaveLength(2);
   });
 
-  it('gives the fourth seller two profiles: seller and carrier', () => {
-    const organization = createSeedReader().get('organizations', SeedOrganizationId.SELLER_4);
+  it('gives the fourth supplier two profiles: supplier and carrier', () => {
+    const organization = createSeedReader().get('organizations', SeedOrganizationId.SUPPLIER_4);
 
-    expect(organization?.profiles.map(profile => profile.kind).sort()).toEqual([ProfileKind.SELLER, ProfileKind.CARRIER].sort());
+    expect(organization?.profiles.map(profile => profile.kind).sort()).toEqual([ProfileKind.SUPPLIER, ProfileKind.CARRIER].sort());
   });
 
-  it('has buyers, sellers and carriers in both verticals', () => {
+  it('has customers, suppliers and carriers in both verticals', () => {
     const organizations = createSeedReader().list('organizations');
 
-    expect(organizations.filter(hasProfileKind(ProfileKind.BUYER))).toHaveLength(2);
-    expect(organizations.filter(hasProfileKind(ProfileKind.SELLER))).toHaveLength(5);
+    expect(organizations.filter(hasProfileKind(ProfileKind.CUSTOMER))).toHaveLength(2);
+    expect(organizations.filter(hasProfileKind(ProfileKind.SUPPLIER))).toHaveLength(5);
     expect(organizations.filter(hasProfileKind(ProfileKind.CARRIER))).toHaveLength(3);
   });
 
@@ -166,12 +166,12 @@ describe('seed contents', () => {
     const reader = createSeedReader();
     const spheres = reader.list('spheres');
     const roots = spheres.filter(sphere => sphere.parentId === '');
-    const freshBuyer = reader.get('organizations', SeedOrganizationId.BUYER_1);
-    const constructionBuyer = reader.get('organizations', SeedOrganizationId.BUYER_2);
+    const freshCustomer = reader.get('organizations', SeedOrganizationId.CUSTOMER_1);
+    const constructionCustomer = reader.get('organizations', SeedOrganizationId.CUSTOMER_2);
 
     expect(roots).toHaveLength(2);
     expect(spheres.every(sphere => sphere.parentId === '' || roots.some(root => root.id === sphere.parentId))).toBe(true);
-    expect(freshBuyer?.sphereIds).not.toEqual(constructionBuyer?.sphereIds);
+    expect(freshCustomer?.sphereIds).not.toEqual(constructionCustomer?.sphereIds);
   });
 
   it('has exactly one unverified organization, with verification level 0', () => {
@@ -179,7 +179,7 @@ describe('seed contents', () => {
       .list('organizations')
       .filter(organization => organization.profiles.every(profile => profile.verificationLevel === 0));
 
-    expect(unverified.map(organization => organization.id)).toEqual([SeedOrganizationId.SELLER_5]);
+    expect(unverified.map(organization => organization.id)).toEqual([SeedOrganizationId.SUPPLIER_5]);
   });
 
   it('references only existing cities, nodes, spheres and organizations', () => {
@@ -236,12 +236,12 @@ describe('seed contents', () => {
     expect(catalog).toContain('warehouse_create');
   });
 
-  it('gives each buyer a storekeeper scoped to one warehouse of that buyer', () => {
+  it('gives each customer a storekeeper scoped to one warehouse of that customer', () => {
     const reader = createSeedReader();
 
     for (const [organizationId, warehouseId, roleId, userId] of [
-      [SeedOrganizationId.BUYER_1, SeedWarehouseId.BUYER_1_WAREHOUSE_1, SeedRoleId.STOREKEEPER_BUYER_1, SeedUserId.STOREKEEPER_1],
-      [SeedOrganizationId.BUYER_2, SeedWarehouseId.BUYER_2_SITE_1, SeedRoleId.STOREKEEPER_BUYER_2, SeedUserId.STOREKEEPER_2],
+      [SeedOrganizationId.CUSTOMER_1, SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1, SeedRoleId.STOREKEEPER_CUSTOMER_1, SeedUserId.STOREKEEPER_1],
+      [SeedOrganizationId.CUSTOMER_2, SeedWarehouseId.CUSTOMER_2_SITE_1, SeedRoleId.STOREKEEPER_CUSTOMER_2, SeedUserId.STOREKEEPER_2],
     ] as const) {
       const role = reader.get('roles', roleId);
       const membership = reader.listBy('memberships', 'userId', userId)[0];
@@ -296,16 +296,16 @@ describe('seed contents', () => {
     ]);
   });
 
-  it('gives each vertical a buyer, a seller, a carrier and a storekeeper persona', () => {
+  it('gives each vertical a customer, a supplier, a carrier and a storekeeper persona', () => {
     const reader = createSeedReader();
     const personas = reader.list('personas');
 
     expect(personas).toHaveLength(8);
-    expect(personas.filter(persona => persona.kind === DemoPersonaKind.BUYER)).toHaveLength(2);
-    expect(personas.filter(persona => persona.kind === DemoPersonaKind.SELLER)).toHaveLength(2);
+    expect(personas.filter(persona => persona.kind === DemoPersonaKind.CUSTOMER)).toHaveLength(2);
+    expect(personas.filter(persona => persona.kind === DemoPersonaKind.SUPPLIER)).toHaveLength(2);
     expect(personas.filter(persona => persona.kind === DemoPersonaKind.CARRIER)).toHaveLength(2);
     expect(personas.filter(persona => persona.kind === DemoPersonaKind.STOREKEEPER)).toHaveLength(2);
-    expect(reader.get('personas', SeedPersonaId.FRESH_BUYER)?.organizationId).toBe(SeedOrganizationId.BUYER_1);
+    expect(reader.get('personas', SeedPersonaId.FRESH_CUSTOMER)?.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
   });
 
   it('points every persona to a member of the persona organization', () => {

@@ -78,39 +78,39 @@ describe('warehouse channel permission', () => {
 });
 
 describe('subscription access to a warehouse channel', () => {
-  const buyerWarehouse = warehouseChannel(SeedWarehouseId.BUYER_1_WAREHOUSE_1);
+  const customerWarehouse = warehouseChannel(SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1);
 
   it('lets a member with the organization-wide permission subscribe to any warehouse of the organization', () => {
     const { check } = createFixture();
 
-    expect(check(buyerWarehouse, SeedUserId.ADMIN_1)).toBeUndefined();
-    expect(check(warehouseChannel(SeedWarehouseId.BUYER_1_WAREHOUSE_3), SeedUserId.ADMIN_1)).toBeUndefined();
+    expect(check(customerWarehouse, SeedUserId.ADMIN_1)).toBeUndefined();
+    expect(check(warehouseChannel(SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3), SeedUserId.ADMIN_1)).toBeUndefined();
   });
 
   it('lets a member with an area subscribe to a warehouse of the area', () => {
     const { check } = createFixture();
 
-    expect(check(buyerWarehouse, SeedUserId.STOREKEEPER_1)).toBeUndefined();
+    expect(check(customerWarehouse, SeedUserId.STOREKEEPER_1)).toBeUndefined();
   });
 
   it('denies a warehouse outside the area with permission_denied naming the permission and the warehouse', () => {
     const { check } = createFixture();
 
-    const detail = check(warehouseChannel(SeedWarehouseId.BUYER_1_WAREHOUSE_2), SeedUserId.STOREKEEPER_1);
+    const detail = check(warehouseChannel(SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2), SeedUserId.STOREKEEPER_1);
 
     expect(detail?.code).toBe(ErrorCode.PERMISSION_DENIED);
-    expect(readPermission(detail)).toEqual({ permission: 'warehouse_view', warehouseId: SeedWarehouseId.BUYER_1_WAREHOUSE_2 });
+    expect(readPermission(detail)).toEqual({ permission: 'warehouse_view', warehouseId: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2 });
   });
 
   it('denies a member without the permission with permission_denied naming only the permission', async () => {
     const harness = createFixture();
     const userId = await addTestMember(harness, {
-      organizationId: SeedOrganizationId.BUYER_1,
+      organizationId: SeedOrganizationId.CUSTOMER_1,
       permissions: ['member_view'],
       warehouseIds: [],
     });
 
-    const detail = harness.check(buyerWarehouse, userId);
+    const detail = harness.check(customerWarehouse, userId);
 
     expect(detail?.code).toBe(ErrorCode.PERMISSION_DENIED);
     expect(readPermission(detail)).toEqual({ permission: 'warehouse_view', warehouseId: '' });
@@ -119,7 +119,7 @@ describe('subscription access to a warehouse channel', () => {
   it('answers not_found for the warehouse of another organization as for a missing one', () => {
     const { check } = createFixture();
 
-    const foreign = check(buyerWarehouse, SeedUserId.ADMIN_2);
+    const foreign = check(customerWarehouse, SeedUserId.ADMIN_2);
     const missing = check(warehouseChannel(UNKNOWN_ID), SeedUserId.ADMIN_2);
 
     for (const detail of [foreign, missing]) {
@@ -133,22 +133,22 @@ describe('subscription access to a warehouse channel', () => {
   it('answers session_required before looking at the warehouse', () => {
     const { check } = createFixture();
 
-    expect(check(buyerWarehouse, undefined)?.code).toBe(ErrorCode.SESSION_REQUIRED);
+    expect(check(customerWarehouse, undefined)?.code).toBe(ErrorCode.SESSION_REQUIRED);
     expect(check(warehouseChannel(UNKNOWN_ID), UNKNOWN_ID)?.code).toBe(ErrorCode.SESSION_REQUIRED);
   });
 
   it('does not take the organization from the acting header', () => {
     const { check } = createFixture();
 
-    expect(check(buyerWarehouse, SeedUserId.ADMIN_1, SeedOrganizationId.SELLER_1)).toBeUndefined();
-    expect(check(buyerWarehouse, SeedUserId.ADMIN_1, UNKNOWN_ID)).toBeUndefined();
+    expect(check(customerWarehouse, SeedUserId.ADMIN_1, SeedOrganizationId.SUPPLIER_1)).toBeUndefined();
+    expect(check(customerWarehouse, SeedUserId.ADMIN_1, UNKNOWN_ID)).toBeUndefined();
   });
 
   it('does not draw from the main random stream when it denies', () => {
     const { check, random } = createFixture();
     const before = random.getState();
 
-    check(buyerWarehouse, SeedUserId.ADMIN_2);
+    check(customerWarehouse, SeedUserId.ADMIN_2);
     check('garbage', SeedUserId.ADMIN_1);
 
     expect(random.getState()).toEqual(before);
@@ -157,9 +157,9 @@ describe('subscription access to a warehouse channel', () => {
   it('keeps the organization and user channels as before', () => {
     const { check } = createFixture();
 
-    expect(check(organizationChannel(SeedOrganizationId.BUYER_1), SeedUserId.ADMIN_1)).toBeUndefined();
+    expect(check(organizationChannel(SeedOrganizationId.CUSTOMER_1), SeedUserId.ADMIN_1)).toBeUndefined();
     expect(check(userChannel(SeedUserId.ADMIN_1), SeedUserId.ADMIN_1)).toBeUndefined();
-    expect(check(organizationChannel(SeedOrganizationId.SELLER_1), SeedUserId.ADMIN_1)?.code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
+    expect(check(organizationChannel(SeedOrganizationId.SUPPLIER_1), SeedUserId.ADMIN_1)?.code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
   });
 });
 

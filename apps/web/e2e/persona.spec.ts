@@ -13,7 +13,7 @@ import { createTopBarRobot } from './robots/top-bar-robot.ts';
 import { createWarehouseRobot } from './robots/warehouse-robot.ts';
 
 test.describe('start persona', () => {
-  test('opens as the buyer of the build profile with all sections and eight personas to choose from', async ({ page }) => {
+  test('opens as the customer of the build profile with all sections and eight personas to choose from', async ({ page }) => {
     const navigation = createNavigationRobot(page);
     const persona = createPersonaRobot(page);
 
@@ -51,7 +51,7 @@ test.describe('switching the persona', () => {
     const warehouse = createWarehouseRobot(page);
 
     await navigation.openSection('deals');
-    await persona.expectCurrentPersona(PERSONAS.freshBuyer);
+    await persona.expectCurrentPersona(PERSONAS.freshCustomer);
 
     await persona.selectPersona(PERSONAS.freshStorekeeper);
 
@@ -66,7 +66,7 @@ test.describe('switching the persona', () => {
     const persona = createPersonaRobot(page);
 
     await navigation.openSection('network');
-    await persona.expectCurrentPersona(PERSONAS.freshBuyer);
+    await persona.expectCurrentPersona(PERSONAS.freshCustomer);
 
     await persona.selectPersona(PERSONAS.freshCarrier);
 
@@ -81,7 +81,7 @@ test.describe('switching the persona', () => {
     const persona = createPersonaRobot(page);
 
     await navigation.openSection('warehouse');
-    await persona.expectCurrentPersona(PERSONAS.freshBuyer);
+    await persona.expectCurrentPersona(PERSONAS.freshCustomer);
 
     await persona.selectPersona(PERSONAS.freshCarrier);
 
@@ -90,17 +90,17 @@ test.describe('switching the persona', () => {
     await persona.expectSectionHeading('network');
   });
 
-  test('moves from the first vertical to the seller of the second one', async ({ page }) => {
+  test('moves from the first vertical to the supplier of the second one', async ({ page }) => {
     const navigation = createNavigationRobot(page);
     const persona = createPersonaRobot(page);
 
     await navigation.openSection('catalog');
-    await persona.expectCurrentPersona(PERSONAS.freshBuyer);
+    await persona.expectCurrentPersona(PERSONAS.freshCustomer);
 
-    await persona.selectPersona(PERSONAS.constructionSeller);
+    await persona.selectPersona(PERSONAS.constructionSupplier);
 
-    await persona.expectCurrentPersona(PERSONAS.constructionSeller);
-    await persona.expectSections(PERSONAS.constructionSeller.sections);
+    await persona.expectCurrentPersona(PERSONAS.constructionSupplier);
+    await persona.expectSections(PERSONAS.constructionSupplier.sections);
     await navigation.expectAddress(toSectionHash('catalog'));
     await persona.expectSectionHeading('catalog');
   });
@@ -161,11 +161,11 @@ test.describe('persona link', () => {
     const navigation = createNavigationRobot(page);
     const persona = createPersonaRobot(page);
 
-    await persona.openAsPersona(toSectionHash('deals'), PERSONAS.constructionSeller.id);
+    await persona.openAsPersona(toSectionHash('deals'), PERSONAS.constructionSupplier.id);
 
-    await persona.expectCurrentPersona(PERSONAS.constructionSeller);
+    await persona.expectCurrentPersona(PERSONAS.constructionSupplier);
     await persona.expectSectionHeading('deals');
-    await persona.expectSections(PERSONAS.constructionSeller.sections);
+    await persona.expectSections(PERSONAS.constructionSupplier.sections);
     await navigation.expectAddress(toSectionHash('deals'));
   });
 
@@ -173,13 +173,13 @@ test.describe('persona link', () => {
     const navigation = createNavigationRobot(page);
     const persona = createPersonaRobot(page);
 
-    await persona.openAsPersona(toSectionHash('deals'), PERSONAS.constructionSeller.id);
-    await persona.expectCurrentPersona(PERSONAS.constructionSeller);
+    await persona.openAsPersona(toSectionHash('deals'), PERSONAS.constructionSupplier.id);
+    await persona.expectCurrentPersona(PERSONAS.constructionSupplier);
     await navigation.expectAddress(toSectionHash('deals'));
 
     await navigation.reload();
 
-    await persona.expectCurrentPersona(PERSONAS.constructionSeller);
+    await persona.expectCurrentPersona(PERSONAS.constructionSupplier);
     await navigation.expectAddress(toSectionHash('deals'));
   });
 });
@@ -269,13 +269,13 @@ test.describe('persona menu with the keyboard', () => {
     await persona.expectCurrentPersona(DEFAULT_PERSONA);
     await persona.openMenuWithEnter();
 
-    await persona.highlightPersonaWithArrows(PERSONAS.constructionSeller);
+    await persona.highlightPersonaWithArrows(PERSONAS.constructionSupplier);
     await persona.pressEnterOnHighlightedPersona();
 
     await persona.expectMenuClosed();
-    await persona.expectCurrentPersona(PERSONAS.constructionSeller);
+    await persona.expectCurrentPersona(PERSONAS.constructionSupplier);
     await persona.expectTriggerFocused();
-    await persona.expectSwitchAnnounced(PERSONAS.constructionSeller);
+    await persona.expectSwitchAnnounced(PERSONAS.constructionSupplier);
     await persona.expectSectionHeading('catalog');
   });
 });
@@ -303,12 +303,12 @@ test.describe('persona menu with the mouse', () => {
     await navigation.openSection('catalog');
     await persona.expectCurrentPersona(DEFAULT_PERSONA);
 
-    await persona.selectPersona(PERSONAS.constructionSeller);
+    await persona.selectPersona(PERSONAS.constructionSupplier);
 
-    await persona.expectCurrentPersona(PERSONAS.constructionSeller);
+    await persona.expectCurrentPersona(PERSONAS.constructionSupplier);
     await persona.expectTriggerFocused();
-    await persona.expectSwitchAnnounced(PERSONAS.constructionSeller);
+    await persona.expectSwitchAnnounced(PERSONAS.constructionSupplier);
     await persona.openMenuWithClick();
-    await persona.expectCheckedPersona(PERSONAS.constructionSeller);
+    await persona.expectCheckedPersona(PERSONAS.constructionSupplier);
   });
 });

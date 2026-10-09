@@ -54,9 +54,9 @@ import { subscribeRecorded } from './testing/recordedSubscription';
 const KEY_1 = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
 const KEY_2 = '8d14e6a2-0b3c-4f57-9a68-12cd45ef7890';
 
-const BUYER_CHANNEL = organizationChannel(SeedOrganizationId.BUYER_1);
-const buyerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
-const createBuyerHeaders = (): Headers => createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+const CUSTOMER_CHANNEL = organizationChannel(SeedOrganizationId.CUSTOMER_1);
+const customerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
+const createCustomerHeaders = (): Headers => createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
 let harness: HostHarnessValue;
 
@@ -106,7 +106,7 @@ describe('engine hosts of two tabs', () => {
   it('serves a request of the follower by the leader', async () => {
     const { follower } = await startPair();
 
-    const response = await follower.organization().listWarehouses({}, buyerOptions);
+    const response = await follower.organization().listWarehouses({}, customerOptions);
 
     expect(response.warehouses).toHaveLength(3);
   });
@@ -116,7 +116,7 @@ describe('engine hosts of two tabs', () => {
 
     const error = await captureError(follower.organization().createWarehouse(
       createWarehouseRequest(KEY_1),
-      callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1),
     ));
 
     expect(error).toBeInstanceOf(ConnectError);
@@ -126,14 +126,14 @@ describe('engine hosts of two tabs', () => {
 
   it('delivers the event of a command of the follower to the subscribers of both tabs, one message each', async () => {
     const { follower, leader } = await startPair();
-    const leaderRecorded = subscribeRecorded(leader, BUYER_CHANNEL, createBuyerHeaders());
-    const followerRecorded = subscribeRecorded(follower, BUYER_CHANNEL, createBuyerHeaders());
+    const leaderRecorded = subscribeRecorded(leader, CUSTOMER_CHANNEL, createCustomerHeaders());
+    const followerRecorded = subscribeRecorded(follower, CUSTOMER_CHANNEL, createCustomerHeaders());
     await vi.waitFor(() => {
       expect(leaderRecorded.positions).toHaveLength(1);
       expect(followerRecorded.positions).toHaveLength(1);
     }, WAIT_OPTIONS);
 
-    await follower.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    await follower.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
 
     await vi.waitFor(() => {
       expect(leaderRecorded.events).toHaveLength(1);
@@ -149,8 +149,8 @@ describe('engine hosts of two tabs', () => {
 
     const recorded = subscribeRecorded(
       follower,
-      organizationChannel(SeedOrganizationId.SELLER_1),
-      createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      organizationChannel(SeedOrganizationId.SUPPLIER_1),
+      createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     );
 
     await vi.waitFor(() => {
@@ -162,14 +162,14 @@ describe('engine hosts of two tabs', () => {
 
   it('stops delivering events to a follower subscription after unsubscribe', async () => {
     const { follower, leader } = await startPair();
-    const recorded = subscribeRecorded(follower, BUYER_CHANNEL, createBuyerHeaders());
+    const recorded = subscribeRecorded(follower, CUSTOMER_CHANNEL, createCustomerHeaders());
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(1);
     }, WAIT_OPTIONS);
 
     recorded.unsubscribe();
-    await leader.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
-    await follower.organization().listWarehouses({}, buyerOptions);
+    await leader.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
+    await follower.organization().listWarehouses({}, customerOptions);
 
     expect(recorded.events).toHaveLength(0);
     expect(follower.messages.filter(message => message.type === 'events')).toHaveLength(0);
@@ -189,7 +189,7 @@ describe('engine hosts of two tabs', () => {
     await waitForRole(follower, 'follower');
     probes[0]?.holdHandle();
 
-    const failure = captureError(follower.organization().listWarehouses({}, buyerOptions));
+    const failure = captureError(follower.organization().listWarehouses({}, customerOptions));
     await vi.waitFor(() => {
       expect(probes[0]?.handleCount()).toBe(1);
     }, WAIT_OPTIONS);
@@ -206,17 +206,17 @@ describe('engine hosts when a follower leaves', () => {
     await waitForRole(leader, 'leader');
     const follower = harness.addHost();
     await waitForRole(follower, 'follower');
-    const recorded = subscribeRecorded(follower, BUYER_CHANNEL, createBuyerHeaders());
+    const recorded = subscribeRecorded(follower, CUSTOMER_CHANNEL, createCustomerHeaders());
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(1);
     }, WAIT_OPTIONS);
 
-    expect(probes[0]?.listenerCount(BUYER_CHANNEL)).toBe(1);
+    expect(probes[0]?.listenerCount(CUSTOMER_CHANNEL)).toBe(1);
 
     await follower.host.stop();
 
     await vi.waitFor(() => {
-      expect(probes[0]?.listenerCount(BUYER_CHANNEL)).toBe(0);
+      expect(probes[0]?.listenerCount(CUSTOMER_CHANNEL)).toBe(0);
     }, WAIT_OPTIONS);
   });
 
@@ -226,15 +226,15 @@ describe('engine hosts when a follower leaves', () => {
     await waitForRole(leader, 'leader');
     const follower = harness.addHost();
     await waitForRole(follower, 'follower');
-    const recorded = subscribeRecorded(follower, BUYER_CHANNEL, createBuyerHeaders());
+    const recorded = subscribeRecorded(follower, CUSTOMER_CHANNEL, createCustomerHeaders());
     await vi.waitFor(() => {
-      expect(probes[0]?.listenerCount(BUYER_CHANNEL)).toBe(1);
+      expect(probes[0]?.listenerCount(CUSTOMER_CHANNEL)).toBe(1);
     }, WAIT_OPTIONS);
 
     recorded.unsubscribe();
 
     await vi.waitFor(() => {
-      expect(probes[0]?.listenerCount(BUYER_CHANNEL)).toBe(0);
+      expect(probes[0]?.listenerCount(CUSTOMER_CHANNEL)).toBe(0);
     }, WAIT_OPTIONS);
   });
 });
@@ -242,8 +242,8 @@ describe('engine hosts when a follower leaves', () => {
 describe('engine hosts when the leader leaves', () => {
   it('hands the leadership to the waiting tab with the stored state, a new epoch and restored subscriptions', async () => {
     const { follower, leader } = await startPair();
-    const recorded = subscribeRecorded(follower, BUYER_CHANNEL, createBuyerHeaders());
-    await follower.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    const recorded = subscribeRecorded(follower, CUSTOMER_CHANNEL, createCustomerHeaders());
+    await follower.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(1);
       expect(recorded.events).toHaveLength(1);
@@ -254,13 +254,13 @@ describe('engine hosts when the leader leaves', () => {
 
     const secondEpoch = await waitForStatusEpoch(follower, 'leader', firstEpoch);
     expect(secondEpoch).not.toBe(firstEpoch);
-    expect((await follower.organization().listWarehouses({}, buyerOptions)).warehouses).toHaveLength(4);
+    expect((await follower.organization().listWarehouses({}, customerOptions)).warehouses).toHaveLength(4);
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(2);
     }, WAIT_OPTIONS);
     expect(recorded.positions[1]).toEqual({ epoch: secondEpoch, seq: 1n });
 
-    await follower.organization().createWarehouse(createWarehouseRequest(KEY_2, { name: 'Склад 10' }), buyerOptions);
+    await follower.organization().createWarehouse(createWarehouseRequest(KEY_2, { name: 'Склад 10' }), customerOptions);
     await vi.waitFor(() => {
       expect(recorded.events).toHaveLength(2);
     }, WAIT_OPTIONS);
@@ -275,7 +275,7 @@ describe('engine hosts when the leader leaves', () => {
     await waitForRole(follower, 'follower');
     probes[0]?.holdHandle();
 
-    const failure = captureError(follower.organization().listWarehouses({}, buyerOptions));
+    const failure = captureError(follower.organization().listWarehouses({}, customerOptions));
     await vi.waitFor(() => {
       expect(probes[0]?.handleCount()).toBe(1);
     }, WAIT_OPTIONS);
@@ -283,7 +283,7 @@ describe('engine hosts when the leader leaves', () => {
 
     expect((await failure).code).toBe(Code.Unavailable);
     await waitForRole(follower, 'leader');
-    expect((await follower.organization().listWarehouses({}, buyerOptions)).warehouses).toHaveLength(3);
+    expect((await follower.organization().listWarehouses({}, customerOptions)).warehouses).toHaveLength(3);
   });
 
   it('keeps a third tab as a follower of the new leader and serves its requests', async () => {
@@ -296,7 +296,7 @@ describe('engine hosts when the leader leaves', () => {
     const secondEpoch = await waitForStatusEpoch(follower, 'leader', firstEpoch);
 
     expect(await waitForStatusEpoch(third, 'follower', firstEpoch)).toBe(secondEpoch);
-    expect((await third.organization().listWarehouses({}, buyerOptions)).warehouses).toHaveLength(3);
+    expect((await third.organization().listWarehouses({}, customerOptions)).warehouses).toHaveLength(3);
   });
 
   it('closes the leadership cleanly: the final checkpoint is stored before the next leader loads', async () => {
@@ -314,11 +314,11 @@ describe('engine hosts when the leader leaves', () => {
 describe('engine hosts reset across tabs', () => {
   it('announces the reset to both tabs, re-issues the subscriptions of both and drops the created warehouse', async () => {
     const { follower, leader } = await startPair();
-    const created = await follower.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    const created = await follower.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
     const warehouseId = created.warehouse?.id ?? '';
-    const leaderOrganization = subscribeRecorded(leader, BUYER_CHANNEL, createBuyerHeaders());
-    const followerOrganization = subscribeRecorded(follower, BUYER_CHANNEL, createBuyerHeaders());
-    const followerWarehouse = subscribeRecorded(follower, warehouseChannel(warehouseId), createBuyerHeaders());
+    const leaderOrganization = subscribeRecorded(leader, CUSTOMER_CHANNEL, createCustomerHeaders());
+    const followerOrganization = subscribeRecorded(follower, CUSTOMER_CHANNEL, createCustomerHeaders());
+    const followerWarehouse = subscribeRecorded(follower, warehouseChannel(warehouseId), createCustomerHeaders());
     const leaderResets: string[] = [];
     const followerResets: string[] = [];
     leader.connection.control.onReset((epoch) => {
@@ -356,7 +356,7 @@ describe('engine hosts reset across tabs', () => {
       storage: 'memory',
       storageHealth: 'ok',
     });
-    expect((await follower.organization().listWarehouses({}, buyerOptions)).warehouses).toHaveLength(3);
+    expect((await follower.organization().listWarehouses({}, customerOptions)).warehouses).toHaveLength(3);
   });
 });
 
@@ -381,17 +381,17 @@ describe('engine hosts when the tab of the leader is killed without stopping', (
     await waitForRole(successor, 'follower');
     const bystander = harness.addHost();
     await waitForRole(bystander, 'follower');
-    await bystander.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
-    const successorRecorded = subscribeRecorded(successor, BUYER_CHANNEL, createBuyerHeaders());
-    const bystanderRecorded = subscribeRecorded(bystander, BUYER_CHANNEL, createBuyerHeaders());
+    await bystander.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
+    const successorRecorded = subscribeRecorded(successor, CUSTOMER_CHANNEL, createCustomerHeaders());
+    const bystanderRecorded = subscribeRecorded(bystander, CUSTOMER_CHANNEL, createCustomerHeaders());
     await vi.waitFor(() => {
       expect(successorRecorded.positions).toHaveLength(1);
       expect(bystanderRecorded.positions).toHaveLength(1);
     }, WAIT_OPTIONS);
     const handleCountBefore = probesOfLeader[0]?.handleCount() ?? 0;
     probesOfLeader[0]?.holdHandle();
-    const successorCall = captureError(successor.organization().listWarehouses({}, buyerOptions));
-    const bystanderCall = captureError(bystander.organization().listWarehouses({}, buyerOptions));
+    const successorCall = captureError(successor.organization().listWarehouses({}, customerOptions));
+    const bystanderCall = captureError(bystander.organization().listWarehouses({}, customerOptions));
     await vi.waitFor(() => {
       expect(probesOfLeader[0]?.handleCount()).toBe(handleCountBefore + 2);
     }, WAIT_OPTIONS);
@@ -403,7 +403,7 @@ describe('engine hosts when the tab of the leader is killed without stopping', (
     await vi.waitFor(() => {
       expect(successorLoadCount).toBe(1);
     }, WAIT_OPTIONS);
-    const callDuringStartup = successor.organization().listWarehouses({}, buyerOptions);
+    const callDuringStartup = successor.organization().listWarehouses({}, customerOptions);
     await waitForInbox(successor, 'request', 2);
     successorCoreGate.open();
 
@@ -419,9 +419,9 @@ describe('engine hosts when the tab of the leader is killed without stopping', (
     }, WAIT_OPTIONS);
     expect(successorRecorded.positions[1]?.epoch).toBe(secondEpoch);
     expect(bystanderRecorded.positions[1]?.epoch).toBe(secondEpoch);
-    expect(probesOfSuccessor[0]?.listenerCount(BUYER_CHANNEL)).toBe(2);
+    expect(probesOfSuccessor[0]?.listenerCount(CUSTOMER_CHANNEL)).toBe(2);
 
-    await successor.organization().createWarehouse(createWarehouseRequest(KEY_2, { name: 'Склад 10' }), buyerOptions);
+    await successor.organization().createWarehouse(createWarehouseRequest(KEY_2, { name: 'Склад 10' }), customerOptions);
 
     await vi.waitFor(() => {
       expect(successorRecorded.events).toHaveLength(1);

@@ -112,7 +112,7 @@ describe('parseAddressPath rejects', () => {
     ['an id starting with a dash', '/deals/-abc'],
     ['an id starting with an underscore', '/deals/_abc'],
     ['an id with a dot', '/deals/a.b'],
-    ['an id with a query', '/deals/abc?as=buyer'],
+    ['an id with a query', '/deals/abc?as=customer'],
     ['an id with a newline', '/deals/abc\n'],
     ['an uppercase section', '/Deals'],
     ['an uppercase object segment', `/Deals/${DEAL_ID}`],

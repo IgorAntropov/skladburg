@@ -843,7 +843,7 @@ describe('startApp', () => {
       it('opens the persona saved in the tab when the address names none', async () => {
         window.sessionStorage.setItem(
           ACTING_CONTEXT_STORAGE_KEY,
-          JSON.stringify({ organizationId: SeedOrganizationId.BUYER_1, userId: SeedUserId.STOREKEEPER_1 }),
+          JSON.stringify({ organizationId: SeedOrganizationId.CUSTOMER_1, userId: SeedUserId.STOREKEEPER_1 }),
         );
 
         const location = await startOnEngine('/');
@@ -855,10 +855,10 @@ describe('startApp', () => {
       it('lets the address win over the persona saved in the tab', async () => {
         window.sessionStorage.setItem(
           ACTING_CONTEXT_STORAGE_KEY,
-          JSON.stringify({ organizationId: SeedOrganizationId.BUYER_1, userId: SeedUserId.STOREKEEPER_1 }),
+          JSON.stringify({ organizationId: SeedOrganizationId.CUSTOMER_1, userId: SeedUserId.STOREKEEPER_1 }),
         );
 
-        await startOnEngine(`/network?as=${SeedPersonaId.FRESH_BUYER}`);
+        await startOnEngine(`/network?as=${SeedPersonaId.FRESH_CUSTOMER}`);
 
         expect(await screen.findByRole('heading', { level: 1, name: defaultLocaleCatalog['section.network.title'] })).toBeDefined();
         expect(getNavigationLinks()).toHaveLength(APP_SECTIONS.length);

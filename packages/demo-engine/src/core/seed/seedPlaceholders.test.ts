@@ -6,8 +6,8 @@ import {
 
 import { createSeedRecords } from './seedSnapshot';
 
-const ORGANIZATION_NAME_PATTERN = /^(Покупатель|Продавец|Логист) \d+$/;
-const LEGAL_NAME_PATTERN = /^ООО «(Покупатель|Продавец|Логист) \d+»$/;
+const ORGANIZATION_NAME_PATTERN = /^(Заказчик|Поставщик|Перевозчик) \d+$/;
+const LEGAL_NAME_PATTERN = /^ООО «(Заказчик|Поставщик|Перевозчик) \d+»$/;
 const USER_NAME_PATTERN = /^[А-ЯЁ][а-яё]+ [А-ЯЁ][а-яё]+$/;
 const ROLE_NAME_PATTERN = /^(Администратор|Кладовщик)$/;
 const WAREHOUSE_NAME_PATTERN = /^(Склад|Площадка) \d+$/;

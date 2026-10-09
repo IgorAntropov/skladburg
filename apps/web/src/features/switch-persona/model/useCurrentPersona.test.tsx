@@ -27,8 +27,8 @@ import { createQueryClient } from '@/shared/api';
 import { createTestRuntime } from '@/shared/api/index.testing';
 
 import {
-  FRESH_BUYER_FIXTURE,
-  FRESH_SELLER_FIXTURE,
+  FRESH_CUSTOMER_FIXTURE,
+  FRESH_SUPPLIER_FIXTURE,
   PERSONA_FIXTURES,
 } from '../lib/testing/personaFixtures';
 import {
@@ -73,31 +73,31 @@ describe('useCurrentPersona', () => {
   });
 
   it('is pending without a persona until the list arrives, then returns the persona of the acting context', async () => {
-    const { result } = await renderCurrentPersonaHook(createPersonaRuntime(listAllPersonas, FRESH_SELLER_FIXTURE));
+    const { result } = await renderCurrentPersonaHook(createPersonaRuntime(listAllPersonas, FRESH_SUPPLIER_FIXTURE));
 
     expect(result.current).toEqual({ isPending: true, persona: undefined });
 
     await waitFor(() => {
-      expect(result.current).toEqual({ isPending: false, persona: FRESH_SELLER_FIXTURE });
+      expect(result.current).toEqual({ isPending: false, persona: FRESH_SUPPLIER_FIXTURE });
     });
   });
 
   it('follows the acting context', async () => {
-    const runtime = createPersonaRuntime(listAllPersonas, FRESH_BUYER_FIXTURE);
+    const runtime = createPersonaRuntime(listAllPersonas, FRESH_CUSTOMER_FIXTURE);
     const { result } = await renderCurrentPersonaHook(runtime);
     await waitFor(() => {
-      expect(result.current.persona).toEqual(FRESH_BUYER_FIXTURE);
+      expect(result.current.persona).toEqual(FRESH_CUSTOMER_FIXTURE);
     });
 
     act(() => {
-      runtime.actingContext.set({ organizationId: FRESH_SELLER_FIXTURE.organizationId, userId: FRESH_SELLER_FIXTURE.userId });
+      runtime.actingContext.set({ organizationId: FRESH_SUPPLIER_FIXTURE.organizationId, userId: FRESH_SUPPLIER_FIXTURE.userId });
     });
 
-    expect(result.current.persona).toEqual(FRESH_SELLER_FIXTURE);
+    expect(result.current.persona).toEqual(FRESH_SUPPLIER_FIXTURE);
   });
 
   it('stops being pending without a persona when the list cannot be loaded', async () => {
-    const runtime = createPersonaRuntime(() => Promise.reject(new Error('list failed')), FRESH_BUYER_FIXTURE);
+    const runtime = createPersonaRuntime(() => Promise.reject(new Error('list failed')), FRESH_CUSTOMER_FIXTURE);
     const { result } = await renderCurrentPersonaHook(runtime, new QueryClient({ defaultOptions: { queries: { retry: false } } }));
 
     await waitFor(() => {

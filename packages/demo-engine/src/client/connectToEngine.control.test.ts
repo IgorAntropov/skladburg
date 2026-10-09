@@ -24,7 +24,7 @@ import {
 
 const KEY_1 = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
 
-const buyerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+const customerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
 const LEADER_STATUS: EngineStatusValue = {
   coordination: 'single-tab',
@@ -70,14 +70,14 @@ describe('connectToEngine control', () => {
     connection.control.onReset((epoch) => {
       epochs.push(epoch);
     });
-    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
 
     await connection.control.reset();
 
     await vi.waitFor(() => {
       expect(epochs).toEqual(['reset-epoch-1']);
     });
-    const response = await createOrganizationClient(true).listWarehouses({}, buyerOptions);
+    const response = await createOrganizationClient(true).listWarehouses({}, customerOptions);
     expect(response.warehouses).toHaveLength(3);
   });
 

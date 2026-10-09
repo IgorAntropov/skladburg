@@ -25,19 +25,19 @@ import { DropdownMenuRadioItem } from './DropdownMenuRadioItem';
 import { DropdownMenuSeparator } from './DropdownMenuSeparator';
 import { DropdownMenuTrigger } from './DropdownMenuTrigger';
 
-type RoleValue = 'buyer' | 'carrier' | 'seller';
+type RoleValue = 'carrier' | 'customer' | 'supplier';
 
-const TRIGGER_LABEL = 'Sign in as: Buyer';
+const TRIGGER_LABEL = 'Sign in as: Customer';
 const TRIGGER_TEXT = 'Sign in as';
 const MENU_LABEL = 'Personas';
 const GROUP_LABEL = 'Persona';
-const BUYER_TEXT = 'Buyer';
+const CUSTOMER_TEXT = 'Customer';
 const CARRIER_TEXT = 'Carrier';
-const SELLER_TEXT = 'Seller';
+const SUPPLIER_TEXT = 'Supplier';
 const ACTION_TEXT = 'Reset';
 const HEADING_TEXT = 'Roles';
 const ORGANIZATION_TEXT = 'Organization';
-const FULL_NAME = 'Buyer, Administrator · Organization';
+const FULL_NAME = 'Customer, Administrator · Organization';
 const OUTSIDE_LABEL = 'Outside action';
 const OUTSIDE_REGION_LABEL = 'Outside region';
 
@@ -55,9 +55,9 @@ const RoleMenu = ({ onReset = vi.fn(), onValueChange, value }: RoleMenuProps): R
     <DropdownMenuContent label={MENU_LABEL}>
       <DropdownMenuLabel>{HEADING_TEXT}</DropdownMenuLabel>
       <DropdownMenuRadioGroup label={GROUP_LABEL} onValueChange={onValueChange} value={value}>
-        <DropdownMenuRadioItem value="buyer">{BUYER_TEXT}</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="customer">{CUSTOMER_TEXT}</DropdownMenuRadioItem>
         <DropdownMenuRadioItem value="carrier">{CARRIER_TEXT}</DropdownMenuRadioItem>
-        <DropdownMenuRadioItem disabled value="seller">{SELLER_TEXT}</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem disabled value="supplier">{SUPPLIER_TEXT}</DropdownMenuRadioItem>
       </DropdownMenuRadioGroup>
       <DropdownMenuSeparator />
       <DropdownMenuItem onSelect={onReset}>{ACTION_TEXT}</DropdownMenuItem>
@@ -70,7 +70,7 @@ const RoleMenuWithOutside = (): ReactElement => (
     <nav aria-label={OUTSIDE_REGION_LABEL}>
       <Button aria-label={OUTSIDE_LABEL}>{OUTSIDE_LABEL}</Button>
     </nav>
-    <RoleMenu onValueChange={vi.fn()} value="buyer" />
+    <RoleMenu onValueChange={vi.fn()} value="customer" />
   </div>
 );
 
@@ -89,7 +89,7 @@ describe('DropdownMenu', () => {
   });
 
   it('gives the trigger an accessible name and a closed popup', () => {
-    render(<RoleMenu onValueChange={vi.fn()} value="buyer" />);
+    render(<RoleMenu onValueChange={vi.fn()} value="customer" />);
     const trigger = screen.getByRole('button', { name: TRIGGER_LABEL });
 
     expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
@@ -99,7 +99,7 @@ describe('DropdownMenu', () => {
 
   it('opens on the arrow down key of the closed trigger and does not change the value', async () => {
     const onValueChange = vi.fn();
-    render(<RoleMenu onValueChange={onValueChange} value="buyer" />);
+    render(<RoleMenu onValueChange={onValueChange} value="customer" />);
 
     const trigger = await openWithArrowDown();
 
@@ -108,7 +108,7 @@ describe('DropdownMenu', () => {
   });
 
   it('names the menu and the group', async () => {
-    render(<RoleMenu onValueChange={vi.fn()} value="buyer" />);
+    render(<RoleMenu onValueChange={vi.fn()} value="customer" />);
 
     await openWithArrowDown();
 
@@ -117,17 +117,17 @@ describe('DropdownMenu', () => {
   });
 
   it('marks only the chosen item as checked', async () => {
-    render(<RoleMenu onValueChange={vi.fn()} value="buyer" />);
+    render(<RoleMenu onValueChange={vi.fn()} value="customer" />);
 
     await openWithArrowDown();
 
-    expect(screen.getByRole('menuitemradio', { name: BUYER_TEXT }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('menuitemradio', { name: CUSTOMER_TEXT }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('menuitemradio', { name: CARRIER_TEXT }).getAttribute('aria-checked')).toBe('false');
   });
 
   it('moves the highlight with the arrow keys without changing the value', async () => {
     const onValueChange = vi.fn();
-    render(<RoleMenu onValueChange={onValueChange} value="buyer" />);
+    render(<RoleMenu onValueChange={onValueChange} value="customer" />);
 
     await openWithArrowDown();
     const menu = screen.getByRole('menu');
@@ -141,7 +141,7 @@ describe('DropdownMenu', () => {
 
   it('selects the focused item once with Enter, closes the menu and returns the focus to the trigger', async () => {
     const onValueChange = vi.fn();
-    render(<RoleMenu onValueChange={onValueChange} value="buyer" />);
+    render(<RoleMenu onValueChange={onValueChange} value="customer" />);
 
     const trigger = await openWithArrowDown();
     const carrier = screen.getByRole('menuitemradio', { name: CARRIER_TEXT });
@@ -160,7 +160,7 @@ describe('DropdownMenu', () => {
 
   it('selects an item with Space as well', async () => {
     const onValueChange = vi.fn();
-    render(<RoleMenu onValueChange={onValueChange} value="buyer" />);
+    render(<RoleMenu onValueChange={onValueChange} value="customer" />);
 
     await openWithArrowDown();
     const carrier = screen.getByRole('menuitemradio', { name: CARRIER_TEXT });
@@ -173,7 +173,7 @@ describe('DropdownMenu', () => {
 
   it('closes on Escape without changing the value', async () => {
     const onValueChange = vi.fn();
-    render(<RoleMenu onValueChange={onValueChange} value="buyer" />);
+    render(<RoleMenu onValueChange={onValueChange} value="customer" />);
 
     const trigger = await openWithArrowDown();
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
@@ -208,7 +208,7 @@ describe('DropdownMenu', () => {
     render(
       <div>
         <Button aria-label={OUTSIDE_LABEL}>{OUTSIDE_LABEL}</Button>
-        <RoleMenu onValueChange={onValueChange} value="buyer" />
+        <RoleMenu onValueChange={onValueChange} value="customer" />
       </div>,
     );
 
@@ -259,8 +259,8 @@ describe('DropdownMenu', () => {
           <Button aria-label={TRIGGER_LABEL}>{TRIGGER_TEXT}</Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent label={MENU_LABEL}>
-          <DropdownMenuRadioGroup label={GROUP_LABEL} onValueChange={onValueChange} value="buyer">
-            <DropdownMenuRadioItem value="buyer">{BUYER_TEXT}</DropdownMenuRadioItem>
+          <DropdownMenuRadioGroup label={GROUP_LABEL} onValueChange={onValueChange} value="customer">
+            <DropdownMenuRadioItem value="customer">{CUSTOMER_TEXT}</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="carrier">{CARRIER_TEXT}</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
@@ -327,20 +327,20 @@ describe('DropdownMenu', () => {
 
   it('does not select a disabled item', async () => {
     const onValueChange = vi.fn();
-    render(<RoleMenu onValueChange={onValueChange} value="buyer" />);
+    render(<RoleMenu onValueChange={onValueChange} value="customer" />);
 
     await openWithArrowDown();
-    const seller = screen.getByRole('menuitemradio', { name: SELLER_TEXT });
-    fireEvent.keyDown(seller, { key: 'Enter' });
-    fireEvent.click(seller);
+    const supplier = screen.getByRole('menuitemradio', { name: SUPPLIER_TEXT });
+    fireEvent.keyDown(supplier, { key: 'Enter' });
+    fireEvent.click(supplier);
 
-    expect(seller.hasAttribute('data-disabled')).toBe(true);
+    expect(supplier.hasAttribute('data-disabled')).toBe(true);
     expect(onValueChange).not.toHaveBeenCalled();
   });
 
   it('calls onSelect of a plain item once and closes the menu', async () => {
     const onReset = vi.fn();
-    render(<RoleMenu onReset={onReset} onValueChange={vi.fn()} value="buyer" />);
+    render(<RoleMenu onReset={onReset} onValueChange={vi.fn()} value="customer" />);
 
     await openWithArrowDown();
     const reset = screen.getByRole('menuitem', { name: ACTION_TEXT });
@@ -355,7 +355,7 @@ describe('DropdownMenu', () => {
 
   it('selects an item once on a click and closes the menu', async () => {
     const onValueChange = vi.fn();
-    render(<RoleMenu onValueChange={onValueChange} value="buyer" />);
+    render(<RoleMenu onValueChange={onValueChange} value="customer" />);
 
     await openWithArrowDown();
     fireEvent.click(screen.getByRole('menuitemradio', { name: CARRIER_TEXT }));
@@ -410,24 +410,24 @@ describe('DropdownMenu', () => {
   });
 
   it('keeps every item at least 44 pixels tall by class', async () => {
-    render(<RoleMenu onValueChange={vi.fn()} value="buyer" />);
+    render(<RoleMenu onValueChange={vi.fn()} value="customer" />);
 
     await openWithArrowDown();
 
-    expect(screen.getByRole('menuitemradio', { name: BUYER_TEXT }).className).toContain('min-h-11');
+    expect(screen.getByRole('menuitemradio', { name: CUSTOMER_TEXT }).className).toContain('min-h-11');
     expect(screen.getByRole('menuitem', { name: ACTION_TEXT }).className).toContain('min-h-11');
   });
 
   it('keeps the content width and the indicator at the start by default', async () => {
-    render(<RoleMenu onValueChange={vi.fn()} value="buyer" />);
+    render(<RoleMenu onValueChange={vi.fn()} value="customer" />);
 
     await openWithArrowDown();
-    const buyer = screen.getByRole('menuitemradio', { name: BUYER_TEXT });
+    const customer = screen.getByRole('menuitemradio', { name: CUSTOMER_TEXT });
 
     expect(screen.getByRole('menu').className).not.toContain('w-[');
-    expect(buyer.getAttribute('aria-label')).toBeNull();
-    expect(buyer.firstElementChild?.className).not.toContain('ml-auto');
-    expect(buyer.lastChild?.textContent).toBe(BUYER_TEXT);
+    expect(customer.getAttribute('aria-label')).toBeNull();
+    expect(customer.firstElementChild?.className).not.toContain('ml-auto');
+    expect(customer.lastChild?.textContent).toBe(CUSTOMER_TEXT);
   });
 
   it('limits the profile width to the viewport', async () => {
@@ -455,9 +455,9 @@ describe('DropdownMenu', () => {
           <Button aria-label={TRIGGER_LABEL}>{TRIGGER_TEXT}</Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent label={MENU_LABEL}>
-          <DropdownMenuRadioGroup label={GROUP_LABEL} onValueChange={vi.fn()} value="buyer">
-            <DropdownMenuRadioItem label={FULL_NAME} value="buyer">
-              <span>{BUYER_TEXT}</span>
+          <DropdownMenuRadioGroup label={GROUP_LABEL} onValueChange={vi.fn()} value="customer">
+            <DropdownMenuRadioItem label={FULL_NAME} value="customer">
+              <span>{CUSTOMER_TEXT}</span>
               <span>{ORGANIZATION_TEXT}</span>
             </DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
@@ -479,19 +479,19 @@ describe('DropdownMenu', () => {
           <Button aria-label={TRIGGER_LABEL}>{TRIGGER_TEXT}</Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent label={MENU_LABEL}>
-          <DropdownMenuRadioGroup label={GROUP_LABEL} onValueChange={onValueChange} value="buyer">
-            <DropdownMenuRadioItem indicatorPlacement="end" value="buyer">{BUYER_TEXT}</DropdownMenuRadioItem>
+          <DropdownMenuRadioGroup label={GROUP_LABEL} onValueChange={onValueChange} value="customer">
+            <DropdownMenuRadioItem indicatorPlacement="end" value="customer">{CUSTOMER_TEXT}</DropdownMenuRadioItem>
             <DropdownMenuRadioItem indicatorPlacement="end" value="carrier">{CARRIER_TEXT}</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>,
     );
 
-    const buyer = await screen.findByRole('menuitemradio', { name: BUYER_TEXT });
+    const customer = await screen.findByRole('menuitemradio', { name: CUSTOMER_TEXT });
 
-    expect(buyer.firstChild?.textContent).toBe(BUYER_TEXT);
-    expect(buyer.lastElementChild?.className).toContain('ml-auto');
-    expect(buyer.lastElementChild?.querySelector('svg')).not.toBeNull();
+    expect(customer.firstChild?.textContent).toBe(CUSTOMER_TEXT);
+    expect(customer.lastElementChild?.className).toContain('ml-auto');
+    expect(customer.lastElementChild?.querySelector('svg')).not.toBeNull();
     expect(screen.getByRole('menuitemradio', { name: CARRIER_TEXT }).lastElementChild?.querySelector('svg')).toBeNull();
 
     fireEvent.click(screen.getByRole('menuitemradio', { name: CARRIER_TEXT }));
@@ -506,19 +506,19 @@ describe('DropdownMenu', () => {
           <Button aria-label={TRIGGER_LABEL}>{TRIGGER_TEXT}</Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent label={MENU_LABEL}>
-          <DropdownMenuRadioGroup label={GROUP_LABEL} onValueChange={vi.fn()} value="buyer">
-            <DropdownMenuRadioItem indicatorPlacement="none" value="buyer">{BUYER_TEXT}</DropdownMenuRadioItem>
+          <DropdownMenuRadioGroup label={GROUP_LABEL} onValueChange={vi.fn()} value="customer">
+            <DropdownMenuRadioItem indicatorPlacement="none" value="customer">{CUSTOMER_TEXT}</DropdownMenuRadioItem>
             <DropdownMenuRadioItem indicatorPlacement="none" value="carrier">{CARRIER_TEXT}</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>,
     );
 
-    const buyer = await screen.findByRole('menuitemradio', { name: BUYER_TEXT });
+    const customer = await screen.findByRole('menuitemradio', { name: CUSTOMER_TEXT });
 
-    expect(buyer.getAttribute('aria-checked')).toBe('true');
-    expect(buyer.querySelector('svg')).toBeNull();
-    expect(buyer.childElementCount).toBe(0);
-    expect(buyer.textContent).toBe(BUYER_TEXT);
+    expect(customer.getAttribute('aria-checked')).toBe('true');
+    expect(customer.querySelector('svg')).toBeNull();
+    expect(customer.childElementCount).toBe(0);
+    expect(customer.textContent).toBe(CUSTOMER_TEXT);
   });
 });

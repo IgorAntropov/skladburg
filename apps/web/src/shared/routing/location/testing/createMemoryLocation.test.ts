@@ -9,11 +9,11 @@ import { createMemoryLocation } from './createMemoryLocation';
 
 describe('createMemoryLocation', () => {
   it('reads the initial path and parameters', () => {
-    const location = createMemoryLocation('/deals/abc?as=buyer-1');
+    const location = createMemoryLocation('/deals/abc?as=customer-1');
 
     expect(location.read().path).toBe('/deals/abc');
-    expect(location.read().searchParams.get('as')).toBe('buyer-1');
-    expect(location.history).toEqual(['/deals/abc?as=buyer-1']);
+    expect(location.read().searchParams.get('as')).toBe('customer-1');
+    expect(location.history).toEqual(['/deals/abc?as=customer-1']);
   });
 
   it('reads an empty initial path as the root', () => {

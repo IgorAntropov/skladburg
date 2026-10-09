@@ -32,14 +32,14 @@ const ALL_SECTIONS: readonly AppSectionValue[] = ['network', 'catalog', 'deals',
 const MATRIX: readonly MatrixCaseValue[] = [
   {
     expectedSections: ALL_SECTIONS,
-    name: 'administrator of a buyer',
-    organizationId: SeedOrganizationId.BUYER_1,
+    name: 'administrator of a customer',
+    organizationId: SeedOrganizationId.CUSTOMER_1,
     userId: SeedUserId.ADMIN_1,
   },
   {
     expectedSections: ALL_SECTIONS,
-    name: 'administrator of a seller',
-    organizationId: SeedOrganizationId.SELLER_1,
+    name: 'administrator of a supplier',
+    organizationId: SeedOrganizationId.SUPPLIER_1,
     userId: SeedUserId.ADMIN_2,
   },
   {
@@ -50,14 +50,14 @@ const MATRIX: readonly MatrixCaseValue[] = [
   },
   {
     expectedSections: ALL_SECTIONS,
-    name: 'administrator of a seller and carrier',
-    organizationId: SeedOrganizationId.SELLER_4,
+    name: 'administrator of a supplier and carrier',
+    organizationId: SeedOrganizationId.SUPPLIER_4,
     userId: SeedUserId.ADMIN_7,
   },
   {
     expectedSections: ['warehouse'],
-    name: 'storekeeper of a buyer',
-    organizationId: SeedOrganizationId.BUYER_1,
+    name: 'storekeeper of a customer',
+    organizationId: SeedOrganizationId.CUSTOMER_1,
     userId: SeedUserId.STOREKEEPER_1,
   },
 ];
@@ -93,7 +93,7 @@ describe('available sections for sessions of the seed data', () => {
   });
 
   it('starts the storekeeper on the warehouse', async () => {
-    const sections = await readSections(SeedOrganizationId.BUYER_1, SeedUserId.STOREKEEPER_1);
+    const sections = await readSections(SeedOrganizationId.CUSTOMER_1, SeedUserId.STOREKEEPER_1);
 
     expect(selectLandingSection(sections)).toBe('warehouse');
   });

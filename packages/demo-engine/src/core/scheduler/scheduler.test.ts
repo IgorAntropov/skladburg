@@ -237,8 +237,8 @@ describe('engine tick', () => {
       transaction.put('personas', {
         group: DemoPersonaGroup.FRESH,
         id: `scheduled-${String(dueAtMs)}`,
-        kind: DemoPersonaKind.BUYER,
-        organizationId: SeedOrganizationId.BUYER_1,
+        kind: DemoPersonaKind.CUSTOMER,
+        organizationId: SeedOrganizationId.CUSTOMER_1,
         userId: SeedUserId.ADMIN_1,
       });
     },
@@ -293,12 +293,12 @@ describe('engine tick', () => {
 });
 
 const createSeedSnapshotPersonaIds = (): string[] => [
-  SeedPersonaId.FRESH_BUYER,
-  SeedPersonaId.FRESH_SELLER,
+  SeedPersonaId.FRESH_CUSTOMER,
+  SeedPersonaId.FRESH_SUPPLIER,
   SeedPersonaId.FRESH_CARRIER,
   SeedPersonaId.FRESH_STOREKEEPER,
-  SeedPersonaId.CONSTRUCTION_BUYER,
-  SeedPersonaId.CONSTRUCTION_SELLER,
+  SeedPersonaId.CONSTRUCTION_CUSTOMER,
+  SeedPersonaId.CONSTRUCTION_SUPPLIER,
   SeedPersonaId.CONSTRUCTION_CARRIER,
   SeedPersonaId.CONSTRUCTION_STOREKEEPER,
 ].sort();
@@ -311,8 +311,8 @@ describe('engine scheduler deadlines', () => {
       transaction.put('personas', {
         group: DemoPersonaGroup.FRESH,
         id: `scheduled-${String(dueAtMs)}`,
-        kind: DemoPersonaKind.BUYER,
-        organizationId: SeedOrganizationId.BUYER_1,
+        kind: DemoPersonaKind.CUSTOMER,
+        organizationId: SeedOrganizationId.CUSTOMER_1,
         userId: SeedUserId.ADMIN_1,
       });
     },

@@ -29,7 +29,7 @@ describe('selectProfileSummary', () => {
   it('returns undefined without a user', () => {
     const session = create(GetSessionResponseSchema, {
       actingOrganizationId: ACTING_ORGANIZATION_ID,
-      organizations: [createOrganization(ACTING_ORGANIZATION_ID, 'Покупатель 1', [ProfileKind.BUYER])],
+      organizations: [createOrganization(ACTING_ORGANIZATION_ID, 'Заказчик 1', [ProfileKind.CUSTOMER])],
     });
 
     expect(selectProfileSummary(session)).toBeUndefined();
@@ -38,7 +38,7 @@ describe('selectProfileSummary', () => {
   it('returns undefined when the acting organization is not among the organizations', () => {
     const session = create(GetSessionResponseSchema, {
       actingOrganizationId: ACTING_ORGANIZATION_ID,
-      organizations: [createOrganization('org-other', 'Продавец 1', [ProfileKind.SELLER])],
+      organizations: [createOrganization('org-other', 'Поставщик 1', [ProfileKind.SUPPLIER])],
       user: USER,
     });
 
@@ -47,7 +47,7 @@ describe('selectProfileSummary', () => {
 
   it('returns undefined when there is no acting organization', () => {
     const session = create(GetSessionResponseSchema, {
-      organizations: [createOrganization('org-other', 'Продавец 1', [ProfileKind.SELLER])],
+      organizations: [createOrganization('org-other', 'Поставщик 1', [ProfileKind.SUPPLIER])],
       user: USER,
     });
 
@@ -58,16 +58,16 @@ describe('selectProfileSummary', () => {
     const session = create(GetSessionResponseSchema, {
       actingOrganizationId: ACTING_ORGANIZATION_ID,
       organizations: [
-        createOrganization('org-other', 'Продавец 1', [ProfileKind.SELLER]),
-        createOrganization(ACTING_ORGANIZATION_ID, 'Покупатель 1', [ProfileKind.BUYER]),
+        createOrganization('org-other', 'Поставщик 1', [ProfileKind.SUPPLIER]),
+        createOrganization(ACTING_ORGANIZATION_ID, 'Заказчик 1', [ProfileKind.CUSTOMER]),
       ],
       user: USER,
     });
 
     expect(selectProfileSummary(session)).toEqual({
       organizationId: ACTING_ORGANIZATION_ID,
-      organizationName: 'Покупатель 1',
-      sides: [ProfileKind.BUYER],
+      organizationName: 'Заказчик 1',
+      sides: [ProfileKind.CUSTOMER],
       userDisplayName: 'Анна Смирнова',
       userId: 'user-1',
     });
@@ -76,29 +76,29 @@ describe('selectProfileSummary', () => {
   it('keeps two sides of the acting organization in the order of its profiles', () => {
     const session = create(GetSessionResponseSchema, {
       actingOrganizationId: ACTING_ORGANIZATION_ID,
-      organizations: [createOrganization(ACTING_ORGANIZATION_ID, 'Логист и продавец', [ProfileKind.CARRIER, ProfileKind.SELLER])],
+      organizations: [createOrganization(ACTING_ORGANIZATION_ID, 'Перевозчик и поставщик', [ProfileKind.CARRIER, ProfileKind.SUPPLIER])],
       user: USER,
     });
 
-    expect(selectProfileSummary(session)?.sides).toEqual([ProfileKind.CARRIER, ProfileKind.SELLER]);
+    expect(selectProfileSummary(session)?.sides).toEqual([ProfileKind.CARRIER, ProfileKind.SUPPLIER]);
   });
 
   it('drops the unspecified profile kind', () => {
     const session = create(GetSessionResponseSchema, {
       actingOrganizationId: ACTING_ORGANIZATION_ID,
       organizations: [
-        createOrganization(ACTING_ORGANIZATION_ID, 'Покупатель 1', [ProfileKind.UNSPECIFIED, ProfileKind.BUYER, ProfileKind.UNSPECIFIED]),
+        createOrganization(ACTING_ORGANIZATION_ID, 'Заказчик 1', [ProfileKind.UNSPECIFIED, ProfileKind.CUSTOMER, ProfileKind.UNSPECIFIED]),
       ],
       user: USER,
     });
 
-    expect(selectProfileSummary(session)?.sides).toEqual([ProfileKind.BUYER]);
+    expect(selectProfileSummary(session)?.sides).toEqual([ProfileKind.CUSTOMER]);
   });
 
   it('returns an empty list of sides for an organization without profiles', () => {
     const session = create(GetSessionResponseSchema, {
       actingOrganizationId: ACTING_ORGANIZATION_ID,
-      organizations: [createOrganization(ACTING_ORGANIZATION_ID, 'Покупатель 1', [])],
+      organizations: [createOrganization(ACTING_ORGANIZATION_ID, 'Заказчик 1', [])],
       user: USER,
     });
 

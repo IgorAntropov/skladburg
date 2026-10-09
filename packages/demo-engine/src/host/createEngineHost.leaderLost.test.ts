@@ -39,8 +39,8 @@ import {
 } from './testing/hostScenario';
 import { subscribeRecorded } from './testing/recordedSubscription';
 
-const BUYER_CHANNEL = organizationChannel(SeedOrganizationId.BUYER_1);
-const buyerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+const CUSTOMER_CHANNEL = organizationChannel(SeedOrganizationId.CUSTOMER_1);
+const customerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
 let harness: HostHarnessValue;
 let successorGate: GateValue | undefined;
@@ -95,7 +95,7 @@ describe('engine hosts when a new leader takes the lock and starts its engine', 
   it('queues the call of a follower sent in the startup window for the new leader instead of failing it', async () => {
     const { bystander, openSuccessorCore } = await startKilledLeaderWithGatedSuccessor();
 
-    const call = bystander.organization().listWarehouses({}, buyerOptions);
+    const call = bystander.organization().listWarehouses({}, customerOptions);
     await waitForInbox(bystander, 'request');
     await settleChannels();
 
@@ -111,8 +111,8 @@ describe('engine hosts when a new leader takes the lock and starts its engine', 
     const { bystander, deadEpoch, openSuccessorCore, successor } = await startKilledLeaderWithGatedSuccessor();
     const recorded = subscribeRecorded(
       bystander,
-      BUYER_CHANNEL,
-      createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      CUSTOMER_CHANNEL,
+      createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     );
     await waitForInbox(bystander, 'subscribe');
     await settleChannels();

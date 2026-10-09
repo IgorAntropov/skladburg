@@ -13,7 +13,7 @@ import { selectInitialPersona } from './selectInitialPersona';
 const createPersona = (id: string, organizationId: string, userId = `user-of-${id}`): DemoPersonaListItemValue => ({
   group: DemoPersonaGroup.FRESH,
   id,
-  kind: DemoPersonaKind.BUYER,
+  kind: DemoPersonaKind.CUSTOMER,
   organizationId,
   organizationName: `Organization ${organizationId}`,
   roleName: 'Administrator',

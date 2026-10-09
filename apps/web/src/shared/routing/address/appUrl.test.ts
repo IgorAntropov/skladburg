@@ -74,11 +74,11 @@ describe('parseAppUrl accepts', () => {
   });
 
   it('a fragment with parameters', () => {
-    expect(parseAppUrl(`https://igorantropov.github.io/skladburg/#/deals/${DEAL_ID}?as=buyer`, PAGES_BASE)).toEqual(dealAddress);
+    expect(parseAppUrl(`https://igorantropov.github.io/skladburg/#/deals/${DEAL_ID}?as=customer`, PAGES_BASE)).toEqual(dealAddress);
   });
 
   it('a bare fragment with parameters', () => {
-    expect(parseAppUrl(`#/network?as=buyer`, PAGES_BASE)).toEqual({ kind: 'section', section: 'network' });
+    expect(parseAppUrl(`#/network?as=customer`, PAGES_BASE)).toEqual({ kind: 'section', section: 'network' });
   });
 
   it('surrounding whitespace from a scanner', () => {

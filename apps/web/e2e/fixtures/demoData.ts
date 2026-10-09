@@ -2,9 +2,9 @@ import type { SectionValue } from './routes.ts';
 
 export type PersonaGroupValue = 'construction' | 'fresh';
 
-export type PersonaKindValue = 'buyer' | 'carrier' | 'seller' | 'storekeeper';
+export type PersonaKindValue = 'carrier' | 'customer' | 'storekeeper' | 'supplier';
 
-export type PersonaSideValue = 'buyer' | 'carrier' | 'seller';
+export type PersonaSideValue = 'carrier' | 'customer' | 'supplier';
 
 export interface PersonaValue {
   group: PersonaGroupValue;
@@ -25,93 +25,93 @@ const ADMINISTRATOR_ROLE = 'Администратор';
 const STOREKEEPER_ROLE = 'Кладовщик';
 
 export const PERSONAS = {
-  constructionBuyer: {
-    group: 'construction',
-    id: '90000005-0000-4000-8000-000000000000',
-    initials: 'ЕМ',
-    kind: 'buyer',
-    organizationName: 'Покупатель 2',
-    roleName: ADMINISTRATOR_ROLE,
-    sections: ALL_SECTIONS,
-    side: 'buyer',
-    userDisplayName: 'Елена Морозова',
-  },
   constructionCarrier: {
     group: 'construction',
     id: '90000007-0000-4000-8000-000000000000',
     initials: 'ПВ',
     kind: 'carrier',
-    organizationName: 'Логист 2',
+    organizationName: 'Перевозчик 2',
     roleName: ADMINISTRATOR_ROLE,
     sections: ['network', 'deals'],
     side: 'carrier',
     userDisplayName: 'Павел Волков',
   },
-  constructionSeller: {
+  constructionCustomer: {
     group: 'construction',
-    id: '90000006-0000-4000-8000-000000000000',
-    initials: 'АН',
-    kind: 'seller',
-    organizationName: 'Продавец 3',
+    id: '90000005-0000-4000-8000-000000000000',
+    initials: 'ЕМ',
+    kind: 'customer',
+    organizationName: 'Заказчик 2',
     roleName: ADMINISTRATOR_ROLE,
     sections: ALL_SECTIONS,
-    side: 'seller',
-    userDisplayName: 'Андрей Новиков',
+    side: 'customer',
+    userDisplayName: 'Елена Морозова',
   },
   constructionStorekeeper: {
     group: 'construction',
     id: '90000008-0000-4000-8000-000000000000',
     initials: 'МЛ',
     kind: 'storekeeper',
-    organizationName: 'Покупатель 2',
+    organizationName: 'Заказчик 2',
     roleName: STOREKEEPER_ROLE,
     sections: ['warehouse'],
-    side: 'buyer',
+    side: 'customer',
     userDisplayName: 'Мария Лебедева',
   },
-  freshBuyer: {
-    group: 'fresh',
-    id: '90000001-0000-4000-8000-000000000000',
-    initials: 'АС',
-    kind: 'buyer',
-    organizationName: 'Покупатель 1',
+  constructionSupplier: {
+    group: 'construction',
+    id: '90000006-0000-4000-8000-000000000000',
+    initials: 'АН',
+    kind: 'supplier',
+    organizationName: 'Поставщик 3',
     roleName: ADMINISTRATOR_ROLE,
     sections: ALL_SECTIONS,
-    side: 'buyer',
-    userDisplayName: 'Анна Смирнова',
+    side: 'supplier',
+    userDisplayName: 'Андрей Новиков',
   },
   freshCarrier: {
     group: 'fresh',
     id: '90000003-0000-4000-8000-000000000000',
     initials: 'ДВ',
     kind: 'carrier',
-    organizationName: 'Логист 1',
+    organizationName: 'Перевозчик 1',
     roleName: ADMINISTRATOR_ROLE,
     sections: ['network', 'deals'],
     side: 'carrier',
     userDisplayName: 'Дмитрий Васильев',
   },
-  freshSeller: {
+  freshCustomer: {
     group: 'fresh',
-    id: '90000002-0000-4000-8000-000000000000',
-    initials: 'СК',
-    kind: 'seller',
-    organizationName: 'Продавец 1',
+    id: '90000001-0000-4000-8000-000000000000',
+    initials: 'АС',
+    kind: 'customer',
+    organizationName: 'Заказчик 1',
     roleName: ADMINISTRATOR_ROLE,
     sections: ALL_SECTIONS,
-    side: 'seller',
-    userDisplayName: 'Сергей Кузнецов',
+    side: 'customer',
+    userDisplayName: 'Анна Смирнова',
   },
   freshStorekeeper: {
     group: 'fresh',
     id: '90000004-0000-4000-8000-000000000000',
     initials: 'ИС',
     kind: 'storekeeper',
-    organizationName: 'Покупатель 1',
+    organizationName: 'Заказчик 1',
     roleName: STOREKEEPER_ROLE,
     sections: ['warehouse'],
-    side: 'buyer',
+    side: 'customer',
     userDisplayName: 'Иван Соколов',
+  },
+  freshSupplier: {
+    group: 'fresh',
+    id: '90000002-0000-4000-8000-000000000000',
+    initials: 'СК',
+    kind: 'supplier',
+    organizationName: 'Поставщик 1',
+    roleName: ADMINISTRATOR_ROLE,
+    sections: ALL_SECTIONS,
+    side: 'supplier',
+    userDisplayName: 'Сергей Кузнецов',
   },
 } as const satisfies Record<string, PersonaValue>;
 
@@ -121,13 +121,13 @@ export const PERSONA_GROUPS: readonly {
 }[] = [
   {
     group: 'fresh',
-    personas: [PERSONAS.freshBuyer, PERSONAS.freshSeller, PERSONAS.freshCarrier, PERSONAS.freshStorekeeper],
+    personas: [PERSONAS.freshCustomer, PERSONAS.freshSupplier, PERSONAS.freshCarrier, PERSONAS.freshStorekeeper],
   },
   {
     group: 'construction',
     personas: [
-      PERSONAS.constructionBuyer,
-      PERSONAS.constructionSeller,
+      PERSONAS.constructionCustomer,
+      PERSONAS.constructionSupplier,
       PERSONAS.constructionCarrier,
       PERSONAS.constructionStorekeeper,
     ],
@@ -138,7 +138,7 @@ export const PERSONA_COUNT = 8;
 
 export const PERSONAS_PER_GROUP = 4;
 
-export const DEFAULT_PERSONA: PersonaValue = PERSONAS.freshBuyer;
+export const DEFAULT_PERSONA: PersonaValue = PERSONAS.freshCustomer;
 
 export const ORGANIZATION_NAME = DEFAULT_PERSONA.organizationName;
 

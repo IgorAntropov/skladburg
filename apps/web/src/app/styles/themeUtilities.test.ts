@@ -167,34 +167,34 @@ describe('side and avatar utilities', () => {
       'bg-avatar-8',
       'text-on-avatar-1',
       'text-on-avatar-8',
-      'text-side-label-buyer',
-      'text-side-label-seller',
+      'text-side-label-customer',
+      'text-side-label-supplier',
       'text-side-label-carrier',
-      'bg-side-buyer',
-      'text-on-side-buyer',
+      'bg-side-customer',
+      'text-on-side-customer',
     ]);
 
     expect(css).toContain('.bg-avatar-1');
     expect(css).toContain('.bg-avatar-8');
     expect(css).toContain('.text-on-avatar-1');
     expect(css).toContain('.text-on-avatar-8');
-    expect(css).toContain('.text-side-label-buyer');
-    expect(css).toContain('.text-side-label-seller');
+    expect(css).toContain('.text-side-label-customer');
+    expect(css).toContain('.text-side-label-supplier');
     expect(css).toContain('.text-side-label-carrier');
-    expect(css).toContain('.bg-side-buyer');
-    expect(css).toContain('.text-on-side-buyer');
+    expect(css).toContain('.bg-side-customer');
+    expect(css).toContain('.text-on-side-customer');
   });
 
   it('keeps the side fill literal in the utility so that a theme override cannot recolor it', async () => {
-    const css = await readBuiltCss(['bg-side-seller']);
+    const css = await readBuiltCss(['bg-side-supplier']);
 
-    expect(css).toMatch(/\.bg-side-seller\s*\{\s*background-color:\s*#596517;?\s*\}/);
+    expect(css).toMatch(/\.bg-side-supplier\s*\{\s*background-color:\s*#596517;?\s*\}/);
   });
 
   it('points the side label utility at the theme variable', async () => {
-    const css = await readBuiltCss(['text-side-label-seller']);
+    const css = await readBuiltCss(['text-side-label-supplier']);
 
-    expect(css).toMatch(/\.text-side-label-seller\s*\{\s*color:\s*var\(--color-side-label-seller\);?\s*\}/);
+    expect(css).toMatch(/\.text-side-label-supplier\s*\{\s*color:\s*var\(--color-side-label-supplier\);?\s*\}/);
   });
 });
 

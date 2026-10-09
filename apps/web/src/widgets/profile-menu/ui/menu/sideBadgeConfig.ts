@@ -18,9 +18,9 @@ export interface SideBadgeValue {
 }
 
 export const SIDE_BADGES = {
-  [ProfileKind.BUYER]: { className: 'text-side-label-buyer', Icon: ShoppingCart, labelKey: 'side.buyer' },
   [ProfileKind.CARRIER]: { className: 'text-side-label-carrier', Icon: Truck, labelKey: 'side.carrier' },
-  [ProfileKind.SELLER]: { className: 'text-side-label-seller', Icon: Store, labelKey: 'side.seller' },
+  [ProfileKind.CUSTOMER]: { className: 'text-side-label-customer', Icon: ShoppingCart, labelKey: 'side.customer' },
+  [ProfileKind.SUPPLIER]: { className: 'text-side-label-supplier', Icon: Store, labelKey: 'side.supplier' },
 } as const satisfies Record<KnownProfileKind, SideBadgeValue>;
 
 export const isKnownProfileKind = (kind: ProfileKind): kind is KnownProfileKind => kind in SIDE_BADGES;

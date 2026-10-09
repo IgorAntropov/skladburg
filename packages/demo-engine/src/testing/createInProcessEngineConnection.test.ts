@@ -38,8 +38,8 @@ import { ENGINE_BASE_URL } from '../protocol/index';
 import { createInProcessEngineConnection } from './createInProcessEngineConnection';
 
 const COMMAND_KEY = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
-const BUYER_CHANNEL = organizationChannel(SeedOrganizationId.BUYER_1);
-const buyerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+const CUSTOMER_CHANNEL = organizationChannel(SeedOrganizationId.CUSTOMER_1);
+const customerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
 let engine: InProcessEngineValue | undefined;
 
@@ -71,10 +71,10 @@ afterEach(async () => {
 });
 
 describe('in-process engine connection', () => {
-  it('answers the warehouses of the first buyer through the Connect client', async () => {
+  it('answers the warehouses of the first customer through the Connect client', async () => {
     const opened = openEngine();
 
-    const response = await createOrganizationClient(opened).listWarehouses({}, buyerOptions);
+    const response = await createOrganizationClient(opened).listWarehouses({}, customerOptions);
 
     expect(response.warehouses).toHaveLength(3);
   });
@@ -83,8 +83,8 @@ describe('in-process engine connection', () => {
     const opened = openEngine();
     const received: (string | undefined)[] = [];
     opened.connection.subscribe(
-      BUYER_CHANNEL,
-      new Headers(buyerOptions.headers),
+      CUSTOMER_CHANNEL,
+      new Headers(customerOptions.headers),
       {
         onDenied: () => undefined,
         onEvents: (events) => {
@@ -102,7 +102,7 @@ describe('in-process engine connection', () => {
       idempotencyKey: COMMAND_KEY,
       name: 'Склад 9',
       timeZone: 'Europe/Moscow',
-    }), buyerOptions);
+    }), customerOptions);
 
     await vi.waitFor(() => {
       expect(received).toContain('warehouseChanged');
@@ -116,7 +116,7 @@ describe('in-process engine connection', () => {
       statuses.push(status.state === 'ready' ? `${status.role}:${status.storage}` : status.state);
     });
 
-    await createOrganizationClient(opened).listWarehouses({}, buyerOptions);
+    await createOrganizationClient(opened).listWarehouses({}, customerOptions);
 
     await vi.waitFor(() => {
       expect(statuses).toContain('leader:memory');
@@ -126,7 +126,7 @@ describe('in-process engine connection', () => {
   it('writes a checkpoint only when the test runs the timers', async () => {
     const storage = createSpyStorage();
     const opened = openEngine({ storage });
-    await createOrganizationClient(opened).listWarehouses({}, buyerOptions);
+    await createOrganizationClient(opened).listWarehouses({}, customerOptions);
     const commitsBefore = storage.commits.length;
 
     opened.advanceRealTime(CHECKPOINT_INTERVAL_MS);
@@ -143,7 +143,7 @@ describe('in-process engine connection', () => {
 
   it('does not tick between explicit timer runs', async () => {
     const opened = openEngine();
-    await createOrganizationClient(opened).listWarehouses({}, buyerOptions);
+    await createOrganizationClient(opened).listWarehouses({}, customerOptions);
 
     expect(opened.pendingTimerCount()).toBeGreaterThan(0);
 
@@ -154,7 +154,7 @@ describe('in-process engine connection', () => {
 
   it('releases the leader lock and the timers on close', async () => {
     const opened = openEngine();
-    await createOrganizationClient(opened).listWarehouses({}, buyerOptions);
+    await createOrganizationClient(opened).listWarehouses({}, customerOptions);
     expect(opened.isLeaderLockHeld()).toBe(true);
 
     await opened.close();
@@ -168,12 +168,12 @@ describe('in-process engine connection', () => {
     const organization = createOrganizationClient(opened);
     await opened.close();
 
-    await expect(organization.listWarehouses({}, buyerOptions)).rejects.toMatchObject({ code: 14 });
+    await expect(organization.listWarehouses({}, customerOptions)).rejects.toMatchObject({ code: 14 });
   });
 
   it('closes twice without an error', async () => {
     const opened = openEngine();
-    await createOrganizationClient(opened).listWarehouses({}, buyerOptions);
+    await createOrganizationClient(opened).listWarehouses({}, customerOptions);
 
     await opened.close();
 

@@ -42,7 +42,7 @@ const RESET_ITEM_NAME = defaultLocaleCatalog['demo.reset.menuItem'];
 const RESET_PROMPT_NAME = defaultLocaleCatalog['demo.reset.confirm.prompt'];
 const READY_BUTTON_NAME = defaultLocaleCatalog['profile.button.label']
   .replace('{name}', 'Анна Смирнова')
-  .replace('{organization}', 'Покупатель 1');
+  .replace('{organization}', 'Заказчик 1');
 const CHUNK_ERROR_MESSAGE = defaultLocaleCatalog['routing.chunkError.message'];
 
 interface RenderedLauncherValue {
@@ -70,7 +70,7 @@ const renderLauncher = async ({
   menuGate,
   rejectedLoadCount = 0,
   sections = APP_SECTIONS,
-  sides = [ProfileKind.BUYER],
+  sides = [ProfileKind.CUSTOMER],
   viewportClass = 'desktop',
 }: RenderLauncherOptionsValue = {}): Promise<RenderedLauncherValue> => {
   vi.resetModules();

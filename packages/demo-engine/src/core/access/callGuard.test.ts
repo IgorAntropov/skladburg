@@ -107,19 +107,19 @@ describe('createCallGuard: session', () => {
   });
 
   it('adds the membership and the effective permissions when an organization is passed', () => {
-    const caller = guard.guardCall(read, method, sphereRequest, headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1));
+    const caller = guard.guardCall(read, method, sphereRequest, headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1));
 
-    expect(caller.organizationId).toBe(SeedOrganizationId.BUYER_1);
+    expect(caller.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
     expect(caller.membership?.userId).toBe(SeedUserId.STOREKEEPER_1);
     expect(caller.permissions).toEqual([{
       isOrganizationWide: false,
       permission: 'warehouse_view',
-      warehouseIds: [SeedWarehouseId.BUYER_1_WAREHOUSE_1],
+      warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1],
     }]);
   });
 
   it('answers session_required without a user', () => {
-    const error = catchError(() => guard.guardCall(read, method, sphereRequest, headersOf(undefined, SeedOrganizationId.BUYER_1)));
+    const error = catchError(() => guard.guardCall(read, method, sphereRequest, headersOf(undefined, SeedOrganizationId.CUSTOMER_1)));
 
     expect(detailOf(error).code).toBe(ErrorCode.SESSION_REQUIRED);
   });
@@ -131,7 +131,9 @@ describe('createCallGuard: session', () => {
   });
 
   it('answers membership_required when the passed organization is not the one of the user', () => {
-    const error = catchError(() => guard.guardCall(read, method, sphereRequest, headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_2)));
+    const error = catchError(
+      () => guard.guardCall(read, method, sphereRequest, headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_2)),
+    );
 
     expect(detailOf(error).code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
   });
@@ -147,10 +149,10 @@ describe('createCallGuard: member', () => {
   const method = OrganizationService.method.getOrganizationSettings;
 
   it('lets a member through', () => {
-    const caller = guard.guardMemberCall(read, method, settingsRequest, headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
+    const caller = guard.guardMemberCall(read, method, settingsRequest, headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
-    expect(caller.organizationId).toBe(SeedOrganizationId.BUYER_1);
-    expect(caller.membership.organizationId).toBe(SeedOrganizationId.BUYER_1);
+    expect(caller.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
+    expect(caller.membership.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
   });
 
   it('answers membership_required without an organization', () => {
@@ -160,7 +162,7 @@ describe('createCallGuard: member', () => {
   });
 
   it('answers membership_required for a user who is not a member', () => {
-    const headers = headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.SELLER_1);
+    const headers = headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.SUPPLIER_1);
     const error = catchError(() => guard.guardCall(read, method, settingsRequest, headers));
 
     expect(detailOf(error).code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
@@ -184,21 +186,26 @@ describe('createCallGuard: permission', () => {
   const method = OrganizationService.method.listWarehouses;
 
   it('returns the area of the required permission to a scope-filtered call', () => {
-    const wide = guard.guardScopeFilteredCall(read, method, warehousesRequest, headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
+    const wide = guard.guardScopeFilteredCall(
+      read,
+      method,
+      warehousesRequest,
+      headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
+    );
     const limited = guard.guardScopeFilteredCall(
       read,
       method,
       warehousesRequest,
-      headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1),
+      headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1),
     );
 
     expect(wide.scope).toEqual({ isOrganizationWide: true, warehouseIds: [] });
-    expect(limited.scope).toEqual({ isOrganizationWide: false, warehouseIds: [SeedWarehouseId.BUYER_1_WAREHOUSE_1] });
+    expect(limited.scope).toEqual({ isOrganizationWide: false, warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1] });
   });
 
   it('requires a permission for the whole organization when the requirement has no scope field', () => {
-    const storekeeperHeaders = headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1);
-    const adminHeaders = headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+    const storekeeperHeaders = headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1);
+    const adminHeaders = headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
     const detail = detailOf(catchError(() => guard.guardPermissionCall(read, method, warehousesRequest, storekeeperHeaders)));
     const guardCallDetail = detailOf(catchError(() => guard.guardCall(read, method, warehousesRequest, storekeeperHeaders)));
@@ -216,7 +223,7 @@ describe('createCallGuard: permission', () => {
       read,
       OrganizationService.method.createWarehouse,
       create(CreateWarehouseRequestSchema, { name: '' }),
-      headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1),
+      headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1),
     )));
 
     expect(detail.code).toBe(ErrorCode.PERMISSION_DENIED);
@@ -227,7 +234,7 @@ describe('createCallGuard: permission', () => {
       read,
       OrganizationService.method.createWarehouse,
       create(CreateWarehouseRequestSchema),
-      headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
 
     expect(detailOf(error).code).toBe(ErrorCode.INTERNAL);
@@ -238,7 +245,7 @@ describe('createCallGuard: permission', () => {
       read,
       OrganizationService.method.listSpheres,
       sphereRequest,
-      headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
 
     expect(detailOf(error).code).toBe(ErrorCode.INTERNAL);
@@ -249,7 +256,7 @@ describe('createCallGuard: permission', () => {
       read,
       AccessService.method.listRoles,
       create(AccessService.method.listRoles.input),
-      headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1),
+      headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1),
     ));
     const detail = detailOf(error);
 
@@ -271,13 +278,13 @@ describe('createCallGuard: permission', () => {
       read,
       OrganizationService.method.createWarehouse,
       invalidRequest,
-      headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1),
+      headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1),
     ));
     const invalid = catchError(() => guard.guardCall(
       read,
       OrganizationService.method.createWarehouse,
       invalidRequest,
-      headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
 
     expect(detailOf(denied).code).toBe(ErrorCode.PERMISSION_DENIED);
@@ -289,7 +296,7 @@ describe('createCallGuard: permission', () => {
       read,
       OrganizationService.method.listSpheres,
       sphereRequest,
-      headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
 
     expect(detailOf(error).code).toBe(ErrorCode.INTERNAL);
@@ -297,7 +304,7 @@ describe('createCallGuard: permission', () => {
 
   it('answers internal for a method without an access option', () => {
     const probe = createProbeMethod(undefined);
-    const headers = headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+    const headers = headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
     const error = catchError(() => guard.guardCall(read, probe, create(probe.input), headers));
 
     expect(detailOf(error).code).toBe(ErrorCode.INTERNAL);
@@ -305,7 +312,7 @@ describe('createCallGuard: permission', () => {
 
   it('answers internal for a method whose access option has no requirement', () => {
     const probe = createProbeMethod(create(MethodAccessSchema));
-    const headers = headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+    const headers = headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
     const error = catchError(() => guard.guardCall(read, probe, create(probe.input), headers));
 
     expect(detailOf(error).code).toBe(ErrorCode.INTERNAL);
@@ -327,28 +334,30 @@ describe('createCallGuard: scope field', () => {
     timeZone: 'Europe/Moscow',
   });
 
-  const storekeeper = headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1);
-  const admin = headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+  const storekeeper = headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1);
+  const admin = headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
   it('lets a limited role through for a warehouse of its area', () => {
-    const caller = guard.guardCall(read, probe, probeRequest(SeedWarehouseId.BUYER_1_WAREHOUSE_1), storekeeper);
+    const caller = guard.guardCall(read, probe, probeRequest(SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1), storekeeper);
 
-    expect(caller.scope?.warehouseIds).toEqual([SeedWarehouseId.BUYER_1_WAREHOUSE_1]);
+    expect(caller.scope?.warehouseIds).toEqual([SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1]);
   });
 
   it('answers permission_denied with the warehouse id for another warehouse of the organization', () => {
-    const detail = detailOf(catchError(() => guard.guardCall(read, probe, probeRequest(SeedWarehouseId.BUYER_1_WAREHOUSE_2), storekeeper)));
+    const detail = detailOf(
+      catchError(() => guard.guardCall(read, probe, probeRequest(SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2), storekeeper)),
+    );
 
     expect(detail.code).toBe(ErrorCode.PERMISSION_DENIED);
     expect(permissionNameOf(detail)).toBe('warehouse_view');
-    expect(warehouseIdOf(detail)).toBe(SeedWarehouseId.BUYER_1_WAREHOUSE_2);
+    expect(warehouseIdOf(detail)).toBe(SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2);
   });
 
   it('answers permission_denied with the warehouse id for a warehouse of another organization', () => {
-    const detail = detailOf(catchError(() => guard.guardCall(read, probe, probeRequest(SeedWarehouseId.BUYER_2_SITE_1), storekeeper)));
+    const detail = detailOf(catchError(() => guard.guardCall(read, probe, probeRequest(SeedWarehouseId.CUSTOMER_2_SITE_1), storekeeper)));
 
     expect(detail.code).toBe(ErrorCode.PERMISSION_DENIED);
-    expect(warehouseIdOf(detail)).toBe(SeedWarehouseId.BUYER_2_SITE_1);
+    expect(warehouseIdOf(detail)).toBe(SeedWarehouseId.CUSTOMER_2_SITE_1);
   });
 
   it('does not let a limited role act without naming a warehouse', () => {
@@ -360,12 +369,12 @@ describe('createCallGuard: scope field', () => {
   });
 
   it('lets an organization-wide role through for its own warehouse and for a request without one', () => {
-    expect(guard.guardCall(read, probe, probeRequest(SeedWarehouseId.BUYER_1_WAREHOUSE_3), admin).scope?.isOrganizationWide).toBe(true);
+    expect(guard.guardCall(read, probe, probeRequest(SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3), admin).scope?.isOrganizationWide).toBe(true);
     expect(guard.guardCall(read, probe, probeRequest(''), admin).scope?.isOrganizationWide).toBe(true);
   });
 
   it('answers not_found for a warehouse of another organization even to an organization-wide role', () => {
-    const detail = detailOf(catchError(() => guard.guardCall(read, probe, probeRequest(SeedWarehouseId.BUYER_2_SITE_1), admin)));
+    const detail = detailOf(catchError(() => guard.guardCall(read, probe, probeRequest(SeedWarehouseId.CUSTOMER_2_SITE_1), admin)));
 
     expect(detail.code).toBe(ErrorCode.NOT_FOUND);
     expect(detail.params.case === 'notFound' ? detail.params.value.entity : undefined).toBe(EntityKind.WAREHOUSE);
@@ -398,7 +407,7 @@ describe('createCallGuard: scope field', () => {
   });
 
   it('keeps the effective permissions of the caller', () => {
-    const caller = guard.guardCall(read, probe, probeRequest(SeedWarehouseId.BUYER_1_WAREHOUSE_1), storekeeper);
+    const caller = guard.guardCall(read, probe, probeRequest(SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1), storekeeper);
 
     expect(caller.permissions.map(permission => permission.permission)).toEqual(['warehouse_view']);
   });

@@ -40,9 +40,9 @@ import {
 } from '@/shared/ui';
 
 import {
-  CONSTRUCTION_BUYER_FIXTURE,
-  FRESH_BUYER_FIXTURE,
-  FRESH_SELLER_FIXTURE,
+  CONSTRUCTION_CUSTOMER_FIXTURE,
+  FRESH_CUSTOMER_FIXTURE,
+  FRESH_SUPPLIER_FIXTURE,
   PERSONA_FIXTURES,
 } from '../lib/testing/personaFixtures';
 import {
@@ -114,7 +114,7 @@ const listAllPersonas: IDemoControl['listPersonas'] = () => Promise.resolve(PERS
 
 const createRuntime = (
   listPersonas: IDemoControl['listPersonas'] = listAllPersonas,
-  current: DemoPersonaListItemValue = FRESH_BUYER_FIXTURE,
+  current: DemoPersonaListItemValue = FRESH_CUSTOMER_FIXTURE,
 ): ApiRuntimeValue => {
   const runtime = createTestRuntime({ demoControl: createPersonaDemoControl(listPersonas) });
 
@@ -144,7 +144,7 @@ describe('PersonaMenuGroups', () => {
   it('lists the personas in two groups of four with the group titles', async () => {
     await renderMenu(createRuntime());
     await openMenu();
-    await getOption(FRESH_BUYER_FIXTURE);
+    await getOption(FRESH_CUSTOMER_FIXTURE);
 
     const freshGroup = screen.getByRole('group', { name: formatGroupLabel(FRESH_GROUP_TITLE) });
     const constructionGroup = screen.getByRole('group', { name: formatGroupLabel(CONSTRUCTION_GROUP_TITLE) });
@@ -153,26 +153,26 @@ describe('PersonaMenuGroups', () => {
     expect(screen.getByText(CONSTRUCTION_GROUP_TITLE)).toBeDefined();
     expect(within(freshGroup).getAllByRole('menuitemradio')).toHaveLength(4);
     expect(within(constructionGroup).getAllByRole('menuitemradio')).toHaveLength(4);
-    expect(within(freshGroup).getByRole('menuitemradio', { name: formatOption(FRESH_SELLER_FIXTURE) })).toBeDefined();
-    expect(within(constructionGroup).getByRole('menuitemradio', { name: formatOption(CONSTRUCTION_BUYER_FIXTURE) })).toBeDefined();
+    expect(within(freshGroup).getByRole('menuitemradio', { name: formatOption(FRESH_SUPPLIER_FIXTURE) })).toBeDefined();
+    expect(within(constructionGroup).getByRole('menuitemradio', { name: formatOption(CONSTRUCTION_CUSTOMER_FIXTURE) })).toBeDefined();
   });
 
   it('checks exactly one item, the current persona, even when it is in the second group', async () => {
-    await renderMenu(createRuntime(listAllPersonas, CONSTRUCTION_BUYER_FIXTURE));
+    await renderMenu(createRuntime(listAllPersonas, CONSTRUCTION_CUSTOMER_FIXTURE));
     await openMenu();
-    await getOption(CONSTRUCTION_BUYER_FIXTURE);
+    await getOption(CONSTRUCTION_CUSTOMER_FIXTURE);
 
     const checked = screen.getAllByRole('menuitemradio').filter(item => item.getAttribute('aria-checked') === 'true');
 
     expect(checked).toHaveLength(1);
-    expect(checked[0]?.getAttribute('aria-label')).toBe(formatOption(CONSTRUCTION_BUYER_FIXTURE));
+    expect(checked[0]?.getAttribute('aria-label')).toBe(formatOption(CONSTRUCTION_CUSTOMER_FIXTURE));
   });
 
   it('marks the current persona by the ring of the avatar and draws no check', async () => {
-    await renderMenu(createRuntime(listAllPersonas, CONSTRUCTION_BUYER_FIXTURE));
+    await renderMenu(createRuntime(listAllPersonas, CONSTRUCTION_CUSTOMER_FIXTURE));
     await openMenu();
 
-    const current = await getOption(CONSTRUCTION_BUYER_FIXTURE);
+    const current = await getOption(CONSTRUCTION_CUSTOMER_FIXTURE);
     const avatar = current.firstElementChild;
 
     expect(current.getAttribute('aria-checked')).toBe('true');
@@ -184,17 +184,17 @@ describe('PersonaMenuGroups', () => {
   it('names an item by the persona option and shows the name and the role with the organization on two lines', async () => {
     await renderMenu(createRuntime());
     await openMenu();
-    const item = await getOption(FRESH_BUYER_FIXTURE);
+    const item = await getOption(FRESH_CUSTOMER_FIXTURE);
 
-    expect(item.getAttribute('aria-label')).toBe('Анна Смирнова, Администратор · Покупатель 1');
+    expect(item.getAttribute('aria-label')).toBe('Анна Смирнова, Администратор · Заказчик 1');
     expect(within(item).getByText('Анна Смирнова')).toBeDefined();
-    expect(within(item).getByText('Администратор · Покупатель 1')).toBeDefined();
+    expect(within(item).getByText('Администратор · Заказчик 1')).toBeDefined();
     expect(within(item).getByText('АС')).toBeDefined();
   });
 
   it('shows only the organization on the second line and drops the role from the name when the role is unknown', async () => {
-    const withoutRole: DemoPersonaListItemValue = { ...FRESH_SELLER_FIXTURE, roleName: '' };
-    await renderMenu(createRuntime(() => Promise.resolve([FRESH_BUYER_FIXTURE, withoutRole])));
+    const withoutRole: DemoPersonaListItemValue = { ...FRESH_SUPPLIER_FIXTURE, roleName: '' };
+    await renderMenu(createRuntime(() => Promise.resolve([FRESH_CUSTOMER_FIXTURE, withoutRole])));
     await openMenu();
     const item = await screen.findByRole('menuitemradio', {
       name: defaultLocaleCatalog['persona.optionWithoutRole']
@@ -209,14 +209,14 @@ describe('PersonaMenuGroups', () => {
     const runtime = createRuntime();
     await renderMenu(runtime);
     await openMenu();
-    const first = await getOption(FRESH_BUYER_FIXTURE);
+    const first = await getOption(FRESH_CUSTOMER_FIXTURE);
 
     first.focus();
     fireEvent.keyDown(first, { key: 'ArrowDown' });
     fireEvent.keyDown(first, { key: 'ArrowUp' });
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowDown' });
 
-    expect(runtime.actingContext.get().userId).toBe(FRESH_BUYER_FIXTURE.userId);
+    expect(runtime.actingContext.get().userId).toBe(FRESH_CUSTOMER_FIXTURE.userId);
     expect(screen.getByRole('menu')).toBeDefined();
   });
 
@@ -224,16 +224,16 @@ describe('PersonaMenuGroups', () => {
     const runtime = createRuntime();
     await renderMenu(runtime);
     await openMenu();
-    const target = await getOption(CONSTRUCTION_BUYER_FIXTURE);
+    const target = await getOption(CONSTRUCTION_CUSTOMER_FIXTURE);
 
     target.focus();
     fireEvent.keyDown(target, { key: 'Enter' });
 
     await waitFor(() => {
-      expect(runtime.actingContext.get().userId).toBe(CONSTRUCTION_BUYER_FIXTURE.userId);
+      expect(runtime.actingContext.get().userId).toBe(CONSTRUCTION_CUSTOMER_FIXTURE.userId);
     });
     await waitFor(() => {
-      expect(getAnnouncement()).toBe(formatSwitched(CONSTRUCTION_BUYER_FIXTURE));
+      expect(getAnnouncement()).toBe(formatSwitched(CONSTRUCTION_CUSTOMER_FIXTURE));
     });
     expect(screen.queryByRole('menu')).toBeNull();
   });
@@ -243,13 +243,13 @@ describe('PersonaMenuGroups', () => {
     await renderMenu(runtime);
     const previousButton = screen.getByRole('button', { name: MENU_BUTTON_NAME });
     await openMenu();
-    const target = await getOption(FRESH_SELLER_FIXTURE);
+    const target = await getOption(FRESH_SUPPLIER_FIXTURE);
 
     target.focus();
     fireEvent.keyDown(target, { key: 'Enter' });
 
     await waitFor(() => {
-      expect(runtime.actingContext.get().userId).toBe(FRESH_SELLER_FIXTURE.userId);
+      expect(runtime.actingContext.get().userId).toBe(FRESH_SUPPLIER_FIXTURE.userId);
     });
     await waitFor(() => {
       expect(document.activeElement).toBe(screen.getByRole('button', { name: MENU_BUTTON_NAME }));
@@ -262,7 +262,7 @@ describe('PersonaMenuGroups', () => {
     const cancelQueries = vi.spyOn(queryClient, 'cancelQueries');
     await renderMenu(createRuntime(), queryClient);
     await openMenu();
-    const current = await getOption(FRESH_BUYER_FIXTURE);
+    const current = await getOption(FRESH_CUSTOMER_FIXTURE);
 
     current.focus();
     fireEvent.keyDown(current, { key: 'Enter' });
@@ -284,7 +284,7 @@ describe('PersonaMenuGroups', () => {
     const runtime = createRuntime();
     await renderMenu(runtime, queryClient);
     await openMenu();
-    const target = await getOption(FRESH_SELLER_FIXTURE);
+    const target = await getOption(FRESH_SUPPLIER_FIXTURE);
 
     target.focus();
     fireEvent.keyDown(target, { key: 'Enter' });
@@ -298,10 +298,10 @@ describe('PersonaMenuGroups', () => {
       await gate;
     });
     await waitFor(() => {
-      expect(runtime.actingContext.get().userId).toBe(FRESH_SELLER_FIXTURE.userId);
+      expect(runtime.actingContext.get().userId).toBe(FRESH_SUPPLIER_FIXTURE.userId);
     });
     await waitFor(() => {
-      expect(getAnnouncement()).toBe(formatSwitched(FRESH_SELLER_FIXTURE));
+      expect(getAnnouncement()).toBe(formatSwitched(FRESH_SUPPLIER_FIXTURE));
     });
   });
 

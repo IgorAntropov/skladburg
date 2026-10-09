@@ -8,10 +8,10 @@ import { DemoPersonaGroup } from '@/shared/api';
 
 import { groupPersonas } from './groupPersonas';
 import {
-  CONSTRUCTION_BUYER_FIXTURE,
-  CONSTRUCTION_SELLER_FIXTURE,
-  FRESH_BUYER_FIXTURE,
+  CONSTRUCTION_CUSTOMER_FIXTURE,
+  CONSTRUCTION_SUPPLIER_FIXTURE,
   FRESH_CARRIER_FIXTURE,
+  FRESH_CUSTOMER_FIXTURE,
   PERSONA_FIXTURES,
 } from './testing/personaFixtures';
 
@@ -35,14 +35,14 @@ describe('groupPersonas', () => {
 
   it('follows the data when the groups come in another order and are interleaved', () => {
     const grouped = groupPersonas([
-      CONSTRUCTION_BUYER_FIXTURE,
-      FRESH_BUYER_FIXTURE,
-      CONSTRUCTION_SELLER_FIXTURE,
+      CONSTRUCTION_CUSTOMER_FIXTURE,
+      FRESH_CUSTOMER_FIXTURE,
+      CONSTRUCTION_SUPPLIER_FIXTURE,
       FRESH_CARRIER_FIXTURE,
     ]);
 
     expect(grouped.map(({ group }) => group)).toEqual([DemoPersonaGroup.CONSTRUCTION, DemoPersonaGroup.FRESH]);
-    expect(grouped[0]?.personas).toEqual([CONSTRUCTION_BUYER_FIXTURE, CONSTRUCTION_SELLER_FIXTURE]);
-    expect(grouped[1]?.personas).toEqual([FRESH_BUYER_FIXTURE, FRESH_CARRIER_FIXTURE]);
+    expect(grouped[0]?.personas).toEqual([CONSTRUCTION_CUSTOMER_FIXTURE, CONSTRUCTION_SUPPLIER_FIXTURE]);
+    expect(grouped[1]?.personas).toEqual([FRESH_CUSTOMER_FIXTURE, FRESH_CARRIER_FIXTURE]);
   });
 });

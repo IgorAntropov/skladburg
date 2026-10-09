@@ -40,8 +40,8 @@ import { createTestRuntime } from '@/shared/api/index.testing';
 import { useFocusHandoff } from '@/shared/ui';
 
 import {
-  FRESH_BUYER_FIXTURE,
-  FRESH_SELLER_FIXTURE,
+  FRESH_CUSTOMER_FIXTURE,
+  FRESH_SUPPLIER_FIXTURE,
   PERSONA_FIXTURES,
 } from '../lib/testing/personaFixtures';
 import {
@@ -123,61 +123,61 @@ describe('usePersonaSwitch', () => {
   });
 
   it('formats a persona as the name, the role and the organization', async () => {
-    const { result } = await renderSwitchHook(createPersonaRuntime(listAllPersonas, FRESH_BUYER_FIXTURE));
+    const { result } = await renderSwitchHook(createPersonaRuntime(listAllPersonas, FRESH_CUSTOMER_FIXTURE));
 
-    expect(result.current.formatPersona(FRESH_BUYER_FIXTURE)).toBe('Анна Смирнова, Администратор · Покупатель 1');
-    expect(result.current.formatPersonaSecondLine(FRESH_BUYER_FIXTURE)).toBe('Администратор · Покупатель 1');
+    expect(result.current.formatPersona(FRESH_CUSTOMER_FIXTURE)).toBe('Анна Смирнова, Администратор · Заказчик 1');
+    expect(result.current.formatPersonaSecondLine(FRESH_CUSTOMER_FIXTURE)).toBe('Администратор · Заказчик 1');
   });
 
   it('leaves the role out when the persona has none', async () => {
-    const { result } = await renderSwitchHook(createPersonaRuntime(listAllPersonas, FRESH_BUYER_FIXTURE));
-    const withoutRole: DemoPersonaListItemValue = { ...FRESH_BUYER_FIXTURE, roleName: '' };
+    const { result } = await renderSwitchHook(createPersonaRuntime(listAllPersonas, FRESH_CUSTOMER_FIXTURE));
+    const withoutRole: DemoPersonaListItemValue = { ...FRESH_CUSTOMER_FIXTURE, roleName: '' };
 
-    expect(result.current.formatPersona(withoutRole)).toBe('Анна Смирнова, Покупатель 1');
-    expect(result.current.formatPersonaSecondLine(withoutRole)).toBe('Покупатель 1');
+    expect(result.current.formatPersona(withoutRole)).toBe('Анна Смирнова, Заказчик 1');
+    expect(result.current.formatPersonaSecondLine(withoutRole)).toBe('Заказчик 1');
   });
 
   it('finds the current persona by the acting context once the list is loaded', async () => {
-    const { result } = await renderSwitchHook(createPersonaRuntime(listAllPersonas, FRESH_SELLER_FIXTURE));
+    const { result } = await renderSwitchHook(createPersonaRuntime(listAllPersonas, FRESH_SUPPLIER_FIXTURE));
 
     expect(result.current.isPending).toBe(true);
     expect(result.current.currentPersona).toBeUndefined();
 
     await waitFor(() => {
-      expect(result.current.currentPersona).toEqual(FRESH_SELLER_FIXTURE);
+      expect(result.current.currentPersona).toEqual(FRESH_SUPPLIER_FIXTURE);
     });
     expect(result.current.isPending).toBe(false);
     expect(result.current.personas).toEqual(PERSONA_FIXTURES);
   });
 
   it('switches the acting context to the chosen persona', async () => {
-    const runtime = createPersonaRuntime(listAllPersonas, FRESH_BUYER_FIXTURE);
+    const runtime = createPersonaRuntime(listAllPersonas, FRESH_CUSTOMER_FIXTURE);
     const { result } = await renderSwitchHook(runtime);
     await waitFor(() => {
       expect(result.current.personas).toHaveLength(PERSONA_FIXTURES.length);
     });
 
     await act(async () => {
-      await result.current.switchToPersona(FRESH_SELLER_FIXTURE.id);
+      await result.current.switchToPersona(FRESH_SUPPLIER_FIXTURE.id);
     });
 
     expect(runtime.actingContext.get()).toEqual({
-      organizationId: FRESH_SELLER_FIXTURE.organizationId,
-      userId: FRESH_SELLER_FIXTURE.userId,
+      organizationId: FRESH_SUPPLIER_FIXTURE.organizationId,
+      userId: FRESH_SUPPLIER_FIXTURE.userId,
     });
   });
 
   it('ignores an unknown persona and the current one', async () => {
-    const runtime = createPersonaRuntime(listAllPersonas, FRESH_BUYER_FIXTURE);
+    const runtime = createPersonaRuntime(listAllPersonas, FRESH_CUSTOMER_FIXTURE);
     const { result } = await renderSwitchHook(runtime);
     await waitFor(() => {
-      expect(result.current.currentPersona).toEqual(FRESH_BUYER_FIXTURE);
+      expect(result.current.currentPersona).toEqual(FRESH_CUSTOMER_FIXTURE);
     });
     const set = vi.spyOn(runtime.actingContext, 'set');
 
     await act(async () => {
       await result.current.switchToPersona('unknown');
-      await result.current.switchToPersona(FRESH_BUYER_FIXTURE.id);
+      await result.current.switchToPersona(FRESH_CUSTOMER_FIXTURE.id);
     });
 
     expect(set).not.toHaveBeenCalled();
@@ -187,7 +187,7 @@ describe('usePersonaSwitch', () => {
     const listPersonas = vi.fn<IDemoControl['listPersonas']>()
       .mockRejectedValueOnce(new Error('list failed'))
       .mockResolvedValue(PERSONA_FIXTURES);
-    const runtime = createPersonaRuntime(listPersonas, FRESH_BUYER_FIXTURE);
+    const runtime = createPersonaRuntime(listPersonas, FRESH_CUSTOMER_FIXTURE);
     const { result } = await renderSwitchHook(runtime, new QueryClient({ defaultOptions: { queries: { retry: false } } }));
 
     await waitFor(() => {
@@ -209,7 +209,7 @@ describe('usePersonaSwitch', () => {
   });
 
   it('announces the message of the error code and keeps the context when the switch fails with a coded error', async () => {
-    const runtime = createPersonaRuntime(listAllPersonas, FRESH_BUYER_FIXTURE);
+    const runtime = createPersonaRuntime(listAllPersonas, FRESH_CUSTOMER_FIXTURE);
     const queryClient = createQueryClient({ networkMode: 'always' });
     vi.spyOn(queryClient, 'cancelQueries').mockRejectedValue(createCodedError());
     const { result } = await renderSwitchWithHandoff(runtime, queryClient);
@@ -218,19 +218,19 @@ describe('usePersonaSwitch', () => {
     });
 
     await act(async () => {
-      await result.current.switcher.switchToPersona(FRESH_SELLER_FIXTURE.id);
+      await result.current.switcher.switchToPersona(FRESH_SUPPLIER_FIXTURE.id);
     });
 
     expect(getAnnouncement()).toBe(defaultLocaleCatalog['error.invalid_transition']);
     expect(runtime.actingContext.get()).toEqual({
-      organizationId: FRESH_BUYER_FIXTURE.organizationId,
-      userId: FRESH_BUYER_FIXTURE.userId,
+      organizationId: FRESH_CUSTOMER_FIXTURE.organizationId,
+      userId: FRESH_CUSTOMER_FIXTURE.userId,
     });
     expect(result.current.switcher.isSwitching).toBe(false);
   });
 
   it('announces the common message when the switch fails without a code', async () => {
-    const runtime = createPersonaRuntime(listAllPersonas, FRESH_BUYER_FIXTURE);
+    const runtime = createPersonaRuntime(listAllPersonas, FRESH_CUSTOMER_FIXTURE);
     const queryClient = createQueryClient({ networkMode: 'always' });
     vi.spyOn(queryClient, 'cancelQueries').mockRejectedValue(new Error('cancel failed'));
     const { result } = await renderSwitchWithHandoff(runtime, queryClient);
@@ -239,14 +239,14 @@ describe('usePersonaSwitch', () => {
     });
 
     await act(async () => {
-      await result.current.switcher.switchToPersona(FRESH_SELLER_FIXTURE.id);
+      await result.current.switcher.switchToPersona(FRESH_SUPPLIER_FIXTURE.id);
     });
 
     expect(getAnnouncement()).toBe(defaultLocaleCatalog['persona.switchError']);
   });
 
   it('drops the focus request when the switch fails, so a later element with the key does not take the focus', async () => {
-    const runtime = createPersonaRuntime(listAllPersonas, FRESH_BUYER_FIXTURE);
+    const runtime = createPersonaRuntime(listAllPersonas, FRESH_CUSTOMER_FIXTURE);
     const queryClient = createQueryClient({ networkMode: 'always' });
     vi.spyOn(queryClient, 'cancelQueries').mockRejectedValue(createCodedError());
     const { result } = await renderSwitchWithHandoff(runtime, queryClient);
@@ -255,7 +255,7 @@ describe('usePersonaSwitch', () => {
     });
 
     await act(async () => {
-      await result.current.switcher.switchToPersona(FRESH_SELLER_FIXTURE.id);
+      await result.current.switcher.switchToPersona(FRESH_SUPPLIER_FIXTURE.id);
     });
     const lateTarget = document.body.appendChild(document.createElement('button'));
     result.current.handoff.ref(lateTarget);
@@ -265,14 +265,14 @@ describe('usePersonaSwitch', () => {
   });
 
   it('hands the focus to a later element with the key when the switch succeeds', async () => {
-    const runtime = createPersonaRuntime(listAllPersonas, FRESH_BUYER_FIXTURE);
+    const runtime = createPersonaRuntime(listAllPersonas, FRESH_CUSTOMER_FIXTURE);
     const { result } = await renderSwitchWithHandoff(runtime, createQueryClient({ networkMode: 'always' }));
     await waitFor(() => {
       expect(result.current.switcher.personas).toHaveLength(PERSONA_FIXTURES.length);
     });
 
     await act(async () => {
-      await result.current.switcher.switchToPersona(FRESH_SELLER_FIXTURE.id);
+      await result.current.switcher.switchToPersona(FRESH_SUPPLIER_FIXTURE.id);
     });
     const lateTarget = document.body.appendChild(document.createElement('button'));
     result.current.handoff.ref(lateTarget);

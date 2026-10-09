@@ -38,8 +38,8 @@ import { createFakeTimers } from './testing/fakeTimers';
 const OWN_TAB_ID = 'tab-own';
 const TAB_ID = 'tab-1';
 const OTHER_TAB_ID = 'tab-2';
-const BUYER_CHANNEL = organizationChannel(SeedOrganizationId.BUYER_1);
-const SELLER_CHANNEL = organizationChannel(SeedOrganizationId.SELLER_1);
+const CUSTOMER_CHANNEL = organizationChannel(SeedOrganizationId.CUSTOMER_1);
+const SUPPLIER_CHANNEL = organizationChannel(SeedOrganizationId.SUPPLIER_1);
 const BREAKING_HEADER = 'x-test-break';
 const BAD_HEADERS: HeaderPairValue[] = [['bad name', 'x']];
 
@@ -49,8 +49,8 @@ interface LeaderFixtureValue {
   service: ILeaderService;
 }
 
-const buyerHeaders = (): HeaderPairValue[] => [...createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1)];
-const sellerHeaders = (): HeaderPairValue[] => [...createHeaders(SeedUserId.ADMIN_2, SeedOrganizationId.SELLER_1)];
+const customerHeaders = (): HeaderPairValue[] => [...createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1)];
+const supplierHeaders = (): HeaderPairValue[] => [...createHeaders(SeedUserId.ADMIN_2, SeedOrganizationId.SUPPLIER_1)];
 
 const createFixture = async (
   wrapEngine: (engine: IDemoEngine) => IDemoEngine = engine => engine,
@@ -109,7 +109,7 @@ describe('leader service with unusable subscription headers', () => {
   it('denies the subscription with a validation error and logs it once', async () => {
     const fixture = await createFixture();
 
-    subscribe(fixture, TAB_ID, 's-bad', BUYER_CHANNEL, BAD_HEADERS);
+    subscribe(fixture, TAB_ID, 's-bad', CUSTOMER_CHANNEL, BAD_HEADERS);
 
     const [message] = fixture.messages.get(TAB_ID) ?? [];
     expect(message?.type).toBe('subscription_denied');
@@ -130,9 +130,9 @@ describe('leader service with unusable subscription headers', () => {
 
   it('keeps no registry entry: the next reset neither re-issues nor re-denies it, and the others are re-issued', async () => {
     const fixture = await createFixture();
-    subscribe(fixture, TAB_ID, 's-buyer', BUYER_CHANNEL, buyerHeaders());
-    subscribe(fixture, TAB_ID, 's-bad', BUYER_CHANNEL, BAD_HEADERS);
-    subscribe(fixture, OTHER_TAB_ID, 's-seller', SELLER_CHANNEL, sellerHeaders());
+    subscribe(fixture, TAB_ID, 's-customer', CUSTOMER_CHANNEL, customerHeaders());
+    subscribe(fixture, TAB_ID, 's-bad', CUSTOMER_CHANNEL, BAD_HEADERS);
+    subscribe(fixture, OTHER_TAB_ID, 's-supplier', SUPPLIER_CHANNEL, supplierHeaders());
     expect(readTypes(fixture, TAB_ID)).toEqual(['subscribed', 'subscription_denied']);
 
     fixture.service.serve(TAB_ID, { command: EngineControlCommand.RESET, requestId: 'c-1', type: 'control' });
@@ -144,18 +144,18 @@ describe('leader service with unusable subscription headers', () => {
     const tabMessages = fixture.messages.get(TAB_ID) ?? [];
     const reissued = tabMessages.filter(message => message.type === 'subscribed');
     expect(reissued).toHaveLength(2);
-    expect(reissued[1]).toMatchObject({ epoch, subscriptionId: 's-buyer' });
+    expect(reissued[1]).toMatchObject({ epoch, subscriptionId: 's-customer' });
     expect(tabMessages.filter(message => message.type === 'subscription_denied')).toHaveLength(1);
-    expect(fixture.messages.get(OTHER_TAB_ID)?.at(-1)).toMatchObject({ epoch, subscriptionId: 's-seller', type: 'subscribed' });
+    expect(fixture.messages.get(OTHER_TAB_ID)?.at(-1)).toMatchObject({ epoch, subscriptionId: 's-supplier', type: 'subscribed' });
     expect(tabMessages.at(-1)).toMatchObject({ requestId: 'c-1', type: 'control_result' });
     await fixture.service.stop();
   });
 
   it('replaces an earlier valid subscription of the same id when the new one is unusable', async () => {
     const fixture = await createFixture();
-    subscribe(fixture, TAB_ID, 's-1', BUYER_CHANNEL, buyerHeaders());
+    subscribe(fixture, TAB_ID, 's-1', CUSTOMER_CHANNEL, customerHeaders());
 
-    subscribe(fixture, TAB_ID, 's-1', BUYER_CHANNEL, BAD_HEADERS);
+    subscribe(fixture, TAB_ID, 's-1', CUSTOMER_CHANNEL, BAD_HEADERS);
     fixture.service.serve(TAB_ID, { command: EngineControlCommand.RESET, requestId: 'c-1', type: 'control' });
     await vi.waitFor(() => {
       expect(fixture.resetEpochs).toHaveLength(1);
@@ -183,9 +183,9 @@ describe('leader service resubscription after a reset', () => {
         return engine.subscribe(channel, headers, listener);
       },
     }));
-    subscribe(fixture, TAB_ID, 's-buyer', BUYER_CHANNEL, buyerHeaders());
-    subscribe(fixture, TAB_ID, 's-broken', BUYER_CHANNEL, [...buyerHeaders(), [BREAKING_HEADER, '1']]);
-    subscribe(fixture, TAB_ID, 's-seller', SELLER_CHANNEL, sellerHeaders());
+    subscribe(fixture, TAB_ID, 's-customer', CUSTOMER_CHANNEL, customerHeaders());
+    subscribe(fixture, TAB_ID, 's-broken', CUSTOMER_CHANNEL, [...customerHeaders(), [BREAKING_HEADER, '1']]);
+    subscribe(fixture, TAB_ID, 's-supplier', SUPPLIER_CHANNEL, supplierHeaders());
 
     fixture.service.serve(TAB_ID, { command: EngineControlCommand.RESET, requestId: 'c-1', type: 'control' });
     await vi.waitFor(() => {
@@ -208,7 +208,7 @@ describe('leader service resubscription after a reset', () => {
     }
 
     expect(brokenDenialCodes).toEqual([ErrorCode.INTERNAL]);
-    expect(reissuedIds.sort()).toEqual(['s-buyer', 's-seller']);
+    expect(reissuedIds.sort()).toEqual(['s-customer', 's-supplier']);
     expect(messages.at(-1)).toMatchObject({ requestId: 'c-1', type: 'control_result' });
     await fixture.service.stop();
   });
@@ -229,7 +229,7 @@ describe('leader service with an engine that cannot take the first subscription'
     }));
 
     expect(() => {
-      subscribe(fixture, TAB_ID, 's-1', BUYER_CHANNEL, buyerHeaders());
+      subscribe(fixture, TAB_ID, 's-1', CUSTOMER_CHANNEL, customerHeaders());
     }).not.toThrow();
 
     const [message] = fixture.messages.get(TAB_ID) ?? [];
@@ -287,12 +287,12 @@ describe('leader service watching the lock of a foreign tab', () => {
     const lockManager = createFakeLockManager();
     const fixture = await createFixture(engine => engine, lockManager);
 
-    subscribe(fixture, OWN_TAB_ID, 's-own', BUYER_CHANNEL, buyerHeaders());
+    subscribe(fixture, OWN_TAB_ID, 's-own', CUSTOMER_CHANNEL, customerHeaders());
     expect(lockManager.requestedNames()).toEqual([]);
 
     lockManager.occupy(createTabLockName(TAB_ID));
-    subscribe(fixture, TAB_ID, 's-1', BUYER_CHANNEL, buyerHeaders());
-    subscribe(fixture, TAB_ID, 's-2', BUYER_CHANNEL, buyerHeaders());
+    subscribe(fixture, TAB_ID, 's-1', CUSTOMER_CHANNEL, customerHeaders());
+    subscribe(fixture, TAB_ID, 's-2', CUSTOMER_CHANNEL, customerHeaders());
     fixture.service.serve(TAB_ID, { requestId: 'r-1', type: 'abort' });
     fixture.service.serve(TAB_ID, { subscriptionId: 's-2', type: 'unsubscribe' });
     await settleMicrotasks();
@@ -308,9 +308,9 @@ describe('leader service watching the lock of a foreign tab', () => {
     const fixture = await createFixture(counter.wrap, lockManager);
     const releaseTab = lockManager.occupy(createTabLockName(TAB_ID));
     const releaseOtherTab = lockManager.occupy(createTabLockName(OTHER_TAB_ID));
-    subscribe(fixture, TAB_ID, 's-1', BUYER_CHANNEL, buyerHeaders());
-    subscribe(fixture, TAB_ID, 's-2', BUYER_CHANNEL, buyerHeaders());
-    subscribe(fixture, OTHER_TAB_ID, 's-3', BUYER_CHANNEL, buyerHeaders());
+    subscribe(fixture, TAB_ID, 's-1', CUSTOMER_CHANNEL, customerHeaders());
+    subscribe(fixture, TAB_ID, 's-2', CUSTOMER_CHANNEL, customerHeaders());
+    subscribe(fixture, OTHER_TAB_ID, 's-3', CUSTOMER_CHANNEL, customerHeaders());
     expect(counter.activeCount()).toBe(3);
 
     releaseTab();
@@ -337,7 +337,7 @@ describe('leader service watching the lock of a foreign tab', () => {
     const counter = createEngineWithSubscriptionCounter();
     const fixture = await createFixture(counter.wrap, lockManager);
     const releaseTab = lockManager.occupy(createTabLockName(TAB_ID));
-    subscribe(fixture, TAB_ID, 's-1', BUYER_CHANNEL, buyerHeaders());
+    subscribe(fixture, TAB_ID, 's-1', CUSTOMER_CHANNEL, customerHeaders());
     fixture.service.serve(TAB_ID, { subscriptionId: 's-1', type: 'unsubscribe' });
 
     releaseTab();
@@ -393,8 +393,8 @@ describe('leader service watching the lock of a foreign tab', () => {
     const fixture = await createFixture(engine => engine, lockManager);
     lockManager.occupy(createTabLockName(TAB_ID));
     lockManager.occupy(createTabLockName(OTHER_TAB_ID));
-    subscribe(fixture, TAB_ID, 's-1', BUYER_CHANNEL, buyerHeaders());
-    subscribe(fixture, OTHER_TAB_ID, 's-2', BUYER_CHANNEL, buyerHeaders());
+    subscribe(fixture, TAB_ID, 's-1', CUSTOMER_CHANNEL, customerHeaders());
+    subscribe(fixture, OTHER_TAB_ID, 's-2', CUSTOMER_CHANNEL, customerHeaders());
     await settleMicrotasks();
 
     expect(lockManager.waitingCount(createTabLockName(TAB_ID))).toBe(1);
@@ -410,7 +410,7 @@ describe('leader service watching the lock of a foreign tab', () => {
   it('watches nothing without a lock manager', async () => {
     const fixture = await createFixture();
 
-    subscribe(fixture, TAB_ID, 's-1', BUYER_CHANNEL, buyerHeaders());
+    subscribe(fixture, TAB_ID, 's-1', CUSTOMER_CHANNEL, customerHeaders());
 
     expect(readTypes(fixture, TAB_ID)).toEqual(['subscribed']);
     await fixture.service.stop();

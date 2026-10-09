@@ -12,10 +12,10 @@ const GROUP_LABEL_KEYS = {
 } as const satisfies Record<PersonaGroupValue, 'persona.group.construction' | 'persona.group.fresh'>;
 
 const SIDE_LABEL_KEYS = {
-  buyer: 'side.buyer',
   carrier: 'side.carrier',
-  seller: 'side.seller',
-} as const satisfies Record<PersonaSideValue, 'side.buyer' | 'side.carrier' | 'side.seller'>;
+  customer: 'side.customer',
+  supplier: 'side.supplier',
+} as const satisfies Record<PersonaSideValue, 'side.carrier' | 'side.customer' | 'side.supplier'>;
 
 export const getPersonaLabel = ({ organizationName, roleName, userDisplayName }: PersonaValue): string => getText('persona.option')
   .replace('{name}', userDisplayName)

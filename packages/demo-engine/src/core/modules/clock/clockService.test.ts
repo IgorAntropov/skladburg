@@ -72,7 +72,7 @@ describe('ClockService.getWorldClock', () => {
   it('works with an acting organization as well', async () => {
     const { client } = createClockHarness(1);
 
-    const response = await client.getWorldClock({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
+    const response = await client.getWorldClock({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
     expect(response.worldTime).toBeDefined();
   });

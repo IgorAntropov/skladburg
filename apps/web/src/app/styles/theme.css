@@ -20,8 +20,8 @@
   --color-focus: #0f1730;
   --color-skeleton: rgb(30 42 74 / 0.08);
   --color-scrim: rgb(14 20 38 / 0.45);
-  --color-side-label-buyer: #8344b9;
-  --color-side-label-seller: #596517;
+  --color-side-label-customer: #8344b9;
+  --color-side-label-supplier: #596517;
   --color-side-label-carrier: #6e285e;
   --color-avatar-1: #87565c;
   --color-avatar-2: #8b623d;
@@ -54,11 +54,11 @@
   --color-on-status-ok: #0b1226;
   --color-on-status-warning: #0b1226;
   --color-on-status-alarm: #0b1226;
-  --color-side-buyer: #8344b9;
-  --color-side-seller: #596517;
+  --color-side-customer: #8344b9;
+  --color-side-supplier: #596517;
   --color-side-carrier: #6e285e;
-  --color-on-side-buyer: #ffffff;
-  --color-on-side-seller: #ffffff;
+  --color-on-side-customer: #ffffff;
+  --color-on-side-supplier: #ffffff;
   --color-on-side-carrier: #ffffff;
 }
 
@@ -92,8 +92,8 @@
   --color-focus: #e3e9ff;
   --color-skeleton: rgb(232 228 220 / 0.1);
   --color-scrim: rgb(0 0 0 / 0.6);
-  --color-side-label-buyer: #c794f2;
-  --color-side-label-seller: #a2b563;
+  --color-side-label-customer: #c794f2;
+  --color-side-label-supplier: #a2b563;
   --color-side-label-carrier: #fdbadd;
   --color-avatar-1: #e0a5ab;
   --color-avatar-2: #c38f65;

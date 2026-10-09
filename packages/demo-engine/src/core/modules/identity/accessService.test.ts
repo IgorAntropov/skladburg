@@ -30,13 +30,13 @@ describe('AccessService.getSession', () => {
   it('returns the user, memberships, own organizations and effective permissions of the acting organization', async () => {
     const { access } = createModuleHarness();
 
-    const response = await access.getSession({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
+    const response = await access.getSession({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
     expect(response.user?.id).toBe(SeedUserId.ADMIN_1);
     expect(response.memberships.map(membership => membership.id)).toEqual([SeedMembershipId.ADMIN_1]);
-    expect(response.organizations.map(organization => organization.id)).toEqual([SeedOrganizationId.BUYER_1]);
+    expect(response.organizations.map(organization => organization.id)).toEqual([SeedOrganizationId.CUSTOMER_1]);
     expect(response.organizations[0]?.inn).not.toBe('');
-    expect(response.actingOrganizationId).toBe(SeedOrganizationId.BUYER_1);
+    expect(response.actingOrganizationId).toBe(SeedOrganizationId.CUSTOMER_1);
     expect(response.permissions.map(permission => permission.permission)).toEqual(listSeedAdminPermissions());
     expect(response.permissions.every(permission => permission.isOrganizationWide && permission.warehouseIds.length === 0)).toBe(true);
   });
@@ -44,12 +44,12 @@ describe('AccessService.getSession', () => {
   it('returns the area of a role limited to one warehouse', async () => {
     const { access } = createModuleHarness();
 
-    const response = await access.getSession({}, callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1));
+    const response = await access.getSession({}, callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1));
 
     expect(response.permissions).toHaveLength(1);
     expect(response.permissions[0]?.permission).toBe('warehouse_view');
     expect(response.permissions[0]?.isOrganizationWide).toBe(false);
-    expect(response.permissions[0]?.warehouseIds).toEqual([SeedWarehouseId.BUYER_1_WAREHOUSE_1]);
+    expect(response.permissions[0]?.warehouseIds).toEqual([SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1]);
   });
 
   it('works without an acting organization and returns no permissions', async () => {
@@ -65,13 +65,13 @@ describe('AccessService.getSession', () => {
   it('returns every organization of the user in full and the permissions of the acting one only', async () => {
     const harness = createModuleHarness();
     const userId = await addTestMember(harness, {
-      organizationId: SeedOrganizationId.SELLER_5,
+      organizationId: SeedOrganizationId.SUPPLIER_5,
       permissions: ['member_view'],
       warehouseIds: [],
     });
-    const response = await harness.access.getSession({}, callAs(userId, SeedOrganizationId.SELLER_5));
+    const response = await harness.access.getSession({}, callAs(userId, SeedOrganizationId.SUPPLIER_5));
 
-    expect(response.organizations.map(organization => organization.id)).toEqual([SeedOrganizationId.SELLER_5]);
+    expect(response.organizations.map(organization => organization.id)).toEqual([SeedOrganizationId.SUPPLIER_5]);
     expect(response.organizations[0]?.legalName).not.toBe('');
     expect(response.permissions.map(permission => permission.permission)).toEqual(['member_view']);
   });
@@ -79,7 +79,7 @@ describe('AccessService.getSession', () => {
   it('rejects a call without a user with session_required', async () => {
     const { access } = createModuleHarness();
 
-    const error = await captureError(access.getSession({}, callAs(undefined, SeedOrganizationId.BUYER_1)));
+    const error = await captureError(access.getSession({}, callAs(undefined, SeedOrganizationId.CUSTOMER_1)));
 
     expect(error.code).toBe(Code.Unauthenticated);
     expect(readErrorDetail(error).code).toBe(ErrorCode.SESSION_REQUIRED);
@@ -96,7 +96,7 @@ describe('AccessService.getSession', () => {
   it('rejects an organization the user does not belong to with membership_required', async () => {
     const { access } = createModuleHarness();
 
-    const error = await captureError(access.getSession({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_2)));
+    const error = await captureError(access.getSession({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_2)));
 
     expect(error.code).toBe(Code.PermissionDenied);
     expect(readErrorDetail(error).code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
@@ -180,25 +180,25 @@ describe('AccessService.listRoles', () => {
   it('returns the roles of the acting organization only', async () => {
     const { access } = createModuleHarness();
 
-    const response = await access.listRoles({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
+    const response = await access.listRoles({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
-    expect(response.roles.map(role => role.id).sort()).toEqual([SeedRoleId.ADMIN_BUYER_1, SeedRoleId.STOREKEEPER_BUYER_1].sort());
-    expect(response.roles.every(role => role.tenantId === SeedOrganizationId.BUYER_1)).toBe(true);
+    expect(response.roles.map(role => role.id).sort()).toEqual([SeedRoleId.ADMIN_CUSTOMER_1, SeedRoleId.STOREKEEPER_CUSTOMER_1].sort());
+    expect(response.roles.every(role => role.tenantId === SeedOrganizationId.CUSTOMER_1)).toBe(true);
   });
 
   it('never returns the roles of another organization', async () => {
     const { access } = createModuleHarness();
 
-    const response = await access.listRoles({}, callAs(SeedUserId.ADMIN_5, SeedOrganizationId.BUYER_2));
+    const response = await access.listRoles({}, callAs(SeedUserId.ADMIN_5, SeedOrganizationId.CUSTOMER_2));
 
-    expect(response.roles.map(role => role.id)).toContain(SeedRoleId.ADMIN_BUYER_2);
-    expect(response.roles.map(role => role.id)).not.toContain(SeedRoleId.ADMIN_BUYER_1);
-    expect(response.roles.every(role => role.tenantId === SeedOrganizationId.BUYER_2)).toBe(true);
+    expect(response.roles.map(role => role.id)).toContain(SeedRoleId.ADMIN_CUSTOMER_2);
+    expect(response.roles.map(role => role.id)).not.toContain(SeedRoleId.ADMIN_CUSTOMER_1);
+    expect(response.roles.every(role => role.tenantId === SeedOrganizationId.CUSTOMER_2)).toBe(true);
   });
 
   it('pages through the roles', async () => {
     const { access } = createModuleHarness();
-    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
     const first = await access.listRoles({ page: { pageSize: 1 } }, options);
     const second = await access.listRoles({ page: { pageSize: 1, pageToken: first.page?.nextPageToken } }, options);
 
@@ -212,7 +212,7 @@ describe('AccessService.listRoles', () => {
   it('rejects a user without the member_view permission with permission_denied naming it', async () => {
     const { access } = createModuleHarness();
 
-    const error = await captureError(access.listRoles({}, callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1)));
+    const error = await captureError(access.listRoles({}, callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1)));
     const detail = readErrorDetail(error);
 
     expect(error.code).toBe(Code.PermissionDenied);
@@ -231,7 +231,7 @@ describe('AccessService.listRoles', () => {
   it('rejects an organization the user does not belong to with membership_required', async () => {
     const { access } = createModuleHarness();
 
-    const error = await captureError(access.listRoles({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_2)));
+    const error = await captureError(access.listRoles({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_2)));
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
   });
@@ -239,7 +239,7 @@ describe('AccessService.listRoles', () => {
   it('rejects a call without a user with session_required', async () => {
     const { access } = createModuleHarness();
 
-    const error = await captureError(access.listRoles({}, callAs(undefined, SeedOrganizationId.BUYER_1)));
+    const error = await captureError(access.listRoles({}, callAs(undefined, SeedOrganizationId.CUSTOMER_1)));
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.SESSION_REQUIRED);
   });

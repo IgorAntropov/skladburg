@@ -50,8 +50,8 @@ const createSession = (hasUser: boolean): GetSessionResponse => create(GetSessio
   organizations: [
     create(OrganizationSchema, {
       id: TEST_ORGANIZATION_ID,
-      name: 'Покупатель 1',
-      profiles: [create(OrganizationProfileSchema, { kind: ProfileKind.BUYER })],
+      name: 'Заказчик 1',
+      profiles: [create(OrganizationProfileSchema, { kind: ProfileKind.CUSTOMER })],
     }),
   ],
   user: hasUser ? { displayName: 'Анна Смирнова', id: 'user-1' } : undefined,
@@ -91,8 +91,8 @@ describe('useProfileSummary', () => {
       kind: 'ready',
       summary: {
         organizationId: TEST_ORGANIZATION_ID,
-        organizationName: 'Покупатель 1',
-        sides: [ProfileKind.BUYER],
+        organizationName: 'Заказчик 1',
+        sides: [ProfileKind.CUSTOMER],
         userDisplayName: 'Анна Смирнова',
         userId: 'user-1',
       },

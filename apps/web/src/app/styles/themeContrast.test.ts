@@ -55,7 +55,7 @@ const WORLD_BACKGROUNDS: readonly string[] = [
 
 const STATUS_NAMES: readonly string[] = ['ok', 'warning', 'alarm'];
 
-const SIDE_NAMES: readonly string[] = ['buyer', 'seller', 'carrier'];
+const SIDE_NAMES: readonly string[] = ['customer', 'supplier', 'carrier'];
 
 const AVATAR_TONE_COUNT = 8;
 

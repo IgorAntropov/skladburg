@@ -88,7 +88,7 @@ const SIGN_IN_LINE = /Войти как/;
 const FIRST_PERSONA: DemoPersonaListItemValue = {
   group: DemoPersonaGroup.FRESH,
   id: 'f9000001-0000-4000-8000-000000000000',
-  kind: DemoPersonaKind.BUYER,
+  kind: DemoPersonaKind.CUSTOMER,
   organizationId: SESSION_ORGANIZATION_ID,
   organizationName: SESSION_ORGANIZATION_NAME,
   roleName: 'Администратор',

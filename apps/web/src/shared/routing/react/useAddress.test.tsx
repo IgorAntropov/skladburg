@@ -40,13 +40,13 @@ describe('useAddress', () => {
   });
 
   it('returns the parsed address, the raw path and the parameters', () => {
-    const location = createMemoryLocation(`/deals/${DEAL_ID}?as=buyer-1`);
+    const location = createMemoryLocation(`/deals/${DEAL_ID}?as=customer-1`);
 
     const { result } = renderHook(useAddress, { wrapper: createWrapper(location) });
 
     expect(result.current.address).toEqual({ kind: 'object', object: { id: DEAL_ID, type: 'deal' } });
     expect(result.current.path).toBe(`/deals/${DEAL_ID}`);
-    expect(result.current.searchParams.get('as')).toBe('buyer-1');
+    expect(result.current.searchParams.get('as')).toBe('customer-1');
   });
 
   it('returns an undefined address for an unknown path and keeps the raw path', () => {

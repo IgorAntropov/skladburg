@@ -34,8 +34,8 @@ import {
 } from './testing/hostScenario';
 import { subscribeRecorded } from './testing/recordedSubscription';
 
-const BUYER_CHANNEL = `org:${SeedOrganizationId.BUYER_1}`;
-const buyerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+const CUSTOMER_CHANNEL = `org:${SeedOrganizationId.CUSTOMER_1}`;
+const customerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
 let harness: HostHarnessValue;
 
@@ -60,11 +60,11 @@ describe('engine hosts when the start of the leader fails', () => {
       },
     });
     const successor = harness.addHost();
-    const callBeforeFailure = captureError(failed.organization().listWarehouses({}, buyerOptions));
+    const callBeforeFailure = captureError(failed.organization().listWarehouses({}, customerOptions));
     const recorded = subscribeRecorded(
       failed,
-      BUYER_CHANNEL,
-      createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      CUSTOMER_CHANNEL,
+      createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     );
     await waitForInbox(failed, 'request');
     await waitForInbox(failed, 'subscribe');
@@ -76,7 +76,7 @@ describe('engine hosts when the start of the leader fails', () => {
     await waitForRole(successor, 'leader');
     expect(readLastStatus(successor)?.epoch).toBe(epoch);
     expect((await callBeforeFailure).code).toBe(Code.Unavailable);
-    expect((await failed.organization().listWarehouses({}, buyerOptions)).warehouses).toHaveLength(3);
+    expect((await failed.organization().listWarehouses({}, customerOptions)).warehouses).toHaveLength(3);
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(1);
     }, WAIT_OPTIONS);

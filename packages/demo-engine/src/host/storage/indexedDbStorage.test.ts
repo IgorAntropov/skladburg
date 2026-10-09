@@ -342,8 +342,8 @@ describe('createIndexedDbStorage when another connection changes the version', (
 });
 
 describe('createIndexedDbStorage with the engine', () => {
-  const buyerOptions = (caller: ReturnType<typeof createEngineCaller>): ReturnType<ReturnType<typeof createEngineCaller>['options']> =>
-    caller.options(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+  const customerOptions = (caller: ReturnType<typeof createEngineCaller>): ReturnType<ReturnType<typeof createEngineCaller>['options']> =>
+    caller.options(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
   it('lets a new engine on the same database see a warehouse created by the previous one', async () => {
     const factory = new IDBFactory();
@@ -353,7 +353,7 @@ describe('createIndexedDbStorage with the engine', () => {
       storage: await openStorage(factory),
     });
     const firstCaller = createEngineCaller(firstEngine);
-    const created = await firstCaller.organization.createWarehouse(createWarehouseRequest(WAREHOUSE_KEY), buyerOptions(firstCaller));
+    const created = await firstCaller.organization.createWarehouse(createWarehouseRequest(WAREHOUSE_KEY), customerOptions(firstCaller));
     const createdId = created.warehouse?.id;
 
     const secondEngine = await createEngine({
@@ -362,7 +362,7 @@ describe('createIndexedDbStorage with the engine', () => {
       storage: await openStorage(factory),
     });
     const secondCaller = createEngineCaller(secondEngine);
-    const listed = await secondCaller.organization.listWarehouses({}, buyerOptions(secondCaller));
+    const listed = await secondCaller.organization.listWarehouses({}, customerOptions(secondCaller));
 
     expect(createdId).toBeDefined();
     expect(listed.warehouses.map(warehouse => warehouse.id)).toContain(createdId);

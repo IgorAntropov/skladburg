@@ -42,11 +42,11 @@ import {
 const KEY_1 = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
 const KEY_2 = '8d14e6a2-0b3c-4f57-9a68-12cd45ef7890';
 
-const BUYER_CHANNEL = organizationChannel(SeedOrganizationId.BUYER_1);
+const CUSTOMER_CHANNEL = organizationChannel(SeedOrganizationId.CUSTOMER_1);
 
-const buyerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+const customerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
-const createBuyerHeaders = (): Headers => createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+const createCustomerHeaders = (): Headers => createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
 interface RecordedHandlersValue {
   denied: ErrorDetail[];
@@ -92,28 +92,28 @@ describe('connectToEngine subscriptions', () => {
     const { connection, createOrganizationClient } = await createClientHarness();
     const recorded = createRecordedHandlers();
 
-    connection.subscribe(BUYER_CHANNEL, createBuyerHeaders(), recorded.handlers);
+    connection.subscribe(CUSTOMER_CHANNEL, createCustomerHeaders(), recorded.handlers);
     await vi.waitFor(() => {
       expect(recorded.positions).toEqual([{ epoch: 'epoch-1', seq: 0n }]);
     });
-    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
     await vi.waitFor(() => {
       expect(recorded.events).toHaveLength(1);
     });
 
     const [batch] = recorded.events;
     expect(batch).toHaveLength(1);
-    expect(batch?.[0]).toMatchObject({ channel: BUYER_CHANNEL, epoch: 'epoch-1', seq: 1n });
+    expect(batch?.[0]).toMatchObject({ channel: CUSTOMER_CHANNEL, epoch: 'epoch-1', seq: 1n });
     expect(batch?.[0]?.payload.case).toBe('warehouseChanged');
   });
 
   it('continues the seq with the next command and keeps one onEvents call per message', async () => {
     const { connection, createOrganizationClient } = await createClientHarness();
     const recorded = createRecordedHandlers();
-    connection.subscribe(BUYER_CHANNEL, createBuyerHeaders(), recorded.handlers);
+    connection.subscribe(CUSTOMER_CHANNEL, createCustomerHeaders(), recorded.handlers);
 
-    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
-    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_2, { name: 'Склад 10' }), buyerOptions);
+    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
+    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_2, { name: 'Склад 10' }), customerOptions);
 
     await vi.waitFor(() => {
       expect(recorded.events.map(batch => batch.map(event => event.seq))).toEqual([[1n], [2n]]);
@@ -123,9 +123,9 @@ describe('connectToEngine subscriptions', () => {
   it('reports the position of the warehouse channel of a just created warehouse as seq 1', async () => {
     const { connection, createOrganizationClient } = await createClientHarness();
     const recorded = createRecordedHandlers();
-    const created = await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    const created = await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
 
-    connection.subscribe(warehouseChannel(created.warehouse?.id ?? ''), createBuyerHeaders(), recorded.handlers);
+    connection.subscribe(warehouseChannel(created.warehouse?.id ?? ''), createCustomerHeaders(), recorded.handlers);
 
     await vi.waitFor(() => {
       expect(recorded.positions).toEqual([{ epoch: 'epoch-1', seq: 1n }]);
@@ -136,8 +136,8 @@ describe('connectToEngine subscriptions', () => {
     const { connection } = await createClientHarness();
     const recorded = createRecordedHandlers();
 
-    connection.subscribe('garbage', createBuyerHeaders(), recorded.handlers);
-    connection.subscribe(`user:${SeedUserId.ADMIN_2}`, createBuyerHeaders(), recorded.handlers);
+    connection.subscribe('garbage', createCustomerHeaders(), recorded.handlers);
+    connection.subscribe(`user:${SeedUserId.ADMIN_2}`, createCustomerHeaders(), recorded.handlers);
 
     await vi.waitFor(() => {
       expect(recorded.denied).toHaveLength(2);
@@ -153,18 +153,18 @@ describe('connectToEngine subscriptions', () => {
   it('delivers nothing after unsubscribe and tells the engine about it', async () => {
     const { connection, createOrganizationClient, stub } = await createClientHarness();
     const recorded = createRecordedHandlers();
-    const unsubscribe = connection.subscribe(BUYER_CHANNEL, createBuyerHeaders(), recorded.handlers);
+    const unsubscribe = connection.subscribe(CUSTOMER_CHANNEL, createCustomerHeaders(), recorded.handlers);
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(1);
     });
 
     unsubscribe();
     unsubscribe();
-    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
     const subscriptionId = stub.subscriptionIds()[0] ?? '';
     stub.send({ events: [encodeEvent(create(EventSchema, { seq: 9n }))], subscriptionId, type: 'events' });
     stub.send({ epoch: 'epoch-2', seq: 0n, subscriptionId, type: 'subscribed' });
-    await createOrganizationClient(true).listWarehouses({}, buyerOptions);
+    await createOrganizationClient(true).listWarehouses({}, customerOptions);
 
     expect(recorded.events).toHaveLength(0);
     expect(recorded.positions).toHaveLength(1);
@@ -176,7 +176,7 @@ describe('connectToEngine subscriptions', () => {
   it('delivers all events of one message in one call and reports a repeated subscribed message', async () => {
     const { connection, createOrganizationClient, stub } = await createClientHarness();
     const recorded = createRecordedHandlers();
-    connection.subscribe(BUYER_CHANNEL, createBuyerHeaders(), recorded.handlers);
+    connection.subscribe(CUSTOMER_CHANNEL, createCustomerHeaders(), recorded.handlers);
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(1);
     });
@@ -184,11 +184,11 @@ describe('connectToEngine subscriptions', () => {
 
     stub.send({ epoch: 'epoch-2', seq: 5n, subscriptionId, type: 'subscribed' });
     stub.send({
-      events: [1n, 2n, 3n].map(seq => encodeEvent(create(EventSchema, { channel: BUYER_CHANNEL, epoch: 'epoch-2', seq }))),
+      events: [1n, 2n, 3n].map(seq => encodeEvent(create(EventSchema, { channel: CUSTOMER_CHANNEL, epoch: 'epoch-2', seq }))),
       subscriptionId,
       type: 'events',
     });
-    await createOrganizationClient(true).listWarehouses({}, buyerOptions);
+    await createOrganizationClient(true).listWarehouses({}, customerOptions);
 
     expect(recorded.positions).toEqual([{ epoch: 'epoch-1', seq: 0n }, { epoch: 'epoch-2', seq: 5n }]);
     expect(recorded.events).toHaveLength(1);
@@ -199,15 +199,15 @@ describe('connectToEngine subscriptions', () => {
     const { connection, createOrganizationClient, stub } = await createClientHarness();
     const first = createRecordedHandlers();
     const second = createRecordedHandlers();
-    connection.subscribe(BUYER_CHANNEL, createBuyerHeaders(), first.handlers);
-    connection.subscribe(organizationChannel(SeedOrganizationId.BUYER_1), createBuyerHeaders(), second.handlers);
+    connection.subscribe(CUSTOMER_CHANNEL, createCustomerHeaders(), first.handlers);
+    connection.subscribe(organizationChannel(SeedOrganizationId.CUSTOMER_1), createCustomerHeaders(), second.handlers);
     await vi.waitFor(() => {
       expect(stub.received.filter(message => message.type === 'subscribe')).toHaveLength(2);
     });
     const secondId = stub.subscriptionIds()[1] ?? '';
 
     stub.send({ events: [encodeEvent(create(EventSchema, { seq: 7n }))], subscriptionId: secondId, type: 'events' });
-    await createOrganizationClient(true).listWarehouses({}, buyerOptions);
+    await createOrganizationClient(true).listWarehouses({}, customerOptions);
 
     expect(first.events).toHaveLength(0);
     expect(second.events).toHaveLength(1);
@@ -216,7 +216,7 @@ describe('connectToEngine subscriptions', () => {
   it('keeps delivering after a handler throws and logs the failure', async () => {
     const { connection, createOrganizationClient } = await createClientHarness();
     const delivered: bigint[] = [];
-    connection.subscribe(BUYER_CHANNEL, createBuyerHeaders(), {
+    connection.subscribe(CUSTOMER_CHANNEL, createCustomerHeaders(), {
       onDenied: () => undefined,
       onEvents: (batch) => {
         delivered.push(...batch.map(event => event.seq));
@@ -226,8 +226,8 @@ describe('connectToEngine subscriptions', () => {
       onSubscribed: () => undefined,
     });
 
-    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
-    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_2, { name: 'Склад 10' }), buyerOptions);
+    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
+    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_2, { name: 'Склад 10' }), customerOptions);
 
     await vi.waitFor(() => {
       expect(delivered).toEqual([1n, 2n]);
@@ -238,7 +238,7 @@ describe('connectToEngine subscriptions', () => {
   it('ignores a message that cannot be decoded and keeps the subscription alive', async () => {
     const { connection, createOrganizationClient, stub } = await createClientHarness();
     const recorded = createRecordedHandlers();
-    connection.subscribe(BUYER_CHANNEL, createBuyerHeaders(), recorded.handlers);
+    connection.subscribe(CUSTOMER_CHANNEL, createCustomerHeaders(), recorded.handlers);
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(1);
     });
@@ -247,7 +247,7 @@ describe('connectToEngine subscriptions', () => {
     stub.send({ events: [new Uint8Array([255, 255, 255]).buffer], subscriptionId, type: 'events' });
     stub.sendRaw({ type: 'nonsense' });
     stub.sendRaw('text');
-    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    await createOrganizationClient(true).createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
 
     await vi.waitFor(() => {
       expect(recorded.events).toHaveLength(1);
@@ -259,14 +259,14 @@ describe('connectToEngine subscriptions', () => {
   it('unsubscribes every subscription on close and subscribes to nothing afterwards', async () => {
     const { connection, stub } = await createClientHarness();
     const recorded = createRecordedHandlers();
-    connection.subscribe(BUYER_CHANNEL, createBuyerHeaders(), recorded.handlers);
-    connection.subscribe(`user:${SeedUserId.ADMIN_1}`, createBuyerHeaders(), recorded.handlers);
+    connection.subscribe(CUSTOMER_CHANNEL, createCustomerHeaders(), recorded.handlers);
+    connection.subscribe(`user:${SeedUserId.ADMIN_1}`, createCustomerHeaders(), recorded.handlers);
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(2);
     });
 
     connection.close();
-    const afterClose = connection.subscribe(BUYER_CHANNEL, createBuyerHeaders(), recorded.handlers);
+    const afterClose = connection.subscribe(CUSTOMER_CHANNEL, createCustomerHeaders(), recorded.handlers);
     afterClose();
 
     await vi.waitFor(() => {

@@ -65,17 +65,17 @@ describe('createApiRuntime with the demo engine', () => {
       },
     };
 
-    const runtime = await createApiRuntime({ connection, defaultOrganizationId: SeedOrganizationId.BUYER_1 });
+    const runtime = await createApiRuntime({ connection, defaultOrganizationId: SeedOrganizationId.CUSTOMER_1 });
 
     expect(runtime.actingContext.get()).toEqual({
-      organizationId: SeedOrganizationId.BUYER_1,
+      organizationId: SeedOrganizationId.CUSTOMER_1,
       userId: SeedUserId.ADMIN_1,
     });
 
     const response = await runtime.client.organization.listWarehouses({});
 
     expect(response.warehouses).toHaveLength(3);
-    expect(requestHeaders.at(-1)?.get(ACTING_ORGANIZATION_HEADER)).toBe(SeedOrganizationId.BUYER_1);
+    expect(requestHeaders.at(-1)?.get(ACTING_ORGANIZATION_HEADER)).toBe(SeedOrganizationId.CUSTOMER_1);
     expect(requestHeaders.at(-1)?.get(DEMO_USER_HEADER)).toBe(SeedUserId.ADMIN_1);
 
     runtime.close();
@@ -87,12 +87,12 @@ describe('createApiRuntime with the demo engine', () => {
   it('picks the persona by id, not by the order of the engine answer', async () => {
     const inProcess = startInProcessEngine();
     const personas = await inProcess.connection.control.listPersonas();
-    const buyerPersonaIds = personas
-      .filter(persona => persona.organizationId === SeedOrganizationId.BUYER_1)
+    const customerPersonaIds = personas
+      .filter(persona => persona.organizationId === SeedOrganizationId.CUSTOMER_1)
       .map(persona => persona.id);
 
-    expect(buyerPersonaIds).toContain(SeedPersonaId.FRESH_BUYER);
-    expect(buyerPersonaIds.length).toBeGreaterThan(1);
+    expect(customerPersonaIds).toContain(SeedPersonaId.FRESH_CUSTOMER);
+    expect(customerPersonaIds.length).toBeGreaterThan(1);
 
     const reversedConnection: IEngineConnection = {
       ...inProcess.connection,
@@ -104,7 +104,7 @@ describe('createApiRuntime with the demo engine', () => {
 
     const runtime = await createApiRuntime({
       connection: reversedConnection,
-      defaultOrganizationId: SeedOrganizationId.BUYER_1,
+      defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
     });
 
     expect(runtime.actingContext.get().userId).toBe(SeedUserId.ADMIN_1);
@@ -117,12 +117,12 @@ describe('createApiRuntime with the demo engine', () => {
 
     const runtime = await createApiRuntime({
       connection: inProcess.connection,
-      defaultOrganizationId: SeedOrganizationId.BUYER_1,
+      defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
       preferredPersonaId: SeedPersonaId.FRESH_STOREKEEPER,
     });
 
     expect(runtime.actingContext.get()).toEqual({
-      organizationId: SeedOrganizationId.BUYER_1,
+      organizationId: SeedOrganizationId.CUSTOMER_1,
       userId: SeedUserId.STOREKEEPER_1,
     });
     expect((await runtime.client.organization.listWarehouses({})).warehouses).toHaveLength(1);
@@ -135,12 +135,12 @@ describe('createApiRuntime with the demo engine', () => {
 
     const runtime = await createApiRuntime({
       connection: inProcess.connection,
-      defaultOrganizationId: SeedOrganizationId.BUYER_1,
-      preferredContext: { organizationId: SeedOrganizationId.SELLER_1, userId: SeedUserId.ADMIN_2 },
+      defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
+      preferredContext: { organizationId: SeedOrganizationId.SUPPLIER_1, userId: SeedUserId.ADMIN_2 },
     });
 
     expect(runtime.actingContext.get()).toEqual({
-      organizationId: SeedOrganizationId.SELLER_1,
+      organizationId: SeedOrganizationId.SUPPLIER_1,
       userId: SeedUserId.ADMIN_2,
     });
 
@@ -152,13 +152,13 @@ describe('createApiRuntime with the demo engine', () => {
 
     const runtime = await createApiRuntime({
       connection: inProcess.connection,
-      defaultOrganizationId: SeedOrganizationId.BUYER_1,
-      preferredContext: { organizationId: SeedOrganizationId.SELLER_1, userId: SeedUserId.ADMIN_2 },
-      preferredPersonaId: SeedPersonaId.CONSTRUCTION_BUYER,
+      defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
+      preferredContext: { organizationId: SeedOrganizationId.SUPPLIER_1, userId: SeedUserId.ADMIN_2 },
+      preferredPersonaId: SeedPersonaId.CONSTRUCTION_CUSTOMER,
     });
 
     expect(runtime.actingContext.get()).toEqual({
-      organizationId: SeedOrganizationId.BUYER_2,
+      organizationId: SeedOrganizationId.CUSTOMER_2,
       userId: SeedUserId.ADMIN_5,
     });
 
@@ -170,13 +170,13 @@ describe('createApiRuntime with the demo engine', () => {
 
     const runtime = await createApiRuntime({
       connection: inProcess.connection,
-      defaultOrganizationId: SeedOrganizationId.BUYER_1,
-      preferredContext: { organizationId: SeedOrganizationId.SELLER_1, userId: SeedUserId.STOREKEEPER_2 },
+      defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
+      preferredContext: { organizationId: SeedOrganizationId.SUPPLIER_1, userId: SeedUserId.STOREKEEPER_2 },
       preferredPersonaId: '99999999-0000-4000-8000-000000000000',
     });
 
     expect(runtime.actingContext.get()).toEqual({
-      organizationId: SeedOrganizationId.BUYER_1,
+      organizationId: SeedOrganizationId.CUSTOMER_1,
       userId: SeedUserId.ADMIN_1,
     });
 
@@ -187,7 +187,7 @@ describe('createApiRuntime with the demo engine', () => {
     const inProcess = startInProcessEngine();
     const runtime = await createApiRuntime({
       connection: inProcess.connection,
-      defaultOrganizationId: SeedOrganizationId.BUYER_1,
+      defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
     });
     const statuses: DemoEngineStatusValue[] = [];
 
@@ -207,7 +207,7 @@ describe('createApiRuntime with the demo engine', () => {
     const closeSpy = vi.spyOn(inProcess.connection, 'close');
     const runtime = await createApiRuntime({
       connection: inProcess.connection,
-      defaultOrganizationId: SeedOrganizationId.BUYER_1,
+      defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
     });
 
     expect(closeSpy).not.toHaveBeenCalled();
@@ -220,7 +220,7 @@ describe('createApiRuntime with the demo engine', () => {
   it('rejects at once when the engine is unavailable and closes the connection', async () => {
     const connection = createUnavailableConnection();
 
-    await expect(createApiRuntime({ connection, defaultOrganizationId: SeedOrganizationId.BUYER_1 })).rejects.toMatchObject({
+    await expect(createApiRuntime({ connection, defaultOrganizationId: SeedOrganizationId.CUSTOMER_1 })).rejects.toMatchObject({
       code: Code.Unavailable,
     });
 

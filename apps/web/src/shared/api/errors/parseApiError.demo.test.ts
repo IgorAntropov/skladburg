@@ -42,7 +42,7 @@ const startRuntime = async (): Promise<ApiRuntimeValue> => {
   const inProcess = createInProcessEngineConnection();
   const runtime = await createApiRuntime({
     connection: inProcess.connection,
-    defaultOrganizationId: SeedOrganizationId.BUYER_1,
+    defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
   });
 
   closers.push(async () => {
@@ -77,7 +77,7 @@ afterEach(async () => {
 describe('parseApiError against the demo engine', () => {
   it('reports permission_denied with the name of the missing permission', async () => {
     const runtime = await startRuntime();
-    runtime.actingContext.set({ organizationId: SeedOrganizationId.BUYER_1, userId: SeedUserId.STOREKEEPER_1 });
+    runtime.actingContext.set({ organizationId: SeedOrganizationId.CUSTOMER_1, userId: SeedUserId.STOREKEEPER_1 });
 
     const error = await captureApiError(runtime.client.organization.createWarehouse({
       idempotencyKey: VALID_UUID,
@@ -178,7 +178,7 @@ describe('parseApiError against the demo engine', () => {
           return inProcess.connection.fetch(input, init);
         },
       },
-      defaultOrganizationId: SeedOrganizationId.BUYER_1,
+      defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
     });
     closers.push(async () => {
       runtime.close();

@@ -143,8 +143,8 @@ const populatedTask: SchedulerTaskValue = {
     transaction.put('personas', {
       group: DemoPersonaGroup.FRESH,
       id: 'fingerprint-persona',
-      kind: DemoPersonaKind.BUYER,
-      organizationId: SeedOrganizationId.BUYER_1,
+      kind: DemoPersonaKind.CUSTOMER,
+      organizationId: SeedOrganizationId.CUSTOMER_1,
       userId: SeedUserId.ADMIN_1,
     });
   },
@@ -158,7 +158,7 @@ const createPopulatedSnapshot = async (): Promise<EngineSnapshotValue> => {
 
   await caller.organization.createWarehouse(
     createWarehouseRequest('3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153'),
-    caller.options(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+    caller.options(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
   );
   realTime.advance(1_000);
   await engine.tick();

@@ -51,8 +51,8 @@ import { subscribeRecorded } from './testing/recordedSubscription';
 
 const KEY_1 = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
 
-const BUYER_CHANNEL = `org:${SeedOrganizationId.BUYER_1}`;
-const buyerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+const CUSTOMER_CHANNEL = `org:${SeedOrganizationId.CUSTOMER_1}`;
+const customerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
 const readInboxRequestIds = (fixture: HostFixtureValue, type: 'abort' | 'control' | 'request'): string[] =>
   fixture.inbox.flatMap((data) => {
@@ -98,7 +98,7 @@ describe('engine host in the single-tab mode', () => {
     const fixture = harness.addHost({ isSingleTab: true });
     await waitForRole(fixture, 'leader');
 
-    await fixture.organization().listWarehouses({}, buyerOptions);
+    await fixture.organization().listWarehouses({}, customerOptions);
     await fixture.stop();
 
     expect(harness.openedChannelCount()).toBe(0);
@@ -109,15 +109,15 @@ describe('engine host in the single-tab mode', () => {
     await waitForRole(fixture, 'leader');
     const recorded = subscribeRecorded(
       fixture,
-      `org:${SeedOrganizationId.BUYER_1}`,
-      createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      `org:${SeedOrganizationId.CUSTOMER_1}`,
+      createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     );
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(1);
     }, WAIT_OPTIONS);
 
-    const listed = await fixture.organization().listWarehouses({}, buyerOptions);
-    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    const listed = await fixture.organization().listWarehouses({}, customerOptions);
+    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
 
     expect(listed.warehouses).toHaveLength(3);
     await vi.waitFor(() => {
@@ -132,7 +132,7 @@ describe('engine host in the single-tab mode', () => {
     const fixture = harness.addHost({ isSingleTab: true, openStorage });
     await waitForRole(fixture, 'leader');
 
-    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
     harness.realTime.advance(CHECKPOINT_INTERVAL_MS);
     harness.timers.advance(CHECKPOINT_INTERVAL_MS);
     await fixture.stop();
@@ -163,12 +163,12 @@ describe('engine host in the single-tab mode', () => {
     await waitForRole(first, 'leader');
     await waitForRole(second, 'leader');
 
-    await first.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    await first.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
     harness.realTime.advance(CHECKPOINT_INTERVAL_MS);
     harness.timers.advance(CHECKPOINT_INTERVAL_MS);
 
-    expect((await first.organization().listWarehouses({}, buyerOptions)).warehouses).toHaveLength(4);
-    expect((await second.organization().listWarehouses({}, buyerOptions)).warehouses).toHaveLength(3);
+    expect((await first.organization().listWarehouses({}, customerOptions)).warehouses).toHaveLength(4);
+    expect((await second.organization().listWarehouses({}, customerOptions)).warehouses).toHaveLength(3);
     expect(openStorage).not.toHaveBeenCalled();
     expect(storage.writeAttemptCount()).toBe(0);
     expect(storage.closeCount()).toBe(0);
@@ -220,7 +220,7 @@ describe('engine host in the single-tab mode when the start fails', () => {
         throw new Error('The engine core is not loaded');
       },
     });
-    const callBeforeFailure = captureError(fixture.organization().listWarehouses({}, buyerOptions));
+    const callBeforeFailure = captureError(fixture.organization().listWarehouses({}, customerOptions));
     const controlBeforeFailure = captureError(fixture.connection.control.listPersonas());
     await waitForInbox(fixture, 'request');
     await waitForInbox(fixture, 'control');
@@ -231,7 +231,7 @@ describe('engine host in the single-tab mode when the start fails', () => {
 
     expect((await callBeforeFailure).code).toBe(Code.Unavailable);
     expect((await controlBeforeFailure).code).toBe(Code.Unavailable);
-    expect((await captureError(fixture.organization().listWarehouses({}, buyerOptions))).code).toBe(Code.Unavailable);
+    expect((await captureError(fixture.organization().listWarehouses({}, customerOptions))).code).toBe(Code.Unavailable);
     expect((await captureError(fixture.connection.control.reset())).code).toBe(Code.Unavailable);
     await waitForInbox(fixture, 'abort', 2);
 
@@ -283,8 +283,8 @@ describe('engine host in the single-tab mode when the start fails', () => {
 
     const recorded = subscribeRecorded(
       fixture,
-      BUYER_CHANNEL,
-      createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      CUSTOMER_CHANNEL,
+      createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     );
     await waitForInbox(fixture, 'subscribe');
     recorded.unsubscribe();

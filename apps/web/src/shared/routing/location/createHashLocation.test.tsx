@@ -34,11 +34,11 @@ describe('createHashLocation', () => {
   });
 
   it('reads the path and parameters from inside the fragment', () => {
-    window.history.replaceState(null, '', `/#${DEAL_PATH}?as=seller-1&tab=docs`);
+    window.history.replaceState(null, '', `/#${DEAL_PATH}?as=supplier-1&tab=docs`);
     const location = createHashLocation(window);
 
     expect(location.read().path).toBe(DEAL_PATH);
-    expect(location.read().searchParams.get('as')).toBe('seller-1');
+    expect(location.read().searchParams.get('as')).toBe('supplier-1');
     expect(location.read().searchParams.get('tab')).toBe('docs');
     expect(window.location.search).toBe('');
   });
@@ -51,11 +51,11 @@ describe('createHashLocation', () => {
   });
 
   it('reads parameters without a path as the root path', () => {
-    window.history.replaceState(null, '', '/#?as=seller-1');
+    window.history.replaceState(null, '', '/#?as=supplier-1');
     const location = createHashLocation(window);
 
     expect(location.read().path).toBe('/');
-    expect(location.read().searchParams.get('as')).toBe('seller-1');
+    expect(location.read().searchParams.get('as')).toBe('supplier-1');
   });
 
   it('creates a fragment link', () => {
@@ -115,10 +115,10 @@ describe('createHashLocation', () => {
   it('keeps parameters when navigating to a path with a query', () => {
     const location = createHashLocation(window);
 
-    location.navigate(`${DEAL_PATH}?as=buyer-1`);
+    location.navigate(`${DEAL_PATH}?as=customer-1`);
 
-    expect(window.location.hash).toBe(`#${DEAL_PATH}?as=buyer-1`);
-    expect(location.read().searchParams.get('as')).toBe('buyer-1');
+    expect(window.location.hash).toBe(`#${DEAL_PATH}?as=customer-1`);
+    expect(location.read().searchParams.get('as')).toBe('customer-1');
   });
 
   it('notifies subscribers synchronously after navigate', () => {

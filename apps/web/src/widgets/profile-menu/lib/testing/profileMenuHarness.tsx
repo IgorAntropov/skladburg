@@ -78,23 +78,23 @@ interface ProfileTreeProvidersProps {
   themeStore: IThemePreferenceStore;
 }
 
-export const PROFILE_BUYER_PERSONA: DemoPersonaListItemValue = {
+export const PROFILE_CUSTOMER_PERSONA: DemoPersonaListItemValue = {
   group: DemoPersonaGroup.FRESH,
   id: 'f9000001-0000-4000-8000-000000000000',
-  kind: DemoPersonaKind.BUYER,
+  kind: DemoPersonaKind.CUSTOMER,
   organizationId: 'f9100001-0000-4000-8000-000000000000',
-  organizationName: 'Покупатель 1',
+  organizationName: 'Заказчик 1',
   roleName: 'Администратор',
   userDisplayName: 'Анна Смирнова',
   userId: 'f9200001-0000-4000-8000-000000000000',
 };
 
-export const PROFILE_SELLER_PERSONA: DemoPersonaListItemValue = {
+export const PROFILE_SUPPLIER_PERSONA: DemoPersonaListItemValue = {
   group: DemoPersonaGroup.FRESH,
   id: 'f9000002-0000-4000-8000-000000000000',
-  kind: DemoPersonaKind.SELLER,
+  kind: DemoPersonaKind.SUPPLIER,
   organizationId: 'f9100002-0000-4000-8000-000000000000',
-  organizationName: 'Продавец 1',
+  organizationName: 'Поставщик 1',
   roleName: 'Администратор',
   userDisplayName: 'Сергей Кузнецов',
   userId: 'f9200002-0000-4000-8000-000000000000',
@@ -103,23 +103,23 @@ export const PROFILE_SELLER_PERSONA: DemoPersonaListItemValue = {
 export const PROFILE_CONSTRUCTION_PERSONA: DemoPersonaListItemValue = {
   group: DemoPersonaGroup.CONSTRUCTION,
   id: 'f9000005-0000-4000-8000-000000000000',
-  kind: DemoPersonaKind.BUYER,
+  kind: DemoPersonaKind.CUSTOMER,
   organizationId: 'f9100004-0000-4000-8000-000000000000',
-  organizationName: 'Покупатель 2',
+  organizationName: 'Заказчик 2',
   roleName: 'Администратор',
   userDisplayName: 'Елена Морозова',
   userId: 'f9200005-0000-4000-8000-000000000000',
 };
 
 export const PROFILE_PERSONAS: readonly DemoPersonaListItemValue[] = [
-  PROFILE_BUYER_PERSONA,
-  PROFILE_SELLER_PERSONA,
+  PROFILE_CUSTOMER_PERSONA,
+  PROFILE_SUPPLIER_PERSONA,
   PROFILE_CONSTRUCTION_PERSONA,
 ];
 
 export const PROFILE_ACTING_CONTEXT = {
-  organizationId: PROFILE_BUYER_PERSONA.organizationId,
-  userId: PROFILE_BUYER_PERSONA.userId,
+  organizationId: PROFILE_CUSTOMER_PERSONA.organizationId,
+  userId: PROFILE_CUSTOMER_PERSONA.userId,
 };
 
 export const createGate = (): GateValue => {
@@ -132,21 +132,21 @@ export const createGate = (): GateValue => {
 };
 
 const createSession = (sides: readonly ProfileKind[]): GetSessionResponse => create(GetSessionResponseSchema, {
-  actingOrganizationId: PROFILE_BUYER_PERSONA.organizationId,
+  actingOrganizationId: PROFILE_CUSTOMER_PERSONA.organizationId,
   organizations: [
     create(OrganizationSchema, {
-      id: PROFILE_BUYER_PERSONA.organizationId,
-      name: PROFILE_BUYER_PERSONA.organizationName,
+      id: PROFILE_CUSTOMER_PERSONA.organizationId,
+      name: PROFILE_CUSTOMER_PERSONA.organizationName,
       profiles: sides.map(kind => create(OrganizationProfileSchema, { kind })),
     }),
   ],
-  user: { displayName: PROFILE_BUYER_PERSONA.userDisplayName, id: PROFILE_BUYER_PERSONA.userId },
+  user: { displayName: PROFILE_CUSTOMER_PERSONA.userDisplayName, id: PROFILE_CUSTOMER_PERSONA.userId },
 });
 
 export const createProfileRoutes = ({
   sessionGate,
   sessionMode = 'ready',
-  sides = [ProfileKind.BUYER],
+  sides = [ProfileKind.CUSTOMER],
 }: ProfileSessionOptionsValue = {}): ((router: ConnectRouter) => void) => (router) => {
   router.service(AccessService, {
     getSession: async () => {

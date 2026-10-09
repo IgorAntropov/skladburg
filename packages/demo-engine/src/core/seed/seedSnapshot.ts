@@ -42,7 +42,7 @@ export type SeedRecordsValue = {
   [TName in TableName]: TableRecordsValue[TName][];
 };
 
-export const SEED_VERSION = 2;
+export const SEED_VERSION = 3;
 export const SEED_TIME_SCALE = 1;
 export const SEED_WORLD_START_MS = Date.UTC(2026, 9, 12, 6, 0, 0);
 export const SEED_RANDOM_SEED = 20261012;

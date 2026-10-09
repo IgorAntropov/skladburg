@@ -8,8 +8,8 @@ import "common/v1/page.proto";
 
 enum ProfileKind {
   PROFILE_KIND_UNSPECIFIED = 0;
-  PROFILE_KIND_SELLER = 1;
-  PROFILE_KIND_BUYER = 2;
+  PROFILE_KIND_SUPPLIER = 1;
+  PROFILE_KIND_CUSTOMER = 2;
   PROFILE_KIND_CARRIER = 3;
 }
 

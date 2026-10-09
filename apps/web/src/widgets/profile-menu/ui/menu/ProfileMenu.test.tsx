@@ -46,7 +46,7 @@ import {
   createProfileLocalizer,
   createProfileRoutes,
   PROFILE_ACTING_CONTEXT,
-  PROFILE_BUYER_PERSONA,
+  PROFILE_CUSTOMER_PERSONA,
   PROFILE_PERSONAS,
   ProfileTreeProviders,
 } from '../../lib/testing/profileMenuHarness';
@@ -84,9 +84,9 @@ const MENU_NAME = defaultLocaleCatalog['profile.menu.label'];
 const NAV_GROUP_NAME = defaultLocaleCatalog['app.nav.label'];
 const THEME_GROUP_NAME = defaultLocaleCatalog['theme.label'];
 const RESET_ITEM_NAME = defaultLocaleCatalog['demo.reset.menuItem'];
-const BUYER_ROLE_LINE = defaultLocaleCatalog['profile.role']
-  .replace('{role}', PROFILE_BUYER_PERSONA.roleName)
-  .replace('{organization}', PROFILE_BUYER_PERSONA.organizationName);
+const CUSTOMER_ROLE_LINE = defaultLocaleCatalog['profile.role']
+  .replace('{role}', PROFILE_CUSTOMER_PERSONA.roleName)
+  .replace('{organization}', PROFILE_CUSTOMER_PERSONA.organizationName);
 
 let installedViewport: IFakeViewport | undefined;
 
@@ -126,7 +126,7 @@ const renderMenu = async ({
   sections = APP_SECTIONS,
   sessionGate,
   sessionMode,
-  sides = [ProfileKind.BUYER],
+  sides = [ProfileKind.CUSTOMER],
   viewportClass = 'desktop',
 }: RenderMenuOptionsValue = {}): Promise<RenderedMenuValue> => {
   installedViewport?.restore();
@@ -189,9 +189,9 @@ describe('ProfileMenu', () => {
       await renderMenu();
       const menu = await findReadyMenu();
 
-      expect(within(menu).getByTestId('profile-menu-name').textContent).toBe(PROFILE_BUYER_PERSONA.userDisplayName);
-      expect(within(menu).getByTestId('profile-menu-role').textContent).toBe(PROFILE_BUYER_PERSONA.organizationName);
-      expect(within(menu).getByTestId('profile-menu-sides').textContent).toBe(defaultLocaleCatalog['side.buyer']);
+      expect(within(menu).getByTestId('profile-menu-name').textContent).toBe(PROFILE_CUSTOMER_PERSONA.userDisplayName);
+      expect(within(menu).getByTestId('profile-menu-role').textContent).toBe(PROFILE_CUSTOMER_PERSONA.organizationName);
+      expect(within(menu).getByTestId('profile-menu-sides').textContent).toBe(defaultLocaleCatalog['side.customer']);
     });
 
     it('shows the big avatar with the initials of the user', async () => {
@@ -209,17 +209,17 @@ describe('ProfileMenu', () => {
       const menu = await findReadyMenu();
 
       await waitFor(() => {
-        expect(within(menu).getByTestId('profile-menu-role').textContent).toBe(BUYER_ROLE_LINE);
+        expect(within(menu).getByTestId('profile-menu-role').textContent).toBe(CUSTOMER_ROLE_LINE);
       });
     });
 
     it('shows only the organization when the persona has no role', async () => {
-      const personas = [{ ...PROFILE_BUYER_PERSONA, roleName: '' }];
+      const personas = [{ ...PROFILE_CUSTOMER_PERSONA, roleName: '' }];
       await renderMenu({ hasDemo: true, personas });
       const menu = await findReadyMenu();
 
       await waitFor(() => {
-        expect(within(menu).getByTestId('profile-menu-role').textContent).toBe(PROFILE_BUYER_PERSONA.organizationName);
+        expect(within(menu).getByTestId('profile-menu-role').textContent).toBe(PROFILE_CUSTOMER_PERSONA.organizationName);
       });
     });
 
@@ -234,30 +234,30 @@ describe('ProfileMenu', () => {
       personasGate.open();
 
       await waitFor(() => {
-        expect(within(menu).getByTestId('profile-menu-role').textContent).toBe(BUYER_ROLE_LINE);
+        expect(within(menu).getByTestId('profile-menu-role').textContent).toBe(CUSTOMER_ROLE_LINE);
       });
     });
 
     it('marks every side of the organization with an icon and the name in its own colour', async () => {
-      await renderMenu({ sides: [ProfileKind.SELLER, ProfileKind.CARRIER] });
+      await renderMenu({ sides: [ProfileKind.SUPPLIER, ProfileKind.CARRIER] });
       const menu = await findReadyMenu();
 
       const sides = within(within(menu).getByTestId('profile-menu-sides')).getAllByText(/./);
-      const [seller, carrier] = sides;
+      const [supplier, carrier] = sides;
 
       expect(sides.map(side => side.textContent)).toEqual([
-        defaultLocaleCatalog['side.seller'],
+        defaultLocaleCatalog['side.supplier'],
         defaultLocaleCatalog['side.carrier'],
       ]);
-      expect(seller?.className).toContain('text-side-label-seller');
+      expect(supplier?.className).toContain('text-side-label-supplier');
       expect(carrier?.className).toContain('text-side-label-carrier');
-      expect(seller?.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+      expect(supplier?.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
       expect(carrier?.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
     });
 
     it.each([
-      [ProfileKind.BUYER, 'text-side-label-buyer', 'side.buyer'],
-      [ProfileKind.SELLER, 'text-side-label-seller', 'side.seller'],
+      [ProfileKind.CUSTOMER, 'text-side-label-customer', 'side.customer'],
+      [ProfileKind.SUPPLIER, 'text-side-label-supplier', 'side.supplier'],
       [ProfileKind.CARRIER, 'text-side-label-carrier', 'side.carrier'],
     ] as const)('draws the side %s in the colour %s', async (kind, className, labelKey) => {
       await renderMenu({ sides: [kind] });
@@ -286,7 +286,7 @@ describe('ProfileMenu', () => {
 
       sessionGate.open();
 
-      expect((await within(menu).findByTestId('profile-menu-name')).textContent).toBe(PROFILE_BUYER_PERSONA.userDisplayName);
+      expect((await within(menu).findByTestId('profile-menu-name')).textContent).toBe(PROFILE_CUSTOMER_PERSONA.userDisplayName);
     });
 
     it('shows only the user icon when the session fails', async () => {

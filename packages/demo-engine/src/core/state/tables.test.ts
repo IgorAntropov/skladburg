@@ -16,6 +16,7 @@ import {
   it,
 } from 'vitest';
 
+import { LEGACY_PERSONA_KIND } from '../../protocol/testLegacyNames';
 import {
   DemoPersonaGroup,
   DemoPersonaKind,
@@ -41,13 +42,13 @@ describe('message tables', () => {
   it('round-trip every contract message of the engine', () => {
     const organization = create(OrganizationSchema, {
       id: 'org-1',
-      name: 'Покупатель 1',
-      profiles: [{ kind: ProfileKind.BUYER, verificationLevel: 2 }],
+      name: 'Заказчик 1',
+      profiles: [{ kind: ProfileKind.CUSTOMER, verificationLevel: 2 }],
       sphereIds: ['sphere-1'],
     });
     const settings = create(OrganizationSettingsSchema, {
       availableLocales: ['ru'],
-      brandName: 'Покупатель 1',
+      brandName: 'Заказчик 1',
       defaultLocale: 'ru',
       organizationId: 'org-1',
     });
@@ -93,7 +94,7 @@ describe('message tables', () => {
 const VALID_PERSONA_FIELDS = {
   group: DemoPersonaGroup.FRESH,
   id: 'p',
-  kind: DemoPersonaKind.SELLER,
+  kind: DemoPersonaKind.SUPPLIER,
   organizationId: 'o',
   userId: 'u',
 };
@@ -103,7 +104,7 @@ describe('plain record tables', () => {
     const persona = {
       group: DemoPersonaGroup.CONSTRUCTION,
       id: 'persona-1',
-      kind: DemoPersonaKind.BUYER,
+      kind: DemoPersonaKind.CUSTOMER,
       organizationId: 'org-1',
       userId: 'user-1',
     };
@@ -130,15 +131,19 @@ describe('plain record tables', () => {
     expect(() => parseDemoPersona({ ...VALID_PERSONA_FIELDS, kind: 'robot' })).toThrow(TypeError);
   });
 
+  it('reject a persona of the kind used before the side names changed', () => {
+    expect(() => parseDemoPersona({ ...VALID_PERSONA_FIELDS, kind: LEGACY_PERSONA_KIND })).toThrow(TypeError);
+  });
+
   it('reject a persona with a missing field', () => {
-    const withoutUser = { group: DemoPersonaGroup.FRESH, id: 'p', kind: DemoPersonaKind.SELLER, organizationId: 'o' };
+    const withoutUser = { group: DemoPersonaGroup.FRESH, id: 'p', kind: DemoPersonaKind.SUPPLIER, organizationId: 'o' };
 
     expect(() => parseDemoPersona(withoutUser)).toThrow(TypeError);
   });
 
   it('reject a persona of an unknown group or without a group', () => {
     expect(() => parseDemoPersona({ ...VALID_PERSONA_FIELDS, group: 'garden' })).toThrow(TypeError);
-    expect(() => parseDemoPersona({ id: 'p', kind: DemoPersonaKind.SELLER, organizationId: 'o', userId: 'u' })).toThrow(TypeError);
+    expect(() => parseDemoPersona({ id: 'p', kind: DemoPersonaKind.SUPPLIER, organizationId: 'o', userId: 'u' })).toThrow(TypeError);
   });
 
   it('reject binary data where an object is expected', () => {

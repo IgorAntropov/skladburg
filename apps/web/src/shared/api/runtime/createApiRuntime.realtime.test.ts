@@ -21,7 +21,7 @@ import { createIdempotencyKey } from '../idempotency/createIdempotencyKey';
 import { createManualFrameScheduler } from '../realtime/testing/createManualFrameScheduler';
 import { createApiRuntime } from './createApiRuntime';
 
-const BUYER_CHANNEL = organizationChannel(SeedOrganizationId.BUYER_1);
+const CUSTOMER_CHANNEL = organizationChannel(SeedOrganizationId.CUSTOMER_1);
 
 const closers: (() => Promise<void>)[] = [];
 
@@ -51,7 +51,7 @@ const startRuntime = async (): Promise<RealtimeHarnessValue> => {
   };
   const runtime = await createApiRuntime({
     connection,
-    defaultOrganizationId: SeedOrganizationId.BUYER_1,
+    defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
     frameScheduler: frames.scheduler,
   });
   let isClosed = false;
@@ -87,7 +87,7 @@ describe('createApiRuntime realtime channel with the demo engine', () => {
   it('delivers one batch with one event after a warehouse is created', async () => {
     const { frames, runtime, waitForSubscribed } = await startRuntime();
     const batches: RealtimeBatchValue[] = [];
-    runtime.realtime.subscribe(BUYER_CHANNEL, (batch) => {
+    runtime.realtime.subscribe(CUSTOMER_CHANNEL, (batch) => {
       batches.push(batch);
     });
     await waitForSubscribed();
@@ -114,7 +114,7 @@ describe('createApiRuntime realtime channel with the demo engine', () => {
     expect(batch?.kind).toBe('events');
     const events = batch?.kind === 'events' ? batch.events : [];
     expect(events).toHaveLength(1);
-    expect(events.at(0)?.channel).toBe(BUYER_CHANNEL);
+    expect(events.at(0)?.channel).toBe(CUSTOMER_CHANNEL);
     expect(events.at(0)?.payload.case).toBe('warehouseChanged');
     expect(events.at(0)?.payload.value).toMatchObject({ warehouseId: response.warehouse?.id });
   });
@@ -123,7 +123,7 @@ describe('createApiRuntime realtime channel with the demo engine', () => {
     const { frames, runtime } = await startRuntime();
     const batches: RealtimeBatchValue[] = [];
 
-    runtime.realtime.subscribe(organizationChannel(SeedOrganizationId.SELLER_1), (batch) => {
+    runtime.realtime.subscribe(organizationChannel(SeedOrganizationId.SUPPLIER_1), (batch) => {
       batches.push(batch);
     });
     await waitForPendingFrame(frames);
@@ -139,12 +139,12 @@ describe('createApiRuntime realtime channel with the demo engine', () => {
   it('answers a change of the acting context with resync', async () => {
     const { frames, runtime, waitForSubscribed } = await startRuntime();
     const batches: RealtimeBatchValue[] = [];
-    runtime.realtime.subscribe(BUYER_CHANNEL, (batch) => {
+    runtime.realtime.subscribe(CUSTOMER_CHANNEL, (batch) => {
       batches.push(batch);
     });
     await waitForSubscribed();
 
-    runtime.actingContext.set({ organizationId: SeedOrganizationId.BUYER_1, userId: SeedUserId.STOREKEEPER_1 });
+    runtime.actingContext.set({ organizationId: SeedOrganizationId.CUSTOMER_1, userId: SeedUserId.STOREKEEPER_1 });
     frames.flushFrame();
 
     expect(batches).toEqual([{ kind: 'resync' }]);
@@ -152,7 +152,7 @@ describe('createApiRuntime realtime channel with the demo engine', () => {
 
   it('leaves no timers behind after the runtime and the engine are closed', async () => {
     const { frames, inProcess, runtime, waitForSubscribed } = await startRuntime();
-    runtime.realtime.subscribe(BUYER_CHANNEL, () => undefined);
+    runtime.realtime.subscribe(CUSTOMER_CHANNEL, () => undefined);
     await waitForSubscribed();
     await runtime.client.organization.listWarehouses({});
 

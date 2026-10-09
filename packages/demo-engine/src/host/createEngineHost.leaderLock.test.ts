@@ -39,8 +39,8 @@ import {
 import { subscribeRecorded } from './testing/recordedSubscription';
 
 const DEAD_EPOCH = 'epoch-of-the-dead-leader';
-const BUYER_CHANNEL = organizationChannel(SeedOrganizationId.BUYER_1);
-const buyerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+const CUSTOMER_CHANNEL = organizationChannel(SeedOrganizationId.CUSTOMER_1);
+const customerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
 let harness: HostHarnessValue;
 
@@ -77,8 +77,8 @@ describe('engine host holding the leadership lock', () => {
       expect(harness.lockManager.isHeld(ENGINE_LOCK_NAME)).toBe(true);
       expect(harness.lockManager.isHeld(createTabLockName(host.tabId))).toBe(true);
     }, WAIT_OPTIONS);
-    const recorded = subscribeRecorded(host, BUYER_CHANNEL, createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
-    const call = host.organization().listWarehouses({}, buyerOptions);
+    const recorded = subscribeRecorded(host, CUSTOMER_CHANNEL, createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
+    const call = host.organization().listWarehouses({}, customerOptions);
     await waitForInbox(host, 'subscribe');
     await waitForInbox(host, 'request');
     const foreign = harness.openForeignChannel();
@@ -133,7 +133,7 @@ describe('engine host holding the leadership lock', () => {
       expect(received).toContainEqual(expect.objectContaining({ epoch, type: 'leader_ready' }));
     }, WAIT_OPTIONS);
 
-    expect((await host.organization().listWarehouses({}, buyerOptions)).warehouses).toHaveLength(3);
+    expect((await host.organization().listWarehouses({}, customerOptions)).warehouses).toHaveLength(3);
     expect(readStatuses(host).map(status => status.role)).toEqual(['leader']);
     expect(readLastStatus(host)?.epoch).toBe(epoch);
     expect(countMessages(host, 'reset_done')).toBe(0);

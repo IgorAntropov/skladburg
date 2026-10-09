@@ -26,7 +26,7 @@ import type { ApiErrorValue } from '../../errors/apiErrorTypes';
 import { createTestEvent } from '../../realtime/testing/createFakeRealtimeSource';
 import { createDemoRealtimeSource } from './createDemoRealtimeSource';
 
-const CHANNEL = `org:${SeedOrganizationId.BUYER_1}`;
+const CHANNEL = `org:${SeedOrganizationId.CUSTOMER_1}`;
 
 interface RecordedSubscriptionValue {
   channel: string;
@@ -87,12 +87,12 @@ describe('createDemoRealtimeSource', () => {
 
     createDemoRealtimeSource(connection).subscribe(
       CHANNEL,
-      { organizationId: SeedOrganizationId.BUYER_1, userId: SeedUserId.ADMIN_1 },
+      { organizationId: SeedOrganizationId.CUSTOMER_1, userId: SeedUserId.ADMIN_1 },
       createHandlers().handlers,
     );
 
     expect(recorded.at(0)?.channel).toBe(CHANNEL);
-    expect(recorded.at(0)?.headers.get(ACTING_ORGANIZATION_HEADER)).toBe(SeedOrganizationId.BUYER_1);
+    expect(recorded.at(0)?.headers.get(ACTING_ORGANIZATION_HEADER)).toBe(SeedOrganizationId.CUSTOMER_1);
     expect(recorded.at(0)?.headers.get(DEMO_USER_HEADER)).toBe(SeedUserId.ADMIN_1);
   });
 
@@ -163,7 +163,7 @@ describe('createDemoRealtimeSource', () => {
 
     it('reports the position of the channel to a member of the organization', async () => {
       const { denials, positions } = await subscribeAgainstEngine(CHANNEL, {
-        organizationId: SeedOrganizationId.BUYER_1,
+        organizationId: SeedOrganizationId.CUSTOMER_1,
         userId: SeedUserId.ADMIN_1,
       });
 
@@ -174,7 +174,7 @@ describe('createDemoRealtimeSource', () => {
 
     it('turns the refusal for a missing user into session_required', async () => {
       const { denials, positions } = await subscribeAgainstEngine(CHANNEL, {
-        organizationId: SeedOrganizationId.BUYER_1,
+        organizationId: SeedOrganizationId.CUSTOMER_1,
         userId: undefined,
       });
 
@@ -185,8 +185,8 @@ describe('createDemoRealtimeSource', () => {
     });
 
     it('turns the refusal for a foreign organization into membership_required', async () => {
-      const { denials } = await subscribeAgainstEngine(`org:${SeedOrganizationId.SELLER_1}`, {
-        organizationId: SeedOrganizationId.BUYER_1,
+      const { denials } = await subscribeAgainstEngine(`org:${SeedOrganizationId.SUPPLIER_1}`, {
+        organizationId: SeedOrganizationId.CUSTOMER_1,
         userId: SeedUserId.ADMIN_1,
       });
 

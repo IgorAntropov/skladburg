@@ -37,9 +37,9 @@ import { subscribeRecorded } from './testing/recordedSubscription';
 
 const KEY_1 = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
 const LATE_TAB_ID = 'tab-late';
-const BUYER_CHANNEL = organizationChannel(SeedOrganizationId.BUYER_1);
-const buyerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
-const createBuyerHeaders = (): Headers => createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+const CUSTOMER_CHANNEL = organizationChannel(SeedOrganizationId.CUSTOMER_1);
+const customerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
+const createCustomerHeaders = (): Headers => createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 const DROP_LOG_NAME = '> EngineHost -> dropTab:';
 const TAB_LOCK_LOG_NAMES = [DROP_LOG_NAME, '> EngineHost -> watchTab:', '> EngineHost -> requestTabLock:'];
 
@@ -78,17 +78,17 @@ afterEach(async () => {
 describe('engine hosts holding the lock of their tab', () => {
   it('drops the subscriptions of a killed tab at the leader and leaves the subscriptions of the living tab alone', async () => {
     const { bystander, leader, leaderProbes, leaver } = await startTriple();
-    const bystanderRecorded = subscribeRecorded(bystander, BUYER_CHANNEL, createBuyerHeaders());
-    subscribeRecorded(leaver, BUYER_CHANNEL, createBuyerHeaders());
+    const bystanderRecorded = subscribeRecorded(bystander, CUSTOMER_CHANNEL, createCustomerHeaders());
+    subscribeRecorded(leaver, CUSTOMER_CHANNEL, createCustomerHeaders());
     await vi.waitFor(() => {
-      expect(leaderProbes[0]?.listenerCount(BUYER_CHANNEL)).toBe(2);
+      expect(leaderProbes[0]?.listenerCount(CUSTOMER_CHANNEL)).toBe(2);
     }, WAIT_OPTIONS);
     expect(harness.lockManager.waitingCount(createTabLockName(leaver.tabId))).toBe(1);
 
     leaver.kill();
 
     await vi.waitFor(() => {
-      expect(leaderProbes[0]?.listenerCount(BUYER_CHANNEL)).toBe(1);
+      expect(leaderProbes[0]?.listenerCount(CUSTOMER_CHANNEL)).toBe(1);
     }, WAIT_OPTIONS);
     expect(harness.lockManager.waitingCount(createTabLockName(leaver.tabId))).toBe(0);
     expect(readTabLockLogs()).toEqual([[DROP_LOG_NAME, {
@@ -98,20 +98,20 @@ describe('engine hosts holding the lock of their tab', () => {
     }]]);
 
     const relaysToKilledTab = countOutboxMessages(leader, 'relay_to_tab', leaver.tabId);
-    await bystander.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    await bystander.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
 
     await vi.waitFor(() => {
       expect(bystanderRecorded.events).toHaveLength(1);
     }, WAIT_OPTIONS);
     expect(countOutboxMessages(leader, 'relay_to_tab', leaver.tabId)).toBe(relaysToKilledTab);
-    expect(leaderProbes[0]?.listenerCount(BUYER_CHANNEL)).toBe(1);
+    expect(leaderProbes[0]?.listenerCount(CUSTOMER_CHANNEL)).toBe(1);
   });
 
   it('lets the leader stop waiting for a follower that stopped cleanly, without any error log', async () => {
     const { leaderProbes, leaver } = await startTriple();
-    subscribeRecorded(leaver, BUYER_CHANNEL, createBuyerHeaders());
+    subscribeRecorded(leaver, CUSTOMER_CHANNEL, createCustomerHeaders());
     await vi.waitFor(() => {
-      expect(leaderProbes[0]?.listenerCount(BUYER_CHANNEL)).toBe(1);
+      expect(leaderProbes[0]?.listenerCount(CUSTOMER_CHANNEL)).toBe(1);
     }, WAIT_OPTIONS);
     expect(harness.lockManager.waitingCount(createTabLockName(leaver.tabId))).toBe(1);
 
@@ -119,7 +119,7 @@ describe('engine hosts holding the lock of their tab', () => {
 
     await vi.waitFor(() => {
       expect(harness.lockManager.waitingCount(createTabLockName(leaver.tabId))).toBe(0);
-      expect(leaderProbes[0]?.listenerCount(BUYER_CHANNEL)).toBe(0);
+      expect(leaderProbes[0]?.listenerCount(CUSTOMER_CHANNEL)).toBe(0);
       expect(harness.lockManager.isHeld(createTabLockName(leaver.tabId))).toBe(false);
     }, WAIT_OPTIONS);
     expect(readTabLockLogs().filter(call => call[0] !== DROP_LOG_NAME)).toEqual([]);
@@ -128,9 +128,9 @@ describe('engine hosts holding the lock of their tab', () => {
 
   it('cancels the waits of the leader for foreign tab locks when the leader stops', async () => {
     const { bystander, leader, leaderProbes } = await startTriple();
-    subscribeRecorded(bystander, BUYER_CHANNEL, createBuyerHeaders());
+    subscribeRecorded(bystander, CUSTOMER_CHANNEL, createCustomerHeaders());
     await vi.waitFor(() => {
-      expect(leaderProbes[0]?.listenerCount(BUYER_CHANNEL)).toBe(1);
+      expect(leaderProbes[0]?.listenerCount(CUSTOMER_CHANNEL)).toBe(1);
     }, WAIT_OPTIONS);
     expect(harness.lockManager.waitingCount(createTabLockName(bystander.tabId))).toBe(1);
 
@@ -142,7 +142,7 @@ describe('engine hosts holding the lock of their tab', () => {
 
   it('lets the new leader wait for the lock of a tab again once that tab re-subscribes', async () => {
     const { bystander, leader, leaver } = await startTriple();
-    subscribeRecorded(leaver, BUYER_CHANNEL, createBuyerHeaders());
+    subscribeRecorded(leaver, CUSTOMER_CHANNEL, createCustomerHeaders());
     const firstEpoch = readLastStatus(leader)?.epoch ?? '';
     await vi.waitFor(() => {
       expect(harness.lockManager.waitingCount(createTabLockName(leaver.tabId))).toBe(1);
@@ -160,8 +160,8 @@ describe('engine hosts holding the lock of their tab', () => {
     const releaseTabLock = harness.lockManager.occupy(createTabLockName(LATE_TAB_ID));
     const { leader, leaderProbes } = await startTriple();
     const late = harness.addHost({ tabId: LATE_TAB_ID });
-    const recorded = subscribeRecorded(late, BUYER_CHANNEL, createBuyerHeaders());
-    const call = late.organization().listWarehouses({}, buyerOptions);
+    const recorded = subscribeRecorded(late, CUSTOMER_CHANNEL, createCustomerHeaders());
+    const call = late.organization().listWarehouses({}, customerOptions);
     const other = harness.addHost();
     await waitForRole(other, 'follower');
 
@@ -169,7 +169,7 @@ describe('engine hosts holding the lock of their tab', () => {
     expect(countOutboxMessages(late, 'relay_to_leader')).toBe(0);
     expect(countOutboxMessages(late, 'leader_query')).toBe(0);
     expect(harness.lockManager.waitingCount(createTabLockName(LATE_TAB_ID))).toBe(1);
-    expect(leaderProbes[0]?.listenerCount(BUYER_CHANNEL)).toBe(0);
+    expect(leaderProbes[0]?.listenerCount(CUSTOMER_CHANNEL)).toBe(0);
 
     releaseTabLock();
 
@@ -180,7 +180,7 @@ describe('engine hosts holding the lock of their tab', () => {
     expect(readLastStatus(late)?.role).toBe('follower');
     expect(readLastStatus(late)?.epoch).toBe(readLastStatus(leader)?.epoch);
     expect(countOutboxMessages(late, 'relay_to_leader')).toBeGreaterThan(0);
-    expect(leaderProbes[0]?.listenerCount(BUYER_CHANNEL)).toBe(1);
+    expect(leaderProbes[0]?.listenerCount(CUSTOMER_CHANNEL)).toBe(1);
   });
 
   it('does not request the lock of its tab in the single-tab mode', async () => {

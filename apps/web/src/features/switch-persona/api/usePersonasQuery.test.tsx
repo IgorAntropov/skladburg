@@ -30,13 +30,13 @@ import {
 import { createTestRuntime } from '@/shared/api/index.testing';
 
 import {
-  FRESH_BUYER_FIXTURE,
   FRESH_CARRIER_FIXTURE,
+  FRESH_CUSTOMER_FIXTURE,
 } from '../lib/testing/personaFixtures';
 import { personaKeys } from './personaKeys';
 import { usePersonasQuery } from './usePersonasQuery';
 
-const PERSONAS: readonly DemoPersonaListItemValue[] = [FRESH_BUYER_FIXTURE, FRESH_CARRIER_FIXTURE];
+const PERSONAS: readonly DemoPersonaListItemValue[] = [FRESH_CUSTOMER_FIXTURE, FRESH_CARRIER_FIXTURE];
 
 const createDemoControl = (listPersonas: IDemoControl['listPersonas']): IDemoControl => ({
   listPersonas,

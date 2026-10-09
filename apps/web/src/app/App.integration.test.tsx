@@ -52,7 +52,7 @@ import { createMemoryLocation } from '@/shared/routing/index.testing';
 import { App } from './App';
 import { createTestThemeStore } from './lib/testing/themeFixtures';
 
-const BRAND_NAME = 'Покупатель 1';
+const BRAND_NAME = 'Заказчик 1';
 const PRODUCT_NAME = defaultLocaleCatalog['app.productName'];
 const SIGN_IN_LINE = /Войти как/;
 const SEED_WAREHOUSE_COUNT = 3;
@@ -244,9 +244,9 @@ const formatProfileButtonName = (userDisplayName: string, organizationName: stri
     .replace('{organization}', organizationName);
 };
 
-const BUYER_BUTTON_NAME = formatProfileButtonName('Анна Смирнова', BRAND_NAME);
+const CUSTOMER_BUTTON_NAME = formatProfileButtonName('Анна Смирнова', BRAND_NAME);
 const STOREKEEPER_BUTTON_NAME = formatProfileButtonName('Иван Соколов', BRAND_NAME);
-const CARRIER_BUTTON_NAME = formatProfileButtonName('Дмитрий Васильев', 'Логист 1');
+const CARRIER_BUTTON_NAME = formatProfileButtonName('Дмитрий Васильев', 'Перевозчик 1');
 const PROFILE_BUTTON_PATTERN = new RegExp(`^${defaultLocaleCatalog['profile.button.loading']}`);
 
 const PERSONA_GROUP_PATTERN = new RegExp(`^${defaultLocaleCatalog['persona.group.label'].split('{group}')[0] ?? ''}`);
@@ -254,11 +254,11 @@ const PERSONA_COUNT = 8;
 
 const getProductName = (): HTMLElement => within(screen.getByRole('banner')).getByText(PRODUCT_NAME);
 
-const findProfileButton = (name: string = BUYER_BUTTON_NAME): Promise<HTMLElement> => screen.findByRole('button', { name });
+const findProfileButton = (name: string = CUSTOMER_BUTTON_NAME): Promise<HTMLElement> => screen.findByRole('button', { name });
 
 const getProfileButton = (): HTMLElement => screen.getByRole('button', { name: PROFILE_BUTTON_PATTERN });
 
-const openProfileMenu = async (buttonName: string = BUYER_BUTTON_NAME): Promise<HTMLElement> => {
+const openProfileMenu = async (buttonName: string = CUSTOMER_BUTTON_NAME): Promise<HTMLElement> => {
   const button = await findProfileButton(buttonName);
 
   fireEvent.click(button);
@@ -407,7 +407,7 @@ const formatPersonaOption = (name: string, role: string, organizationName: strin
 };
 
 const STOREKEEPER_OPTION = formatPersonaOption('Иван Соколов', 'Кладовщик', BRAND_NAME);
-const CARRIER_OPTION = formatPersonaOption('Дмитрий Васильев', 'Администратор', 'Логист 1');
+const CARRIER_OPTION = formatPersonaOption('Дмитрий Васильев', 'Администратор', 'Перевозчик 1');
 
 const choosePersona = async (optionName: string): Promise<void> => {
   const menu = await openProfileMenu();
@@ -489,7 +489,7 @@ describe.each(['desktop', 'phone'] as const)('App focus and announcements when t
     const button = await findProfileButton(STOREKEEPER_BUTTON_NAME);
 
     expect(button).not.toBe(previousButton);
-    expect(screen.queryByRole('button', { name: BUYER_BUTTON_NAME })).toBeNull();
+    expect(screen.queryByRole('button', { name: CUSTOMER_BUTTON_NAME })).toBeNull();
     await waitFor(() => {
       expect(document.activeElement).toBe(button);
     });
@@ -552,7 +552,7 @@ describe.each(['desktop', 'phone'] as const)('App focus and announcements when t
     await waitForSettledFocus();
 
     expect(setSpy).toHaveBeenCalledTimes(1);
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: BUYER_BUTTON_NAME }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: CUSTOMER_BUTTON_NAME }));
     expect(runtime.actingContext.get().userId).toBe(SeedUserId.ADMIN_1);
     expect(getWarehouseItems()).toHaveLength(SEED_WAREHOUSE_COUNT);
     watch.stop();
@@ -563,7 +563,7 @@ describe('App sections of the persona on the demo engine', () => {
   it('opens the storekeeper on the warehouse with one section and one warehouse', async () => {
     const { frames, location } = await startApplication({
       initialPath: '/',
-      preferredContext: { organizationId: SeedOrganizationId.BUYER_1, userId: SeedUserId.STOREKEEPER_1 },
+      preferredContext: { organizationId: SeedOrganizationId.CUSTOMER_1, userId: SeedUserId.STOREKEEPER_1 },
     });
 
     expect(location.history).toEqual(['/warehouse']);
@@ -574,13 +574,13 @@ describe('App sections of the persona on the demo engine', () => {
   it('replaces a section that the storekeeper cannot open with the warehouse', async () => {
     const { location } = await startApplication({
       initialPath: '/catalog',
-      preferredContext: { organizationId: SeedOrganizationId.BUYER_1, userId: SeedUserId.STOREKEEPER_1 },
+      preferredContext: { organizationId: SeedOrganizationId.CUSTOMER_1, userId: SeedUserId.STOREKEEPER_1 },
     });
 
     expect(location.history).toEqual(['/warehouse']);
   });
 
-  it('shows the administrator of the buyer all four sections', async () => {
+  it('shows the administrator of the customer all four sections', async () => {
     await startApplication({ initialPath: '/network' });
 
     expect(getNavigationTitles()).toEqual(APP_SECTIONS.map(getSectionTitle));

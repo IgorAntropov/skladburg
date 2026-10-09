@@ -66,12 +66,12 @@ describe('OrganizationService.listWarehouses', () => {
   it('returns all warehouses of the organization to a user with an organization-wide role', async () => {
     const { organization } = createModuleHarness();
 
-    const response = await organization.listWarehouses({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
+    const response = await organization.listWarehouses({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
     expect(response.warehouses.map(warehouse => warehouse.id).sort()).toEqual([
-      SeedWarehouseId.BUYER_1_WAREHOUSE_1,
-      SeedWarehouseId.BUYER_1_WAREHOUSE_2,
-      SeedWarehouseId.BUYER_1_WAREHOUSE_3,
+      SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1,
+      SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2,
+      SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3,
     ]);
     expect(response.page?.nextPageToken).toBe('');
   });
@@ -79,55 +79,55 @@ describe('OrganizationService.listWarehouses', () => {
   it('returns only the warehouse of the role area to a storekeeper', async () => {
     const { organization } = createModuleHarness();
 
-    const response = await organization.listWarehouses({}, callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1));
+    const response = await organization.listWarehouses({}, callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1));
 
-    expect(response.warehouses.map(warehouse => warehouse.id)).toEqual([SeedWarehouseId.BUYER_1_WAREHOUSE_1]);
+    expect(response.warehouses.map(warehouse => warehouse.id)).toEqual([SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1]);
   });
 
   it('returns the warehouses listed in the role assignment', async () => {
     const harness = createModuleHarness();
     const userId = await addTestMember(harness, {
-      organizationId: SeedOrganizationId.BUYER_1,
+      organizationId: SeedOrganizationId.CUSTOMER_1,
       permissions: ['warehouse_view'],
-      warehouseIds: [SeedWarehouseId.BUYER_1_WAREHOUSE_2, SeedWarehouseId.BUYER_1_WAREHOUSE_3],
+      warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2, SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3],
     });
 
-    const response = await harness.organization.listWarehouses({}, callAs(userId, SeedOrganizationId.BUYER_1));
+    const response = await harness.organization.listWarehouses({}, callAs(userId, SeedOrganizationId.CUSTOMER_1));
 
     expect(response.warehouses.map(warehouse => warehouse.id).sort()).toEqual([
-      SeedWarehouseId.BUYER_1_WAREHOUSE_2,
-      SeedWarehouseId.BUYER_1_WAREHOUSE_3,
+      SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2,
+      SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3,
     ]);
   });
 
   it('never returns the warehouses of another organization', async () => {
     const { organization } = createModuleHarness();
 
-    const response = await organization.listWarehouses({}, callAs(SeedUserId.ADMIN_5, SeedOrganizationId.BUYER_2));
+    const response = await organization.listWarehouses({}, callAs(SeedUserId.ADMIN_5, SeedOrganizationId.CUSTOMER_2));
 
     expect(response.warehouses.map(warehouse => warehouse.id).sort()).toEqual([
-      SeedWarehouseId.BUYER_2_SITE_1,
-      SeedWarehouseId.BUYER_2_SITE_2,
+      SeedWarehouseId.CUSTOMER_2_SITE_1,
+      SeedWarehouseId.CUSTOMER_2_SITE_2,
     ]);
-    expect(response.warehouses.every(warehouse => warehouse.tenantId === SeedOrganizationId.BUYER_2)).toBe(true);
+    expect(response.warehouses.every(warehouse => warehouse.tenantId === SeedOrganizationId.CUSTOMER_2)).toBe(true);
   });
 
   it('does not let a role point at a warehouse of another organization', async () => {
     const harness = createModuleHarness();
     const userId = await addTestMember(harness, {
-      organizationId: SeedOrganizationId.BUYER_1,
+      organizationId: SeedOrganizationId.CUSTOMER_1,
       permissions: ['warehouse_view'],
-      warehouseIds: [SeedWarehouseId.BUYER_2_SITE_1],
+      warehouseIds: [SeedWarehouseId.CUSTOMER_2_SITE_1],
     });
 
-    const response = await harness.organization.listWarehouses({}, callAs(userId, SeedOrganizationId.BUYER_1));
+    const response = await harness.organization.listWarehouses({}, callAs(userId, SeedOrganizationId.CUSTOMER_1));
 
     expect(response.warehouses).toEqual([]);
   });
 
   it('pages through the warehouses', async () => {
     const { organization } = createModuleHarness();
-    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
     const first = await organization.listWarehouses({ page: { pageSize: 2 } }, options);
     const second = await organization.listWarehouses({ page: { pageSize: 2, pageToken: first.page?.nextPageToken } }, options);
 
@@ -140,12 +140,12 @@ describe('OrganizationService.listWarehouses', () => {
   it('rejects a user without the warehouse_view permission with permission_denied naming it', async () => {
     const harness = createModuleHarness();
     const userId = await addTestMember(harness, {
-      organizationId: SeedOrganizationId.BUYER_1,
+      organizationId: SeedOrganizationId.CUSTOMER_1,
       permissions: ['member_view'],
       warehouseIds: [],
     });
 
-    const error = await captureError(harness.organization.listWarehouses({}, callAs(userId, SeedOrganizationId.BUYER_1)));
+    const error = await captureError(harness.organization.listWarehouses({}, callAs(userId, SeedOrganizationId.CUSTOMER_1)));
     const detail = readErrorDetail(error);
 
     expect(error.code).toBe(Code.PermissionDenied);
@@ -156,7 +156,7 @@ describe('OrganizationService.listWarehouses', () => {
   it('rejects a call without a user with session_required', async () => {
     const { organization } = createModuleHarness();
 
-    const error = await captureError(organization.listWarehouses({}, callAs(undefined, SeedOrganizationId.BUYER_1)));
+    const error = await captureError(organization.listWarehouses({}, callAs(undefined, SeedOrganizationId.CUSTOMER_1)));
 
     expect(error.code).toBe(Code.Unauthenticated);
     expect(readErrorDetail(error).code).toBe(ErrorCode.SESSION_REQUIRED);
@@ -173,7 +173,7 @@ describe('OrganizationService.listWarehouses', () => {
   it('rejects a foreign acting organization with membership_required', async () => {
     const { organization } = createModuleHarness();
 
-    const error = await captureError(organization.listWarehouses({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_2)));
+    const error = await captureError(organization.listWarehouses({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_2)));
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
   });
@@ -182,12 +182,12 @@ describe('OrganizationService.listWarehouses', () => {
 describe('OrganizationService.createWarehouse', () => {
   it('creates a warehouse of the acting organization and returns it', async () => {
     const { organization } = createModuleHarness();
-    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
     const created = await organization.createWarehouse(createRequest(), options);
     const listed = await organization.listWarehouses({}, options);
 
-    expect(created.warehouse?.tenantId).toBe(SeedOrganizationId.BUYER_1);
+    expect(created.warehouse?.tenantId).toBe(SeedOrganizationId.CUSTOMER_1);
     expect(created.warehouse?.name).toBe('Склад 9');
     expect(created.warehouse?.cityId).toBe(SeedCityId.KAZAN);
     expect(created.warehouse?.capabilities).toEqual([WarehouseCapability.RAMP, WarehouseCapability.COLD]);
@@ -199,22 +199,22 @@ describe('OrganizationService.createWarehouse', () => {
   it('gives the created warehouse to its organization only', async () => {
     const { organization } = createModuleHarness();
 
-    await organization.createWarehouse(createRequest(), callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
-    const other = await organization.listWarehouses({}, callAs(SeedUserId.ADMIN_5, SeedOrganizationId.BUYER_2));
+    await organization.createWarehouse(createRequest(), callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
+    const other = await organization.listWarehouses({}, callAs(SeedUserId.ADMIN_5, SeedOrganizationId.CUSTOMER_2));
 
     expect(other.warehouses).toHaveLength(2);
   });
 
   it('publishes WarehouseChanged to the organization channel and WarehouseCreated to the warehouse channel in one command', async () => {
     const { clock, events, organization } = createModuleHarness();
-    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
     const created = await organization.createWarehouse(createRequest(), options);
     const warehouseId = created.warehouse?.id ?? '';
     const [changed, full] = events;
 
     expect(events).toHaveLength(2);
-    expect(changed?.channel).toBe(organizationChannel(SeedOrganizationId.BUYER_1));
+    expect(changed?.channel).toBe(organizationChannel(SeedOrganizationId.CUSTOMER_1));
     expect(changed?.seq).toBe(1n);
     expect(changed?.epoch).toBe(TEST_EPOCH);
     expect(changed?.payload.case).toBe('warehouseChanged');
@@ -232,7 +232,7 @@ describe('OrganizationService.createWarehouse', () => {
   it('keeps the data of the warehouse out of the organization channel event', async () => {
     const { events, organization } = createModuleHarness();
 
-    await organization.createWarehouse(createRequest(), callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
+    await organization.createWarehouse(createRequest(), callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
     const [changed] = events;
     const thinEvent = changed === undefined ? '' : toJsonString(EventSchema, changed);
     const thinBytes = changed === undefined ? '' : new TextDecoder().decode(toBinary(EventSchema, changed));
@@ -254,15 +254,15 @@ describe('OrganizationService.createWarehouse', () => {
 
   it('numbers the events of every channel from its own sequence', async () => {
     const { events, organization } = createModuleHarness();
-    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
     const first = await organization.createWarehouse(createRequest(), options);
     const second = await organization.createWarehouse(createRequest({ idempotencyKey: OTHER_KEY, name: 'Склад 10' }), options);
 
     expect(events.map(event => [event.channel, event.seq])).toEqual([
-      [organizationChannel(SeedOrganizationId.BUYER_1), 1n],
+      [organizationChannel(SeedOrganizationId.CUSTOMER_1), 1n],
       [warehouseChannel(first.warehouse?.id ?? ''), 1n],
-      [organizationChannel(SeedOrganizationId.BUYER_1), 2n],
+      [organizationChannel(SeedOrganizationId.CUSTOMER_1), 2n],
       [warehouseChannel(second.warehouse?.id ?? ''), 1n],
     ]);
   });
@@ -270,19 +270,19 @@ describe('OrganizationService.createWarehouse', () => {
   it('keeps the sequence of each organization channel independent', async () => {
     const { events, organization } = createModuleHarness();
 
-    await organization.createWarehouse(createRequest(), callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
-    await organization.createWarehouse(createRequest(), callAs(SeedUserId.ADMIN_5, SeedOrganizationId.BUYER_2));
+    await organization.createWarehouse(createRequest(), callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
+    await organization.createWarehouse(createRequest(), callAs(SeedUserId.ADMIN_5, SeedOrganizationId.CUSTOMER_2));
 
     expect(events.filter(event => event.channel.startsWith('org:')).map(event => [event.channel, event.seq])).toEqual([
-      [organizationChannel(SeedOrganizationId.BUYER_1), 1n],
-      [organizationChannel(SeedOrganizationId.BUYER_2), 1n],
+      [organizationChannel(SeedOrganizationId.CUSTOMER_1), 1n],
+      [organizationChannel(SeedOrganizationId.CUSTOMER_2), 1n],
     ]);
   });
 
   it('writes one commit per command', async () => {
     const { commits, organization } = createModuleHarness();
 
-    await organization.createWarehouse(createRequest(), callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
+    await organization.createWarehouse(createRequest(), callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
     expect(commits).toHaveLength(1);
     expect(commits[0]?.puts.warehouses?.size).toBe(1);
@@ -291,7 +291,7 @@ describe('OrganizationService.createWarehouse', () => {
 
   it('answers a repeated request with the same key by the same response, one warehouse and no new events', async () => {
     const { commits, events, organization } = createModuleHarness();
-    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
     const first = await organization.createWarehouse(createRequest(), options);
     const commitsAfterFirst = commits.length;
@@ -308,16 +308,16 @@ describe('OrganizationService.createWarehouse', () => {
   it('scopes the key to the organization', async () => {
     const { organization } = createModuleHarness();
 
-    const first = await organization.createWarehouse(createRequest(), callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
-    const second = await organization.createWarehouse(createRequest(), callAs(SeedUserId.ADMIN_5, SeedOrganizationId.BUYER_2));
+    const first = await organization.createWarehouse(createRequest(), callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
+    const second = await organization.createWarehouse(createRequest(), callAs(SeedUserId.ADMIN_5, SeedOrganizationId.CUSTOMER_2));
 
     expect(second.warehouse?.id).not.toBe(first.warehouse?.id);
-    expect(second.warehouse?.tenantId).toBe(SeedOrganizationId.BUYER_2);
+    expect(second.warehouse?.tenantId).toBe(SeedOrganizationId.CUSTOMER_2);
   });
 
   it('rejects the same key with another body with idempotency_key_reused', async () => {
     const { events, organization } = createModuleHarness();
-    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
     await organization.createWarehouse(createRequest(), options);
     const error = await captureError(organization.createWarehouse(createRequest({ name: 'Склад 10' }), options));
@@ -332,7 +332,7 @@ describe('OrganizationService.createWarehouse', () => {
 
     const error = await captureError(organization.createWarehouse(
       createRequest({ cityId: '', idempotencyKey: 'not-a-uuid', name: '' }),
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
     const violations = getViolations(readErrorDetail(error));
 
@@ -350,7 +350,7 @@ describe('OrganizationService.createWarehouse', () => {
 
     const error = await captureError(organization.createWarehouse(
       createRequest({ capabilities: [WarehouseCapability.UNSPECIFIED], timeZone: 'Moscow' }),
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
     const fieldPaths = getViolations(readErrorDetail(error)).map(violation => violation.fieldPath);
 
@@ -363,7 +363,7 @@ describe('OrganizationService.createWarehouse', () => {
 
     await captureError(organization.createWarehouse(
       createRequest({ name: '' }),
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
 
     expect(commits).toHaveLength(0);
@@ -375,7 +375,7 @@ describe('OrganizationService.createWarehouse', () => {
 
     const error = await captureError(organization.createWarehouse(
       createRequest({ cityId: UNKNOWN_ID }),
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
     const detail = readErrorDetail(error);
 
@@ -390,7 +390,7 @@ describe('OrganizationService.createWarehouse', () => {
 
     const error = await captureError(organization.createWarehouse(
       createRequest({ boardNodeId: UNKNOWN_ID }),
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
     const detail = readErrorDetail(error);
 
@@ -402,7 +402,7 @@ describe('OrganizationService.createWarehouse', () => {
 
     const error = await captureError(organization.createWarehouse(
       createRequest({ boardNodeId: SeedBoardNodeId.MOSCOW }),
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
     const detail = readErrorDetail(error);
 
@@ -411,7 +411,7 @@ describe('OrganizationService.createWarehouse', () => {
 
   it('does not store the key of a failed command', async () => {
     const { organization } = createModuleHarness();
-    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
     await captureError(organization.createWarehouse(createRequest({ cityId: UNKNOWN_ID }), options));
     const created = await organization.createWarehouse(createRequest(), options);
@@ -424,7 +424,7 @@ describe('OrganizationService.createWarehouse', () => {
 
     const error = await captureError(organization.createWarehouse(
       createRequest(),
-      callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1),
     ));
     const detail = readErrorDetail(error);
 
@@ -438,14 +438,14 @@ describe('OrganizationService.createWarehouse', () => {
   it('rejects a role with warehouse_create on one warehouse: creating a warehouse needs the whole organization', async () => {
     const harness = createModuleHarness();
     const userId = await addTestMember(harness, {
-      organizationId: SeedOrganizationId.BUYER_1,
+      organizationId: SeedOrganizationId.CUSTOMER_1,
       permissions: ['warehouse_create'],
-      warehouseIds: [SeedWarehouseId.BUYER_1_WAREHOUSE_1],
+      warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1],
     });
     const commitsBefore = harness.commits.length;
     const eventsBefore = harness.events.length;
 
-    const error = await captureError(harness.organization.createWarehouse(createRequest(), callAs(userId, SeedOrganizationId.BUYER_1)));
+    const error = await captureError(harness.organization.createWarehouse(createRequest(), callAs(userId, SeedOrganizationId.CUSTOMER_1)));
     const detail = readErrorDetail(error);
 
     expect(error.code).toBe(Code.PermissionDenied);
@@ -459,14 +459,14 @@ describe('OrganizationService.createWarehouse', () => {
   it('lets a role with warehouse_create for the whole organization create a warehouse', async () => {
     const harness = createModuleHarness();
     const userId = await addTestMember(harness, {
-      organizationId: SeedOrganizationId.BUYER_1,
+      organizationId: SeedOrganizationId.CUSTOMER_1,
       permissions: ['warehouse_create'],
       warehouseIds: [],
     });
 
-    const response = await harness.organization.createWarehouse(createRequest(), callAs(userId, SeedOrganizationId.BUYER_1));
+    const response = await harness.organization.createWarehouse(createRequest(), callAs(userId, SeedOrganizationId.CUSTOMER_1));
 
-    expect(response.warehouse?.tenantId).toBe(SeedOrganizationId.BUYER_1);
+    expect(response.warehouse?.tenantId).toBe(SeedOrganizationId.CUSTOMER_1);
   });
 
   it('checks access before the body: a denied user with an invalid body gets permission_denied', async () => {
@@ -474,7 +474,7 @@ describe('OrganizationService.createWarehouse', () => {
 
     const error = await captureError(organization.createWarehouse(
       createRequest({ name: '' }),
-      callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1),
     ));
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.PERMISSION_DENIED);
@@ -483,7 +483,7 @@ describe('OrganizationService.createWarehouse', () => {
   it('rejects a call without a user with session_required', async () => {
     const { organization } = createModuleHarness();
 
-    const error = await captureError(organization.createWarehouse(createRequest(), callAs(undefined, SeedOrganizationId.BUYER_1)));
+    const error = await captureError(organization.createWarehouse(createRequest(), callAs(undefined, SeedOrganizationId.CUSTOMER_1)));
 
     expect(error.code).toBe(Code.Unauthenticated);
     expect(readErrorDetail(error).code).toBe(ErrorCode.SESSION_REQUIRED);
@@ -502,7 +502,7 @@ describe('OrganizationService.createWarehouse', () => {
 
     const error = await captureError(organization.createWarehouse(
       createRequest(),
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_2),
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_2),
     ));
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);

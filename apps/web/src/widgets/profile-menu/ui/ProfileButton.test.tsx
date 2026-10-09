@@ -32,15 +32,15 @@ import {
   createProfileLocalizer,
   createProfileRoutes,
   PROFILE_ACTING_CONTEXT,
-  PROFILE_BUYER_PERSONA,
+  PROFILE_CUSTOMER_PERSONA,
   ProfileTreeProviders,
 } from '../lib/testing/profileMenuHarness';
 import { ProfileButton } from './ProfileButton';
 
 const LOADING_NAME = defaultLocaleCatalog['profile.button.loading'];
 const READY_NAME = defaultLocaleCatalog['profile.button.label']
-  .replace('{name}', PROFILE_BUYER_PERSONA.userDisplayName)
-  .replace('{organization}', PROFILE_BUYER_PERSONA.organizationName);
+  .replace('{name}', PROFILE_CUSTOMER_PERSONA.userDisplayName)
+  .replace('{organization}', PROFILE_CUSTOMER_PERSONA.organizationName);
 
 const renderButton = async (ui: ReactElement, sessionOptions: ProfileSessionOptionsValue = {}): Promise<void> => {
   const localizer = await createProfileLocalizer();

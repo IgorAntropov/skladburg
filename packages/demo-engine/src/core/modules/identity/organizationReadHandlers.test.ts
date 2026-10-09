@@ -26,11 +26,11 @@ describe('OrganizationService.getOrganization', () => {
     const { organization } = createModuleHarness();
 
     const response = await organization.getOrganization(
-      { organizationId: SeedOrganizationId.BUYER_1 },
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      { organizationId: SeedOrganizationId.CUSTOMER_1 },
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     );
 
-    expect(response.organization?.id).toBe(SeedOrganizationId.BUYER_1);
+    expect(response.organization?.id).toBe(SeedOrganizationId.CUSTOMER_1);
     expect(response.organization?.legalName).not.toBe('');
     expect(response.organization?.inn).not.toBe('');
     expect(response.organization?.kpp).not.toBe('');
@@ -41,12 +41,12 @@ describe('OrganizationService.getOrganization', () => {
     const { organization } = createModuleHarness();
 
     const response = await organization.getOrganization(
-      { organizationId: SeedOrganizationId.SELLER_1 },
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      { organizationId: SeedOrganizationId.SUPPLIER_1 },
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     );
 
-    expect(response.organization?.id).toBe(SeedOrganizationId.SELLER_1);
-    expect(response.organization?.name).toBe('Продавец 1');
+    expect(response.organization?.id).toBe(SeedOrganizationId.SUPPLIER_1);
+    expect(response.organization?.name).toBe('Поставщик 1');
     expect(response.organization?.profiles.length).toBeGreaterThan(0);
     expect(response.organization?.sphereIds).toEqual([SeedSphereId.DAIRY, SeedSphereId.FRUIT_AND_VEGETABLES]);
     expect(response.organization?.legalName).toBe('');
@@ -59,8 +59,8 @@ describe('OrganizationService.getOrganization', () => {
     const { organization } = createModuleHarness();
 
     const error = await captureError(organization.getOrganization(
-      { organizationId: SeedOrganizationId.SELLER_5 },
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      { organizationId: SeedOrganizationId.SUPPLIER_5 },
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
     const detail = readErrorDetail(error);
 
@@ -73,8 +73,8 @@ describe('OrganizationService.getOrganization', () => {
     const { organization } = createModuleHarness();
 
     const error = await captureError(organization.getOrganization(
-      { organizationId: SeedOrganizationId.BUYER_1 },
-      callAs(SeedUserId.ADMIN_9, SeedOrganizationId.SELLER_5),
+      { organizationId: SeedOrganizationId.CUSTOMER_1 },
+      callAs(SeedUserId.ADMIN_9, SeedOrganizationId.SUPPLIER_5),
     ));
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.NOT_FOUND);
@@ -84,8 +84,8 @@ describe('OrganizationService.getOrganization', () => {
     const { organization } = createModuleHarness();
 
     const response = await organization.getOrganization(
-      { organizationId: SeedOrganizationId.SELLER_5 },
-      callAs(SeedUserId.ADMIN_9, SeedOrganizationId.SELLER_5),
+      { organizationId: SeedOrganizationId.SUPPLIER_5 },
+      callAs(SeedUserId.ADMIN_9, SeedOrganizationId.SUPPLIER_5),
     );
 
     expect(response.organization?.inn).not.toBe('');
@@ -93,10 +93,10 @@ describe('OrganizationService.getOrganization', () => {
 
   it('answers a missing organization exactly like a hidden one', async () => {
     const { organization } = createModuleHarness();
-    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+    const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
     const missing = await captureError(organization.getOrganization({ organizationId: UNKNOWN_ID }, options));
-    const hidden = await captureError(organization.getOrganization({ organizationId: SeedOrganizationId.SELLER_5 }, options));
+    const hidden = await captureError(organization.getOrganization({ organizationId: SeedOrganizationId.SUPPLIER_5 }, options));
 
     expect(missing.code).toBe(hidden.code);
     expect(readErrorDetail(missing).code).toBe(readErrorDetail(hidden).code);
@@ -108,7 +108,7 @@ describe('OrganizationService.getOrganization', () => {
 
     const error = await captureError(organization.getOrganization(
       { organizationId: 'not-a-uuid' },
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
     const detail = readErrorDetail(error);
 
@@ -123,8 +123,8 @@ describe('OrganizationService.getOrganization', () => {
     const { organization } = createModuleHarness();
 
     const error = await captureError(organization.getOrganization(
-      { organizationId: SeedOrganizationId.BUYER_1 },
-      callAs(undefined, SeedOrganizationId.BUYER_1),
+      { organizationId: SeedOrganizationId.CUSTOMER_1 },
+      callAs(undefined, SeedOrganizationId.CUSTOMER_1),
     ));
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.SESSION_REQUIRED);
@@ -134,7 +134,7 @@ describe('OrganizationService.getOrganization', () => {
     const { organization } = createModuleHarness();
 
     const error = await captureError(organization.getOrganization(
-      { organizationId: SeedOrganizationId.BUYER_1 },
+      { organizationId: SeedOrganizationId.CUSTOMER_1 },
       callAs(SeedUserId.ADMIN_1),
     ));
 
@@ -145,8 +145,8 @@ describe('OrganizationService.getOrganization', () => {
     const { organization } = createModuleHarness();
 
     const error = await captureError(organization.getOrganization(
-      { organizationId: SeedOrganizationId.BUYER_1 },
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.SELLER_1),
+      { organizationId: SeedOrganizationId.CUSTOMER_1 },
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.SUPPLIER_1),
     ));
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
@@ -157,30 +157,30 @@ describe('OrganizationService.getOrganizationSettings', () => {
   it('returns the settings of the acting organization', async () => {
     const { organization } = createModuleHarness();
 
-    const response = await organization.getOrganizationSettings({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
+    const response = await organization.getOrganizationSettings({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
-    expect(response.settings?.organizationId).toBe(SeedOrganizationId.BUYER_1);
-    expect(response.settings?.brandName).toBe('Покупатель 1');
+    expect(response.settings?.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
+    expect(response.settings?.brandName).toBe('Заказчик 1');
     expect(response.settings?.defaultLocale).toBe('ru');
   });
 
   it('returns the settings of the organization the context points at, never of another one', async () => {
     const { organization } = createModuleHarness();
 
-    const response = await organization.getOrganizationSettings({}, callAs(SeedUserId.ADMIN_2, SeedOrganizationId.SELLER_1));
+    const response = await organization.getOrganizationSettings({}, callAs(SeedUserId.ADMIN_2, SeedOrganizationId.SUPPLIER_1));
 
-    expect(response.settings?.organizationId).toBe(SeedOrganizationId.SELLER_1);
+    expect(response.settings?.organizationId).toBe(SeedOrganizationId.SUPPLIER_1);
   });
 
   it('answers not_found when the organization has no settings record', async () => {
     const harness = createModuleHarness();
     await harness.runtime.command((transaction) => {
-      transaction.delete('organizationSettings', SeedOrganizationId.BUYER_1);
+      transaction.delete('organizationSettings', SeedOrganizationId.CUSTOMER_1);
     });
 
     const error = await captureError(harness.organization.getOrganizationSettings(
       {},
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.NOT_FOUND);
@@ -189,7 +189,7 @@ describe('OrganizationService.getOrganizationSettings', () => {
   it('rejects a call without a user with session_required', async () => {
     const { organization } = createModuleHarness();
 
-    const error = await captureError(organization.getOrganizationSettings({}, callAs(undefined, SeedOrganizationId.BUYER_1)));
+    const error = await captureError(organization.getOrganizationSettings({}, callAs(undefined, SeedOrganizationId.CUSTOMER_1)));
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.SESSION_REQUIRED);
   });
@@ -207,7 +207,7 @@ describe('OrganizationService.getOrganizationSettings', () => {
 
     const error = await captureError(organization.getOrganizationSettings(
       {},
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.SELLER_1),
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.SUPPLIER_1),
     ));
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
@@ -248,7 +248,7 @@ describe('OrganizationService.listSpheres', () => {
   it('rejects an acting organization the user does not belong to with membership_required', async () => {
     const { organization } = createModuleHarness();
 
-    const error = await captureError(organization.listSpheres({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.SELLER_1)));
+    const error = await captureError(organization.listSpheres({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.SUPPLIER_1)));
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
   });

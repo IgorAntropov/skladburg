@@ -75,12 +75,12 @@ describe.each([
     const { engine } = await createTestEngine();
     const caller = createEngineCaller(engine, useBinaryFormat);
 
-    const response = await caller.organization.listWarehouses({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
+    const response = await caller.organization.listWarehouses({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
     expect(response.warehouses.map(warehouse => warehouse.id).sort()).toEqual([
-      SeedWarehouseId.BUYER_1_WAREHOUSE_1,
-      SeedWarehouseId.BUYER_1_WAREHOUSE_2,
-      SeedWarehouseId.BUYER_1_WAREHOUSE_3,
+      SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1,
+      SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2,
+      SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3,
     ]);
   });
 
@@ -88,10 +88,10 @@ describe.each([
     const { engine } = await createTestEngine();
     const caller = createEngineCaller(engine, useBinaryFormat);
 
-    const response = await caller.organization.getOrganizationSettings({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1));
+    const response = await caller.organization.getOrganizationSettings({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
-    expect(response.settings?.organizationId).toBe(SeedOrganizationId.BUYER_1);
-    expect(response.settings?.brandName).toBe('Покупатель 1');
+    expect(response.settings?.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
+    expect(response.settings?.brandName).toBe('Заказчик 1');
     expect(response.settings?.defaultLocale).toBe('ru');
   });
 
@@ -101,10 +101,10 @@ describe.each([
 
     const response = await caller.organization.createWarehouse(
       createWarehouseRequest(KEY),
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     );
 
-    expect(response.warehouse?.tenantId).toBe(SeedOrganizationId.BUYER_1);
+    expect(response.warehouse?.tenantId).toBe(SeedOrganizationId.CUSTOMER_1);
     expect(response.warehouse?.name).toBe('Склад 9');
   });
 
@@ -114,7 +114,7 @@ describe.each([
 
     const error = await captureError(caller.organization.createWarehouse(
       createWarehouseRequest(KEY),
-      callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1),
     ));
     const detail = readErrorDetail(error);
 
@@ -142,7 +142,7 @@ describe.each([
 
     const error = await captureError(caller.organization.createWarehouse(
       createWarehouseRequest(KEY, { name: '' }),
-      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
     const detail = readErrorDetail(error);
 

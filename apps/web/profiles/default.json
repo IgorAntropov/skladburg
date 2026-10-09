@@ -2,7 +2,7 @@
   "bundledLocales": ["ru"],
   "defaultTenant": {
     "availableLocales": ["ru"],
-    "brandName": "Покупатель 1",
+    "brandName": "Заказчик 1",
     "defaultLocale": "ru",
     "tenantId": "10000001-0000-4000-8000-000000000000",
     "termOverrides": {}

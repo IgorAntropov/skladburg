@@ -39,15 +39,15 @@ afterEach(async () => {
 });
 
 describe('default build profile and the seed data of the demo engine', () => {
-  it('names the buyer organization of the seed data', () => {
-    expect(defaultTenant.tenantId).toBe(SeedOrganizationId.BUYER_1);
+  it('names the customer organization of the seed data', () => {
+    expect(defaultTenant.tenantId).toBe(SeedOrganizationId.CUSTOMER_1);
   });
 
   it('starts the runtime as the administrator of the profile organization', async () => {
     const runtime = await startRuntimeForDefaultProfile();
 
     expect(runtime.actingContext.get()).toEqual({
-      organizationId: SeedOrganizationId.BUYER_1,
+      organizationId: SeedOrganizationId.CUSTOMER_1,
       userId: SeedUserId.ADMIN_1,
     });
   });

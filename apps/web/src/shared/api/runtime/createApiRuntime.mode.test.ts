@@ -29,7 +29,7 @@ describe('createApiRuntime transport choice', () => {
 
     return createApiRuntime({
       connection: inProcess.connection,
-      defaultOrganizationId: SeedOrganizationId.BUYER_1,
+      defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
     });
   };
 

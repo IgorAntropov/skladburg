@@ -59,9 +59,9 @@ import { subscribeRecorded } from './testing/recordedSubscription';
 const KEY_1 = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
 const KEY_2 = '8d14e6a2-0b3c-4f57-9a68-12cd45ef7890';
 
-const BUYER_CHANNEL = organizationChannel(SeedOrganizationId.BUYER_1);
-const buyerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
-const createBuyerHeaders = (): Headers => createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+const CUSTOMER_CHANNEL = organizationChannel(SeedOrganizationId.CUSTOMER_1);
+const customerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
+const createCustomerHeaders = (): Headers => createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
 let harness: HostHarnessValue;
 
@@ -91,7 +91,7 @@ describe('engine host as the only tab', () => {
   it.each([true, false])('answers Connect calls through the port (binary format: %s)', async (useBinaryFormat) => {
     const fixture = harness.addHost();
 
-    const response = await fixture.organization(useBinaryFormat).listWarehouses({}, buyerOptions);
+    const response = await fixture.organization(useBinaryFormat).listWarehouses({}, customerOptions);
 
     expect(response.warehouses).toHaveLength(3);
   });
@@ -101,7 +101,7 @@ describe('engine host as the only tab', () => {
 
     const error = await captureError(fixture.organization().createWarehouse(
       createWarehouseRequest(KEY_1),
-      callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1),
     ));
 
     const detail = readErrorDetail(error);
@@ -112,11 +112,11 @@ describe('engine host as the only tab', () => {
 
   it('answers a request only after the commit of the storage finished', async () => {
     const fixture = harness.addHost();
-    await fixture.organization().listWarehouses({}, buyerOptions);
+    await fixture.organization().listWarehouses({}, customerOptions);
     const release = harness.storage.gateCommits();
     let isAnswered = false;
 
-    const call = fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions).then(() => {
+    const call = fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions).then(() => {
       isAnswered = true;
     });
     await vi.waitFor(() => {
@@ -138,13 +138,13 @@ describe('engine host as the only tab', () => {
     const personas = await fixture.connection.control.listPersonas();
 
     expect(personas.length).toBeGreaterThan(0);
-    expect(personas.some(persona => persona.kind === DemoPersonaKind.BUYER)).toBe(true);
+    expect(personas.some(persona => persona.kind === DemoPersonaKind.CUSTOMER)).toBe(true);
 
-    const buyer = personas.find(persona => persona.kind === DemoPersonaKind.BUYER);
+    const customer = personas.find(persona => persona.kind === DemoPersonaKind.CUSTOMER);
 
-    expect(buyer?.group).toBe(DemoPersonaGroup.FRESH);
-    expect(buyer?.userDisplayName).toBe('Анна Смирнова');
-    expect(buyer?.roleName).toBe('Администратор');
+    expect(customer?.group).toBe(DemoPersonaGroup.FRESH);
+    expect(customer?.userDisplayName).toBe('Анна Смирнова');
+    expect(customer?.roleName).toBe('Администратор');
   });
 });
 
@@ -173,8 +173,8 @@ describe('engine host requests before the engine is ready', () => {
   it('holds a call and a subscription until the engine is ready and then serves both', async () => {
     const gated = createGatedStorage();
     const fixture = harness.addHost({ openStorage: gated.openStorage });
-    const recorded = subscribeRecorded(fixture, BUYER_CHANNEL, createBuyerHeaders());
-    const call = fixture.organization().listWarehouses({}, buyerOptions);
+    const recorded = subscribeRecorded(fixture, CUSTOMER_CHANNEL, createCustomerHeaders());
+    const call = fixture.organization().listWarehouses({}, customerOptions);
     await settleMicrotasks();
 
     expect(readLastStatus(fixture)).toBeUndefined();
@@ -193,7 +193,7 @@ describe('engine host requests before the engine is ready', () => {
     const controller = new AbortController();
 
     const aborted = captureError(fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), {
-      ...buyerOptions,
+      ...customerOptions,
       signal: controller.signal,
     }));
     await waitForInbox(fixture, 'request');
@@ -204,7 +204,7 @@ describe('engine host requests before the engine is ready', () => {
 
     gated.open();
     await waitForRole(fixture, 'leader');
-    const listed = await fixture.organization().listWarehouses({}, buyerOptions);
+    const listed = await fixture.organization().listWarehouses({}, customerOptions);
 
     expect(listed.warehouses).toHaveLength(3);
     expect(harness.storage.commits).toHaveLength(0);
@@ -219,14 +219,14 @@ describe('engine host aborts and shutdown', () => {
     const release = probes[0]?.holdHandle() ?? (() => undefined);
     const controller = new AbortController();
 
-    const aborted = captureError(fixture.organization().listWarehouses({}, { ...buyerOptions, signal: controller.signal }));
+    const aborted = captureError(fixture.organization().listWarehouses({}, { ...customerOptions, signal: controller.signal }));
     await vi.waitFor(() => {
       expect(probes[0]?.handleCount()).toBe(1);
     }, WAIT_OPTIONS);
     controller.abort();
     await waitForInbox(fixture, 'abort');
     release();
-    await fixture.organization().listWarehouses({}, buyerOptions);
+    await fixture.organization().listWarehouses({}, customerOptions);
 
     expect((await aborted).code).toBe(Code.Canceled);
     expect(countMessages(fixture, 'response')).toBe(1);
@@ -271,12 +271,12 @@ describe('engine host aborts and shutdown', () => {
 describe('engine host subscriptions', () => {
   it('reports the epoch and the seq of the channel, and the first batch continues with the next seq', async () => {
     const fixture = harness.addHost();
-    const recorded = subscribeRecorded(fixture, BUYER_CHANNEL, createBuyerHeaders());
+    const recorded = subscribeRecorded(fixture, CUSTOMER_CHANNEL, createCustomerHeaders());
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(1);
     }, WAIT_OPTIONS);
 
-    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
     await vi.waitFor(() => {
       expect(recorded.events).toHaveLength(1);
     }, WAIT_OPTIONS);
@@ -290,9 +290,9 @@ describe('engine host subscriptions', () => {
 
   it('reports seq 1 for the warehouse channel of a just created warehouse', async () => {
     const fixture = harness.addHost();
-    const created = await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    const created = await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
 
-    const recorded = subscribeRecorded(fixture, warehouseChannel(created.warehouse?.id ?? ''), createBuyerHeaders());
+    const recorded = subscribeRecorded(fixture, warehouseChannel(created.warehouse?.id ?? ''), createCustomerHeaders());
 
     await vi.waitFor(() => {
       expect(recorded.positions.map(position => position.seq)).toEqual([1n]);
@@ -302,7 +302,7 @@ describe('engine host subscriptions', () => {
   it('denies an invalid channel with not_found for the channel entity', async () => {
     const fixture = harness.addHost();
 
-    const recorded = subscribeRecorded(fixture, 'garbage', createBuyerHeaders());
+    const recorded = subscribeRecorded(fixture, 'garbage', createCustomerHeaders());
 
     await vi.waitFor(() => {
       expect(recorded.denied).toHaveLength(1);
@@ -314,15 +314,15 @@ describe('engine host subscriptions', () => {
 
   it('sends one events message per subscription for the event of a command', async () => {
     const fixture = harness.addHost();
-    const first = subscribeRecorded(fixture, BUYER_CHANNEL, createBuyerHeaders());
-    const second = subscribeRecorded(fixture, BUYER_CHANNEL, createBuyerHeaders());
+    const first = subscribeRecorded(fixture, CUSTOMER_CHANNEL, createCustomerHeaders());
+    const second = subscribeRecorded(fixture, CUSTOMER_CHANNEL, createCustomerHeaders());
     await vi.waitFor(() => {
       expect(first.positions).toHaveLength(1);
       expect(second.positions).toHaveLength(1);
     }, WAIT_OPTIONS);
 
-    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
-    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_2, { name: 'Склад 10' }), buyerOptions);
+    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
+    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_2, { name: 'Склад 10' }), customerOptions);
 
     await vi.waitFor(() => {
       expect(first.events).toHaveLength(2);
@@ -333,14 +333,14 @@ describe('engine host subscriptions', () => {
 
   it('delivers nothing after unsubscribe', async () => {
     const fixture = harness.addHost();
-    const recorded = subscribeRecorded(fixture, BUYER_CHANNEL, createBuyerHeaders());
+    const recorded = subscribeRecorded(fixture, CUSTOMER_CHANNEL, createCustomerHeaders());
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(1);
     }, WAIT_OPTIONS);
 
     recorded.unsubscribe();
-    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
-    await fixture.organization().listWarehouses({}, buyerOptions);
+    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
+    await fixture.organization().listWarehouses({}, customerOptions);
 
     expect(countMessages(fixture, 'events')).toBe(0);
   });
@@ -350,7 +350,7 @@ describe('engine host event batches', () => {
   const probes: EngineProbeValue[] = [];
 
   const createEvents = (seqs: readonly bigint[]): ReturnType<typeof create<typeof EventSchema>>[] =>
-    seqs.map(seq => create(EventSchema, { channel: BUYER_CHANNEL, seq }));
+    seqs.map(seq => create(EventSchema, { channel: CUSTOMER_CHANNEL, seq }));
 
   beforeEach(() => {
     probes.length = 0;
@@ -358,13 +358,13 @@ describe('engine host event batches', () => {
 
   it('sends the events of one command as one message per subscription', async () => {
     const fixture = harness.addHost({ loadCore: createProbeLoader(probes) });
-    const recorded = subscribeRecorded(fixture, BUYER_CHANNEL, createBuyerHeaders());
+    const recorded = subscribeRecorded(fixture, CUSTOMER_CHANNEL, createCustomerHeaders());
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(1);
     }, WAIT_OPTIONS);
 
-    probes[0]?.emitDuring('handle', BUYER_CHANNEL, [createEvents([1n]), createEvents([2n, 3n]), createEvents([4n])]);
-    await fixture.organization().listWarehouses({}, buyerOptions);
+    probes[0]?.emitDuring('handle', CUSTOMER_CHANNEL, [createEvents([1n]), createEvents([2n, 3n]), createEvents([4n])]);
+    await fixture.organization().listWarehouses({}, customerOptions);
 
     await vi.waitFor(() => {
       expect(recorded.events).toHaveLength(1);
@@ -375,7 +375,7 @@ describe('engine host event batches', () => {
 
   it('sends the events of one tick as one message per subscription and nothing for an empty tick', async () => {
     const fixture = harness.addHost({ loadCore: createProbeLoader(probes) });
-    const recorded = subscribeRecorded(fixture, BUYER_CHANNEL, createBuyerHeaders());
+    const recorded = subscribeRecorded(fixture, CUSTOMER_CHANNEL, createCustomerHeaders());
     await vi.waitFor(() => {
       expect(recorded.positions).toHaveLength(1);
     }, WAIT_OPTIONS);
@@ -388,7 +388,7 @@ describe('engine host event batches', () => {
 
     expect(countMessages(fixture, 'events')).toBe(0);
 
-    probes[0]?.emitDuring('tick', BUYER_CHANNEL, [createEvents([1n]), createEvents([2n])]);
+    probes[0]?.emitDuring('tick', CUSTOMER_CHANNEL, [createEvents([1n]), createEvents([2n])]);
     harness.timers.advance(250);
 
     await vi.waitFor(() => {
@@ -514,10 +514,10 @@ describe('engine host ticks and checkpoints', () => {
 describe('engine host reset', () => {
   it('replaces the world, announces the new epoch and re-issues every subscription', async () => {
     const fixture = harness.addHost();
-    const created = await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    const created = await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
     const warehouseId = created.warehouse?.id ?? '';
-    const organization = subscribeRecorded(fixture, BUYER_CHANNEL, createBuyerHeaders());
-    const warehouse = subscribeRecorded(fixture, warehouseChannel(warehouseId), createBuyerHeaders());
+    const organization = subscribeRecorded(fixture, CUSTOMER_CHANNEL, createCustomerHeaders());
+    const warehouse = subscribeRecorded(fixture, warehouseChannel(warehouseId), createCustomerHeaders());
     const resetEpochs: string[] = [];
     fixture.connection.control.onReset((epoch) => {
       resetEpochs.push(epoch);
@@ -539,19 +539,19 @@ describe('engine host reset', () => {
     expect(organization.positions[1]).toEqual({ epoch: epochAfter, seq: 0n });
     expect(warehouse.denied).toHaveLength(1);
     expect(warehouse.denied[0]?.code).toBe(ErrorCode.NOT_FOUND);
-    expect((await fixture.organization().listWarehouses({}, buyerOptions)).warehouses).toHaveLength(3);
+    expect((await fixture.organization().listWarehouses({}, customerOptions)).warehouses).toHaveLength(3);
   });
 
   it('delivers the events of the world after the reset to the re-issued subscription', async () => {
     const fixture = harness.addHost();
-    const recorded = subscribeRecorded(fixture, BUYER_CHANNEL, createBuyerHeaders());
-    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions);
+    const recorded = subscribeRecorded(fixture, CUSTOMER_CHANNEL, createCustomerHeaders());
+    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions);
     await vi.waitFor(() => {
       expect(recorded.events).toHaveLength(1);
     }, WAIT_OPTIONS);
 
     await fixture.connection.control.reset();
-    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_2), buyerOptions);
+    await fixture.organization().createWarehouse(createWarehouseRequest(KEY_2), customerOptions);
 
     await vi.waitFor(() => {
       expect(recorded.events).toHaveLength(2);
@@ -568,6 +568,6 @@ describe('engine host storage fallbacks', () => {
     await waitForRole(fixture, 'leader');
 
     expect(readLastStatus(fixture)?.storage).toBe('memory');
-    expect((await fixture.organization().listWarehouses({}, buyerOptions)).warehouses).toHaveLength(3);
+    expect((await fixture.organization().listWarehouses({}, customerOptions)).warehouses).toHaveLength(3);
   });
 });

@@ -40,7 +40,7 @@ import {
 const LIST_WAREHOUSES_URL = `${ENGINE_BASE_URL}/organization.v1.OrganizationService/ListWarehouses`;
 const KEY_1 = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
 
-const buyerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+const customerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
 const waitForRequestCount = async (requestIds: () => readonly string[], count: number): Promise<void> => {
   await vi.waitFor(() => {
@@ -61,9 +61,9 @@ afterEach(() => {
 describe('connectToEngine fetch through the Connect transport', () => {
   it.each([true, false])('lists the warehouses of the acting organization (binary format: %s)', async (useBinaryFormat) => {
     const { createOrganizationClient, stub } = await createClientHarness();
-    const expected = await createEngineCaller(stub.engine).organization.listWarehouses({}, buyerOptions);
+    const expected = await createEngineCaller(stub.engine).organization.listWarehouses({}, customerOptions);
 
-    const response = await createOrganizationClient(useBinaryFormat).listWarehouses({}, buyerOptions);
+    const response = await createOrganizationClient(useBinaryFormat).listWarehouses({}, customerOptions);
 
     expect(response.warehouses).toHaveLength(3);
     expect(response.warehouses.map(warehouse => warehouse.id)).toEqual(expected.warehouses.map(warehouse => warehouse.id));
@@ -72,7 +72,7 @@ describe('connectToEngine fetch through the Connect transport', () => {
   it('sends the request as a message with a transferred body and the headers as pairs', async () => {
     const { createOrganizationClient, stub } = await createClientHarness();
 
-    await createOrganizationClient(true).listWarehouses({}, buyerOptions);
+    await createOrganizationClient(true).listWarehouses({}, customerOptions);
 
     const request = stub.received.find(message => message.type === 'request');
     expect(request).toMatchObject({ method: 'POST', type: 'request', url: LIST_WAREHOUSES_URL });
@@ -86,7 +86,7 @@ describe('connectToEngine fetch through the Connect transport', () => {
 
     const error = await captureError(createOrganizationClient(true).createWarehouse(
       createWarehouseRequest(KEY_1),
-      callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.BUYER_1),
+      callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1),
     ));
 
     const detail = readErrorDetail(error);
@@ -100,7 +100,7 @@ describe('connectToEngine fetch through the Connect transport', () => {
     const { createOrganizationClient } = await createClientHarness();
 
     const error = await captureError(
-      createOrganizationClient(false).listWarehouses({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.SELLER_1)),
+      createOrganizationClient(false).listWarehouses({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.SUPPLIER_1)),
     );
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
@@ -122,7 +122,7 @@ describe('connectToEngine fetch cancellation', () => {
     const release = stub.holdResponses();
     const controller = new AbortController();
 
-    const call = captureError(createOrganizationClient(true).listWarehouses({}, { ...buyerOptions, signal: controller.signal }));
+    const call = captureError(createOrganizationClient(true).listWarehouses({}, { ...customerOptions, signal: controller.signal }));
     await waitForRequestCount(stub.requestIds, 1);
     controller.abort();
     const error = await call;
@@ -136,7 +136,7 @@ describe('connectToEngine fetch cancellation', () => {
 
     expect(error.code).toBe(Code.Canceled);
     expect(stub.received.filter(message => message.type === 'abort')).toEqual([{ requestId: stub.requestIds()[0], type: 'abort' }]);
-    const next = await createOrganizationClient(true).listWarehouses({}, buyerOptions);
+    const next = await createOrganizationClient(true).listWarehouses({}, customerOptions);
     expect(next.warehouses).toHaveLength(3);
   });
 
@@ -187,12 +187,12 @@ describe('connectToEngine fetch failures', () => {
     const { createOrganizationClient, stub } = await createClientHarness();
     stub.setMode('silent');
 
-    const failure = captureError(createOrganizationClient(true).listWarehouses({}, buyerOptions));
+    const failure = captureError(createOrganizationClient(true).listWarehouses({}, customerOptions));
     await vi.advanceTimersByTimeAsync(ENGINE_REQUEST_TIMEOUT_MS);
     const error = await failure;
     stub.setMode('serve');
     stub.send({ body: new ArrayBuffer(0), headers: [], requestId: stub.requestIds()[0] ?? '', status: 200, type: 'response' });
-    const next = await createOrganizationClient(true).listWarehouses({}, buyerOptions);
+    const next = await createOrganizationClient(true).listWarehouses({}, customerOptions);
 
     expect(error.code).toBe(Code.Unavailable);
     expect(error).toBeInstanceOf(ConnectError);
@@ -204,7 +204,7 @@ describe('connectToEngine fetch failures', () => {
     const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
     const { createOrganizationClient } = await createClientHarness();
 
-    await createOrganizationClient(true).listWarehouses({}, buyerOptions);
+    await createOrganizationClient(true).listWarehouses({}, customerOptions);
 
     expect(ENGINE_REQUEST_TIMEOUT_MS).toBe(10_000);
     expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 10_000);
@@ -214,7 +214,7 @@ describe('connectToEngine fetch failures', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const { createOrganizationClient } = await createClientHarness();
 
-    await createOrganizationClient(true).listWarehouses({}, buyerOptions);
+    await createOrganizationClient(true).listWarehouses({}, customerOptions);
 
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -237,7 +237,7 @@ describe('connectToEngine fetch failures', () => {
     const { createOrganizationClient, stub } = await createClientHarness();
     stub.setMode('transport_error');
 
-    const error = await captureError(createOrganizationClient(true).listWarehouses({}, buyerOptions));
+    const error = await captureError(createOrganizationClient(true).listWarehouses({}, customerOptions));
 
     expect(error.code).toBe(Code.Unavailable);
   });
@@ -246,10 +246,10 @@ describe('connectToEngine fetch failures', () => {
     const { connection, createOrganizationClient, stub } = await createClientHarness();
     stub.setMode('silent');
 
-    const pending = captureError(createOrganizationClient(true).listWarehouses({}, buyerOptions));
+    const pending = captureError(createOrganizationClient(true).listWarehouses({}, customerOptions));
     await waitForRequestCount(stub.requestIds, 1);
     connection.close();
-    const afterClose = await captureError(createOrganizationClient(true).listWarehouses({}, buyerOptions));
+    const afterClose = await captureError(createOrganizationClient(true).listWarehouses({}, customerOptions));
 
     expect((await pending).code).toBe(Code.Unavailable);
     expect(afterClose.code).toBe(Code.Unavailable);

@@ -45,7 +45,7 @@ const KEY_2 = '8d14e6a2-0b3c-4f57-9a68-12cd45ef7890';
 const HEALTH_LOG_LABEL = '> EngineHost -> storageHealth:';
 const WRITE_ERROR = new Error('The quota is exceeded');
 
-const buyerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.BUYER_1);
+const customerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
 let harness: HostHarnessValue;
 let storage: FakeIndexedDbStorageValue;
@@ -114,8 +114,8 @@ describe('storage health of the engine host', () => {
     const { follower, leader } = await startPair();
     storage.failWrites(WRITE_ERROR);
 
-    const error = await captureError(leader.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions));
-    const followerError = await captureError(follower.organization().createWarehouse(createWarehouseRequest(KEY_2), buyerOptions));
+    const error = await captureError(leader.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions));
+    const followerError = await captureError(follower.organization().createWarehouse(createWarehouseRequest(KEY_2), customerOptions));
 
     expect(error).toBeInstanceOf(ConnectError);
     expect(error.code).toBe(Code.Unavailable);
@@ -132,8 +132,8 @@ describe('storage health of the engine host', () => {
     const { leader } = await startPair();
     storage.failWrites(WRITE_ERROR);
 
-    await captureError(leader.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions));
-    await captureError(leader.organization().createWarehouse(createWarehouseRequest(KEY_2), buyerOptions));
+    await captureError(leader.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions));
+    await captureError(leader.organization().createWarehouse(createWarehouseRequest(KEY_2), customerOptions));
 
     expect(readHealthLogs()).toEqual([[HEALTH_LOG_LABEL, { error: WRITE_ERROR, health: 'failing' }]]);
   });
@@ -157,11 +157,11 @@ describe('storage health of the engine host', () => {
   it('turns ok again for both tabs after the next successful write and logs that change once', async () => {
     const { follower, leader } = await startPair();
     storage.failWrites(WRITE_ERROR);
-    await captureError(leader.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions));
+    await captureError(leader.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions));
     await waitForHealth(follower, 'failing');
     storage.failWrites(undefined);
 
-    const response = await leader.organization().createWarehouse(createWarehouseRequest(KEY_2), buyerOptions);
+    const response = await leader.organization().createWarehouse(createWarehouseRequest(KEY_2), customerOptions);
     await runCheckpointWithChange();
 
     expect(response.warehouse).toBeDefined();
@@ -192,7 +192,7 @@ describe('storage health of the engine host', () => {
     const leader = addHost();
     await waitForRole(leader, 'leader');
     storage.failWrites(WRITE_ERROR);
-    await captureError(leader.organization().createWarehouse(createWarehouseRequest(KEY_1), buyerOptions));
+    await captureError(leader.organization().createWarehouse(createWarehouseRequest(KEY_1), customerOptions));
     await waitForHealth(leader, 'failing');
 
     const late = addHost();

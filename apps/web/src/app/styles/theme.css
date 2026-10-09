@@ -16,6 +16,7 @@
   --color-line: rgb(30 42 74 / 0.14);
   --color-line-strong: #737c96;
   --color-link: #3b5bdb;
+  --color-indicator: #3b5bdb;
   --color-focus: #0f1730;
   --color-skeleton: rgb(30 42 74 / 0.08);
   --color-scrim: rgb(14 20 38 / 0.45);
@@ -62,6 +63,7 @@
   --color-line: rgb(232 228 220 / 0.14);
   --color-line-strong: #8693b5;
   --color-link: #9fb2ff;
+  --color-indicator: #9fb2ff;
   --color-focus: #e3e9ff;
   --color-skeleton: rgb(232 228 220 / 0.1);
   --color-scrim: rgb(0 0 0 / 0.6);

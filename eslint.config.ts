@@ -25,6 +25,11 @@ const navigationOwnerFiles: string[] = ['apps/web/src/shared/routing/location/**
 const navigationOwnerTestFiles: string[] = ['apps/web/src/shared/routing/location/**/*.test.{ts,tsx}'];
 const rawControlFiles: string[] = ['apps/web/src/**/*.tsx'];
 const rawControlExemptFiles: string[] = ['apps/web/src/shared/ui/**', 'apps/web/src/**/*.test.tsx'];
+const webTestFiles: string[] = ['apps/web/src/**/*.test.{ts,tsx}'];
+const lazyAppFiles: string[] = ['apps/web/src/app/**/*.{ts,tsx}'];
+const lazyWidgetFiles: string[] = ['apps/web/src/widgets/**/*.{ts,tsx}'];
+const lazyTopBarFiles: string[] = ['apps/web/src/widgets/top-bar/**/*.{ts,tsx}'];
+const lazyPhoneMenuChunkFiles: string[] = ['apps/web/src/widgets/top-bar/ui/PhoneMenu.tsx'];
 
 interface BoundaryRestrictionValue {
   importPattern: string;
@@ -62,6 +67,32 @@ const routingTestingEntryRestriction: BoundaryRestrictionValue = {
   selectorPattern: '^@.shared.routing.index.testing$',
 };
 
+interface LazyModuleRestrictionValue {
+  moduleLabel: string;
+  regex: string;
+}
+
+const lazyModuleMessageSuffix = 'is loaded lazily through import(); a static value import pulls it into the initial bundle; '
+  + 'use import type';
+
+const personaSwitcherLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'features/switch-persona',
+  regex: '^@/features/switch-persona(/|$)',
+};
+
+const sectionPagesLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'pages/*',
+  regex: '^@/pages(/|$)',
+};
+
+const phoneMenuLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'PhoneMenu',
+  regex: '(^|/)PhoneMenu(\\.tsx?)?$',
+};
+
+const appLazyRestrictions: LazyModuleRestrictionValue[] = [personaSwitcherLazyRestriction, sectionPagesLazyRestriction];
+const topBarLazyRestrictions: LazyModuleRestrictionValue[] = [...appLazyRestrictions, phoneMenuLazyRestriction];
+
 interface SyntaxRestrictionValue {
   message: string;
   selector: string;
@@ -82,6 +113,19 @@ const createBoundaryRules = (
       { message, selector: `TSImportType[argument.literal.value=/${selectorPattern}/]` },
     ]),
     ...extraSyntaxRestrictions,
+  ],
+});
+
+const createLazyModuleRules = (restrictions: readonly LazyModuleRestrictionValue[]): Linter.RulesRecord => ({
+  '@typescript-eslint/no-restricted-imports': [
+    'error',
+    {
+      patterns: restrictions.map(({ moduleLabel, regex }) => ({
+        allowTypeImports: true,
+        message: `${moduleLabel} ${lazyModuleMessageSuffix}`,
+        regex,
+      })),
+    },
   ],
 });
 
@@ -306,6 +350,7 @@ export default defineConfig(
         { allowExpressions: true, allowTypedFunctionExpressions: true },
       ],
       '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-import-type-side-effects': 'error',
       '@typescript-eslint/no-non-null-assertion': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -408,6 +453,21 @@ export default defineConfig(
   {
     files: navigationOwnerTestFiles,
     rules: createBoundaryRules([engineRestrictionForTests, registryRestriction], webTimeZoneRestrictions),
+  },
+  {
+    files: lazyAppFiles,
+    ignores: webTestFiles,
+    rules: createLazyModuleRules(appLazyRestrictions),
+  },
+  {
+    files: lazyWidgetFiles,
+    ignores: [...webTestFiles, ...lazyPhoneMenuChunkFiles],
+    rules: createLazyModuleRules(appLazyRestrictions),
+  },
+  {
+    files: lazyTopBarFiles,
+    ignores: [...webTestFiles, ...lazyPhoneMenuChunkFiles],
+    rules: createLazyModuleRules(topBarLazyRestrictions),
   },
   {
     extends: [tseslint.configs.disableTypeChecked],

@@ -1,5 +1,7 @@
 import type { AppSectionValue } from '@/shared/routing';
 
+import { createCachedModuleLoader } from '@/shared/lib/module-loader';
+
 import type {
   CachedSectionLoader,
   CachedSectionLoadersValue,
@@ -7,7 +9,6 @@ import type {
   SectionLoadersValue,
 } from './sectionPages';
 
-import { createCachedModuleLoader } from '../lib/createCachedModuleLoader';
 import { SectionChunkLoadError } from './SectionChunkLoadError';
 
 const createCachedSectionLoader = (section: AppSectionValue, loader: SectionLoader): CachedSectionLoader => {

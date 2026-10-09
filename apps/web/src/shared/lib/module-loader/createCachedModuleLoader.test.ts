@@ -99,6 +99,16 @@ describe('createCachedModuleLoader', () => {
     expect(title).toBe('ready');
   });
 
+  it('lets one thenable of the loaded module be awaited twice', async () => {
+    const loadedModule = createModule();
+    const load = createCachedModuleLoader(createLoader(loadedModule));
+    await load();
+    const loaded = load();
+
+    expect(await loaded.then(module => module.name)).toBe(loadedModule.name);
+    expect(await loaded.then(module => module === loadedModule)).toBe(true);
+  });
+
   it('resolves to the module when the loaded module is awaited without callbacks', async () => {
     const loadedModule = createModule();
     const load = createCachedModuleLoader(createLoader(loadedModule));

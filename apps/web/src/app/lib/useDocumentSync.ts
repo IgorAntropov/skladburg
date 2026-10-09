@@ -1,13 +1,12 @@
 import { useEffect } from 'react';
 
 import { useI18n } from '@/shared/i18n';
-import { useAddress } from '@/shared/routing';
-import { useTenantSettings } from '@/shared/tenant';
-
 import {
   getAddressSection,
   SECTION_TITLE_KEYS,
-} from '../routing/sections';
+  useAddress,
+} from '@/shared/routing';
+import { useTenantSettings } from '@/shared/tenant';
 
 export const useDocumentSync = (): void => {
   const { locale, t } = useI18n();

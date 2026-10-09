@@ -1,10 +1,11 @@
 import type { MessageKey } from '@/shared/i18n';
+
 import type {
   AppAddressValue,
   AppSectionValue,
-} from '@/shared/routing';
+} from './addressTypes';
 
-import { OBJECT_HOME_SECTION } from '@/shared/routing';
+import { OBJECT_HOME_SECTION } from './addressTypes';
 
 export type PlacedAddressValue = Exclude<AppAddressValue, { kind: 'home' }>;
 

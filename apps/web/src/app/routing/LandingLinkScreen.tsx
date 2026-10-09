@@ -3,13 +3,14 @@ import type { ReactElement } from 'react';
 import type { AppSectionValue } from '@/shared/routing';
 
 import { useI18n } from '@/shared/i18n';
-import { AddressLink } from '@/shared/routing';
+import {
+  AddressLink,
+  SECTION_TITLE_KEYS,
+} from '@/shared/routing';
 import {
   buttonClassName,
   StatusScreen,
 } from '@/shared/ui';
-
-import { SECTION_TITLE_KEYS } from './sections';
 
 const ACTION_LINK_CLASS_NAME = buttonClassName({ size: 'lg' });
 

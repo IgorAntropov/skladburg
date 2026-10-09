@@ -57,6 +57,11 @@ const applicationViewFilePath = fileURLToPath(new URL('../../apps/web/src/app/pr
 const pageViewTestFilePath = fileURLToPath(new URL('../../apps/web/src/pages/probe/ui/ProbeView.test.tsx', import.meta.url));
 const sharedUiViewTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/ui/probe/ProbeView.test.tsx', import.meta.url));
 const sharedLibFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/probe-effect.ts', import.meta.url));
+const widgetFilePath = fileURLToPath(new URL('../../apps/web/src/widgets/probe/ui/probe-logic.ts', import.meta.url));
+const widgetTestFilePath = fileURLToPath(new URL('../../apps/web/src/widgets/probe/ui/probe-logic.test.ts', import.meta.url));
+const topBarFilePath = fileURLToPath(new URL('../../apps/web/src/widgets/top-bar/ui/probe-launcher.ts', import.meta.url));
+const topBarTestFilePath = fileURLToPath(new URL('../../apps/web/src/widgets/top-bar/ui/probe-launcher.test.ts', import.meta.url));
+const phoneMenuFilePath = fileURLToPath(new URL('../../apps/web/src/widgets/top-bar/ui/PhoneMenu.tsx', import.meta.url));
 const scriptsProbeFilePath = fileURLToPath(new URL('./probe-tool.ts', import.meta.url));
 
 const formattingRuleIds: ReadonlySet<string> = new Set([
@@ -1392,6 +1397,257 @@ describe('eslint.config.ts with the local rules', () => {
 
       expect(restrictedMessages.some(message => message.message.includes(sideEffectMessagePart))).toBe(true);
       expect(restrictedMessages.some(message => !message.message.includes(sideEffectMessagePart))).toBe(true);
+    });
+  });
+
+  describe('lazy modules in the initial graph of the web application', () => {
+    const lazyMessagePart = 'is loaded lazily through import(); a static value import pulls it into the initial bundle';
+    const personaSwitcherSpecifier = '@/features/switch-persona';
+    const lazyRuleId = '@typescript-eslint/no-restricted-imports';
+
+    const lazyAppSpecifiers: readonly (readonly [string, string])[] = [
+      ['the persona switcher feature', personaSwitcherSpecifier],
+      ['a nested path of the persona switcher feature', '@/features/switch-persona/ui/PersonaSwitcher'],
+      ['the catalog page', '@/pages/catalog'],
+      ['a nested path of a page', '@/pages/warehouse/ui/WarehousePage'],
+    ];
+
+    const toNamedTypeImport = (specifier: string): string => `import { type Probe } from '${specifier}';\nexport type Value = Probe;\n`;
+
+    const toTypeImport = (specifier: string): string => `import type { Probe } from '${specifier}';\nexport type Value = Probe;\n`;
+
+    const readLazyMessages = async (code: string, filePath: string): Promise<string[]> => {
+      if (untypedEslint === undefined) {
+        throw new Error('ESLint is not initialized');
+      }
+
+      const [result] = await untypedEslint.lintText(code, { filePath });
+
+      return (result?.messages ?? []).flatMap(message => message.ruleId === lazyRuleId ? [message.message] : []);
+    };
+
+    describe.each([
+      ['app', applicationScriptFilePath],
+      ['a widget', widgetFilePath],
+      ['widgets/top-bar', topBarFilePath],
+    ])('in %s', (_zoneName, filePath) => {
+      it.each(lazyAppSpecifiers)('reports a value import of %s', async (_name, specifier) => {
+        expect(await readLazyMessages(toValueImport(specifier), filePath)).toHaveLength(1);
+      });
+
+      it.each(lazyAppSpecifiers)('reports a re-export of a value of %s', async (_name, specifier) => {
+        expect(await readLazyMessages(`export { probe } from '${specifier}';\n`, filePath)).toHaveLength(1);
+      });
+
+      it.each(lazyAppSpecifiers)('allows import type of %s', async (_name, specifier) => {
+        expect(await readLazyMessages(toTypeImport(specifier), filePath)).toEqual([]);
+      });
+
+      it.each(lazyAppSpecifiers)('allows an import with only inline types of %s', async (_name, specifier) => {
+        expect(await readLazyMessages(toNamedTypeImport(specifier), filePath)).toEqual([]);
+      });
+
+      it.each(lazyAppSpecifiers)('allows import() of %s', async (_name, specifier) => {
+        expect(await readLazyMessages(toDynamicImport(specifier), filePath)).toEqual([]);
+      });
+
+      it.each(lazyAppSpecifiers)('allows an import type query of %s', async (_name, specifier) => {
+        expect(await readLazyMessages(toTypeQuery(specifier), filePath)).toEqual([]);
+      });
+
+      it('does not report a sibling slice of the persona switcher feature', async () => {
+        expect(await readLazyMessages(toValueImport('@/features/switch-persona-tools'), filePath)).toEqual([]);
+      });
+
+      it('does not report another feature', async () => {
+        expect(await readLazyMessages(toValueImport('@/features/switch-theme'), filePath)).toEqual([]);
+      });
+
+      it('explains why the module must not be imported statically', async () => {
+        const [message] = await readLazyMessages(toValueImport(personaSwitcherSpecifier), filePath);
+
+        expect(message).toContain('features/switch-persona');
+        expect(message).toContain(lazyMessagePart);
+        expect(message).toContain('use import type');
+      });
+    });
+
+    it.each([
+      ['a test in app', applicationTestFilePath],
+      ['a test of a widget', widgetTestFilePath],
+      ['a test in widgets/top-bar', topBarTestFilePath],
+    ])('allows value imports of lazy modules in %s', async (_name, filePath) => {
+      for (const [, specifier] of lazyAppSpecifiers) {
+        expect(await readLazyMessages(toValueImport(specifier), filePath), specifier).toEqual([]);
+      }
+    });
+
+    it.each([
+      ['a page', pageFilePath],
+      ['a feature view', featureViewFilePath],
+      ['shared/lib', sharedLibFilePath],
+    ])('does not apply to %s', async (_name, filePath) => {
+      for (const [, specifier] of lazyAppSpecifiers) {
+        expect(await readLazyMessages(toValueImport(specifier), filePath), specifier).toEqual([]);
+      }
+    });
+
+    describe('the lazy chunk of the phone menu', () => {
+      it.each(lazyAppSpecifiers)('allows a value import of %s in PhoneMenu.tsx', async (_name, specifier) => {
+        expect(await readLazyMessages(toValueImport(specifier), phoneMenuFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['a sibling module', './PhoneMenu'],
+        ['a path ending with PhoneMenu', '../ui/PhoneMenu'],
+        ['a path with the extension', './PhoneMenu.tsx'],
+      ])('reports a value import of %s in widgets/top-bar', async (_name, specifier) => {
+        const messages = await readLazyMessages(toValueImport(specifier), topBarFilePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('PhoneMenu');
+        expect(messages[0]).toContain(lazyMessagePart);
+      });
+
+      it.each([
+        ['import type', toTypeImport],
+        ['an import with only inline types', toNamedTypeImport],
+        ['import()', toDynamicImport],
+        ['an import type query', toTypeQuery],
+      ])('allows %s of ./PhoneMenu in widgets/top-bar', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode('./PhoneMenu'), topBarFilePath)).toEqual([]);
+      });
+
+      it('allows a value import of ./PhoneMenu in a test of widgets/top-bar', async () => {
+        expect(await readLazyMessages(toValueImport('./PhoneMenu'), topBarTestFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['app', applicationScriptFilePath],
+        ['a widget outside top-bar', widgetFilePath],
+        ['a page', pageFilePath],
+      ])('does not restrict ./PhoneMenu in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('./PhoneMenu'), filePath)).toEqual([]);
+      });
+    });
+
+    describe('next to the other restrictions', () => {
+      const engineImportCode = 'import { probe } from \'@skladburg/demo-engine\';\n';
+      const dynamicEngineImportCode = 'export const load = (): Promise<unknown> => import(\'@skladburg/demo-engine\');\n';
+      const registryImportCode = 'import { probe } from \'@skladburg/contracts/registry\';\n';
+      const apiTestingEntryCode = 'import { probe } from \'@/shared/api/index.testing\';\n';
+      const routingTestingEntryCode = 'import { probe } from \'@/shared/routing/index.testing\';\n';
+      const sideEffectCode = 'import \'./probe\';\n';
+      const lazyImportCode = `import { probe } from '${personaSwitcherSpecifier}';\nexport const value = probe;\n`;
+
+      it.each([
+        ['app', applicationScriptFilePath],
+        ['app/bootstrap', bootstrapFilePath],
+        ['a widget', widgetFilePath],
+        ['widgets/top-bar', topBarFilePath],
+      ])('keeps the engine, registry and testing entries restricted in %s', async (_name, filePath) => {
+        const baseRestrictedCodes = [engineImportCode, registryImportCode, apiTestingEntryCode, routingTestingEntryCode];
+
+        for (const code of baseRestrictedCodes) {
+          const outcome = await lint(untypedEslint, code, filePath);
+
+          expect(outcome.ruleIds, code).toContain('no-restricted-imports');
+        }
+
+        const dynamicOutcome = await lint(untypedEslint, dynamicEngineImportCode, filePath);
+
+        expect(dynamicOutcome.ruleIds).toContain('no-restricted-syntax');
+      });
+
+      it.each([
+        ['app', applicationScriptFilePath],
+        ['a widget', widgetFilePath],
+        ['widgets/top-bar', topBarFilePath],
+      ])('reports the lazy module and the engine together in %s', async (_name, filePath) => {
+        const outcome = await lint(untypedEslint, `${engineImportCode}${lazyImportCode}`, filePath);
+
+        expect(outcome.ruleIds).toContain('no-restricted-imports');
+        expect(outcome.ruleIds).toContain(lazyRuleId);
+      });
+
+      it.each([
+        ['app', applicationScriptFilePath],
+        ['app/bootstrap', bootstrapFilePath],
+        ['a widget', widgetFilePath],
+        ['widgets/top-bar', topBarFilePath],
+      ])('keeps the side-effect import restricted next to the lazy module in %s', async (_name, filePath) => {
+        const outcome = await lint(untypedEslint, `${sideEffectCode}${lazyImportCode}`, filePath);
+
+        expect(outcome.ruleIds).toContain('no-restricted-syntax');
+        expect(outcome.ruleIds.filter(ruleId => ruleId === lazyRuleId)).toHaveLength(1);
+      });
+
+      it('applies the lazy restriction in app/bootstrap', async () => {
+        expect(await readLazyMessages(lazyImportCode, bootstrapFilePath)).toHaveLength(1);
+      });
+    });
+  });
+
+  describe('import type without a side effect', () => {
+    it('is enabled as an error for TypeScript files', async () => {
+      expect(await readRuleSeverity(applicationScriptFilePath, '@typescript-eslint/no-import-type-side-effects')).toBe(2);
+    });
+
+    it.each([
+      ['a package module', 'node:path', 'ParsedPath'],
+      ['an alias module', '@/shared/lib', 'Probe'],
+    ])('reports an import with only inline types from %s', async (_name, specifier, typeName) => {
+      const code = `import { type ${typeName} } from '${specifier}';\nexport type Value = ${typeName};\n`;
+
+      const outcome = await lint(untypedEslint, code, applicationScriptFilePath);
+
+      expect(outcome.ruleIds).toContain('@typescript-eslint/no-import-type-side-effects');
+    });
+
+    it('fixes an import with only inline types into import type', async () => {
+      const code = 'import { type ParsedPath } from \'node:path\';\nexport type Value = ParsedPath;\n';
+
+      const { secondPass, text } = await fixTwice(code);
+
+      expect(text).toBe('import type { ParsedPath } from \'node:path\';\nexport type Value = ParsedPath;\n');
+      expect(secondPass.ruleIds).not.toContain('@typescript-eslint/no-import-type-side-effects');
+    });
+
+    it('does not report import type', async () => {
+      const code = 'import type { ParsedPath } from \'node:path\';\nexport type Value = ParsedPath;\n';
+
+      const outcome = await lint(untypedEslint, code, applicationScriptFilePath);
+
+      expect(outcome.ruleIds).not.toContain('@typescript-eslint/no-import-type-side-effects');
+    });
+
+    it('does not report an import that mixes a value with an inline type', async () => {
+      const code = [
+        'import { type ParsedPath, basename } from \'node:path\';',
+        'export const value = basename;',
+        'export type Value = ParsedPath;',
+        '',
+      ].join('\n');
+
+      const outcome = await lint(untypedEslint, code, applicationScriptFilePath);
+
+      expect(outcome.ruleIds).not.toContain('@typescript-eslint/no-import-type-side-effects');
+    });
+
+    it('does not conflict with the import sorting', async () => {
+      const code = [
+        'import { type ParsedPath } from \'node:path\';',
+        'import { type Linter } from \'eslint\';',
+        'export type Value = Linter | ParsedPath;',
+        '',
+      ].join('\n');
+
+      const { secondPass, text } = await fixTwice(code);
+
+      expect(text).toContain('import type { ParsedPath } from \'node:path\';');
+      expect(text).toContain('import type { Linter } from \'eslint\';');
+      expect(secondPass.formattingRuleIds).toEqual([]);
+      expect(secondPass.ruleIds).not.toContain('@typescript-eslint/no-import-type-side-effects');
     });
   });
 });

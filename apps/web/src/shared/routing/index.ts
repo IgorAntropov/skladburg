@@ -1,3 +1,9 @@
+export type { PlacedAddressValue } from './address/addressSections';
+export {
+  getAddressSection,
+  getPlacedAddressSection,
+  SECTION_TITLE_KEYS,
+} from './address/addressSections';
 export type {
   AppAddressValue,
   AppSectionValue,

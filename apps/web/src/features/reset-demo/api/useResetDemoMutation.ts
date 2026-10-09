@@ -4,6 +4,8 @@ import { useMutation } from '@tanstack/react-query';
 
 import { useDemoControl } from '@/shared/api';
 
+export const RESET_DEMO_MUTATION_KEY = ['demo', 'reset'] as const;
+
 export const useResetDemoMutation = (): UseMutationResult<void, Error, void> => {
   const demoControl = useDemoControl();
 
@@ -15,6 +17,7 @@ export const useResetDemoMutation = (): UseMutationResult<void, Error, void> => 
 
       await demoControl.reset();
     },
+    mutationKey: RESET_DEMO_MUTATION_KEY,
     retry: false,
   });
 };

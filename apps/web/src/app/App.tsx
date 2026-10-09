@@ -12,6 +12,10 @@ import { ApiRuntimeProvider } from '@/shared/api';
 import { LocalizerProvider } from '@/shared/i18n';
 import { RoutingProvider } from '@/shared/routing';
 import { ThemePreferenceProvider } from '@/shared/theme';
+import {
+  FocusHandoffProvider,
+  LiveRegionProvider,
+} from '@/shared/ui';
 
 import type { SectionLoadersValue } from './routing/sectionPages';
 
@@ -44,11 +48,15 @@ export const App = ({
         <LocalizerProvider localizer={localizer}>
           <ApiRuntimeProvider runtime={runtime}>
             <QueryClientProvider client={queryClient}>
-              <ActingContextBoundary>
-                <TenantSettingsGate localizer={localizer}>
-                  <AppShell sectionLoaders={sectionLoaders} />
-                </TenantSettingsGate>
-              </ActingContextBoundary>
+              <LiveRegionProvider>
+                <FocusHandoffProvider>
+                  <ActingContextBoundary>
+                    <TenantSettingsGate localizer={localizer}>
+                      <AppShell sectionLoaders={sectionLoaders} />
+                    </TenantSettingsGate>
+                  </ActingContextBoundary>
+                </FocusHandoffProvider>
+              </LiveRegionProvider>
             </QueryClientProvider>
           </ApiRuntimeProvider>
         </LocalizerProvider>

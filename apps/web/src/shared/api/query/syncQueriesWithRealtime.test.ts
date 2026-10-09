@@ -1,5 +1,6 @@
+import type { QueryClient } from '@tanstack/react-query';
+
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
-import { type QueryClient } from '@tanstack/react-query';
 import {
   afterEach,
   beforeEach,

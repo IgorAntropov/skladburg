@@ -3,3 +3,10 @@
 
 @source not '../../**/*.test.*';
 @source not '../../**/testing';
+
+@layer base {
+  ::selection {
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+  }
+}

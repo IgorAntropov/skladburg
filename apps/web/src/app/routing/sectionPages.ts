@@ -5,14 +5,13 @@ import type {
 
 import { lazy } from 'react';
 
+import type { CachedModuleLoader } from '@/shared/lib/module-loader';
 import type {
   AppSectionValue,
   ObjectRefValue,
 } from '@/shared/routing';
 
-import type { CachedModuleLoader } from '../lib/createCachedModuleLoader';
-
-import { toLazyModuleLoader } from '../lib/createCachedModuleLoader';
+import { toLazyModuleLoader } from '@/shared/lib/module-loader';
 
 export type CachedSectionLoader = CachedModuleLoader<SectionModuleValue>;
 

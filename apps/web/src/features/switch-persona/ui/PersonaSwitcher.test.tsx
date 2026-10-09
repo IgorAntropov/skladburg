@@ -1,5 +1,18 @@
+import type {
+  ReactElement,
+  ReactNode,
+} from 'react';
 import type { MockInstance } from 'vitest';
 
+import { create } from '@bufbuild/protobuf';
+import {
+  Code,
+  ConnectError,
+} from '@connectrpc/connect';
+import {
+  ErrorCode,
+  ErrorDetailSchema,
+} from '@skladburg/contracts/common/v1/error';
 import {
   createInProcessEngineConnection,
   SeedOrganizationId,
@@ -18,6 +31,10 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
+import {
+  useEffect,
+  useState,
+} from 'react';
 import { defaultLocaleCatalog } from 'virtual:build-profile';
 import {
   afterEach,
@@ -45,6 +62,11 @@ import {
   createLocalizer,
   LocalizerProvider,
 } from '@/shared/i18n';
+import {
+  FocusHandoffProvider,
+  LiveRegionProvider,
+  useFocusHandoff,
+} from '@/shared/ui';
 
 import { PersonaSwitcher } from './PersonaSwitcher';
 
@@ -62,6 +84,9 @@ const SECOND_PERSONA: DemoPersonaListItemValue = {
   organizationName: 'Север-Опт',
   userId: 'f9200002-0000-4000-8000-000000000000',
 };
+
+const LATE_LABEL = 'Late';
+const SHOW_LATE_LABEL = 'Show late';
 
 const closers: (() => Promise<void>)[] = [];
 
@@ -91,10 +116,50 @@ const createTestLocalizer = (): Promise<ILocalizer> => createLocalizer({
   userTimeZone: 'UTC',
 });
 
+const FocusRequester = (): null => {
+  const { requestFocus } = useFocusHandoff('persona-switcher');
+
+  useEffect(() => {
+    requestFocus();
+  }, [requestFocus]);
+
+  return null;
+};
+
+const LateFocusTarget = (): ReactElement => {
+  const { ref } = useFocusHandoff<HTMLButtonElement>('persona-switcher');
+
+  return <button ref={ref} type="button">{LATE_LABEL}</button>;
+};
+
+const LateFocusTargetLauncher = (): ReactElement => {
+  const [isShown, setIsShown] = useState(false);
+
+  const handleShowClick = (): void => {
+    setIsShown(true);
+  };
+
+  return (
+    <>
+      <button onClick={handleShowClick} type="button">{SHOW_LATE_LABEL}</button>
+      {isShown && <LateFocusTarget />}
+    </>
+  );
+};
+
+const createCodedError = (): ConnectError => new ConnectError(
+  'conflict',
+  Code.FailedPrecondition,
+  undefined,
+  [{ desc: ErrorDetailSchema, value: create(ErrorDetailSchema, { code: ErrorCode.INVALID_TRANSITION }) }],
+);
+
 const renderSwitcher = async (
   runtime: ApiRuntimeValue,
   queryClient: QueryClient = createQueryClient({ networkMode: 'always' }),
   className?: string,
+  isFocusRequested = false,
+  extra: ReactNode = null,
 ): Promise<void> => {
   const localizer = await createTestLocalizer();
 
@@ -102,7 +167,13 @@ const renderSwitcher = async (
     <LocalizerProvider localizer={localizer}>
       <ApiRuntimeProvider runtime={runtime}>
         <QueryClientProvider client={queryClient}>
-          <PersonaSwitcher className={className} />
+          <LiveRegionProvider>
+            <FocusHandoffProvider>
+              {isFocusRequested && <FocusRequester />}
+              <PersonaSwitcher className={className} focusKey="persona-switcher" />
+              {extra}
+            </FocusHandoffProvider>
+          </LiveRegionProvider>
         </QueryClientProvider>
       </ApiRuntimeProvider>
     </LocalizerProvider>,
@@ -124,6 +195,8 @@ const startEngineRuntime = async (personaId: string): Promise<ApiRuntimeValue> =
 
   return runtime;
 };
+
+const getAnnouncement = (): string => document.querySelector('[aria-live="polite"]')?.textContent ?? '';
 
 const TRIGGER_NAME_PATTERN = new RegExp(`^${defaultLocaleCatalog['persona.label']}`);
 
@@ -404,7 +477,7 @@ describe('PersonaSwitcher states', () => {
 
     expect(getTrigger().disabled).toBe(false);
     expect(getTrigger().getAttribute('aria-busy')).toBeNull();
-    expect(screen.getByRole('status').textContent).toBe('');
+    expect(getAnnouncement()).toBe('');
 
     await openMenu();
     chooseWithEnter(getPersonaItem(SECOND_PERSONA));
@@ -419,7 +492,7 @@ describe('PersonaSwitcher states', () => {
     expect(trigger.disabled).toBe(false);
     expect(trigger.textContent).toBe(defaultLocaleCatalog['persona.switching']);
     expect(trigger.getAttribute('aria-label')).toBe(getTriggerName(FIRST_PERSONA));
-    expect(screen.getByRole('status').textContent).toBe(defaultLocaleCatalog['persona.switching']);
+    expect(getAnnouncement()).toBe(defaultLocaleCatalog['persona.switching']);
     await waitFor(() => {
       expect(document.activeElement).toBe(trigger);
     });
@@ -439,7 +512,96 @@ describe('PersonaSwitcher states', () => {
     });
 
     expect(runtime.actingContext.get().userId).toBe(SECOND_PERSONA.userId);
-    expect(screen.getByRole('status').textContent).toBe('');
+    expect(getAnnouncement()).toBe(
+      defaultLocaleCatalog['persona.switched'].replace('{persona}', formatOption(SECOND_PERSONA)),
+    );
+  });
+
+  it('has no live region of its own', async () => {
+    const runtime = createTwoPersonaRuntime();
+
+    await renderSwitcher(runtime);
+    await waitForTriggerName(FIRST_PERSONA);
+
+    const switcherRegion = getTrigger().closest('div')?.querySelector('[role="status"]');
+
+    expect(switcherRegion ?? null).toBeNull();
+  });
+
+  it('announces the switch and the arrival one after another', async () => {
+    const runtime = createTwoPersonaRuntime();
+    const queryClient = createQueryClient({ networkMode: 'always' });
+    const deferred = createDeferred();
+    vi.spyOn(queryClient, 'cancelQueries').mockReturnValue(deferred.promise);
+    const heard: string[] = [];
+
+    await renderSwitcher(runtime, queryClient);
+    await waitForTriggerName(FIRST_PERSONA);
+    const region = document.querySelector('[aria-live="polite"]');
+    const observer = new MutationObserver(() => {
+      const message = getAnnouncement();
+
+      if (message !== '' && heard.at(-1) !== message) {
+        heard.push(message);
+      }
+    });
+
+    observer.observe(region ?? document.body, { childList: true, subtree: true });
+    await openMenu();
+    chooseWithEnter(getPersonaItem(SECOND_PERSONA));
+    await waitFor(() => {
+      expect(heard).toEqual([defaultLocaleCatalog['persona.switching']]);
+    });
+    await act(async () => {
+      deferred.resolve();
+      await deferred.promise;
+    });
+    await waitFor(() => {
+      expect(heard).toHaveLength(2);
+    });
+    observer.disconnect();
+
+    expect(heard).toEqual([
+      defaultLocaleCatalog['persona.switching'],
+      defaultLocaleCatalog['persona.switched'].replace('{persona}', formatOption(SECOND_PERSONA)),
+    ]);
+  });
+
+  it('takes the requested focus only when the list has loaded and the trigger can be focused', async () => {
+    const deferred = createDeferred();
+    const runtime = createTestRuntime({
+      demoControl: createDemoControl(async () => {
+        await deferred.promise;
+
+        return [FIRST_PERSONA];
+      }),
+    });
+
+    await renderSwitcher(runtime, undefined, undefined, true);
+
+    expect(getTrigger().disabled).toBe(true);
+    expect(document.activeElement).toBe(document.body);
+
+    await act(async () => {
+      deferred.resolve();
+      await deferred.promise;
+    });
+
+    await waitFor(() => {
+      expect(getTrigger().disabled).toBe(false);
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(getTrigger());
+    });
+  });
+
+  it('leaves the focus alone when nobody asked for it', async () => {
+    const runtime = createTwoPersonaRuntime();
+
+    await renderSwitcher(runtime);
+    await waitForTriggerName(FIRST_PERSONA);
+
+    expect(document.activeElement).toBe(document.body);
   });
 
   it('renders nothing in the pilot build without the demo control', async () => {
@@ -530,7 +692,7 @@ describe('PersonaSwitcher states', () => {
 
     await waitFor(() => {
       expect(log).toHaveBeenCalledWith('> PersonaSwitcher -> handlePersonaValueChange:', { personaId: SECOND_PERSONA.id });
-      expect(log).toHaveBeenCalledWith('> PersonaSwitcher -> handlePersonaValueChange:', {
+      expect(log).toHaveBeenCalledWith('> usePersonaSwitch -> switchToPersona:', {
         personaId: SECOND_PERSONA.id,
         switchError: failure,
       });
@@ -540,5 +702,40 @@ describe('PersonaSwitcher states', () => {
     });
 
     expect(runtime.actingContext.get().userId).toBe(FIRST_PERSONA.userId);
+    expect(getAnnouncement()).toBe(defaultLocaleCatalog['persona.switchError']);
+  });
+
+  it('announces the message of the error code when the switch fails with a coded error', async () => {
+    const runtime = createTwoPersonaRuntime();
+    const queryClient = createQueryClient({ networkMode: 'always' });
+    vi.spyOn(queryClient, 'cancelQueries').mockRejectedValue(createCodedError());
+
+    await renderSwitcher(runtime, queryClient);
+    await waitForTriggerName(FIRST_PERSONA);
+    await openMenu();
+    chooseWithEnter(getPersonaItem(SECOND_PERSONA));
+
+    await waitFor(() => {
+      expect(getAnnouncement()).toBe(defaultLocaleCatalog['error.invalid_transition']);
+    });
+  });
+
+  it('drops the focus request when the switch fails, so a later element with the key does not take the focus', async () => {
+    const runtime = createTwoPersonaRuntime();
+    const queryClient = createQueryClient({ networkMode: 'always' });
+    vi.spyOn(queryClient, 'cancelQueries').mockRejectedValue(new Error('cancel failed'));
+
+    await renderSwitcher(runtime, queryClient, undefined, false, <LateFocusTargetLauncher />);
+    await waitForTriggerName(FIRST_PERSONA);
+    await openMenu();
+    chooseWithEnter(getPersonaItem(SECOND_PERSONA));
+    await waitFor(() => {
+      expect(getAnnouncement()).toBe(defaultLocaleCatalog['persona.switchError']);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: SHOW_LATE_LABEL }));
+
+    expect(screen.getByRole('button', { name: LATE_LABEL })).toBeDefined();
+    expect(document.activeElement).not.toBe(screen.getByRole('button', { name: LATE_LABEL }));
   });
 });

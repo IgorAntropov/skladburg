@@ -78,6 +78,7 @@ const THEME_DEPENDENT_TOKEN_NAMES: readonly string[] = [
   'line',
   'line-strong',
   'link',
+  'indicator',
   'focus',
   'skeleton',
   'scrim',
@@ -104,6 +105,11 @@ const CONTRAST_PAIRS: readonly ContrastPairValue[] = [
     backgrounds: ['panel', 'panel-solid', 'canvas'],
     foregrounds: ['link'],
     threshold: TEXT_THRESHOLD,
+  },
+  {
+    backgrounds: ['panel', 'panel-solid', 'canvas'],
+    foregrounds: ['indicator'],
+    threshold: GRAPHIC_THRESHOLD,
   },
   {
     backgrounds: ['primary'],
@@ -254,6 +260,40 @@ describe('theme tokens contract', () => {
     expect(() => readColor('dark', 'no-such-token')).toThrow(
       'Token --color-no-such-token is missing in the dark theme',
     );
+  });
+});
+
+const readPanelBackdrops = (theme: ThemeNameValue): RgbaColorValue[] => {
+  return readBackdrops(theme, 'panel').map(backdrop => backdrop.color);
+};
+
+const readSegmentedTrackBackdrops = (theme: ThemeNameValue): RgbaColorValue[] => {
+  const track = readColor(theme, 'skeleton');
+
+  return readPanelBackdrops(theme).map(panel => compositeOver(track, panel));
+};
+
+const readWorstRatio = (foreground: RgbaColorValue, backdrops: readonly RgbaColorValue[]): number => {
+  return Math.min(...backdrops.map(backdrop => contrastRatio(foreground, backdrop)));
+};
+
+describe('top bar state contrast', () => {
+  it.each(THEME_NAMES)('separates the selected segmented option border from the track in the %s theme', (theme) => {
+    const ratio = readWorstRatio(readColor(theme, 'indicator'), readSegmentedTrackBackdrops(theme));
+
+    expect(ratio).toBeGreaterThanOrEqual(GRAPHIC_THRESHOLD);
+  });
+
+  it.each(THEME_NAMES)('keeps the text of an unselected option and of a hovered link readable on the fill in the %s theme', (theme) => {
+    const ratio = readWorstRatio(readColor(theme, 'on-panel'), readSegmentedTrackBackdrops(theme));
+
+    expect(ratio).toBeGreaterThanOrEqual(TEXT_THRESHOLD);
+  });
+
+  it.each(THEME_NAMES)('keeps the muted section link text readable on the panel in the %s theme', (theme) => {
+    const ratio = readWorstRatio(readColor(theme, 'on-panel-muted'), readPanelBackdrops(theme));
+
+    expect(ratio).toBeGreaterThanOrEqual(TEXT_THRESHOLD);
   });
 });
 

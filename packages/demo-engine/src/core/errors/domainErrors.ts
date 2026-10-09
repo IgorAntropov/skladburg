@@ -1,8 +1,8 @@
+import type { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import type { Money } from '@skladburg/contracts/common/v1/money';
 
 import { create } from '@bufbuild/protobuf';
 import { ConnectError } from '@connectrpc/connect';
-import { type EntityKind } from '@skladburg/contracts/common/v1/entity';
 import {
   ErrorCode,
   type ErrorDetail,

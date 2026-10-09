@@ -4,6 +4,7 @@ import {
   SeedUserId,
 } from '@skladburg/demo-engine/testing';
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -41,12 +42,14 @@ import {
   syncQueriesWithRealtime,
 } from '@/shared/api';
 import { createLocalizer } from '@/shared/i18n';
-import { APP_SECTIONS } from '@/shared/routing';
+import {
+  APP_SECTIONS,
+  SECTION_TITLE_KEYS,
+} from '@/shared/routing';
 import { createMemoryLocation } from '@/shared/routing/index.testing';
 
 import { App } from './App';
 import { createTestThemeStore } from './lib/testing/themeFixtures';
-import { SECTION_TITLE_KEYS } from './routing/sections';
 
 const BRAND_NAME = 'Покупатель 1';
 const SEED_WAREHOUSE_COUNT = 3;
@@ -314,19 +317,22 @@ describe('App with the demo engine in the same thread', () => {
     expect(getBusyPlaceholderCount()).toBe(0);
   });
 
-  it('returns to the seed warehouses on the reset button without waiting for the settings again', async () => {
+  it('returns to the seed warehouses on the reset button after the confirmation without waiting for the settings again', async () => {
     const { frames, getBusyPlaceholderCount, runtime } = await startApplication();
     await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
     await createWarehouse(runtime);
     await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT + 1);
 
-    fireEvent.click(screen.getByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] }));
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: defaultLocaleCatalog['demo.reset.label'] }));
+    const confirmation = screen.getByRole('group', { name: defaultLocaleCatalog['demo.reset.confirm.prompt'] });
+
+    expect(getWarehouseItems()).toHaveLength(SEED_WAREHOUSE_COUNT + 1);
+
+    fireEvent.click(within(confirmation).getByRole('button', { name: defaultLocaleCatalog['demo.reset.confirm.accept'] }));
 
     await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
     await waitFor(() => {
-      const resetButton = screen.getByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] });
-
-      expect(resetButton.getAttribute('aria-disabled')).toBeNull();
+      expect(within(screen.getByRole('banner')).getByRole('button', { name: defaultLocaleCatalog['demo.reset.label'] })).toBeDefined();
     });
     expect(getBrand()).toBeDefined();
     expect(getBusyPlaceholderCount()).toBe(0);
@@ -366,6 +372,112 @@ const choosePersona = async (optionName: string): Promise<void> => {
   option.focus();
   fireEvent.keyDown(option, { key: 'Enter' });
 };
+
+const PERSONA_TRIGGER_NAME = new RegExp(`^${defaultLocaleCatalog['persona.label']}`);
+const MENU_BUTTON_NAME = defaultLocaleCatalog['menu.open'];
+
+const getLiveRegion = (): HTMLElement => {
+  const region = document.querySelector<HTMLElement>('body > div > [aria-live="polite"]');
+
+  if (region === null) {
+    throw new TypeError('The live region of the application is missing');
+  }
+
+  return region;
+};
+
+interface AnnouncementWatchValue {
+  getHeard: () => string[];
+  stop: () => void;
+}
+
+const watchAnnouncements = (): AnnouncementWatchValue => {
+  const heard: string[] = [];
+  const region = getLiveRegion();
+  const observer = new MutationObserver(() => {
+    const message = region.textContent;
+
+    if (message !== '' && heard.at(-1) !== message) {
+      heard.push(message);
+    }
+  });
+
+  observer.observe(region, { childList: true, subtree: true });
+
+  const stop = (): void => {
+    observer.disconnect();
+  };
+
+  return { getHeard: () => heard, stop };
+};
+
+const chooseFromPhoneMenu = async (optionName: string): Promise<void> => {
+  const menuButton = await screen.findByRole('button', { name: MENU_BUTTON_NAME });
+
+  fireEvent.click(menuButton);
+
+  const menu = await screen.findByRole('menu', { name: defaultLocaleCatalog['menu.label'] });
+  const option = await within(menu).findByRole('menuitemradio', { name: optionName });
+
+  option.focus();
+  fireEvent.keyDown(option, { key: 'Enter' });
+};
+
+describe('App focus and announcements when the persona changes', () => {
+  it('puts the focus on the trigger of the new switcher and announces the switch and the arrival', async () => {
+    const { frames } = await startApplication();
+    await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
+    const previousTrigger = await screen.findByRole('button', { name: PERSONA_TRIGGER_NAME });
+    const watch = watchAnnouncements();
+
+    await choosePersona(STOREKEEPER_OPTION);
+
+    await waitFor(() => {
+      expect(watch.getHeard()).toEqual([
+        defaultLocaleCatalog['persona.switching'],
+        defaultLocaleCatalog['persona.switched'].replace('{persona}', STOREKEEPER_OPTION),
+      ]);
+    });
+    const trigger = await screen.findByRole('button', { name: PERSONA_TRIGGER_NAME });
+
+    expect(trigger).not.toBe(previousTrigger);
+    await waitFor(() => {
+      expect(trigger.hasAttribute('disabled')).toBe(false);
+      expect(document.activeElement).toBe(trigger);
+    });
+    watch.stop();
+  });
+
+  it('puts the focus on the menu button of the new bar when the persona is chosen in the phone menu', async () => {
+    const { frames } = await startApplication();
+    await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
+    const previousMenuButton = await screen.findByRole('button', { name: MENU_BUTTON_NAME });
+    const watch = watchAnnouncements();
+
+    await chooseFromPhoneMenu(STOREKEEPER_OPTION);
+
+    await waitFor(() => {
+      expect(watch.getHeard()).toEqual([
+        defaultLocaleCatalog['persona.switching'],
+        defaultLocaleCatalog['persona.switched'].replace('{persona}', STOREKEEPER_OPTION),
+      ]);
+    });
+    await waitFor(() => {
+      const menuButton = screen.getByRole('button', { name: MENU_BUTTON_NAME });
+
+      expect(menuButton).not.toBe(previousMenuButton);
+      expect(document.activeElement).toBe(menuButton);
+    });
+    await act(async () => {
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 60);
+      });
+    });
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: MENU_BUTTON_NAME }));
+    watch.stop();
+  });
+});
 
 describe('App sections of the persona on the demo engine', () => {
   it('opens the storekeeper on the warehouse with one section and one warehouse', async () => {

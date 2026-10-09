@@ -4,7 +4,7 @@ import type {
   ObjectRefValue,
 } from '@/shared/routing';
 
-import { getPlacedAddressSection } from './sections';
+import { getPlacedAddressSection } from '@/shared/routing';
 
 export type RouteResolutionValue
   = | { focus: ObjectRefValue | undefined; kind: 'page'; section: AppSectionValue }

@@ -6,13 +6,7 @@ import {
   useState,
 } from 'react';
 
-import type { DemoPersonaListItemValue } from '@/shared/api';
-
-import {
-  useActingContext,
-  useDemoControl,
-  useSwitchActingContext,
-} from '@/shared/api';
+import { useDemoControl } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
 import {
@@ -24,36 +18,32 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/ui';
 
-import { usePersonasQuery } from '../api/usePersonasQuery';
-import { PERSONA_KIND_MESSAGE_KEYS } from '../model/personaKindMessageKeys';
+import { usePersonaSwitch } from '../model/usePersonaSwitch';
 
 export interface PersonaSwitcherProps {
   className?: string | undefined;
+  focusKey: string;
 }
 
-export const PersonaSwitcher = ({ className }: PersonaSwitcherProps): null | ReactElement => {
+export const PersonaSwitcher = ({ className, focusKey }: PersonaSwitcherProps): null | ReactElement => {
   const { t } = useI18n();
   const demoControl = useDemoControl();
   const {
-    data: personas = [],
+    currentPersona,
     error,
+    formatPersona,
     isError,
     isPending,
-  } = usePersonasQuery();
-  const { organizationId, userId } = useActingContext();
-  const { isSwitching, switchActingContext } = useSwitchActingContext();
+    isSwitching,
+    personas,
+    switchToPersona,
+    triggerRef,
+  } = usePersonaSwitch(focusKey);
   const [isOpen, setIsOpen] = useState(false);
 
   const isDemoActive = demoControl !== undefined;
   const isSwitcherVisible = isDemoActive && !isError;
-  const currentPersona = personas.find(persona => persona.organizationId === organizationId && persona.userId === userId);
   const isMenuBlocked = isPending || isSwitching;
-  const switchingStatus = isSwitching ? t('persona.switching') : '';
-
-  const formatPersona = (persona: DemoPersonaListItemValue): string => t('persona.option', {
-    kind: t(PERSONA_KIND_MESSAGE_KEYS[persona.kind]),
-    organization: persona.organizationName,
-  });
 
   const currentPersonaTitle = currentPersona === undefined ? undefined : formatPersona(currentPersona);
   const triggerLabel = currentPersonaTitle === undefined
@@ -71,15 +61,7 @@ export const PersonaSwitcher = ({ className }: PersonaSwitcherProps): null | Rea
 
   const handlePersonaValueChange = (personaId: string): void => {
     console.log('> PersonaSwitcher -> handlePersonaValueChange:', { personaId });
-    const persona = personas.find(candidate => candidate.id === personaId);
-
-    if (persona === undefined || persona.id === currentPersona?.id) {
-      return;
-    }
-
-    switchActingContext({ organizationId: persona.organizationId, userId: persona.userId }).catch((switchError: unknown) => {
-      console.log('> PersonaSwitcher -> handlePersonaValueChange:', { personaId, switchError });
-    });
+    void switchToPersona(personaId);
   };
 
   useEffect(() => {
@@ -102,6 +84,7 @@ export const PersonaSwitcher = ({ className }: PersonaSwitcherProps): null | Rea
             disabled={isPending}
             pending={isSwitching}
             pendingLabel={t('persona.switching')}
+            ref={triggerRef}
             variant="secondary"
           >
             <span className="shrink-0 font-normal">{t('persona.label')}</span>
@@ -123,9 +106,6 @@ export const PersonaSwitcher = ({ className }: PersonaSwitcherProps): null | Rea
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      <span className="sr-only" role="status">
-        {switchingStatus}
-      </span>
     </div>
   );
 };

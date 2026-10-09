@@ -26,7 +26,6 @@ import {
   fireEvent,
   render,
   screen,
-  waitFor,
   within,
 } from '@testing-library/react';
 import { defaultLocaleCatalog } from 'virtual:build-profile';
@@ -38,7 +37,6 @@ import {
   vi,
 } from 'vitest';
 
-import type { IDemoControl } from '@/shared/api';
 import type { ILocalizer } from '@/shared/i18n';
 import type { ObjectRefValue } from '@/shared/routing';
 
@@ -77,7 +75,6 @@ interface RenderedPageValue {
 }
 
 interface RenderPageOptionsValue {
-  demoControl?: IDemoControl | undefined;
   focus?: ObjectRefValue | undefined;
   getOrganization?: OrganizationHandler | undefined;
   listWarehouses?: undefined | WarehousesHandler;
@@ -122,13 +119,6 @@ const createDeferred = (): DeferredValue => {
   return { promise, reject, resolve };
 };
 
-const createDemoControl = (reset: IDemoControl['reset']): IDemoControl => ({
-  listPersonas: () => Promise.resolve([]),
-  onReset: () => () => undefined,
-  onStatus: () => () => undefined,
-  reset,
-});
-
 const createTestLocalizer = (): Promise<ILocalizer> => createLocalizer({
   bundledLocales: ['ru'],
   catalogLoaders: { ru: () => Promise.resolve(defaultLocaleCatalog) },
@@ -142,7 +132,6 @@ const renderPage = async (options: RenderPageOptionsValue = {}): Promise<Rendere
   const localizer = await createTestLocalizer();
   const queryClient = createQueryClient({ networkMode: 'always' });
   const runtime = createTestRuntime({
-    demoControl: options.demoControl,
     routes: router => router.service(OrganizationService, {
       getOrganization: options.getOrganization ?? createOrganizationResponse,
       listWarehouses: options.listWarehouses ?? (() => createWarehousesResponse([FIRST_WAREHOUSE, SECOND_WAREHOUSE])),
@@ -165,8 +154,6 @@ const renderPage = async (options: RenderPageOptionsValue = {}): Promise<Rendere
 const formatAddress = (address: string): string => defaultLocaleCatalog['warehouse.warehouses.address'].replace('{address}', address);
 
 const getWarehouseSection = (): HTMLElement => screen.getByRole('region', { name: defaultLocaleCatalog['warehouse.warehouses.title'] });
-
-const getResetButton = (name: string): HTMLElement => screen.getByRole('button', { name });
 
 describe('WarehousePage header', () => {
   afterEach(() => {
@@ -507,106 +494,5 @@ describe('WarehousePage warehouse list', () => {
 
     expect(query?.meta).toEqual({ channels: [`org:${TEST_ORGANIZATION_ID}`] });
     expect(query?.state.data).toHaveLength(2);
-  });
-});
-
-describe('WarehousePage demo reset', () => {
-  afterEach(() => {
-    cleanup();
-  });
-
-  it('has no reset button without the demo control', async () => {
-    await renderPage({ demoControl: undefined });
-
-    await screen.findByText(FIRST_WAREHOUSE.name);
-
-    expect(screen.queryByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] })).toBeNull();
-  });
-
-  it('shows the progress while the command runs and calls reset once per click', async () => {
-    const response = createDeferred();
-    const reset = vi.fn(() => response.promise);
-    await renderPage({ demoControl: createDemoControl(reset) });
-
-    await screen.findByText(FIRST_WAREHOUSE.name);
-    fireEvent.click(getResetButton(defaultLocaleCatalog['warehouse.resetDemo.label']));
-
-    const pendingButton = await screen.findByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.pending'] });
-
-    expect(pendingButton.getAttribute('aria-disabled')).toBe('true');
-    expect(pendingButton.getAttribute('aria-busy')).toBe('true');
-
-    fireEvent.click(pendingButton);
-
-    expect(reset).toHaveBeenCalledTimes(1);
-
-    response.resolve();
-
-    const idleButton = await screen.findByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] });
-
-    expect(idleButton.hasAttribute('disabled')).toBe(false);
-    expect(idleButton.getAttribute('aria-disabled')).toBeNull();
-    expect(idleButton.getAttribute('aria-busy')).toBeNull();
-    expect(reset).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps the focus on the same button while the command runs and after it', async () => {
-    const response = createDeferred();
-    await renderPage({ demoControl: createDemoControl(() => response.promise) });
-    await screen.findByText(FIRST_WAREHOUSE.name);
-    const button = getResetButton(defaultLocaleCatalog['warehouse.resetDemo.label']);
-    button.focus();
-
-    fireEvent.click(button);
-
-    expect(await screen.findByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.pending'] })).toBe(button);
-    expect(document.activeElement).toBe(button);
-
-    response.resolve();
-
-    expect(await screen.findByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] })).toBe(button);
-    expect(document.activeElement).toBe(button);
-  });
-
-  it('does not change the data before the answer and does not refetch by itself', async () => {
-    const response = createDeferred();
-    const listWarehouses = vi.fn(() => createWarehousesResponse([FIRST_WAREHOUSE, SECOND_WAREHOUSE]));
-    await renderPage({ demoControl: createDemoControl(() => response.promise), listWarehouses });
-
-    await screen.findByText(FIRST_WAREHOUSE.name);
-    fireEvent.click(getResetButton(defaultLocaleCatalog['warehouse.resetDemo.label']));
-    await screen.findByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.pending'] });
-
-    expect(screen.getAllByRole('listitem')).toHaveLength(2);
-    expect(screen.getByText(FIRST_WAREHOUSE.name)).toBeDefined();
-
-    response.resolve();
-    await screen.findByRole('button', { name: defaultLocaleCatalog['warehouse.resetDemo.label'] });
-
-    expect(listWarehouses).toHaveBeenCalledTimes(1);
-    expect(screen.getAllByRole('listitem')).toHaveLength(2);
-  });
-
-  it('shows the error by code and allows trying again', async () => {
-    let isFailing = true;
-    const reset = vi.fn(() => (isFailing ? Promise.reject(createCodedError()) : Promise.resolve()));
-    await renderPage({ demoControl: createDemoControl(reset) });
-
-    await screen.findByText(FIRST_WAREHOUSE.name);
-    fireEvent.click(getResetButton(defaultLocaleCatalog['warehouse.resetDemo.label']));
-
-    const alert = await screen.findByRole('alert');
-
-    expect(alert.textContent).toBe(defaultLocaleCatalog['error.invalid_transition']);
-    expect(getResetButton(defaultLocaleCatalog['warehouse.resetDemo.label']).hasAttribute('disabled')).toBe(false);
-
-    isFailing = false;
-    fireEvent.click(getResetButton(defaultLocaleCatalog['warehouse.resetDemo.label']));
-
-    await waitFor(() => {
-      expect(screen.queryByRole('alert')).toBeNull();
-    });
-
-    expect(reset).toHaveBeenCalledTimes(2);
   });
 });

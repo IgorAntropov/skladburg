@@ -4,18 +4,17 @@ import {
   it,
 } from 'vitest';
 
-import type { ObjectTypeValue } from '@/shared/routing';
-
-import {
-  APP_SECTIONS,
-  OBJECT_HOME_SECTION,
-  OBJECT_TYPES,
-} from '@/shared/routing';
+import type { ObjectTypeValue } from './addressTypes';
 
 import {
   getAddressSection,
   SECTION_TITLE_KEYS,
-} from './sections';
+} from './addressSections';
+import {
+  APP_SECTIONS,
+  OBJECT_HOME_SECTION,
+  OBJECT_TYPES,
+} from './addressTypes';
 
 const OBJECT_ID = 'f6000001-0000-4000-8000-000000000000';
 

@@ -10,13 +10,17 @@ import type { SectionValue } from '../fixtures/routes.ts';
 
 import { PERSONA_COUNT } from '../fixtures/demoData.ts';
 import { getText } from '../fixtures/messages.ts';
+import { getPersonaLabel } from '../fixtures/personaLabels.ts';
 import { getSectionTitle } from '../fixtures/routes.ts';
 
-const getPersonaLabel = ({ kind, organizationName }: PersonaValue): string => getText('persona.option')
-  .replace('{kind}', getText(`persona.kind.${kind}`))
-  .replace('{organization}', organizationName);
-
 const getTriggerLabel = (persona: PersonaValue): string => getText('persona.trigger.label')
+  .replace('{persona}', getPersonaLabel(persona));
+
+const MAX_TAB_PRESSES = 20;
+
+const TAB_KEYS = ['Tab', 'Alt+Tab'] as const;
+
+const getSwitchedAnnouncement = (persona: PersonaValue): string => getText('persona.switched')
   .replace('{persona}', getPersonaLabel(persona));
 
 const getTriggerLabelPrefix = (): string => getText('persona.trigger.label').replace('{persona}', '');
@@ -31,9 +35,11 @@ export interface PersonaRobotValue {
   expectMenuOpen: () => Promise<void>;
   expectSectionHeading: (section: SectionValue) => Promise<void>;
   expectSections: (sections: readonly SectionValue[]) => Promise<void>;
+  expectSwitchAnnounced: (persona: PersonaValue) => Promise<void>;
   expectSwitcherReady: () => Promise<void>;
   expectTriggerFocused: () => Promise<void>;
   focusTrigger: () => Promise<void>;
+  focusTriggerWithTab: () => Promise<void>;
   highlightPersonaWithArrows: (persona: PersonaValue) => Promise<void>;
   openAsPersona: (hash: string, personaId: string) => Promise<void>;
   openMenuWithArrowDown: () => Promise<void>;
@@ -92,6 +98,26 @@ export const createPersonaRobot = (page: Page): PersonaRobotValue => {
   const focusTrigger = async (): Promise<void> => {
     await expectSwitcherReady();
     await trigger.focus();
+    await expectTriggerFocused();
+  };
+
+  const focusTriggerWithTab = async (): Promise<void> => {
+    await expectSwitcherReady();
+
+    for (const key of TAB_KEYS) {
+      for (let press = 0; press < MAX_TAB_PRESSES; press += 1) {
+        await page.keyboard.press(key);
+
+        const focusedTriggerCount = await trigger.and(page.locator(':focus')).count();
+
+        if (focusedTriggerCount > 0) {
+          await expectTriggerFocused();
+
+          return;
+        }
+      }
+    }
+
     await expectTriggerFocused();
   };
 
@@ -156,9 +182,13 @@ export const createPersonaRobot = (page: Page): PersonaRobotValue => {
     async expectSections(sections: readonly SectionValue[]): Promise<void> {
       await expect(navigation.getByRole('link')).toHaveText(sections.map(getSectionTitle));
     },
+    async expectSwitchAnnounced(persona: PersonaValue): Promise<void> {
+      await expect(page.getByRole('status').filter({ hasText: getSwitchedAnnouncement(persona) })).toHaveCount(1);
+    },
     expectSwitcherReady,
     expectTriggerFocused,
     focusTrigger,
+    focusTriggerWithTab,
     async highlightPersonaWithArrows(persona: PersonaValue): Promise<void> {
       const targetIndex = await getItemIndex(persona);
       const focusedIndex = await getFocusedItemIndex();

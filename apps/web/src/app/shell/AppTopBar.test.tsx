@@ -31,12 +31,13 @@ import {
   APP_SECTIONS,
   OBJECT_HOME_SECTION,
   OBJECT_TYPES,
+  SECTION_TITLE_KEYS,
 } from '@/shared/routing';
 import { SKELETON_DELAY_MS } from '@/shared/ui';
 
 import type { AvailableSectionsValue } from '../access';
 
-import { SECTION_TITLE_KEYS } from '../routing/sections';
+import { createTestThemeStore } from '../lib/testing/themeFixtures';
 
 type LoadPersonaSwitcherType = typeof import('./loadPersonaSwitcher').loadPersonaSwitcher;
 
@@ -61,17 +62,17 @@ interface GateValue {
   promise: Promise<void>;
 }
 
-interface RenderedTopBarValue {
-  loadPersonaSwitcher: LoadPersonaSwitcherType;
-  location: IMemoryLocation;
-  remountTopBar: () => void;
-}
-
-interface RenderTopBarOptionsValue {
+interface RenderAppTopBarOptionsValue {
   availableSections?: AvailableSectionsValue;
   demoControl?: IDemoControl;
   rejectedLoadCount?: number;
   switcherGate?: GateValue;
+}
+
+interface RenderedAppTopBarValue {
+  loadPersonaSwitcher: LoadPersonaSwitcherType;
+  location: IMemoryLocation;
+  remountAppTopBar: () => void;
 }
 
 const createGate = (): GateValue => {
@@ -83,10 +84,10 @@ const createGate = (): GateValue => {
   return { open, promise };
 };
 
-const renderTopBar = async (
+const renderAppTopBar = async (
   initialPath: string,
-  { availableSections = ALL_SECTIONS_VALUE, demoControl, rejectedLoadCount = 0, switcherGate }: RenderTopBarOptionsValue = {},
-): Promise<RenderedTopBarValue> => {
+  { availableSections = ALL_SECTIONS_VALUE, demoControl, rejectedLoadCount = 0, switcherGate }: RenderAppTopBarOptionsValue = {},
+): Promise<RenderedAppTopBarValue> => {
   vi.resetModules();
 
   const [
@@ -96,9 +97,11 @@ const renderTopBar = async (
     { RoutingProvider },
     { createMemoryLocation },
     { TenantSettingsProvider },
+    { ThemePreferenceProvider },
+    { FocusHandoffProvider, LiveRegionProvider },
     { AvailableSectionsProvider },
     { loadPersonaSwitcher: mockedLoadPersonaSwitcher },
-    { TopBar },
+    { AppTopBar },
   ] = await Promise.all([
     import('@/shared/api'),
     import('@/shared/api/index.testing'),
@@ -106,9 +109,11 @@ const renderTopBar = async (
     import('@/shared/routing'),
     import('@/shared/routing/index.testing'),
     import('@/shared/tenant'),
+    import('@/shared/theme'),
+    import('@/shared/ui'),
     import('../access'),
     import('./loadPersonaSwitcher'),
-    import('./TopBar'),
+    import('./AppTopBar'),
   ]);
 
   const actualModule = await vi.importActual<typeof import('./loadPersonaSwitcher')>('./loadPersonaSwitcher');
@@ -148,31 +153,38 @@ const renderTopBar = async (
     tenantId: 'f2000001-0000-4000-8000-000000000000',
     termOverrides: {},
   };
-  const createTree = (topBarKey: number): ReactElement => (
-    <RoutingProvider location={location}>
-      <LocalizerProvider localizer={localizer}>
-        <ApiRuntimeProvider runtime={runtime}>
-          <QueryClientProvider client={queryClient}>
-            <TenantSettingsProvider tenantSettings={tenantSettings}>
-              <AvailableSectionsProvider value={availableSections}>
-                <TopBar key={topBarKey} />
-              </AvailableSectionsProvider>
-            </TenantSettingsProvider>
-          </QueryClientProvider>
-        </ApiRuntimeProvider>
-      </LocalizerProvider>
-    </RoutingProvider>
+  const themeStore = createTestThemeStore();
+  const createTree = (appTopBarKey: number): ReactElement => (
+    <ThemePreferenceProvider store={themeStore}>
+      <RoutingProvider location={location}>
+        <LocalizerProvider localizer={localizer}>
+          <ApiRuntimeProvider runtime={runtime}>
+            <QueryClientProvider client={queryClient}>
+              <LiveRegionProvider>
+                <FocusHandoffProvider>
+                  <TenantSettingsProvider tenantSettings={tenantSettings}>
+                    <AvailableSectionsProvider value={availableSections}>
+                      <AppTopBar key={appTopBarKey} />
+                    </AvailableSectionsProvider>
+                  </TenantSettingsProvider>
+                </FocusHandoffProvider>
+              </LiveRegionProvider>
+            </QueryClientProvider>
+          </ApiRuntimeProvider>
+        </LocalizerProvider>
+      </RoutingProvider>
+    </ThemePreferenceProvider>
   );
 
-  let topBarKey = 0;
-  const { rerender } = render(createTree(topBarKey));
+  let appTopBarKey = 0;
+  const { rerender } = render(createTree(appTopBarKey));
 
-  const remountTopBar = (): void => {
-    topBarKey += 1;
-    rerender(createTree(topBarKey));
+  const remountAppTopBar = (): void => {
+    appTopBarKey += 1;
+    rerender(createTree(appTopBarKey));
   };
 
-  return { loadPersonaSwitcher: mockedLoadPersonaSwitcher, location, remountTopBar };
+  return { loadPersonaSwitcher: mockedLoadPersonaSwitcher, location, remountAppTopBar };
 };
 
 const createDemoControl = (): IDemoControl => ({
@@ -192,13 +204,13 @@ const getCurrentSections = (): AppSectionValue[] => {
   });
 };
 
-describe('TopBar', () => {
+describe('AppTopBar', () => {
   afterEach(() => {
     cleanup();
   });
 
   it('shows the brand of the organization without translation', async () => {
-    await renderTopBar('/network');
+    await renderAppTopBar('/network');
 
     const brand = screen.getByText(BRAND_NAME);
 
@@ -206,7 +218,7 @@ describe('TopBar', () => {
   });
 
   it('has a labelled navigation with a link to every section in order', async () => {
-    await renderTopBar('/network');
+    await renderAppTopBar('/network');
 
     const links = within(getNavigation()).getAllByRole('link');
 
@@ -215,25 +227,25 @@ describe('TopBar', () => {
   });
 
   it.each(APP_SECTIONS)('marks only the section %s as the current page', async (section) => {
-    await renderTopBar(`/${section}`);
+    await renderAppTopBar(`/${section}`);
 
     expect(getCurrentSections()).toEqual([section]);
   });
 
   it.each(OBJECT_TYPES)('marks the home section of the object type %s as the current page', async (type) => {
-    await renderTopBar(`/${OBJECT_SEGMENTS[type]}/${OBJECT_ID}`);
+    await renderAppTopBar(`/${OBJECT_SEGMENTS[type]}/${OBJECT_ID}`);
 
     expect(getCurrentSections()).toEqual([OBJECT_HOME_SECTION[type]]);
   });
 
   it.each(['/', '/nope'])('marks no section for the address %s', async (path) => {
-    await renderTopBar(path);
+    await renderAppTopBar(path);
 
     expect(getCurrentSections()).toEqual([]);
   });
 
   it('opens the section by the link and moves the current mark', async () => {
-    const { location } = await renderTopBar('/network');
+    const { location } = await renderAppTopBar('/network');
 
     fireEvent.click(within(getNavigation()).getByRole('link', { name: getSectionTitle('deals') }));
 
@@ -242,7 +254,7 @@ describe('TopBar', () => {
   });
 
   it('follows the history', async () => {
-    const { location } = await renderTopBar('/network');
+    const { location } = await renderAppTopBar('/network');
     fireEvent.click(within(getNavigation()).getByRole('link', { name: getSectionTitle('catalog') }));
 
     fireEvent.click(within(getNavigation()).getByRole('link', { name: getSectionTitle('warehouse') }));
@@ -254,7 +266,7 @@ describe('TopBar', () => {
   });
 
   it('leaves the modified click to the browser', async () => {
-    const { location } = await renderTopBar('/network');
+    const { location } = await renderAppTopBar('/network');
 
     fireEvent.click(within(getNavigation()).getByRole('link', { name: getSectionTitle('deals') }), { ctrlKey: true });
 
@@ -264,7 +276,7 @@ describe('TopBar', () => {
 
   it('shows only the sections that are available, in the order of sections', async () => {
     const sections: AppSectionValue[] = ['network', 'deals', 'warehouse'];
-    await renderTopBar('/warehouse', { availableSections: { kind: 'ready', landingSection: 'network', sections } });
+    await renderAppTopBar('/warehouse', { availableSections: { kind: 'ready', landingSection: 'network', sections } });
 
     const links = within(getNavigation()).getAllByRole('link');
 
@@ -273,7 +285,7 @@ describe('TopBar', () => {
   });
 
   it('shows the single section of a persona that has one', async () => {
-    await renderTopBar('/warehouse', {
+    await renderAppTopBar('/warehouse', {
       availableSections: { kind: 'ready', landingSection: 'warehouse', sections: ['warehouse'] },
     });
 
@@ -287,24 +299,24 @@ describe('TopBar', () => {
   ];
 
   it.each(UNREADY_VALUES)('keeps the brand and an empty navigation while the sections are $kind', async (availableSections) => {
-    await renderTopBar('/network', { availableSections });
+    await renderAppTopBar('/network', { availableSections });
 
     expect(screen.getByText(BRAND_NAME)).toBeDefined();
     expect(within(getNavigation()).queryAllByRole('link')).toEqual([]);
   });
 
   it('loads no persona switcher chunk and renders no placeholder outside the demo', async () => {
-    const { loadPersonaSwitcher } = await renderTopBar('/network');
+    const { loadPersonaSwitcher } = await renderAppTopBar('/network');
 
     expect(loadPersonaSwitcher).not.toHaveBeenCalled();
-    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('button', { name: new RegExp(`^${defaultLocaleCatalog['persona.label']}`) })).toBeNull();
     expect(screen.queryByRole('status', { name: defaultLocaleCatalog['persona.loading'] })).toBeNull();
-    expect(screen.getByRole('banner').querySelector('[aria-hidden]')).toBeNull();
+    expect(screen.getByRole('banner').querySelector('.h-11.w-80')).toBeNull();
   });
 
   it('keeps a labelled placeholder of the trigger size in the banner until the switcher chunk is loaded', async () => {
     const gate = createGate();
-    const { loadPersonaSwitcher } = await renderTopBar('/network', { demoControl: createDemoControl(), switcherGate: gate });
+    const { loadPersonaSwitcher } = await renderAppTopBar('/network', { demoControl: createDemoControl(), switcherGate: gate });
 
     const group = screen.getByRole('status', { name: defaultLocaleCatalog['persona.loading'] });
     const placeholder = group.querySelector('[aria-hidden]');
@@ -315,7 +327,7 @@ describe('TopBar', () => {
     expect(placeholder?.className).not.toContain('bg-skeleton');
     expect(placeholder?.className).toContain('h-11');
     expect(placeholder?.className).toContain('w-80');
-    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('button', { name: new RegExp(`^${defaultLocaleCatalog['persona.label']}`) })).toBeNull();
 
     gate.open();
 
@@ -323,12 +335,12 @@ describe('TopBar', () => {
 
     expect(loadPersonaSwitcher).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('status', { name: defaultLocaleCatalog['persona.loading'] })).toBeNull();
-    expect(screen.getByRole('banner').querySelector('[aria-hidden="true"].h-11')).toBeNull();
+    expect(screen.getByRole('banner').querySelector('[aria-hidden="true"].h-11.w-80')).toBeNull();
   });
 
   it('fills the placeholder when the switcher chunk is slow', async () => {
     const gate = createGate();
-    await renderTopBar('/network', { demoControl: createDemoControl(), switcherGate: gate });
+    await renderAppTopBar('/network', { demoControl: createDemoControl(), switcherGate: gate });
 
     const placeholder = screen.getByRole('status', { name: defaultLocaleCatalog['persona.loading'] }).querySelector('[aria-hidden]');
 
@@ -344,7 +356,7 @@ describe('TopBar', () => {
   });
 
   it('shows the persona switcher in the banner of the demo while the sections load', async () => {
-    await renderTopBar('/network', { availableSections: { kind: 'loading' }, demoControl: createDemoControl() });
+    await renderAppTopBar('/network', { availableSections: { kind: 'loading' }, demoControl: createDemoControl() });
 
     const switcher = await screen.findByRole('button', { name: defaultLocaleCatalog['persona.label'] });
 
@@ -353,11 +365,11 @@ describe('TopBar', () => {
   });
 
   it('keeps the loaded switcher on the screen when the acting context changes and the top bar is mounted again', async () => {
-    const { loadPersonaSwitcher, remountTopBar } = await renderTopBar('/network', { demoControl: createDemoControl() });
+    const { loadPersonaSwitcher, remountAppTopBar } = await renderAppTopBar('/network', { demoControl: createDemoControl() });
     const trigger = await screen.findByRole('button', { name: defaultLocaleCatalog['persona.label'] });
 
     act(() => {
-      remountTopBar();
+      remountAppTopBar();
     });
 
     expect(screen.getByRole('button', { name: defaultLocaleCatalog['persona.label'] })).not.toBe(trigger);
@@ -368,8 +380,8 @@ describe('TopBar', () => {
   describe('when the persona switcher chunk fails to load', () => {
     const RETRY_NAME = defaultLocaleCatalog['persona.loadError.retry'];
 
-    const renderWithRejections = async (rejectedLoadCount: number): Promise<RenderedTopBarValue> => {
-      return renderTopBar('/network', { demoControl: createDemoControl(), rejectedLoadCount });
+    const renderWithRejections = async (rejectedLoadCount: number): Promise<RenderedAppTopBarValue> => {
+      return renderAppTopBar('/network', { demoControl: createDemoControl(), rejectedLoadCount });
     };
 
     it('keeps the brand, navigation and a retry button instead of crashing the shell', async () => {
@@ -410,6 +422,111 @@ describe('TopBar', () => {
         expect(trigger.className).toContain('w-80');
         expect(screen.queryByRole('button', { name: RETRY_NAME })).toBeNull();
         expect(loadPersonaSwitcher).toHaveBeenCalledTimes(2);
+      }
+      finally {
+        consoleErrorSpy.mockRestore();
+      }
+    });
+
+    const getAnnouncement = (): string => document.querySelector('[aria-live="polite"]')?.textContent ?? '';
+
+    it('announces that the list did not load and leaves the focus where it was', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      try {
+        await renderWithRejections(1);
+
+        await screen.findByRole('button', { name: RETRY_NAME });
+
+        await waitFor(() => {
+          expect(getAnnouncement()).toBe(defaultLocaleCatalog['persona.loadError.status']);
+        });
+        expect(document.activeElement).toBe(document.body);
+      }
+      finally {
+        consoleErrorSpy.mockRestore();
+      }
+    });
+
+    it('names the retry button with its subject', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      try {
+        await renderWithRejections(1);
+
+        const retryButton = await screen.findByRole('button', { name: RETRY_NAME });
+
+        expect(retryButton.textContent).toContain(defaultLocaleCatalog['persona.label']);
+      }
+      finally {
+        consoleErrorSpy.mockRestore();
+      }
+    });
+
+    it('moves the focus to the new retry button and announces again when the retry fails too', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      try {
+        const { loadPersonaSwitcher } = await renderWithRejections(2);
+        const firstRetryButton = await screen.findByRole('button', { name: RETRY_NAME });
+        firstRetryButton.focus();
+
+        fireEvent.click(firstRetryButton);
+
+        await waitFor(() => {
+          expect(loadPersonaSwitcher).toHaveBeenCalledTimes(2);
+        });
+        const secondRetryButton = await screen.findByRole('button', { name: RETRY_NAME });
+
+        expect(secondRetryButton).not.toBe(firstRetryButton);
+        await waitFor(() => {
+          expect(document.activeElement).toBe(secondRetryButton);
+        });
+        await waitFor(() => {
+          expect(getAnnouncement()).toBe(defaultLocaleCatalog['persona.loadError.status']);
+        });
+      }
+      finally {
+        consoleErrorSpy.mockRestore();
+      }
+    });
+
+    it('moves the focus to the trigger of the switcher when the retry succeeds', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      try {
+        await renderWithRejections(1);
+        const retryButton = await screen.findByRole('button', { name: RETRY_NAME });
+        retryButton.focus();
+
+        fireEvent.click(retryButton);
+
+        const trigger = await screen.findByRole('button', { name: defaultLocaleCatalog['persona.label'] });
+
+        await waitFor(() => {
+          expect(document.activeElement).toBe(trigger);
+        });
+      }
+      finally {
+        consoleErrorSpy.mockRestore();
+      }
+    });
+
+    it('asks for the chunk again when the top bar is mounted again after a failure', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      try {
+        const { loadPersonaSwitcher, remountAppTopBar } = await renderWithRejections(1);
+        await screen.findByRole('button', { name: RETRY_NAME });
+
+        act(() => {
+          remountAppTopBar();
+        });
+
+        await screen.findByRole('button', { name: defaultLocaleCatalog['persona.label'] });
+
+        expect(loadPersonaSwitcher).toHaveBeenCalledTimes(2);
+        expect(screen.queryByRole('button', { name: RETRY_NAME })).toBeNull();
       }
       finally {
         consoleErrorSpy.mockRestore();

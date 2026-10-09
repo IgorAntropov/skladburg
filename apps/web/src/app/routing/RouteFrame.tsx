@@ -41,7 +41,7 @@ export const RouteFrame = ({ children, errorResetKey, path }: RouteFrameProps): 
   }, [path]);
 
   return (
-    <main aria-busy={busyAttribute} className="flex-1 focus-visible:outline-none" ref={mainRef} tabIndex={-1}>
+    <main aria-busy={busyAttribute} className="flex flex-1 flex-col focus-visible:outline-none" ref={mainRef} tabIndex={-1}>
       <SectionErrorBoundary fallback={renderSectionError} key={errorResetKey} resetKey={path}>
         <Suspense fallback={<PendingSignal onPendingChange={setIsPending} />}>{children}</Suspense>
       </SectionErrorBoundary>

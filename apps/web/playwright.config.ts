@@ -19,6 +19,7 @@ export default defineConfig({
     },
     {
       name: 'webkit',
+      testIgnore: /long-tasks\.spec\.ts$/,
       use: { ...devices['Desktop Safari'] },
     },
   ],

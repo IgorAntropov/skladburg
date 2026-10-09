@@ -38,6 +38,11 @@ export {
 export { useDelayedVisibility } from './skeleton/useDelayedVisibility';
 export type { StatusScreenProps } from './status-screen/StatusScreen';
 export { StatusScreen } from './status-screen/StatusScreen';
+export type {
+  TabsItemValue,
+  TabsProps,
+} from './tabs/Tabs';
+export { Tabs } from './tabs/Tabs';
 export type { TextInputProps } from './text-input/TextInput';
 export { TextInput } from './text-input/TextInput';
 export type { ErrorNoticeProps } from './widget-states/ErrorNotice';

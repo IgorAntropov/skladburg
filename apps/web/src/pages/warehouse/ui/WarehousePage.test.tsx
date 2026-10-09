@@ -31,13 +31,14 @@ import {
 import { defaultLocaleCatalog } from 'virtual:build-profile';
 import {
   afterEach,
+  beforeEach,
   describe,
   expect,
   it,
   vi,
 } from 'vitest';
 
-import type { ILocalizer } from '@/shared/i18n';
+import type { IFakeViewport } from '@/shared/lib/viewport/index.testing';
 import type { ObjectRefValue } from '@/shared/routing';
 
 import {
@@ -48,11 +49,13 @@ import {
   createTestRuntime,
   TEST_ORGANIZATION_ID,
 } from '@/shared/api/index.testing';
+import { withTestLocalizer } from '@/shared/i18n/index.testing';
+import { installFakeViewport } from '@/shared/lib/viewport/index.testing';
 import {
-  createLocalizer,
-  LocalizerProvider,
-} from '@/shared/i18n';
-import { OBJECT_TYPES } from '@/shared/routing';
+  OBJECT_TYPES,
+  RoutingProvider,
+} from '@/shared/routing';
+import { createMemoryLocation } from '@/shared/routing/index.testing';
 
 import { warehouseKeys } from '../api/warehouseKeys';
 import { WarehousePage } from './WarehousePage';
@@ -119,17 +122,9 @@ const createDeferred = (): DeferredValue => {
   return { promise, reject, resolve };
 };
 
-const createTestLocalizer = (): Promise<ILocalizer> => createLocalizer({
-  bundledLocales: ['ru'],
-  catalogLoaders: { ru: () => Promise.resolve(defaultLocaleCatalog) },
-  requestedLocale: undefined,
-  tenant: { availableLocales: ['ru'], defaultLocale: 'ru', termOverrides: {} },
-  userTimeZone: 'UTC',
-});
-
-const renderPage = async (options: RenderPageOptionsValue = {}): Promise<RenderedPageValue> => {
+const renderPage = (options: RenderPageOptionsValue = {}): RenderedPageValue => {
   const { focus } = options;
-  const localizer = await createTestLocalizer();
+  const location = createMemoryLocation('/warehouse');
   const queryClient = createQueryClient({ networkMode: 'always' });
   const runtime = createTestRuntime({
     routes: router => router.service(OrganizationService, {
@@ -139,13 +134,15 @@ const renderPage = async (options: RenderPageOptionsValue = {}): Promise<Rendere
   });
 
   render(
-    <LocalizerProvider localizer={localizer}>
-      <ApiRuntimeProvider runtime={runtime}>
-        <QueryClientProvider client={queryClient}>
-          <WarehousePage focus={focus} />
-        </QueryClientProvider>
-      </ApiRuntimeProvider>
-    </LocalizerProvider>,
+    withTestLocalizer(
+      <RoutingProvider location={location}>
+        <ApiRuntimeProvider runtime={runtime}>
+          <QueryClientProvider client={queryClient}>
+            <WarehousePage focus={focus} />
+          </QueryClientProvider>
+        </ApiRuntimeProvider>
+      </RoutingProvider>,
+    ),
   );
 
   return { queryClient };
@@ -160,50 +157,132 @@ describe('WarehousePage header', () => {
     cleanup();
   });
 
-  it('shows the title of the section as the only first level heading', async () => {
-    await renderPage();
+  it('names the section with the only first level heading that only screen readers see', () => {
+    renderPage();
 
     const titles = screen.getAllByRole('heading', { level: 1 });
 
     expect(titles).toHaveLength(1);
     expect(titles[0]?.textContent).toBe(defaultLocaleCatalog['section.warehouse.title']);
+    expect(titles[0]?.className).toContain('sr-only');
   });
 
-  it('keeps the note about the future world', async () => {
-    await renderPage();
+  it('does not render a landmark of its own', () => {
+    renderPage();
 
-    expect(screen.getByText(defaultLocaleCatalog['warehouse.placeholder'])).toBeDefined();
+    expect(screen.queryByRole('main')).toBeNull();
+  });
+});
+
+describe('WarehousePage zones', () => {
+  let viewport: IFakeViewport;
+
+  beforeEach(() => {
+    viewport = installFakeViewport('desktop');
+  });
+
+  afterEach(() => {
+    cleanup();
+    viewport.restore();
+  });
+
+  it('keeps the note about the future world in the scene', () => {
+    renderPage();
+
+    expect(within(screen.getByTestId('hud-zone-scene')).getByText(defaultLocaleCatalog['warehouse.placeholder'])).toBeDefined();
+  });
+
+  it.each(['scene', 'lists', 'inspector'])('draws the %s zone on a desktop', (zone) => {
+    renderPage();
+
+    expect(screen.getByTestId(`hud-zone-${zone}`)).toBeDefined();
+  });
+
+  it.each(['kpi', 'tracker', 'panel'])('draws no %s zone', (zone) => {
+    renderPage();
+
+    expect(screen.queryByTestId(`hud-zone-${zone}`)).toBeNull();
+  });
+
+  it('puts the organization card above the warehouse tab in the lists zone', async () => {
+    renderPage();
+
+    const lists = screen.getByTestId('hud-zone-lists');
+    const card = await within(lists).findByRole('region', { name: defaultLocaleCatalog['warehouse.organization.title'] });
+    const tablist = within(lists).getByRole('tablist', { name: defaultLocaleCatalog['hud.lists.label'] });
+
+    expect(card.compareDocumentPosition(tablist) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(tablist).getAllByRole('tab')).toHaveLength(1);
+  });
+
+  it('counts the warehouses in the name of the tab once they are loaded', async () => {
+    const response = createDeferred();
+    renderPage({
+      listWarehouses: async () => {
+        await response.promise;
+
+        return createWarehousesResponse([FIRST_WAREHOUSE, SECOND_WAREHOUSE]);
+      },
+    });
+
+    expect(screen.getByRole('tab').textContent).toBe(defaultLocaleCatalog['hud.lists.warehouses']);
+
+    response.resolve();
+
+    expect((await screen.findByRole('tab', { name: `${defaultLocaleCatalog['hud.lists.warehouses']} 2` }))).toBeDefined();
+  });
+
+  it('keeps the count of an empty list at zero', async () => {
+    renderPage({ listWarehouses: () => createWarehousesResponse([]) });
+
+    expect((await screen.findByRole('tab', { name: `${defaultLocaleCatalog['hud.lists.warehouses']} 0` }))).toBeDefined();
+  });
+
+  it('shows the lists as the main zone on a phone', async () => {
+    viewport.setViewportClass('phone');
+    renderPage();
+
+    expect(screen.getByTestId('hud-zone-lists')).toBeDefined();
+    expect(await screen.findByText(FIRST_WAREHOUSE.name)).toBeDefined();
   });
 });
 
 describe('WarehousePage focused object', () => {
-  afterEach(() => {
-    cleanup();
+  let viewport: IFakeViewport;
+
+  beforeEach(() => {
+    viewport = installFakeViewport('desktop');
   });
 
-  it('does not name an object when there is none in the address', async () => {
-    await renderPage();
+  afterEach(() => {
+    cleanup();
+    viewport.restore();
+  });
 
+  it('shows the empty inspector when there is no object in the address', () => {
+    renderPage();
+
+    expect(within(screen.getByTestId('hud-zone-inspector')).getByText(defaultLocaleCatalog['hud.inspector.empty'])).toBeDefined();
     expect(screen.queryByText(FOCUSED_OBJECT_ID)).toBeNull();
   });
 
-  it('does not render a landmark of its own', async () => {
-    await renderPage();
+  it.each(OBJECT_TYPES)('names the opened object of the type %s in the inspector and keeps its identifier out of translation', (type) => {
+    renderPage({ focus: { id: FOCUSED_OBJECT_ID, type } });
 
-    expect(screen.queryByRole('main')).toBeNull();
-  });
-
-  it.each(OBJECT_TYPES)('names the opened object of the type %s and keeps its identifier out of translation', async (type) => {
-    await renderPage({ focus: { id: FOCUSED_OBJECT_ID, type } });
-
-    const identifier = screen.getByText(FOCUSED_OBJECT_ID);
-    const focusedText = defaultLocaleCatalog['routing.focusedObject'];
-
-    expect(identifier.getAttribute('translate')).toBe('no');
+    const identifier = within(screen.getByTestId('hud-zone-inspector')).getByText(FOCUSED_OBJECT_ID);
     const typeTitle = defaultLocaleCatalog[`object.type.${type}`];
 
-    expect(identifier.closest('p')?.textContent).toBe(`${focusedText.replace('{type}', typeTitle)} ${FOCUSED_OBJECT_ID}`);
+    expect(identifier.getAttribute('translate')).toBe('no');
+    expect(identifier.closest('p')?.textContent)
+      .toBe(`${defaultLocaleCatalog['hud.inspector.object'].replace('{type}', typeTitle)} ${FOCUSED_OBJECT_ID}`);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(defaultLocaleCatalog['section.warehouse.title']);
+  });
+
+  it('opens the object in the sheet on a phone', () => {
+    viewport.setViewportClass('phone');
+    renderPage({ focus: { id: FOCUSED_OBJECT_ID, type: 'warehouse' } });
+
+    expect(within(screen.getByTestId('hud-inspector-sheet')).getByText(FOCUSED_OBJECT_ID)).toBeDefined();
   });
 });
 
@@ -213,7 +292,7 @@ describe('WarehousePage organization card', () => {
   });
 
   it('shows the name and the legal name but not the tax number', async () => {
-    await renderPage();
+    renderPage();
 
     const card = await screen.findByRole('region', { name: defaultLocaleCatalog['warehouse.organization.title'] });
 
@@ -224,7 +303,7 @@ describe('WarehousePage organization card', () => {
 
   it('shows an empty busy frame while the organization is loading', async () => {
     const response = createDeferred();
-    await renderPage({
+    renderPage({
       getOrganization: async () => {
         await response.promise;
 
@@ -246,7 +325,7 @@ describe('WarehousePage organization card', () => {
 
   it('keeps the frame in the shape of the card', async () => {
     const response = createDeferred();
-    await renderPage({
+    renderPage({
       getOrganization: async () => {
         await response.promise;
 
@@ -279,7 +358,7 @@ describe('WarehousePage organization card', () => {
 
       return createOrganizationResponse();
     });
-    await renderPage({ getOrganization });
+    renderPage({ getOrganization });
 
     const alert = await screen.findByText(defaultLocaleCatalog['error.invalid_transition']);
 
@@ -297,7 +376,7 @@ describe('WarehousePage organization card', () => {
   it('keeps the error and the focused retry button busy while the organization is requested again after a failure', async () => {
     let attempt = 0;
     const retryResponse = createDeferred();
-    await renderPage({
+    renderPage({
       getOrganization: async () => {
         attempt += 1;
         if (attempt === 1) {
@@ -336,7 +415,7 @@ describe('WarehousePage warehouse list', () => {
   });
 
   it('shows the name and the address of every warehouse', async () => {
-    await renderPage();
+    renderPage();
     await screen.findByText(FIRST_WAREHOUSE.name);
 
     const list = screen.getByRole('list');
@@ -351,7 +430,7 @@ describe('WarehousePage warehouse list', () => {
 
   it('does not show the address line for a warehouse without an address', async () => {
     const warehouseWithoutAddress = { ...FIRST_WAREHOUSE, address: '' };
-    await renderPage({ listWarehouses: () => createWarehousesResponse([warehouseWithoutAddress]) });
+    renderPage({ listWarehouses: () => createWarehousesResponse([warehouseWithoutAddress]) });
 
     const nameElement = await screen.findByText(warehouseWithoutAddress.name);
     const item = within(screen.getByRole('list')).getByRole('listitem');
@@ -363,7 +442,7 @@ describe('WarehousePage warehouse list', () => {
 
   it('shows three empty frames without text while the warehouses are loading', async () => {
     const response = createDeferred();
-    await renderPage({
+    renderPage({
       listWarehouses: async () => {
         await response.promise;
 
@@ -388,7 +467,7 @@ describe('WarehousePage warehouse list', () => {
 
   it('keeps every frame in the shape of the warehouse card', async () => {
     const response = createDeferred();
-    await renderPage({
+    renderPage({
       listWarehouses: async () => {
         await response.promise;
 
@@ -416,7 +495,7 @@ describe('WarehousePage warehouse list', () => {
   });
 
   it('shows the hint when there are no warehouses', async () => {
-    await renderPage({ listWarehouses: () => createWarehousesResponse([]) });
+    renderPage({ listWarehouses: () => createWarehousesResponse([]) });
 
     expect(await screen.findByText(defaultLocaleCatalog['warehouse.warehouses.empty'])).toBeDefined();
     expect(screen.queryByRole('list')).toBeNull();
@@ -431,7 +510,7 @@ describe('WarehousePage warehouse list', () => {
 
       return createWarehousesResponse([FIRST_WAREHOUSE]);
     });
-    await renderPage({ listWarehouses });
+    renderPage({ listWarehouses });
 
     const alert = await within(getWarehouseSection()).findByRole('alert');
 
@@ -449,7 +528,7 @@ describe('WarehousePage warehouse list', () => {
   it('keeps the error and the focused retry button busy while the list is requested again after a failure', async () => {
     let attempt = 0;
     const retryResponse = createDeferred();
-    await renderPage({
+    renderPage({
       listWarehouses: async () => {
         attempt += 1;
         if (attempt === 1) {
@@ -486,7 +565,7 @@ describe('WarehousePage warehouse list', () => {
   });
 
   it('stores the list under the organization key and declares the organization channel', async () => {
-    const { queryClient } = await renderPage();
+    const { queryClient } = renderPage();
 
     await screen.findByText(FIRST_WAREHOUSE.name);
 

@@ -3,10 +3,14 @@ import type { ReactElement } from 'react';
 import type { ObjectRefValue } from '@/shared/routing';
 
 import { useI18n } from '@/shared/i18n';
-import { FocusedObjectNote } from '@/shared/routing';
+import {
+  HudLayout,
+  ScenePlaceholder,
+  useInspectorFocus,
+} from '@/widgets/hud-layout';
+import { ObjectInspector } from '@/widgets/object-inspector';
 
-import { OrganizationCard } from './OrganizationCard';
-import { WarehouseList } from './WarehouseList';
+import { WarehouseLists } from './WarehouseLists';
 
 interface WarehousePageProps {
   focus: ObjectRefValue | undefined;
@@ -14,14 +18,17 @@ interface WarehousePageProps {
 
 export const WarehousePage = ({ focus }: WarehousePageProps): ReactElement => {
   const { t } = useI18n();
+  const inspectorFocus = useInspectorFocus('warehouse', focus);
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-8">
-      <h1 className="text-2xl font-semibold tracking-tight">{t('section.warehouse.title')}</h1>
-      {focus !== undefined && <FocusedObjectNote focus={focus} />}
-      <OrganizationCard />
-      <WarehouseList />
-      <p className="text-base">{t('warehouse.placeholder')}</p>
-    </div>
+    <>
+      <h1 className="sr-only">{t('section.warehouse.title')}</h1>
+      <HudLayout
+        {...inspectorFocus}
+        inspector={<ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
+        lists={<WarehouseLists />}
+        scene={<ScenePlaceholder label={t('warehouse.placeholder')} />}
+      />
+    </>
   );
 };

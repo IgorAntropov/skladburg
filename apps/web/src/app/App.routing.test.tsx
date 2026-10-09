@@ -166,7 +166,8 @@ describe('App routes', () => {
     await findSectionHeading(section);
 
     expect(screen.getByText(defaultLocaleCatalog[`section.${section}.placeholder`])).toBeDefined();
-    expect(screen.queryByText(new RegExp(defaultLocaleCatalog['routing.focusedObject'].replace(' {type}', '')))).toBeNull();
+    expect(screen.queryByText(OBJECT_ID)).toBeNull();
+    expect(within(screen.getByTestId('hud-zone-inspector')).getByText(defaultLocaleCatalog['hud.inspector.empty'])).toBeDefined();
   });
 
   it.each(OBJECT_TYPES)('opens the object of the type %s in its home section and names it', async (type) => {
@@ -176,11 +177,11 @@ describe('App routes', () => {
     await renderApp(`/${OBJECT_SEGMENTS[type]}/${OBJECT_ID}`);
     await findSectionHeading(section);
 
-    const identifier = screen.getByText(OBJECT_ID);
+    const identifier = within(screen.getByTestId('hud-zone-inspector')).getByText(OBJECT_ID);
     const note = identifier.closest('p');
 
     expect(identifier.getAttribute('translate')).toBe('no');
-    expect(note?.textContent).toBe(`${defaultLocaleCatalog['routing.focusedObject'].replace('{type}', typeTitle)} ${OBJECT_ID}`);
+    expect(note?.textContent).toBe(`${defaultLocaleCatalog['hud.inspector.object'].replace('{type}', typeTitle)} ${OBJECT_ID}`);
     expect(document.title).toBe(formatDocumentTitle(getSectionTitle(section)));
     expect(within(getNavigation()).getByRole('link', { name: getSectionTitle(section) }).getAttribute('aria-current')).toBe('page');
   });

@@ -297,6 +297,20 @@ describe('top bar state contrast', () => {
   });
 });
 
+describe('HUD zone state contrast', () => {
+  it.each(THEME_NAMES)('keeps the empty state icon visible on the skeleton fill over the panel in the %s theme', (theme) => {
+    const ratio = readWorstRatio(readColor(theme, 'on-panel-muted'), readSegmentedTrackBackdrops(theme));
+
+    expect(ratio).toBeGreaterThanOrEqual(GRAPHIC_THRESHOLD);
+  });
+
+  it.each(THEME_NAMES)('keeps the text of the selected nested tab readable on the indicator fill in the %s theme', (theme) => {
+    const ratio = contrastRatio(readColor(theme, 'panel-solid'), readColor(theme, 'indicator'));
+
+    expect(ratio).toBeGreaterThanOrEqual(TEXT_THRESHOLD);
+  });
+});
+
 describe('theme contrast', () => {
   it.each(CONTRAST_CASES)(
     '$theme theme: $foreground on $background reaches $threshold',

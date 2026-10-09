@@ -17,6 +17,7 @@ import {
   useIsDemoResetAvailable,
 } from '@/features/reset-demo';
 import { ThemeSwitcher } from '@/features/switch-theme';
+import { useViewportClass } from '@/shared/lib/viewport';
 import { useTenantSettings } from '@/shared/tenant';
 import { Panel } from '@/shared/ui';
 
@@ -33,7 +34,7 @@ const ROW_CLASS_NAME = 'flex min-h-15 flex-wrap items-center gap-x-3 gap-y-2 px-
 
 const BRAND_CLASS_NAME = 'max-w-40 shrink-0 truncate text-lg font-semibold tracking-tight sm:max-w-44 xl:max-w-56';
 
-const DESKTOP_CLUSTER_CLASS_NAME = 'hidden items-center gap-3 xl:flex **:data-segment-label:sr-only';
+const DESKTOP_CLUSTER_CLASS_NAME = 'flex items-center gap-3 **:data-segment-label:sr-only';
 
 export interface TopBarProps {
   currentSection: AppSectionValue | undefined;
@@ -45,9 +46,15 @@ export const TopBar = ({ currentSection, personaSwitcher, sections }: TopBarProp
   const { brandName } = useTenantSettings();
   const isDemoResetAvailable = useIsDemoResetAvailable();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const viewportClass = useViewportClass();
   const [isResetConfirming, setIsResetConfirming] = useState(false);
 
-  const isResetConfirmShown = isResetConfirming && isDemoResetAvailable;
+  const isDesktop = viewportClass === 'desktop';
+  const isResetConfirmShown = isResetConfirming && isDemoResetAvailable && !isDesktop;
+
+  if (isDesktop && isResetConfirming) {
+    setIsResetConfirming(false);
+  }
 
   const handleResetRequest = useCallback((): void => {
     console.log('> TopBar -> handleResetRequest:', {});
@@ -70,23 +77,26 @@ export const TopBar = ({ currentSection, personaSwitcher, sections }: TopBarProp
         <SearchField />
         <div className="contents" data-testid="top-bar-clock-slot" />
         <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
-          <div className={DESKTOP_CLUSTER_CLASS_NAME}>
-            {personaSwitcher}
-            <ThemeSwitcher />
-            <ResetDemoButton />
-          </div>
-          <div className="xl:hidden">
-            <PhoneMenuLauncher
-              buttonRef={menuButtonRef}
-              currentSection={currentSection}
-              onResetRequest={handleResetRequest}
-              sections={sections}
-            />
-          </div>
+          {isDesktop
+            ? (
+                <div className={DESKTOP_CLUSTER_CLASS_NAME}>
+                  {personaSwitcher}
+                  <ThemeSwitcher />
+                  <ResetDemoButton />
+                </div>
+              )
+            : (
+                <PhoneMenuLauncher
+                  buttonRef={menuButtonRef}
+                  currentSection={currentSection}
+                  onResetRequest={handleResetRequest}
+                  sections={sections}
+                />
+              )}
         </div>
       </div>
       {isResetConfirmShown && (
-        <div className="border-t border-line px-4 py-3 xl:hidden">
+        <div className="border-t border-line px-4 py-3">
           <ResetDemoConfirm onClose={handleResetConfirmClose} />
         </div>
       )}

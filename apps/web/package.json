@@ -19,6 +19,7 @@
     "@connectrpc/connect": "2.2.0",
     "@connectrpc/connect-web": "2.2.0",
     "@radix-ui/react-dropdown-menu": "2.1.25",
+    "@radix-ui/react-tabs": "1.1.22",
     "@skladburg/contracts": "workspace:*",
     "@skladburg/demo-engine": "workspace:*",
     "@tanstack/react-query": "5.104.1",
@@ -27,6 +28,7 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@feature-sliced/steiger-plugin": "^0.8.0",
     "@playwright/test": "1.64.0",
     "@steiger/toolkit": "~0.2.3",

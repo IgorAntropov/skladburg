@@ -1,9 +1,24 @@
 import type { ReactElement } from 'react';
 
+import {
+  ChartNoAxesColumn,
+  Handshake,
+  ListChecks,
+  Truck,
+  Warehouse,
+} from 'lucide-react';
+
 import type { ObjectRefValue } from '@/shared/routing';
 
 import { useI18n } from '@/shared/i18n';
-import { FocusedObjectNote } from '@/shared/routing';
+import { Tabs } from '@/shared/ui';
+import {
+  HudLayout,
+  ScenePlaceholder,
+  useInspectorFocus,
+  ZoneEmptyState,
+} from '@/widgets/hud-layout';
+import { ObjectInspector } from '@/widgets/object-inspector';
 
 interface NetworkPageProps {
   focus: ObjectRefValue | undefined;
@@ -11,12 +26,42 @@ interface NetworkPageProps {
 
 export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
   const { t } = useI18n();
+  const inspectorFocus = useInspectorFocus('network', focus);
+
+  const lists = (
+    <Tabs
+      items={[
+        {
+          content: <ZoneEmptyState icon={Handshake} text={t('hud.lists.empty.deals')} />,
+          id: 'deals',
+          label: t('hud.lists.deals'),
+        },
+        {
+          content: <ZoneEmptyState icon={Truck} text={t('hud.lists.empty.trips')} />,
+          id: 'trips',
+          label: t('hud.lists.trips'),
+        },
+        {
+          content: <ZoneEmptyState icon={Warehouse} text={t('hud.lists.empty.warehouses')} />,
+          id: 'warehouses',
+          label: t('hud.lists.warehouses'),
+        },
+      ]}
+      label={t('hud.lists.label')}
+    />
+  );
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-8">
-      <h1 className="text-2xl font-semibold tracking-tight">{t('section.network.title')}</h1>
-      {focus !== undefined && <FocusedObjectNote focus={focus} />}
-      <p className="text-base">{t('section.network.placeholder')}</p>
-    </div>
+    <>
+      <h1 className="sr-only">{t('section.network.title')}</h1>
+      <HudLayout
+        {...inspectorFocus}
+        inspector={<ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
+        kpi={<ZoneEmptyState icon={ChartNoAxesColumn} text={t('hud.kpi.empty')} />}
+        lists={lists}
+        scene={<ScenePlaceholder label={t('section.network.placeholder')} />}
+        tracker={<ZoneEmptyState icon={ListChecks} text={t('hud.tracker.empty')} />}
+      />
+    </>
   );
 };

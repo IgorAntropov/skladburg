@@ -28,15 +28,19 @@ export const OBJECT_ID = 'f6000001-0000-4000-8000-000000000000';
 
 export const DEAL_ROUTE: ObjectRouteValue = { id: OBJECT_ID, section: 'deals', segment: 'deals', type: 'deal' };
 
+export const VEHICLE_ROUTE: ObjectRouteValue = { id: OBJECT_ID, section: 'network', segment: 'vehicles', type: 'vehicle' };
+
+export const WAREHOUSE_ROUTE: ObjectRouteValue = { id: OBJECT_ID, section: 'warehouse', segment: 'warehouses', type: 'warehouse' };
+
 export const OBJECT_ROUTES: readonly ObjectRouteValue[] = [
   DEAL_ROUTE,
   { id: OBJECT_ID, section: 'deals', segment: 'documents', type: 'document' },
   { id: 'stock-overview', section: 'network', segment: 'dashboards', type: 'dashboard' },
   { id: OBJECT_ID, section: 'warehouse', segment: 'handling-units', type: 'handling_unit' },
   { id: OBJECT_ID, section: 'warehouse', segment: 'cells', type: 'cell' },
-  { id: OBJECT_ID, section: 'network', segment: 'vehicles', type: 'vehicle' },
+  VEHICLE_ROUTE,
   { id: OBJECT_ID, section: 'network', segment: 'trips', type: 'trip' },
-  { id: OBJECT_ID, section: 'warehouse', segment: 'warehouses', type: 'warehouse' },
+  WAREHOUSE_ROUTE,
 ];
 
 export const FIRST_SECTION: SectionValue = 'network';

@@ -30,7 +30,6 @@ export type {
 } from './location/locationTypes';
 export type { AddressLinkProps } from './react/AddressLink';
 export { AddressLink } from './react/AddressLink';
-export { FocusedObjectNote } from './react/FocusedObjectNote';
 export { RoutingProvider } from './react/RoutingProvider';
 export type { CurrentAddressValue } from './react/useAddress';
 export { useAddress } from './react/useAddress';

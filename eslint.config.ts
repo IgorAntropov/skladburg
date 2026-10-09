@@ -287,7 +287,14 @@ const engineCoreRestrictedGlobals: string[] = [
 
 export default defineConfig(
   {
-    ignores: ['**/dist/', '**/coverage/', '**/.turbo/', 'packages/contracts/src/gen/'],
+    ignores: [
+      '**/dist/',
+      '**/coverage/',
+      '**/.turbo/',
+      '**/playwright-report/',
+      '**/test-results/',
+      'packages/contracts/src/gen/',
+    ],
   },
   {
     linterOptions: {

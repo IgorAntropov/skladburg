@@ -27,6 +27,8 @@ import type {
   IDemoControl,
 } from '@/shared/api';
 import type { ILocalizer } from '@/shared/i18n';
+import type { ViewportClassValue } from '@/shared/lib/viewport';
+import type { IFakeViewport } from '@/shared/lib/viewport/index.testing';
 import type {
   AppSectionValue,
   NavigateFunction,
@@ -35,6 +37,7 @@ import type { IMemoryLocation } from '@/shared/routing/index.testing';
 import type { IThemePreferenceStore } from '@/shared/theme';
 
 import { DemoPersonaKind } from '@/shared/api';
+import { installFakeViewport } from '@/shared/lib/viewport/index.testing';
 import {
   APP_SECTIONS,
   SECTION_TITLE_KEYS,
@@ -69,6 +72,7 @@ interface RenderedTopBarValue {
   location: IMemoryLocation;
   navigate: NavigateFunction | undefined;
   themeStore: IThemePreferenceStore;
+  viewport: IFakeViewport;
 }
 
 interface RenderTopBarOptionsValue {
@@ -78,7 +82,10 @@ interface RenderTopBarOptionsValue {
   personaSwitcher?: ReactElement | undefined;
   rejectedLoadCount?: number;
   sections?: readonly AppSectionValue[];
+  viewportClass?: ViewportClassValue;
 }
+
+let installedViewport: IFakeViewport | undefined;
 
 const createGate = (): GateValue => {
   let open: () => void = () => undefined;
@@ -103,8 +110,12 @@ const renderTopBar = async ({
   personaSwitcher,
   rejectedLoadCount = 0,
   sections = APP_SECTIONS,
+  viewportClass = 'desktop',
 }: RenderTopBarOptionsValue = {}): Promise<RenderedTopBarValue> => {
   vi.resetModules();
+  installedViewport?.restore();
+  const viewport = installFakeViewport(viewportClass);
+  installedViewport = viewport;
 
   const [
     { ApiRuntimeProvider },
@@ -190,7 +201,11 @@ const renderTopBar = async ({
     </ThemePreferenceProvider>,
   );
 
-  return { demoControl, loadPhoneMenu: mockedLoadPhoneMenu, location, navigate: undefined, themeStore };
+  return { demoControl, loadPhoneMenu: mockedLoadPhoneMenu, location, navigate: undefined, themeStore, viewport };
+};
+
+const renderPhoneTopBar = (options: RenderTopBarOptionsValue = {}): Promise<RenderedTopBarValue> => {
+  return renderTopBar({ ...options, viewportClass: 'phone' });
 };
 
 const getSectionTitle = (section: AppSectionValue): string => defaultLocaleCatalog[SECTION_TITLE_KEYS[section]];
@@ -221,6 +236,8 @@ const waitForMenuToClose = async (): Promise<void> => {
 describe('TopBar', () => {
   afterEach(() => {
     cleanup();
+    installedViewport?.restore();
+    installedViewport = undefined;
   });
 
   describe('structure', () => {
@@ -350,22 +367,127 @@ describe('TopBar', () => {
     });
   });
 
+  describe('composition by viewport class', () => {
+    const getBanner = (): HTMLElement => screen.getByRole('banner');
+
+    const queryMenuButton = (): HTMLElement | null => screen.queryByRole('button', { hidden: true, name: MENU_NAME });
+
+    const switchViewportClass = (viewport: IFakeViewport, nextClass: ViewportClassValue): void => {
+      act(() => {
+        viewport.setViewportClass(nextClass);
+      });
+    };
+
+    const personaNode = <div data-testid={PERSONA_NODE_TEST_ID}>{PERSONA_NODE_TEXT}</div>;
+
+    it('shows the persona, the theme and the reset on a desktop and no menu button', async () => {
+      await renderTopBar({ hasDemo: true, personaSwitcher: personaNode });
+
+      expect(within(getBanner()).getByTestId(PERSONA_NODE_TEST_ID)).toBeDefined();
+      expect(within(getBanner()).getByRole('group', { name: defaultLocaleCatalog['theme.label'] })).toBeDefined();
+      expect(within(getBanner()).getByRole('button', { name: defaultLocaleCatalog['demo.reset.label'] })).toBeDefined();
+      expect(queryMenuButton()).toBeNull();
+    });
+
+    it.each(['phone', 'tablet'] as const)('keeps the persona, the theme and the reset out of the banner on a %s', async (viewportClass) => {
+      await renderTopBar({ hasDemo: true, personaSwitcher: personaNode, viewportClass });
+
+      expect(screen.queryByTestId(PERSONA_NODE_TEST_ID)).toBeNull();
+      expect(within(getBanner()).queryByRole('group', { name: defaultLocaleCatalog['theme.label'] })).toBeNull();
+      expect(within(getBanner()).queryByRole('button', { name: defaultLocaleCatalog['demo.reset.label'] })).toBeNull();
+      expect(queryMenuButton()).not.toBeNull();
+    });
+
+    it('opens the menu with the personas, the theme and the reset on a tablet', async () => {
+      await renderTopBar({ hasDemo: true, viewportClass: 'tablet' });
+
+      const menu = await openMenu();
+
+      expect(within(menu).getByRole('group', { name: defaultLocaleCatalog['theme.label'] })).toBeDefined();
+      expect(await within(menu).findByRole('group', { name: defaultLocaleCatalog['persona.menu.label'] })).toBeDefined();
+      expect(within(menu).getByRole('menuitem', { name: RESET_ITEM_NAME })).toBeDefined();
+    });
+
+    it('swaps the composition of the banner when the viewport class changes on the fly', async () => {
+      const { viewport } = await renderTopBar({ hasDemo: true, personaSwitcher: personaNode });
+
+      switchViewportClass(viewport, 'tablet');
+
+      expect(screen.queryByTestId(PERSONA_NODE_TEST_ID)).toBeNull();
+      expect(queryMenuButton()).not.toBeNull();
+
+      switchViewportClass(viewport, 'phone');
+
+      expect(screen.queryByTestId(PERSONA_NODE_TEST_ID)).toBeNull();
+      expect(queryMenuButton()).not.toBeNull();
+
+      switchViewportClass(viewport, 'desktop');
+
+      expect(within(getBanner()).getByTestId(PERSONA_NODE_TEST_ID)).toBeDefined();
+      expect(queryMenuButton()).toBeNull();
+    });
+
+    it('closes the open menu when the viewport becomes a desktop', async () => {
+      const { viewport } = await renderTopBar({ viewportClass: 'tablet' });
+      await openMenu();
+
+      switchViewportClass(viewport, 'desktop');
+
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(queryMenuButton()).toBeNull();
+    });
+
+    it('keeps the open menu when a tablet turns into a phone', async () => {
+      const { viewport } = await renderTopBar({ viewportClass: 'tablet' });
+      await openMenu();
+
+      switchViewportClass(viewport, 'phone');
+
+      expect(screen.getByRole('menu', { name: defaultLocaleCatalog['menu.label'] })).toBeDefined();
+    });
+
+    it('keeps the reset confirmation when a tablet turns into a phone', async () => {
+      const { viewport } = await renderTopBar({ hasDemo: true, viewportClass: 'tablet' });
+      const menu = await openMenu();
+      chooseWithEnter(within(menu).getByRole('menuitem', { name: RESET_ITEM_NAME }));
+      await screen.findByRole('group', { name: defaultLocaleCatalog['demo.reset.confirm.prompt'] });
+
+      switchViewportClass(viewport, 'phone');
+
+      expect(screen.getByRole('group', { name: defaultLocaleCatalog['demo.reset.confirm.prompt'] })).toBeDefined();
+    });
+
+    it('drops the reset confirmation of the phone when the viewport becomes a desktop and does not bring it back', async () => {
+      const { demoControl, viewport } = await renderTopBar({ hasDemo: true, viewportClass: 'phone' });
+      const menu = await openMenu();
+      chooseWithEnter(within(menu).getByRole('menuitem', { name: RESET_ITEM_NAME }));
+      await screen.findByRole('group', { name: defaultLocaleCatalog['demo.reset.confirm.prompt'] });
+
+      switchViewportClass(viewport, 'desktop');
+
+      expect(screen.queryByRole('group', { name: defaultLocaleCatalog['demo.reset.confirm.prompt'] })).toBeNull();
+
+      switchViewportClass(viewport, 'phone');
+
+      expect(screen.queryByRole('group', { name: defaultLocaleCatalog['demo.reset.confirm.prompt'] })).toBeNull();
+      expect(demoControl.reset).not.toHaveBeenCalled();
+    });
+  });
+
   describe('phone menu button', () => {
     it('is a collapsed menu button that is the only thing of the menu on the page at the start', async () => {
-      const { loadPhoneMenu } = await renderTopBar();
+      const { loadPhoneMenu } = await renderPhoneTopBar();
       const button = getMenuButton();
 
       expect(button.getAttribute('aria-haspopup')).toBe('menu');
       expect(button.getAttribute('aria-expanded')).toBe('false');
       expect(button.getAttribute('aria-busy')).toBeNull();
-      expect(button.className).not.toContain('xl:hidden');
-      expect(button.closest('.xl\\:hidden')).not.toBeNull();
       expect(screen.queryByRole('menu')).toBeNull();
       expect(loadPhoneMenu).not.toHaveBeenCalled();
     });
 
     it('warms the menu up on hover and on focus and loads it once', async () => {
-      const { loadPhoneMenu } = await renderTopBar();
+      const { loadPhoneMenu } = await renderPhoneTopBar();
 
       fireEvent.pointerEnter(getMenuButton());
       await waitFor(() => {
@@ -380,7 +502,7 @@ describe('TopBar', () => {
 
     it('loads the menu on the first press, stays pending with the focus on the button, then opens the menu', async () => {
       const gate = createGate();
-      const { loadPhoneMenu } = await renderTopBar({ menuGate: gate });
+      const { loadPhoneMenu } = await renderPhoneTopBar({ menuGate: gate });
       const button = getMenuButton();
       button.focus();
 
@@ -402,7 +524,7 @@ describe('TopBar', () => {
     });
 
     it('puts the focus on the first item of the menu that opens itself after the load', async () => {
-      await renderTopBar();
+      await renderPhoneTopBar();
 
       const menu = await openMenu();
       const [firstItem] = within(menu).getAllByRole('menuitemradio');
@@ -413,7 +535,7 @@ describe('TopBar', () => {
     });
 
     it('opens at once when the menu was warmed up before the press', async () => {
-      const { loadPhoneMenu } = await renderTopBar();
+      const { loadPhoneMenu } = await renderPhoneTopBar();
       fireEvent.pointerEnter(getMenuButton());
       await waitFor(() => {
         expect(loadPhoneMenu).toHaveBeenCalledTimes(1);
@@ -430,7 +552,7 @@ describe('TopBar', () => {
     });
 
     it('does not load the menu again on the second opening and keeps the button of the menu', async () => {
-      const { loadPhoneMenu } = await renderTopBar();
+      const { loadPhoneMenu } = await renderPhoneTopBar();
       const menu = await openMenu();
 
       fireEvent.keyDown(menu, { key: 'Escape' });
@@ -445,7 +567,7 @@ describe('TopBar', () => {
     });
 
     it('keeps the button usable and tells about the failure when the menu fails to load, then loads it again', async () => {
-      const { loadPhoneMenu } = await renderTopBar({ rejectedLoadCount: 1 });
+      const { loadPhoneMenu } = await renderPhoneTopBar({ rejectedLoadCount: 1 });
       const button = getMenuButton();
 
       fireEvent.click(button);
@@ -465,7 +587,7 @@ describe('TopBar', () => {
     });
 
     it('stays silent when only the warm-up fails and loads again on the press', async () => {
-      const { loadPhoneMenu } = await renderTopBar({ rejectedLoadCount: 1 });
+      const { loadPhoneMenu } = await renderPhoneTopBar({ rejectedLoadCount: 1 });
 
       fireEvent.pointerEnter(getMenuButton());
       await waitFor(() => {
@@ -486,7 +608,7 @@ describe('TopBar', () => {
 
   describe('phone menu', () => {
     it('lists the sections with the current one checked, only for phones', async () => {
-      await renderTopBar({ currentSection: 'deals' });
+      await renderPhoneTopBar({ currentSection: 'deals' });
 
       const menu = await openMenu();
       const group = within(menu).getByRole('group', { name: defaultLocaleCatalog['app.nav.label'] });
@@ -500,7 +622,7 @@ describe('TopBar', () => {
     });
 
     it('has no group of sections without sections', async () => {
-      await renderTopBar({ sections: [] });
+      await renderPhoneTopBar({ sections: [] });
 
       const menu = await openMenu();
 
@@ -508,7 +630,7 @@ describe('TopBar', () => {
     });
 
     it('goes to the chosen section and closes the menu with the focus on its button', async () => {
-      const { location } = await renderTopBar();
+      const { location } = await renderPhoneTopBar();
       const menu = await openMenu();
 
       chooseWithEnter(within(menu).getByRole('menuitemradio', { name: getSectionTitle('catalog') }));
@@ -521,7 +643,7 @@ describe('TopBar', () => {
     });
 
     it('stays where it is when the current section is chosen', async () => {
-      const { location } = await renderTopBar();
+      const { location } = await renderPhoneTopBar();
       const menu = await openMenu();
 
       chooseWithEnter(within(menu).getByRole('menuitemradio', { name: getSectionTitle('network') }));
@@ -531,7 +653,7 @@ describe('TopBar', () => {
     });
 
     it('changes nothing with the arrow keys, only the highlight moves', async () => {
-      const { location, themeStore } = await renderTopBar();
+      const { location, themeStore } = await renderPhoneTopBar();
       const menu = await openMenu();
 
       fireEvent.keyDown(menu, { key: 'ArrowDown' });
@@ -546,7 +668,7 @@ describe('TopBar', () => {
     });
 
     it('closes on Escape and returns the focus to the menu button', async () => {
-      await renderTopBar();
+      await renderPhoneTopBar();
       const menu = await openMenu();
 
       fireEvent.keyDown(menu, { key: 'Escape' });
@@ -559,7 +681,7 @@ describe('TopBar', () => {
     });
 
     it('changes the theme by the chosen item and closes', async () => {
-      const { themeStore } = await renderTopBar();
+      const { themeStore } = await renderPhoneTopBar();
       const menu = await openMenu();
       const group = within(menu).getByRole('group', { name: defaultLocaleCatalog['theme.label'] });
 
@@ -574,7 +696,7 @@ describe('TopBar', () => {
     });
 
     it('has neither personas nor the reset outside the demo', async () => {
-      await renderTopBar();
+      await renderPhoneTopBar();
       const menu = await openMenu();
 
       expect(within(menu).queryByRole('group', { name: defaultLocaleCatalog['persona.menu.label'] })).toBeNull();
@@ -582,7 +704,7 @@ describe('TopBar', () => {
     });
 
     it('has the personas and the reset in the demo', async () => {
-      await renderTopBar({ hasDemo: true });
+      await renderPhoneTopBar({ hasDemo: true });
       const menu = await openMenu();
 
       expect(await within(menu).findByRole('group', { name: defaultLocaleCatalog['persona.menu.label'] })).toBeDefined();
@@ -608,7 +730,7 @@ describe('TopBar', () => {
     };
 
     it('closes the menu and opens the confirmation inside the banner with the focus on cancel', async () => {
-      const { demoControl } = await renderTopBar({ hasDemo: true });
+      const { demoControl } = await renderPhoneTopBar({ hasDemo: true });
 
       const group = await openResetConfirm();
       const cancel = within(group).getByRole('button', { name: defaultLocaleCatalog['demo.reset.confirm.cancel'] });
@@ -621,7 +743,7 @@ describe('TopBar', () => {
     });
 
     it('goes back with the focus on the menu button on cancel', async () => {
-      const { demoControl } = await renderTopBar({ hasDemo: true });
+      const { demoControl } = await renderPhoneTopBar({ hasDemo: true });
       const group = await openResetConfirm();
       await waitForSettledFocus();
 
@@ -633,7 +755,7 @@ describe('TopBar', () => {
     });
 
     it('goes back with the focus on the menu button on Escape', async () => {
-      await renderTopBar({ hasDemo: true });
+      await renderPhoneTopBar({ hasDemo: true });
       const group = await openResetConfirm();
       await waitForSettledFocus();
 
@@ -644,7 +766,7 @@ describe('TopBar', () => {
     });
 
     it('resets the demo, announces it and returns the focus to the menu button', async () => {
-      const { demoControl } = await renderTopBar({ hasDemo: true });
+      const { demoControl } = await renderPhoneTopBar({ hasDemo: true });
       const group = await openResetConfirm();
       await waitForSettledFocus();
 

@@ -3,7 +3,13 @@ import type { ReactElement } from 'react';
 import type { ObjectRefValue } from '@/shared/routing';
 
 import { useI18n } from '@/shared/i18n';
-import { FocusedObjectNote } from '@/shared/routing';
+import {
+  HudLayout,
+  PanelPlaceholder,
+  ScenePlaceholder,
+  useInspectorFocus,
+} from '@/widgets/hud-layout';
+import { ObjectInspector } from '@/widgets/object-inspector';
 
 interface CatalogPageProps {
   focus: ObjectRefValue | undefined;
@@ -11,12 +17,14 @@ interface CatalogPageProps {
 
 export const CatalogPage = ({ focus }: CatalogPageProps): ReactElement => {
   const { t } = useI18n();
+  const inspectorFocus = useInspectorFocus('catalog', focus);
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-8">
-      <h1 className="text-2xl font-semibold tracking-tight">{t('section.catalog.title')}</h1>
-      {focus !== undefined && <FocusedObjectNote focus={focus} />}
-      <p className="text-base">{t('section.catalog.placeholder')}</p>
-    </div>
+    <HudLayout
+      {...inspectorFocus}
+      inspector={<ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
+      panel={<PanelPlaceholder description={t('section.catalog.placeholder')} title={t('section.catalog.title')} />}
+      scene={<ScenePlaceholder label={t('hud.scene.placeholder')} />}
+    />
   );
 };

@@ -1,11 +1,14 @@
 import type { ReactElement } from 'react';
 
+import { Warehouse } from 'lucide-react';
+
 import { useI18n } from '@/shared/i18n';
 import {
   Card,
   Skeleton,
   WidgetStates,
 } from '@/shared/ui';
+import { ZoneEmptyState } from '@/widgets/hud-layout';
 
 import { useWarehousesQuery } from '../api/useWarehousesQuery';
 import {
@@ -47,7 +50,7 @@ export const WarehouseListContent = (): ReactElement => {
   return (
     <WidgetStates
       data={warehouses}
-      empty={<p>{t('warehouse.warehouses.empty')}</p>}
+      empty={<ZoneEmptyState icon={Warehouse} text={t('warehouse.warehouses.empty')} />}
       error={error}
       isEmpty={isListEmpty}
       isRetrying={isFetching}

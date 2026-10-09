@@ -42,6 +42,7 @@ import {
   syncQueriesWithRealtime,
 } from '@/shared/api';
 import { createLocalizer } from '@/shared/i18n';
+import { installFakeViewport } from '@/shared/lib/viewport/index.testing';
 import {
   APP_SECTIONS,
   SECTION_TITLE_KEYS,
@@ -265,6 +266,16 @@ const createWarehouse = async (runtime: ApiRuntimeValue): Promise<void> => {
   });
 };
 
+const installPhoneViewport = (): void => {
+  const fakeViewport = installFakeViewport('phone');
+
+  closers.push(() => {
+    fakeViewport.restore();
+
+    return Promise.resolve();
+  });
+};
+
 afterEach(async () => {
   cleanup();
 
@@ -449,6 +460,7 @@ describe('App focus and announcements when the persona changes', () => {
   });
 
   it('puts the focus on the menu button of the new bar when the persona is chosen in the phone menu', async () => {
+    installPhoneViewport();
     const { frames } = await startApplication();
     await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
     const previousMenuButton = await screen.findByRole('button', { name: MENU_BUTTON_NAME });

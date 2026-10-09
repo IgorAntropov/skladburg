@@ -31,7 +31,7 @@ const getNotFoundActionText = (): string => getText('routing.notFound.action').r
   getSectionTitle(FIRST_SECTION),
 );
 
-const getFocusedObjectLabel = ({ type }: ObjectRouteValue): string => getText('routing.focusedObject').replace(
+const getFocusedObjectLabel = ({ type }: ObjectRouteValue): string => getText('hud.inspector.object').replace(
   '{type}',
   getText(`object.type.${type}`),
 );
@@ -45,6 +45,7 @@ export interface NavigationRobotValue {
   expectNotFound: () => Promise<void>;
   expectObjectNote: (route: ObjectRouteValue) => Promise<void>;
   expectSection: (section: SectionValue) => Promise<void>;
+  expectSectionContent: (section: SectionValue) => Promise<void>;
   goBack: () => Promise<void>;
   goForward: () => Promise<void>;
   openHash: (hash: string) => Promise<void>;
@@ -62,6 +63,15 @@ export const createNavigationRobot = (page: Page): NavigationRobotValue => {
     name: getSectionTitle(section),
   });
 
+  const expectSectionContent = async (section: SectionValue): Promise<void> => {
+    const title = getSectionTitle(section);
+
+    await expect(main).toBeVisible();
+    await expect(main.getByRole('heading', { level: 1 })).toHaveText(title);
+    await expect(main.getByText(getText(PLACEHOLDER_KEYS[section]))).toBeVisible();
+    await expect(page).toHaveTitle(new RegExp(`^${title} · `));
+  };
+
   return {
     async clickNotFoundAction(): Promise<void> {
       await main.getByRole('link', { name: getNotFoundActionText() }).click();
@@ -76,7 +86,7 @@ export const createNavigationRobot = (page: Page): NavigationRobotValue => {
       await expect.poll(() => page.url()).toBe('about:blank');
     },
     async expectNoObjectNote(): Promise<void> {
-      const label = getText('routing.focusedObject').split(':')[0] ?? '';
+      const label = getText('hud.inspector.object').split(':')[0] ?? '';
 
       await expect(main.getByText(label)).toHaveCount(0);
     },
@@ -94,8 +104,6 @@ export const createNavigationRobot = (page: Page): NavigationRobotValue => {
       await expect(identifier.locator('xpath=..')).toHaveText(`${getFocusedObjectLabel(route)} ${route.id}`);
     },
     async expectSection(section: SectionValue): Promise<void> {
-      const title = getSectionTitle(section);
-
       await expect(main).toBeVisible();
 
       for (const candidate of SECTIONS) {
@@ -109,11 +117,9 @@ export const createNavigationRobot = (page: Page): NavigationRobotValue => {
         }
       }
 
-      await expect(main.getByRole('heading', { level: 1 })).toHaveText(title);
-      await expect(main.getByText(getText(PLACEHOLDER_KEYS[section]))).toBeVisible();
-
-      await expect(page).toHaveTitle(new RegExp(`^${title} · `));
+      await expectSectionContent(section);
     },
+    expectSectionContent,
     async goBack(): Promise<void> {
       await page.goBack();
     },

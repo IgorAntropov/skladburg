@@ -1,8 +1,16 @@
 import type { ReactElement } from 'react';
 
-import { useState } from 'react';
+import {
+  useEffect,
+  useState,
+} from 'react';
 
-import { useAddress } from '@/shared/routing';
+import type { AppSectionValue } from '@/shared/routing';
+
+import {
+  getAddressSection,
+  useAddress,
+} from '@/shared/routing';
 
 import type { SectionLoadersValue } from './sectionPages';
 
@@ -23,11 +31,26 @@ interface AppRoutesProps {
 }
 
 export const AppRoutes = ({ sectionLoaders }: AppRoutesProps): ReactElement => {
-  const { path } = useAddress();
+  const { address, path } = useAddress();
   const availableSections = useAvailableSections();
 
   const [cachedLoaders] = useState(() => createCachedSectionLoaders(sectionLoaders));
   const [sectionPages] = useState(() => createSectionPages(cachedLoaders));
+
+  const isSessionLoading = availableSections.kind === 'loading';
+  const sectionToPrewarm = isSessionLoading && address !== undefined ? getAddressSection(address) : undefined;
+
+  useEffect(() => {
+    const prewarmSection = (section: AppSectionValue): void => {
+      Promise.resolve(cachedLoaders[section]()).catch((error: unknown) => {
+        console.error('> AppRoutes -> prewarmSection:', { error, section });
+      });
+    };
+
+    if (sectionToPrewarm !== undefined) {
+      prewarmSection(sectionToPrewarm);
+    }
+  }, [cachedLoaders, sectionToPrewarm]);
 
   switch (availableSections.kind) {
     case 'empty':

@@ -84,6 +84,7 @@ const createTestLocalizer = (): Promise<ILocalizer> => createLocalizer({
 interface RenderedRoutesValue {
   loaders: StubLoadersValue;
   location: IMemoryLocation;
+  setAvailableSections: (nextAvailableSections: AvailableSectionsValue) => void;
 }
 
 const renderRoutes = async (
@@ -94,19 +95,25 @@ const renderRoutes = async (
   const localizer = await createTestLocalizer();
   const location = createMemoryLocation(initialPath);
 
-  render(
+  const renderTree = (currentAvailableSections: AvailableSectionsValue): ReactElement => (
     <StrictMode>
       <RoutingProvider location={location}>
         <LocalizerProvider localizer={localizer}>
-          <AvailableSectionsProvider value={availableSections}>
+          <AvailableSectionsProvider value={currentAvailableSections}>
             <AppRoutes sectionLoaders={loaders} />
           </AvailableSectionsProvider>
         </LocalizerProvider>
       </RoutingProvider>
-    </StrictMode>,
+    </StrictMode>
   );
 
-  return { loaders, location };
+  const { rerender } = render(renderTree(availableSections));
+
+  const setAvailableSections = (nextAvailableSections: AvailableSectionsValue): void => {
+    rerender(renderTree(nextAvailableSections));
+  };
+
+  return { loaders, location, setAvailableSections };
 };
 
 const createDeferred = (): { promise: Promise<void>; resolve: () => void } => {
@@ -687,11 +694,19 @@ describe('AppRoutes sections of the persona', () => {
     expect(location.history).toEqual(['/warehouse', '/warehouse']);
   });
 
-  it('does not load the chunk of a section that is not available', async () => {
-    const { loaders } = await renderRoutes('/catalog', createStubLoaders(), WAREHOUSE_ONLY_VALUE);
-    await screen.findByTestId('page-warehouse');
+  it('does not draw a section that is not available even when its chunk is already loaded', async () => {
+    const { loaders, location, setAvailableSections } = await renderRoutes('/catalog', createStubLoaders(), { kind: 'loading' });
 
-    expect(loaders.catalog).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(loaders.catalog).toHaveBeenCalledOnce();
+    });
+    await loaders.catalog.mock.results[0]?.value;
+
+    setAvailableSections(WAREHOUSE_ONLY_VALUE);
+
+    expect(await screen.findByTestId('page-warehouse')).toBeDefined();
+    expect(screen.queryByTestId('page-catalog')).toBeNull();
+    expect(location.history).toEqual(['/warehouse']);
   });
 
   it('opens the object whose home section is available', async () => {
@@ -760,6 +775,91 @@ describe('AppRoutes session states', () => {
     for (const section of APP_SECTIONS) {
       expect(loaders[section]).not.toHaveBeenCalled();
     }
+  });
+
+  it('loads the chunk of the section from the address once while the session loads and no other', async () => {
+    const idle = stubIdleCallbacks();
+    const { loaders } = await renderRoutes('/catalog', createStubLoaders(), { kind: 'loading' });
+
+    await waitFor(() => {
+      expect(loaders.catalog).toHaveBeenCalledOnce();
+    });
+    idle.runIdle();
+
+    expect(loaders.deals).not.toHaveBeenCalled();
+    expect(loaders.network).not.toHaveBeenCalled();
+    expect(loaders.warehouse).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('page-catalog')).toBeNull();
+  });
+
+  it('loads no chunk for an unknown address while the session loads', async () => {
+    const idle = stubIdleCallbacks();
+    const { loaders } = await renderRoutes('/nope', createStubLoaders(), { kind: 'loading' });
+
+    idle.runIdle();
+    await screen.findByRole('main', { busy: true });
+
+    for (const section of APP_SECTIONS) {
+      expect(loaders[section]).not.toHaveBeenCalled();
+    }
+  });
+
+  it('loads the chunk of the home section of an object while the session loads', async () => {
+    const { loaders } = await renderRoutes(`/deals/${OBJECT_ID}`, createStubLoaders(), { kind: 'loading' });
+
+    await waitFor(() => {
+      expect(loaders.deals).toHaveBeenCalledOnce();
+    });
+
+    expect(loaders.catalog).not.toHaveBeenCalled();
+  });
+
+  it('draws the section from the warm chunk without loading it again when the session is ready', async () => {
+    stubIdleCallbacks();
+    const { loaders, setAvailableSections } = await renderRoutes('/catalog', createStubLoaders(), { kind: 'loading' });
+
+    await waitFor(() => {
+      expect(loaders.catalog).toHaveBeenCalledOnce();
+    });
+    await loaders.catalog.mock.results[0]?.value;
+
+    setAvailableSections(ALL_SECTIONS_VALUE);
+
+    expect(await screen.findByTestId('page-catalog')).toBeDefined();
+    expect(loaders.catalog).toHaveBeenCalledOnce();
+  });
+
+  it('only logs a failed warm load and shows no error screen while the session loads', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const loaders = createStubLoaders();
+    loaders.catalog.mockRejectedValueOnce(new Error('chunk_failed'));
+
+    await renderRoutes('/catalog', loaders, { kind: 'loading' });
+
+    await waitFor(() => {
+      expect(getLoggedLabels(errorSpy)).toContain('> AppRoutes -> prewarmSection:');
+    });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('main', { busy: true }).textContent).toBe(defaultLocaleCatalog['session.loading']);
+  });
+
+  it('loads the section again and draws it when the warm load failed and the session became ready', async () => {
+    stubIdleCallbacks();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const loaders = createStubLoaders();
+    loaders.catalog.mockRejectedValueOnce(new Error('chunk_failed'));
+    const { setAvailableSections } = await renderRoutes('/catalog', loaders, { kind: 'loading' });
+
+    await waitFor(() => {
+      expect(getLoggedLabels(errorSpy)).toContain('> AppRoutes -> prewarmSection:');
+    });
+
+    setAvailableSections(ALL_SECTIONS_VALUE);
+
+    expect(await screen.findByTestId('page-catalog')).toBeDefined();
+    expect(loaders.catalog).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('keeps the address of a section while the session loads', async () => {

@@ -1,20 +1,23 @@
-import type {
-  Locator,
-  Page,
-} from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 import { expect } from '@playwright/test';
 
 import type { PersonaValue } from '../fixtures/demoData.ts';
 import type { SectionValue } from '../fixtures/routes.ts';
 
-import { PERSONA_COUNT } from '../fixtures/demoData.ts';
+import {
+  PERSONA_COUNT,
+  PERSONA_GROUPS,
+  PERSONAS_PER_GROUP,
+} from '../fixtures/demoData.ts';
 import { getText } from '../fixtures/messages.ts';
-import { getPersonaLabel } from '../fixtures/personaLabels.ts';
+import {
+  getGroupTitle,
+  getPersonaLabel,
+  getProfileButtonLabel,
+} from '../fixtures/personaLabels.ts';
 import { getSectionTitle } from '../fixtures/routes.ts';
-
-const getTriggerLabel = (persona: PersonaValue): string => getText('persona.trigger.label')
-  .replace('{persona}', getPersonaLabel(persona));
+import { createProfileMenuLocators } from './profile-menu-locators.ts';
 
 const MAX_TAB_PRESSES = 20;
 
@@ -23,16 +26,15 @@ const TAB_KEYS = ['Tab', 'Alt+Tab'] as const;
 const getSwitchedAnnouncement = (persona: PersonaValue): string => getText('persona.switched')
   .replace('{persona}', getPersonaLabel(persona));
 
-const getTriggerLabelPrefix = (): string => getText('persona.trigger.label').replace('{persona}', '');
-
 export interface PersonaRobotValue {
   closeMenuWithEscape: () => Promise<void>;
   expectAllPersonasListed: () => Promise<void>;
-  expectBrand: (organizationName: string) => Promise<void>;
   expectCheckedPersona: (persona: PersonaValue) => Promise<void>;
   expectCurrentPersona: (persona: PersonaValue) => Promise<void>;
   expectMenuClosed: () => Promise<void>;
   expectMenuOpen: () => Promise<void>;
+  expectMenuOpenedWithFocusInside: () => Promise<void>;
+  expectPersonasLoaded: () => Promise<void>;
   expectSectionHeading: (section: SectionValue) => Promise<void>;
   expectSections: (sections: readonly SectionValue[]) => Promise<void>;
   expectSwitchAnnounced: (persona: PersonaValue) => Promise<void>;
@@ -44,6 +46,7 @@ export interface PersonaRobotValue {
   openAsPersona: (hash: string, personaId: string) => Promise<void>;
   openMenuWithArrowDown: () => Promise<void>;
   openMenuWithClick: () => Promise<void>;
+  openMenuWithEnter: () => Promise<void>;
   pressArrowDownInMenu: (times: number) => Promise<void>;
   pressArrowUpInMenu: (times: number) => Promise<void>;
   pressEnterOnHighlightedPersona: () => Promise<void>;
@@ -51,16 +54,17 @@ export interface PersonaRobotValue {
 }
 
 export const createPersonaRobot = (page: Page): PersonaRobotValue => {
-  const banner = page.getByRole('banner');
+  const {
+    allItems,
+    banner,
+    button: trigger,
+    getPersonaGroup,
+    getPersonaItem,
+    menu,
+    personaItems,
+  } = createProfileMenuLocators(page);
   const main = page.getByRole('main');
   const navigation = page.getByRole('navigation', { name: getText('app.nav.label') });
-  const trigger: Locator = banner.getByRole('button', { name: getTriggerLabelPrefix() });
-  const menu: Locator = page.getByRole('menu', { name: getText('persona.label') });
-  const menuItems: Locator = menu.getByRole('menuitemradio');
-  const getMenuItem = (persona: PersonaValue): Locator => menu.getByRole('menuitemradio', {
-    exact: true,
-    name: getPersonaLabel(persona),
-  });
 
   const expectSwitcherReady = async (): Promise<void> => {
     await expect(trigger).toBeVisible();
@@ -68,20 +72,22 @@ export const createPersonaRobot = (page: Page): PersonaRobotValue => {
     await expect(trigger).not.toHaveAttribute('aria-busy', 'true');
   };
 
-  const expectBrand = async (organizationName: string): Promise<void> => {
-    await expect(banner.getByText(organizationName, { exact: true })).toBeVisible();
-  };
-
   const expectMenuOpen = async (): Promise<void> => {
     await expect(menu).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
   };
 
   const expectMenuClosed = async (): Promise<void> => {
     await expect(menu).toHaveCount(0);
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   };
 
   const expectTriggerFocused = async (): Promise<void> => {
     await expect(trigger).toBeFocused();
+  };
+
+  const expectPersonasLoaded = async (): Promise<void> => {
+    await expect(personaItems).toHaveCount(PERSONA_COUNT);
   };
 
   const closeMenuWithEscape = async (): Promise<void> => {
@@ -93,6 +99,7 @@ export const createPersonaRobot = (page: Page): PersonaRobotValue => {
     await expectSwitcherReady();
     await trigger.click();
     await expectMenuOpen();
+    await expectPersonasLoaded();
   };
 
   const focusTrigger = async (): Promise<void> => {
@@ -101,38 +108,11 @@ export const createPersonaRobot = (page: Page): PersonaRobotValue => {
     await expectTriggerFocused();
   };
 
-  const focusTriggerWithTab = async (): Promise<void> => {
-    await expectSwitcherReady();
-
-    for (const key of TAB_KEYS) {
-      for (let press = 0; press < MAX_TAB_PRESSES; press += 1) {
-        await page.keyboard.press(key);
-
-        const focusedTriggerCount = await trigger.and(page.locator(':focus')).count();
-
-        if (focusedTriggerCount > 0) {
-          await expectTriggerFocused();
-
-          return;
-        }
-      }
-    }
-
-    await expectTriggerFocused();
-  };
-
-  const openMenuWithArrowDown = async (): Promise<void> => {
-    await focusTrigger();
-    await page.keyboard.press('ArrowDown');
-    await expectMenuOpen();
-    await expect(menuItems.first()).toBeFocused();
-  };
-
   const getFocusedItemIndex = async (): Promise<number> => {
-    const itemCount = await menuItems.count();
+    const itemCount = await allItems.count();
 
     for (let index = 0; index < itemCount; index += 1) {
-      const focusedCount = await menuItems.nth(index).and(page.locator(':focus')).count();
+      const focusedCount = await allItems.nth(index).and(page.locator(':focus')).count();
 
       if (focusedCount > 0) {
         return index;
@@ -152,30 +132,59 @@ export const createPersonaRobot = (page: Page): PersonaRobotValue => {
   };
 
   const getItemIndex = async (persona: PersonaValue): Promise<number> => {
-    const labels = await menuItems.allInnerTexts();
+    const itemCount = await allItems.count();
+    const label = getPersonaLabel(persona);
 
-    return labels.findIndex(label => label.trim() === getPersonaLabel(persona));
+    for (let index = 0; index < itemCount; index += 1) {
+      const itemLabel = await allItems.nth(index).getAttribute('aria-label');
+
+      if (itemLabel === label) {
+        return index;
+      }
+    }
+
+    return -1;
+  };
+
+  const expectMenuOpenedWithFocusInside = async (): Promise<void> => {
+    await expectMenuOpen();
+    await expect.poll(getFocusedItemIndex).toBeGreaterThanOrEqual(0);
   };
 
   return {
     closeMenuWithEscape,
     async expectAllPersonasListed(): Promise<void> {
       await openMenuWithClick();
-      await expect(menuItems).toHaveCount(PERSONA_COUNT);
+      await expect(personaItems).toHaveCount(PERSONA_COUNT);
+
+      for (const { group, personas } of PERSONA_GROUPS) {
+        await expect(menu.getByText(getGroupTitle(group), { exact: true })).toBeVisible();
+        await expect(getPersonaGroup(group).getByRole('menuitemradio')).toHaveCount(PERSONAS_PER_GROUP);
+
+        for (const persona of personas) {
+          await expect(getPersonaGroup(group).getByRole('menuitemradio', {
+            exact: true,
+            name: getPersonaLabel(persona),
+          })).toBeVisible();
+        }
+      }
+
       await closeMenuWithEscape();
     },
-    expectBrand,
     async expectCheckedPersona(persona: PersonaValue): Promise<void> {
-      await expect(getMenuItem(persona)).toHaveAttribute('aria-checked', 'true');
-      await expect(menu.locator('[role="menuitemradio"][aria-checked="true"]')).toHaveCount(1);
+      await expect(getPersonaItem(persona)).toHaveAttribute('aria-checked', 'true');
+      await expect(personaItems.and(page.locator('[aria-checked="true"]'))).toHaveCount(1);
     },
     async expectCurrentPersona(persona: PersonaValue): Promise<void> {
       await expectSwitcherReady();
-      await expect(trigger).toHaveAccessibleName(getTriggerLabel(persona));
-      await expectBrand(persona.organizationName);
+      await expect(trigger).toHaveAccessibleName(getProfileButtonLabel(persona));
+      await expect(trigger.getByText(persona.initials, { exact: true })).toBeVisible();
+      await expect(banner.getByText(getText('app.productName'), { exact: true })).toBeVisible();
     },
     expectMenuClosed,
     expectMenuOpen,
+    expectMenuOpenedWithFocusInside,
+    expectPersonasLoaded,
     async expectSectionHeading(section: SectionValue): Promise<void> {
       await expect(main.getByRole('heading', { level: 1 })).toHaveText(getSectionTitle(section));
     },
@@ -188,8 +197,28 @@ export const createPersonaRobot = (page: Page): PersonaRobotValue => {
     expectSwitcherReady,
     expectTriggerFocused,
     focusTrigger,
-    focusTriggerWithTab,
+    async focusTriggerWithTab(): Promise<void> {
+      await expectSwitcherReady();
+
+      for (const key of TAB_KEYS) {
+        for (let press = 0; press < MAX_TAB_PRESSES; press += 1) {
+          await page.keyboard.press(key);
+
+          const focusedTriggerCount = await trigger.and(page.locator(':focus')).count();
+
+          if (focusedTriggerCount > 0) {
+            await expectTriggerFocused();
+
+            return;
+          }
+        }
+      }
+
+      await expectTriggerFocused();
+    },
     async highlightPersonaWithArrows(persona: PersonaValue): Promise<void> {
+      await expectPersonasLoaded();
+
       const targetIndex = await getItemIndex(persona);
       const focusedIndex = await getFocusedItemIndex();
 
@@ -202,13 +231,24 @@ export const createPersonaRobot = (page: Page): PersonaRobotValue => {
         await pressArrowInMenu('ArrowUp', focusedIndex - targetIndex);
       }
 
-      await expect(getMenuItem(persona)).toBeFocused();
+      await expect(getPersonaItem(persona)).toBeFocused();
     },
     async openAsPersona(hash: string, personaId: string): Promise<void> {
       await page.goto(`/${hash}?as=${personaId}`);
     },
-    openMenuWithArrowDown,
+    async openMenuWithArrowDown(): Promise<void> {
+      await focusTrigger();
+      await page.keyboard.press('ArrowDown');
+      await expectMenuOpenedWithFocusInside();
+      await expectPersonasLoaded();
+    },
     openMenuWithClick,
+    async openMenuWithEnter(): Promise<void> {
+      await focusTrigger();
+      await page.keyboard.press('Enter');
+      await expectMenuOpenedWithFocusInside();
+      await expectPersonasLoaded();
+    },
     async pressArrowDownInMenu(times: number): Promise<void> {
       await pressArrowInMenu('ArrowDown', times);
     },
@@ -220,11 +260,10 @@ export const createPersonaRobot = (page: Page): PersonaRobotValue => {
     },
     async selectPersona(persona: PersonaValue): Promise<void> {
       await openMenuWithClick();
-      await getMenuItem(persona).click();
+      await getPersonaItem(persona).click();
       await expectMenuClosed();
-      await expect(trigger).toHaveAccessibleName(getTriggerLabel(persona));
+      await expect(trigger).toHaveAccessibleName(getProfileButtonLabel(persona));
       await expectSwitcherReady();
-      await expectBrand(persona.organizationName);
     },
   };
 };

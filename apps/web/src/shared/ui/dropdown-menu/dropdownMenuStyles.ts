@@ -4,6 +4,11 @@ export const DROPDOWN_MENU_CONTENT_CLASS_NAME = [
   'motion-safe:transition-opacity motion-safe:duration-100 motion-safe:starting:opacity-0',
 ].join(' ');
 
+export const DROPDOWN_MENU_CONTENT_WIDTH_CLASS_NAMES = {
+  auto: '',
+  profile: 'w-[min(22rem,calc(100vw-1rem))]',
+} as const satisfies Record<'auto' | 'profile', string>;
+
 export const DROPDOWN_MENU_ITEM_CLASS_NAME = [
   'flex min-h-11 cursor-default items-center gap-2 rounded-control px-3 py-2 text-base outline-none select-none',
   'data-highlighted:bg-line focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
@@ -11,6 +16,8 @@ export const DROPDOWN_MENU_ITEM_CLASS_NAME = [
 ].join(' ');
 
 export const DROPDOWN_MENU_INDICATOR_SLOT_CLASS_NAME = 'flex size-4 shrink-0 items-center justify-center';
+
+export const DROPDOWN_MENU_INDICATOR_SLOT_END_CLASS_NAME = 'ml-auto';
 
 export const DROPDOWN_MENU_LABEL_CLASS_NAME = 'px-3 py-2 text-sm font-medium text-on-panel-muted';
 

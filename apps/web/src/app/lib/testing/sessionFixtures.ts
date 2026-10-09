@@ -18,7 +18,10 @@ export interface SessionFixtureOptionsValue {
   profiles?: readonly ProfileKind[];
 }
 
-const SESSION_ORGANIZATION_ID = 'f0000001-0000-4000-8000-000000000000';
+export const SESSION_ORGANIZATION_ID = 'f0000001-0000-4000-8000-000000000000';
+export const SESSION_ORGANIZATION_NAME = 'Покупатель 1';
+export const SESSION_USER_ID = 'f0000002-0000-4000-8000-000000000000';
+export const SESSION_USER_DISPLAY_NAME = 'Анна Смирнова';
 const ALL_PERMISSIONS: readonly string[] = ['deal_view', 'warehouse_view'];
 
 export const createSessionFixture = ({
@@ -29,10 +32,12 @@ export const createSessionFixture = ({
   organizations: [
     create(OrganizationSchema, {
       id: SESSION_ORGANIZATION_ID,
+      name: SESSION_ORGANIZATION_NAME,
       profiles: profiles.map(kind => create(OrganizationProfileSchema, { kind })),
     }),
   ],
   permissions: permissions.map(permission => create(EffectivePermissionSchema, { isOrganizationWide: true, permission })),
+  user: { displayName: SESSION_USER_DISPLAY_NAME, id: SESSION_USER_ID },
 });
 
 export const registerSessionRoute = (router: ConnectRouter, session: GetSessionResponse = createSessionFixture()): void => {

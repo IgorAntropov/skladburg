@@ -28,6 +28,7 @@ export {
 } from './core/ports/index';
 export {
   DEMO_USER_HEADER,
+  type DemoPersonaListItemValue,
   ENGINE_BASE_URL,
 } from './core/protocol';
 export {
@@ -43,8 +44,8 @@ export {
   SeedWarehouseId,
 } from './core/seed/index';
 export {
+  DemoPersonaGroup,
   DemoPersonaKind,
-  type DemoPersonaListItemValue,
   type DemoPersonaValue,
   ENGINE_SCHEMA_VERSION,
 } from './core/state/index';

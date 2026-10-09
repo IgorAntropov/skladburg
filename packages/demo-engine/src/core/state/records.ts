@@ -3,19 +3,18 @@ import type {
   StoredRecordValue,
 } from '../ports/index';
 
-import { DemoPersonaKind } from '../../protocol/constants';
+import {
+  DemoPersonaGroup,
+  DemoPersonaKind,
+} from '../../protocol/constants';
 
-export { DemoPersonaKind };
-
-export interface DemoPersonaListItemValue {
-  id: string;
-  kind: DemoPersonaKind;
-  organizationId: string;
-  organizationName: string;
-  userId: string;
-}
+export {
+  DemoPersonaGroup,
+  DemoPersonaKind,
+};
 
 export interface DemoPersonaValue {
+  group: DemoPersonaGroup;
   id: string;
   kind: DemoPersonaKind;
   organizationId: string;
@@ -29,6 +28,8 @@ export interface IdempotencyRecordValue {
   responseBytes: Uint8Array;
 }
 
+const isDemoPersonaGroup = (value: unknown): value is DemoPersonaGroup => Object.values<unknown>(DemoPersonaGroup).includes(value);
+
 const isDemoPersonaKind = (value: unknown): value is DemoPersonaKind => Object.values<unknown>(DemoPersonaKind).includes(value);
 
 const readPlainObject = (stored: StoredRecordValue, recordName: string): Exclude<StoredRecordValue, Uint8Array> => {
@@ -40,13 +41,19 @@ const readPlainObject = (stored: StoredRecordValue, recordName: string): Exclude
 };
 
 export const parseDemoPersona = (stored: StoredRecordValue): DemoPersonaValue => {
-  const { id, kind, organizationId, userId } = readPlainObject(stored, 'persona');
+  const { group, id, kind, organizationId, userId } = readPlainObject(stored, 'persona');
 
-  if (typeof id !== 'string' || typeof organizationId !== 'string' || typeof userId !== 'string' || !isDemoPersonaKind(kind)) {
+  if (
+    typeof id !== 'string'
+    || typeof organizationId !== 'string'
+    || typeof userId !== 'string'
+    || !isDemoPersonaKind(kind)
+    || !isDemoPersonaGroup(group)
+  ) {
     throw new TypeError('Stored persona has an unexpected shape');
   }
 
-  return { id, kind, organizationId, userId };
+  return { group, id, kind, organizationId, userId };
 };
 
 export const parseIdempotencyRecord = (stored: StoredRecordValue): IdempotencyRecordValue => {
@@ -65,6 +72,7 @@ export const parseIdempotencyRecord = (stored: StoredRecordValue): IdempotencyRe
 };
 
 export const serializeDemoPersona = (persona: DemoPersonaValue): StoredObjectValue => ({
+  group: persona.group,
   id: persona.id,
   kind: persona.kind,
   organizationId: persona.organizationId,

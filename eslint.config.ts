@@ -28,8 +28,8 @@ const rawControlExemptFiles: string[] = ['apps/web/src/shared/ui/**', 'apps/web/
 const webTestFiles: string[] = ['apps/web/src/**/*.test.{ts,tsx}'];
 const lazyAppFiles: string[] = ['apps/web/src/app/**/*.{ts,tsx}'];
 const lazyWidgetFiles: string[] = ['apps/web/src/widgets/**/*.{ts,tsx}'];
-const lazyTopBarFiles: string[] = ['apps/web/src/widgets/top-bar/**/*.{ts,tsx}'];
-const lazyPhoneMenuChunkFiles: string[] = ['apps/web/src/widgets/top-bar/ui/PhoneMenu.tsx'];
+const lazyProfileMenuFiles: string[] = ['apps/web/src/widgets/profile-menu/**/*.{ts,tsx}'];
+const lazyProfileMenuChunkFiles: string[] = ['apps/web/src/widgets/profile-menu/ui/menu/**/*.{ts,tsx}'];
 
 interface BoundaryRestrictionValue {
   importPattern: string;
@@ -80,18 +80,33 @@ const personaSwitcherLazyRestriction: LazyModuleRestrictionValue = {
   regex: '^@/features/switch-persona(/|$)',
 };
 
+const themeSwitcherLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'features/switch-theme',
+  regex: '^@/features/switch-theme(/|$)',
+};
+
+const demoResetLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'features/reset-demo',
+  regex: '^@/features/reset-demo(/|$)',
+};
+
 const sectionPagesLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'pages/*',
   regex: '^@/pages(/|$)',
 };
 
-const phoneMenuLazyRestriction: LazyModuleRestrictionValue = {
-  moduleLabel: 'PhoneMenu',
-  regex: '(^|/)PhoneMenu(\\.tsx?)?$',
+const profileMenuChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the profile menu chunk',
+  regex: '(^|/)menu(/|$)',
 };
 
-const appLazyRestrictions: LazyModuleRestrictionValue[] = [personaSwitcherLazyRestriction, sectionPagesLazyRestriction];
-const topBarLazyRestrictions: LazyModuleRestrictionValue[] = [...appLazyRestrictions, phoneMenuLazyRestriction];
+const appLazyRestrictions: LazyModuleRestrictionValue[] = [
+  personaSwitcherLazyRestriction,
+  themeSwitcherLazyRestriction,
+  demoResetLazyRestriction,
+  sectionPagesLazyRestriction,
+];
+const profileMenuLazyRestrictions: LazyModuleRestrictionValue[] = [...appLazyRestrictions, profileMenuChunkLazyRestriction];
 
 interface SyntaxRestrictionValue {
   message: string;
@@ -468,13 +483,13 @@ export default defineConfig(
   },
   {
     files: lazyWidgetFiles,
-    ignores: [...webTestFiles, ...lazyPhoneMenuChunkFiles],
+    ignores: [...webTestFiles, ...lazyProfileMenuChunkFiles],
     rules: createLazyModuleRules(appLazyRestrictions),
   },
   {
-    files: lazyTopBarFiles,
-    ignores: [...webTestFiles, ...lazyPhoneMenuChunkFiles],
-    rules: createLazyModuleRules(topBarLazyRestrictions),
+    files: lazyProfileMenuFiles,
+    ignores: [...webTestFiles, ...lazyProfileMenuChunkFiles],
+    rules: createLazyModuleRules(profileMenuLazyRestrictions),
   },
   {
     extends: [tseslint.configs.disableTypeChecked],

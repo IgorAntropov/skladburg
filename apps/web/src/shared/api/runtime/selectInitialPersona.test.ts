@@ -6,14 +6,18 @@ import {
 
 import type { DemoPersonaListItemValue } from '../transport/demo';
 
+import { DemoPersonaGroup } from '../transport/demo/demoPersonaGroup';
 import { DemoPersonaKind } from '../transport/demo/demoPersonaKind';
 import { selectInitialPersona } from './selectInitialPersona';
 
 const createPersona = (id: string, organizationId: string, userId = `user-of-${id}`): DemoPersonaListItemValue => ({
+  group: DemoPersonaGroup.FRESH,
   id,
   kind: DemoPersonaKind.BUYER,
   organizationId,
   organizationName: `Organization ${organizationId}`,
+  roleName: 'Administrator',
+  userDisplayName: `User ${userId}`,
   userId,
 });
 

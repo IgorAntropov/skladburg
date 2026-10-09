@@ -3,25 +3,12 @@ import type {
   ReactNode,
 } from 'react';
 
-import {
-  useCallback,
-  useRef,
-  useState,
-} from 'react';
-
 import type { AppSectionValue } from '@/shared/routing';
 
-import {
-  ResetDemoButton,
-  ResetDemoConfirm,
-  useIsDemoResetAvailable,
-} from '@/features/reset-demo';
-import { ThemeSwitcher } from '@/features/switch-theme';
-import { useViewportClass } from '@/shared/lib/viewport';
-import { useTenantSettings } from '@/shared/tenant';
+import { useI18n } from '@/shared/i18n';
 import { Panel } from '@/shared/ui';
 
-import { PhoneMenuLauncher } from './PhoneMenuLauncher';
+import { ProductMark } from './ProductMark';
 import { SearchField } from './SearchField';
 import { SectionNav } from './SectionNav';
 
@@ -32,74 +19,35 @@ const PANEL_CLASS_NAME = [
 
 const ROW_CLASS_NAME = 'flex min-h-15 flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 sm:flex-nowrap lg:gap-x-4';
 
-const BRAND_CLASS_NAME = 'max-w-40 shrink-0 truncate text-lg font-semibold tracking-tight sm:max-w-44 xl:max-w-56';
+const PRODUCT_CLASS_NAME = 'flex shrink-0 items-center gap-2.5';
 
-const DESKTOP_CLUSTER_CLASS_NAME = 'flex items-center gap-3 **:data-segment-label:sr-only';
+const PRODUCT_NAME_CLASS_NAME = 'text-lg font-bold tracking-tight';
 
 export interface TopBarProps {
   currentSection: AppSectionValue | undefined;
-  personaSwitcher: ReactNode | undefined;
+  profileMenu: ReactNode;
   sections: readonly AppSectionValue[];
 }
 
-export const TopBar = ({ currentSection, personaSwitcher, sections }: TopBarProps): ReactElement => {
-  const { brandName } = useTenantSettings();
-  const isDemoResetAvailable = useIsDemoResetAvailable();
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const viewportClass = useViewportClass();
-  const [isResetConfirming, setIsResetConfirming] = useState(false);
-
-  const isDesktop = viewportClass === 'desktop';
-  const isResetConfirmShown = isResetConfirming && isDemoResetAvailable && !isDesktop;
-
-  if (isDesktop && isResetConfirming) {
-    setIsResetConfirming(false);
-  }
-
-  const handleResetRequest = useCallback((): void => {
-    console.log('> TopBar -> handleResetRequest:', {});
-    setIsResetConfirming(true);
-  }, []);
-
-  const handleResetConfirmClose = (): void => {
-    console.log('> TopBar -> handleResetConfirmClose:', {});
-    setIsResetConfirming(false);
-    menuButtonRef.current?.focus();
-  };
+export const TopBar = ({ currentSection, profileMenu, sections }: TopBarProps): ReactElement => {
+  const { t } = useI18n();
 
   return (
     <Panel as="header" className={PANEL_CLASS_NAME}>
       <div className={ROW_CLASS_NAME}>
-        <p className={BRAND_CLASS_NAME} translate="no">
-          {brandName}
-        </p>
+        <div className={PRODUCT_CLASS_NAME}>
+          <ProductMark />
+          <p className={PRODUCT_NAME_CLASS_NAME} translate="no">
+            {t('app.productName')}
+          </p>
+        </div>
         <SectionNav currentSection={currentSection} sections={sections} />
         <SearchField />
         <div className="contents" data-testid="top-bar-clock-slot" />
         <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
-          {isDesktop
-            ? (
-                <div className={DESKTOP_CLUSTER_CLASS_NAME}>
-                  {personaSwitcher}
-                  <ThemeSwitcher />
-                  <ResetDemoButton />
-                </div>
-              )
-            : (
-                <PhoneMenuLauncher
-                  buttonRef={menuButtonRef}
-                  currentSection={currentSection}
-                  onResetRequest={handleResetRequest}
-                  sections={sections}
-                />
-              )}
+          {profileMenu}
         </div>
       </div>
-      {isResetConfirmShown && (
-        <div className="border-t border-line px-4 py-3">
-          <ResetDemoConfirm onClose={handleResetConfirmClose} />
-        </div>
-      )}
     </Panel>
   );
 };

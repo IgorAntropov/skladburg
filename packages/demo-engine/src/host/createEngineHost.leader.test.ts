@@ -37,7 +37,10 @@ import {
   SeedOrganizationId,
   SeedUserId,
 } from '../core/seed/index';
-import { DemoPersonaKind } from '../core/state/index';
+import {
+  DemoPersonaGroup,
+  DemoPersonaKind,
+} from '../core/state/index';
 import { ENGINE_LOCK_NAME } from './constants';
 import { createProbeLoader } from './testing/engineProbe';
 import {
@@ -136,6 +139,12 @@ describe('engine host as the only tab', () => {
 
     expect(personas.length).toBeGreaterThan(0);
     expect(personas.some(persona => persona.kind === DemoPersonaKind.BUYER)).toBe(true);
+
+    const buyer = personas.find(persona => persona.kind === DemoPersonaKind.BUYER);
+
+    expect(buyer?.group).toBe(DemoPersonaGroup.FRESH);
+    expect(buyer?.userDisplayName).toBe('Анна Смирнова');
+    expect(buyer?.roleName).toBe('Администратор');
   });
 });
 

@@ -14,6 +14,12 @@ import {
 
 const VERSION_SUFFIX = `v${String(ENGINE_PROTOCOL_VERSION)}`;
 
+describe('engine protocol version', () => {
+  it('is version 2 since the persona list carries the user name, the role and the group', () => {
+    expect(ENGINE_PROTOCOL_VERSION).toBe(2);
+  });
+});
+
 describe('engine names', () => {
   it.each([
     ['leader lock', ENGINE_LOCK_NAME],

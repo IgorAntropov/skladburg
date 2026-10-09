@@ -23,6 +23,7 @@ import {
 } from '../seed/index';
 import {
   createEngineState,
+  DemoPersonaGroup,
   DemoPersonaKind,
 } from '../state/index';
 import { createLiveMeta } from '../state/testRecords';
@@ -234,6 +235,7 @@ describe('engine tick', () => {
     intervalMs: 1_000,
     run: (transaction, dueAtMs) => {
       transaction.put('personas', {
+        group: DemoPersonaGroup.FRESH,
         id: `scheduled-${String(dueAtMs)}`,
         kind: DemoPersonaKind.BUYER,
         organizationId: SeedOrganizationId.BUYER_1,
@@ -307,6 +309,7 @@ describe('engine scheduler deadlines', () => {
     intervalMs: 1_000,
     run: (transaction, dueAtMs) => {
       transaction.put('personas', {
+        group: DemoPersonaGroup.FRESH,
         id: `scheduled-${String(dueAtMs)}`,
         kind: DemoPersonaKind.BUYER,
         organizationId: SeedOrganizationId.BUYER_1,

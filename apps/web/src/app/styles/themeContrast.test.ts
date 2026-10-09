@@ -55,6 +55,16 @@ const WORLD_BACKGROUNDS: readonly string[] = [
 
 const STATUS_NAMES: readonly string[] = ['ok', 'warning', 'alarm'];
 
+const SIDE_NAMES: readonly string[] = ['buyer', 'seller', 'carrier'];
+
+const AVATAR_TONE_COUNT = 8;
+
+const AVATAR_INDEXES: readonly string[] = Array.from({ length: AVATAR_TONE_COUNT }, (_, index) => String(index + 1));
+
+const LAST_AVATAR_INDEX = String(AVATAR_TONE_COUNT);
+
+const OVERFLOW_AVATAR_INDEX = String(AVATAR_TONE_COUNT + 1);
+
 const BRAND_TOKEN_NAMES: readonly string[] = [
   'primary',
   'on-primary',
@@ -65,6 +75,18 @@ const BRAND_TOKEN_NAMES: readonly string[] = [
 const STATUS_TOKEN_NAMES: readonly string[] = [
   ...STATUS_NAMES.map(name => `status-${name}`),
   ...STATUS_NAMES.map(name => `on-status-${name}`),
+];
+
+const SIDE_TOKEN_NAMES: readonly string[] = [
+  ...SIDE_NAMES.map(name => `side-${name}`),
+  ...SIDE_NAMES.map(name => `on-side-${name}`),
+];
+
+const SIDE_LABEL_TOKEN_NAMES: readonly string[] = SIDE_NAMES.map(name => `side-label-${name}`);
+
+const AVATAR_TOKEN_NAMES: readonly string[] = [
+  ...AVATAR_INDEXES.map(index => `avatar-${index}`),
+  ...AVATAR_INDEXES.map(index => `on-avatar-${index}`),
 ];
 
 const THEME_DEPENDENT_TOKEN_NAMES: readonly string[] = [
@@ -82,12 +104,15 @@ const THEME_DEPENDENT_TOKEN_NAMES: readonly string[] = [
   'focus',
   'skeleton',
   'scrim',
+  ...SIDE_LABEL_TOKEN_NAMES,
+  ...AVATAR_TOKEN_NAMES,
 ];
 
 const CONTRACT_TOKEN_NAMES: readonly string[] = [
   ...BRAND_TOKEN_NAMES,
   ...THEME_DEPENDENT_TOKEN_NAMES,
   ...STATUS_TOKEN_NAMES,
+  ...SIDE_TOKEN_NAMES,
 ];
 
 const CONTRAST_PAIRS: readonly ContrastPairValue[] = [
@@ -126,6 +151,26 @@ const CONTRAST_PAIRS: readonly ContrastPairValue[] = [
     foregrounds: [`on-status-${name}`],
     threshold: TEXT_THRESHOLD,
   })),
+  {
+    backgrounds: ['panel', 'panel-solid', 'canvas'],
+    foregrounds: SIDE_LABEL_TOKEN_NAMES,
+    threshold: TEXT_THRESHOLD,
+  },
+  ...SIDE_NAMES.map((name): ContrastPairValue => ({
+    backgrounds: [`side-${name}`],
+    foregrounds: [`on-side-${name}`],
+    threshold: TEXT_THRESHOLD,
+  })),
+  ...AVATAR_INDEXES.map((index): ContrastPairValue => ({
+    backgrounds: [`avatar-${index}`],
+    foregrounds: [`on-avatar-${index}`],
+    threshold: TEXT_THRESHOLD,
+  })),
+  {
+    backgrounds: ['panel-solid', 'canvas'],
+    foregrounds: AVATAR_INDEXES.map(index => `avatar-${index}`),
+    threshold: GRAPHIC_THRESHOLD,
+  },
   {
     backgrounds: ['panel', 'panel-solid', 'canvas', 'primary'],
     foregrounds: ['focus'],
@@ -237,18 +282,44 @@ describe('theme tokens contract', () => {
     expect(missingOverrides).toEqual([]);
   });
 
-  it('keeps brand and status tokens out of the dark block', () => {
-    const overriddenFixedTokens = [...BRAND_TOKEN_NAMES, ...STATUS_TOKEN_NAMES]
+  it('keeps brand, status and side fill tokens out of the dark block', () => {
+    const overriddenFixedTokens = [...BRAND_TOKEN_NAMES, ...STATUS_TOKEN_NAMES, ...SIDE_TOKEN_NAMES]
       .map(name => `--color-${name}`)
       .filter(tokenName => darkOverrideNames.includes(tokenName));
 
     expect(overriddenFixedTokens).toEqual([]);
   });
 
-  it('gives brand and status tokens the same values in both themes', () => {
-    for (const name of [...BRAND_TOKEN_NAMES, ...STATUS_TOKEN_NAMES]) {
+  it('gives brand, status and side fill tokens the same values in both themes', () => {
+    for (const name of [...BRAND_TOKEN_NAMES, ...STATUS_TOKEN_NAMES, ...SIDE_TOKEN_NAMES]) {
       expect(readColor('dark', name)).toEqual(readColor('light', name));
     }
+  });
+
+  it('keeps the light side label equal to the side fill', () => {
+    for (const name of SIDE_NAMES) {
+      expect(readColor('light', `side-label-${name}`)).toEqual(readColor('light', `side-${name}`));
+    }
+  });
+
+  it('gives the three sides pairwise different labels in each theme', () => {
+    for (const theme of THEME_NAMES) {
+      const labels = SIDE_NAMES.map(name => tokens[theme].get(`--color-side-label-${name}`));
+
+      expect(new Set(labels).size).toBe(SIDE_NAMES.length);
+    }
+  });
+
+  it.each(THEME_NAMES)('defines exactly the declared number of avatar tones in the %s theme', (theme) => {
+    expect(tokens[theme].has(`--color-avatar-${LAST_AVATAR_INDEX}`)).toBe(true);
+    expect(tokens[theme].has(`--color-avatar-${OVERFLOW_AVATAR_INDEX}`)).toBe(false);
+    expect(tokens[theme].has(`--color-on-avatar-${OVERFLOW_AVATAR_INDEX}`)).toBe(false);
+  });
+
+  it.each(THEME_NAMES)('gives every avatar tone its own color in the %s theme', (theme) => {
+    const tones = AVATAR_INDEXES.map(index => tokens[theme].get(`--color-avatar-${index}`));
+
+    expect(new Set(tones).size).toBe(AVATAR_TONE_COUNT);
   });
 
   it.each(THEME_NAMES)('mixes the translucent panel with the canvas and every world background in the %s theme', (theme) => {

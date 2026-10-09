@@ -16,6 +16,7 @@ import {
 import { ENGINE_COLLECTION_NAMES } from '../ports/index';
 import {
   createEngineState,
+  DemoPersonaGroup,
   DemoPersonaKind,
   ENGINE_SCHEMA_VERSION,
   type IStateReader,
@@ -254,13 +255,45 @@ describe('seed contents', () => {
     }
   });
 
-  it('keeps people impersonal: only a role and a number', () => {
+  it('names the people with a fictional first and last name, all different', () => {
     const names = createSeedReader().list('users').map(user => user.displayName);
 
     expect(names).toHaveLength(11);
+    expect(new Set(names).size).toBe(names.length);
     names.forEach((name) => {
-      expect(name).toMatch(/^(Администратор|Кладовщик) \d+$/);
+      expect(name).toMatch(/^[А-ЯЁ][а-яё]+ [А-ЯЁ][а-яё]+$/);
     });
+  });
+
+  it('names each person by the seed table', () => {
+    const reader = createSeedReader();
+
+    expect(reader.get('users', SeedUserId.ADMIN_1)?.displayName).toBe('Анна Смирнова');
+    expect(reader.get('users', SeedUserId.ADMIN_2)?.displayName).toBe('Сергей Кузнецов');
+    expect(reader.get('users', SeedUserId.ADMIN_3)?.displayName).toBe('Ольга Попова');
+    expect(reader.get('users', SeedUserId.ADMIN_4)?.displayName).toBe('Дмитрий Васильев');
+    expect(reader.get('users', SeedUserId.ADMIN_5)?.displayName).toBe('Елена Морозова');
+    expect(reader.get('users', SeedUserId.ADMIN_6)?.displayName).toBe('Андрей Новиков');
+    expect(reader.get('users', SeedUserId.ADMIN_7)?.displayName).toBe('Татьяна Фёдорова');
+    expect(reader.get('users', SeedUserId.ADMIN_8)?.displayName).toBe('Павел Волков');
+    expect(reader.get('users', SeedUserId.ADMIN_9)?.displayName).toBe('Наталья Козлова');
+    expect(reader.get('users', SeedUserId.STOREKEEPER_1)?.displayName).toBe('Иван Соколов');
+    expect(reader.get('users', SeedUserId.STOREKEEPER_2)?.displayName).toBe('Мария Лебедева');
+  });
+
+  it('puts the first four personas into the fresh group and the last four into the construction group', () => {
+    const personas = createSeedReader().list('personas');
+
+    expect(personas.map(persona => persona.group)).toEqual([
+      DemoPersonaGroup.FRESH,
+      DemoPersonaGroup.FRESH,
+      DemoPersonaGroup.FRESH,
+      DemoPersonaGroup.FRESH,
+      DemoPersonaGroup.CONSTRUCTION,
+      DemoPersonaGroup.CONSTRUCTION,
+      DemoPersonaGroup.CONSTRUCTION,
+      DemoPersonaGroup.CONSTRUCTION,
+    ]);
   });
 
   it('gives each vertical a buyer, a seller, a carrier and a storekeeper persona', () => {

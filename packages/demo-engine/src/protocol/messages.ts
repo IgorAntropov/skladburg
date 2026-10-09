@@ -1,4 +1,4 @@
-import type { DemoPersonaListItemValue } from '../core/state/index';
+import type { DemoPersonaListItemValue } from './personas';
 
 export const EngineControlCommand = {
   LIST_PERSONAS: 'list_personas',

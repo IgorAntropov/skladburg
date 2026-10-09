@@ -8,6 +8,7 @@ import type {
   IClock,
   IRealTimeSource,
 } from '../ports/index';
+import type { DemoPersonaListItemValue } from '../protocol';
 import type { SchedulerTaskValue } from '../scheduler/index';
 import type {
   CreateEngineOptionsValue,
@@ -40,8 +41,8 @@ import {
 } from '../seed/index';
 import {
   createEngineState,
-  type DemoPersonaListItemValue,
   isCurrentSnapshot,
+  type IStateReader,
   type LiveMetaValue,
 } from '../state/index';
 import { createRequestValidator } from '../validation/index';
@@ -61,6 +62,27 @@ const compareIds = (current: string, prev: string): number => {
   }
 
   return current < prev ? -1 : 1;
+};
+
+const ROLE_NAME_SEPARATOR = ', ';
+const ROLE_NAME_LOCALE = 'ru';
+
+const readRoleName = (reader: IStateReader, organizationId: string, userId: string): string => {
+  const names = new Set<string>();
+
+  for (const membership of reader.listBy('memberships', 'userId', userId)) {
+    if (membership.organizationId === organizationId) {
+      for (const assignment of membership.roleAssignments) {
+        const role = reader.get('roles', assignment.roleId);
+
+        if (role !== undefined) {
+          names.add(role.name);
+        }
+      }
+    }
+  }
+
+  return [...names].sort((current, prev) => current.localeCompare(prev, ROLE_NAME_LOCALE)).join(ROLE_NAME_SEPARATOR);
 };
 
 const loadOrSeedSnapshot = async (options: CreateEngineOptionsValue): Promise<EngineSnapshotValue> => {
@@ -159,13 +181,17 @@ export const createEngineWithTasks = async (
 
     for (const persona of state.read.list('personas')) {
       const organization = state.read.get('organizations', persona.organizationId);
+      const user = state.read.get('users', persona.userId);
 
-      if (organization !== undefined) {
+      if (organization !== undefined && user !== undefined) {
         items.push({
+          group: persona.group,
           id: persona.id,
           kind: persona.kind,
           organizationId: persona.organizationId,
           organizationName: organization.name,
+          roleName: readRoleName(state.read, persona.organizationId, persona.userId),
+          userDisplayName: user.displayName,
           userId: persona.userId,
         });
       }

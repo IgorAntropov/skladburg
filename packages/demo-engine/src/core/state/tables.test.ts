@@ -17,6 +17,7 @@ import {
 } from 'vitest';
 
 import {
+  DemoPersonaGroup,
   DemoPersonaKind,
   parseDemoPersona,
   parseIdempotencyRecord,
@@ -58,7 +59,7 @@ describe('message tables', () => {
     expect(TABLE_DEFINITIONS.cities.decode(TABLE_DEFINITIONS.cities.encode(city))).toEqual(city);
     expect(TABLE_DEFINITIONS.boardNodes.decode(TABLE_DEFINITIONS.boardNodes.encode(node))).toEqual(node);
     const sphere = create(SphereSchema, { id: 'sphere-1', name: 'Продукты' });
-    const user = create(UserSchema, { displayName: 'Администратор 1', id: 'user-1' });
+    const user = create(UserSchema, { displayName: 'Анна Смирнова', id: 'user-1' });
 
     expect(TABLE_DEFINITIONS.spheres.decode(TABLE_DEFINITIONS.spheres.encode(sphere))).toEqual(sphere);
     expect(TABLE_DEFINITIONS.users.decode(TABLE_DEFINITIONS.users.encode(user))).toEqual(user);
@@ -89,9 +90,23 @@ describe('message tables', () => {
   });
 });
 
+const VALID_PERSONA_FIELDS = {
+  group: DemoPersonaGroup.FRESH,
+  id: 'p',
+  kind: DemoPersonaKind.SELLER,
+  organizationId: 'o',
+  userId: 'u',
+};
+
 describe('plain record tables', () => {
   it('round-trip a persona and keep it independent of the original', () => {
-    const persona = { id: 'persona-1', kind: DemoPersonaKind.BUYER, organizationId: 'org-1', userId: 'user-1' };
+    const persona = {
+      group: DemoPersonaGroup.CONSTRUCTION,
+      id: 'persona-1',
+      kind: DemoPersonaKind.BUYER,
+      organizationId: 'org-1',
+      userId: 'user-1',
+    };
     const stored = TABLE_DEFINITIONS.personas.encode(persona);
 
     expect(TABLE_DEFINITIONS.personas.decode(stored)).toEqual(persona);
@@ -112,11 +127,18 @@ describe('plain record tables', () => {
   });
 
   it('reject a persona of an unknown kind', () => {
-    expect(() => parseDemoPersona({ id: 'p', kind: 'robot', organizationId: 'o', userId: 'u' })).toThrow(TypeError);
+    expect(() => parseDemoPersona({ ...VALID_PERSONA_FIELDS, kind: 'robot' })).toThrow(TypeError);
   });
 
   it('reject a persona with a missing field', () => {
-    expect(() => parseDemoPersona({ id: 'p', kind: DemoPersonaKind.SELLER, organizationId: 'o' })).toThrow(TypeError);
+    const withoutUser = { group: DemoPersonaGroup.FRESH, id: 'p', kind: DemoPersonaKind.SELLER, organizationId: 'o' };
+
+    expect(() => parseDemoPersona(withoutUser)).toThrow(TypeError);
+  });
+
+  it('reject a persona of an unknown group or without a group', () => {
+    expect(() => parseDemoPersona({ ...VALID_PERSONA_FIELDS, group: 'garden' })).toThrow(TypeError);
+    expect(() => parseDemoPersona({ id: 'p', kind: DemoPersonaKind.SELLER, organizationId: 'o', userId: 'u' })).toThrow(TypeError);
   });
 
   it('reject binary data where an object is expected', () => {

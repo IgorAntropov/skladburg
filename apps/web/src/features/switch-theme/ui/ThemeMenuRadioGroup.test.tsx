@@ -96,11 +96,46 @@ describe('ThemeMenuRadioGroup', () => {
     await renderMenu(store);
 
     expect(screen.getByRole('group', { name: defaultLocaleCatalog['theme.label'] })).toBeDefined();
-    expect(screen.getAllByRole('menuitemradio').map(item => item.textContent)).toEqual([
+    expect(screen.getAllByRole('menuitemradio').map(item => item.getAttribute('aria-label'))).toEqual([
       defaultLocaleCatalog['theme.light'],
       defaultLocaleCatalog['theme.dark'],
       defaultLocaleCatalog['theme.system'],
     ]);
+  });
+
+  it('shows the variants as icons only, in one row of three', async () => {
+    const store = createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined });
+    await renderMenu(store);
+
+    const items = screen.getAllByRole('menuitemradio');
+    const rows = new Set(items.map(item => item.parentElement));
+
+    expect(rows.size).toBe(1);
+    expect(items.map(item => item.textContent)).toEqual(['', '', '']);
+    expect(items.every(item => item.querySelector('svg[aria-hidden="true"]') !== null)).toBe(true);
+  });
+
+  it('walks over the three variants with the arrow keys of the menu', async () => {
+    const store = createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined });
+    store.setPreference('system');
+    await renderMenu(store);
+    const light = screen.getByRole('menuitemradio', { name: defaultLocaleCatalog['theme.light'] });
+    const dark = screen.getByRole('menuitemradio', { name: defaultLocaleCatalog['theme.dark'] });
+    const system = screen.getByRole('menuitemradio', { name: defaultLocaleCatalog['theme.system'] });
+
+    system.focus();
+    fireEvent.keyDown(system, { key: 'ArrowUp' });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(dark);
+    });
+
+    fireEvent.keyDown(dark, { key: 'ArrowUp' });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(light);
+    });
+    expect(store.getPreference()).toBe('system');
   });
 
   it('marks only the current preference', async () => {

@@ -6,6 +6,7 @@ export {
 } from './codecs';
 export {
   DEMO_USER_HEADER,
+  DemoPersonaGroup,
   DemoPersonaKind,
   ENGINE_BASE_URL,
   ENGINE_PROTOCOL_VERSION,
@@ -49,3 +50,4 @@ export {
   parseEngineClientMessage,
   parseEngineHostMessage,
 } from './parse';
+export type { DemoPersonaListItemValue } from './personas';

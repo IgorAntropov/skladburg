@@ -1,5 +1,3 @@
-import type { RefCallback } from 'react';
-
 import { useCallback } from 'react';
 
 import type { DemoPersonaListItemValue } from '@/shared/api';
@@ -18,18 +16,19 @@ import {
 } from '@/shared/ui';
 
 import { usePersonasQuery } from '../api/usePersonasQuery';
-import { PERSONA_KIND_MESSAGE_KEYS } from './personaKindMessageKeys';
+import { findCurrentPersona } from '../lib/findCurrentPersona';
 
 export interface PersonaSwitchValue {
   currentPersona: DemoPersonaListItemValue | undefined;
   error: Error | null;
   formatPersona: (persona: DemoPersonaListItemValue) => string;
+  formatPersonaSecondLine: (persona: DemoPersonaListItemValue) => string;
   isError: boolean;
   isPending: boolean;
   isSwitching: boolean;
   personas: readonly DemoPersonaListItemValue[];
+  retryLoad: () => void;
   switchToPersona: (personaId: string) => Promise<void>;
-  triggerRef: RefCallback<HTMLButtonElement> | undefined;
 }
 
 const INTERNAL_ERROR_MESSAGE_KEY = 'error.internal';
@@ -38,26 +37,44 @@ const NO_PERSONAS: readonly DemoPersonaListItemValue[] = [];
 export const usePersonaSwitch = (focusKey: string): PersonaSwitchValue => {
   const { t } = useI18n();
   const announce = useAnnounce();
-  const {
-    cancelFocus,
-    ref: handoffRef,
-    requestFocus,
-  } = useFocusHandoff<HTMLButtonElement>(focusKey);
+  const { cancelFocus, requestFocus } = useFocusHandoff<HTMLButtonElement>(focusKey);
   const {
     data: personas = NO_PERSONAS,
     error,
     isError,
     isPending,
+    refetch,
   } = usePersonasQuery();
-  const { organizationId, userId } = useActingContext();
+  const actingContext = useActingContext();
   const { isSwitching, switchActingContext } = useSwitchActingContext();
 
-  const currentPersona = personas.find(persona => persona.organizationId === organizationId && persona.userId === userId);
+  const currentPersona = findCurrentPersona(personas, actingContext);
 
-  const formatPersona = useCallback((persona: DemoPersonaListItemValue): string => t('persona.option', {
-    kind: t(PERSONA_KIND_MESSAGE_KEYS[persona.kind]),
-    organization: persona.organizationName,
-  }), [t]);
+  const formatPersona = useCallback((persona: DemoPersonaListItemValue): string => {
+    if (persona.roleName === '') {
+      return t('persona.optionWithoutRole', {
+        name: persona.userDisplayName,
+        organization: persona.organizationName,
+      });
+    }
+
+    return t('persona.option', {
+      name: persona.userDisplayName,
+      organization: persona.organizationName,
+      role: persona.roleName,
+    });
+  }, [t]);
+
+  const formatPersonaSecondLine = useCallback((persona: DemoPersonaListItemValue): string => {
+    if (persona.roleName === '') {
+      return persona.organizationName;
+    }
+
+    return t('persona.secondLine', {
+      organization: persona.organizationName,
+      role: persona.roleName,
+    });
+  }, [t]);
 
   const describeSwitchError = useCallback((switchError: unknown): string => {
     const apiError = parseApiError(switchError);
@@ -66,6 +83,11 @@ export const usePersonaSwitch = (focusKey: string): PersonaSwitchValue => {
       ? t('persona.switchError')
       : translateApiError(t, apiError);
   }, [t]);
+
+  const retryLoad = useCallback((): void => {
+    console.log('> usePersonaSwitch -> retryLoad:', { focusKey });
+    void refetch();
+  }, [focusKey, refetch]);
 
   const switchToPersona = useCallback(async (personaId: string): Promise<void> => {
     console.log('> usePersonaSwitch -> switchToPersona:', { focusKey, personaId });
@@ -108,11 +130,12 @@ export const usePersonaSwitch = (focusKey: string): PersonaSwitchValue => {
     currentPersona,
     error,
     formatPersona,
+    formatPersonaSecondLine,
     isError,
     isPending,
     isSwitching,
     personas,
+    retryLoad,
     switchToPersona,
-    triggerRef: isPending ? undefined : handoffRef,
   };
 };

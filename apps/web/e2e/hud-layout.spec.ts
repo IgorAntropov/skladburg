@@ -19,6 +19,7 @@ import { VIEWPORT_SCENARIOS } from './fixtures/viewports.ts';
 import { createHudRobot } from './robots/hud-robot.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';
 import { createPersonaChunkRobot } from './robots/persona-chunk-robot.ts';
+import { createPersonaRobot } from './robots/persona-robot.ts';
 import { createTopBarRobot } from './robots/top-bar-robot.ts';
 import { createWarehouseRobot } from './robots/warehouse-robot.ts';
 
@@ -269,30 +270,113 @@ for (const viewport of VIEWPORT_SCENARIOS) {
       });
     });
 
-    test.describe('persona switcher chunk', () => {
-      test(isDesktop ? 'requests the chunk on start' : 'requests the chunk only after the menu is opened', async ({ page }) => {
+    test.describe('profile menu chunk', () => {
+      test('does not request the menu chunk on start and warms it up once on the focus of the profile button', async ({ page }) => {
         const navigation = createNavigationRobot(page);
         const personaChunk = createPersonaChunkRobot(page);
         const topBar = createTopBarRobot(page, viewport.layout);
 
         await navigation.openRoot();
         await topBar.expectBannerShown();
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
         await navigation.expectSectionContent('network');
         await personaChunk.waitForIdle();
 
-        if (isDesktop) {
-          await personaChunk.expectRequestCount(1);
-          await topBar.expectPersonaSwitcher(DEFAULT_PERSONA);
-          await personaChunk.expectRequestCount(1);
+        await personaChunk.expectRequestCount(0);
+        await personaChunk.expectNoMenuCodeLoaded();
 
+        await topBar.focusProfileButton();
+
+        await personaChunk.expectRequestCount(1);
+        await topBar.expectMenuClosed();
+        await personaChunk.expectMenuCodeOnlyInMenuChunk();
+
+        await topBar.openMenu();
+        await topBar.expectMenuContent(DEFAULT_PERSONA);
+
+        await personaChunk.expectRequestCount(1);
+      });
+
+      test('warms the chunk up on hovering the profile button without opening the menu', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const personaChunk = createPersonaChunkRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openRoot();
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+        await personaChunk.waitForIdle();
+        await personaChunk.expectRequestCount(0);
+
+        await topBar.hoverProfileButton();
+
+        await personaChunk.expectRequestCount(1);
+        await topBar.expectMenuClosed();
+      });
+
+      test('requests the chunk once on the first opening and not again on the next ones', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const personaChunk = createPersonaChunkRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openRoot();
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+        await personaChunk.waitForIdle();
+        await personaChunk.expectRequestCount(0);
+
+        await topBar.openMenu();
+        await topBar.expectMenuContent(DEFAULT_PERSONA);
+        await personaChunk.expectRequestCount(1);
+
+        await topBar.closeMenuWithEscape();
+        await topBar.openMenu();
+        await topBar.closeMenuWithEscape();
+
+        await personaChunk.expectRequestCount(1);
+      });
+
+      test('keeps the button busy and focused while a slow chunk loads, then opens the menu with the focus inside', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const personaChunk = createPersonaChunkRobot(page);
+        const persona = createPersonaRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await personaChunk.delayChunk(1500);
+        await navigation.openRoot();
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+
+        await topBar.pressProfileButtonWithEnter();
+
+        await topBar.expectButtonBusy(true);
+        await topBar.expectFocusOnProfileButton();
+        await topBar.expectMenuClosed();
+
+        await persona.expectMenuOpenedWithFocusInside();
+        await topBar.expectButtonBusy(false);
+      });
+
+      test('tells that the chunk did not load and retries it on the next press', async ({ browserName, page }) => {
+        const navigation = createNavigationRobot(page);
+        const personaChunk = createPersonaChunkRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await personaChunk.blockChunk();
+        await navigation.openRoot();
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+
+        await topBar.pressProfileButton();
+
+        await personaChunk.expectLoadError();
+        await topBar.expectMenuClosed();
+
+        if (browserName === 'webkit') {
           return;
         }
 
-        await personaChunk.expectRequestCount(0);
+        await personaChunk.unblockChunk();
+        await topBar.pressProfileButton();
 
-        await topBar.expectPersonaSwitcher(DEFAULT_PERSONA);
-
-        await personaChunk.expectRequestCount(1);
+        await topBar.expectMenuContent(DEFAULT_PERSONA);
+        await personaChunk.expectNoLoadError();
       });
     });
 
@@ -313,6 +397,35 @@ for (const viewport of VIEWPORT_SCENARIOS) {
             await navigation.openSection('network');
             await expectSectionShown(page, viewport.layout, 'network');
             await topBar.expectDocumentTheme(theme);
+
+            await hud.expectNoViolationsOfAccessibility();
+          });
+
+          test('has no violations of WCAG 2.1 A and AA with the profile menu open', async ({ page }) => {
+            const navigation = createNavigationRobot(page);
+            const topBar = createTopBarRobot(page, viewport.layout);
+            const hud = createHudRobot(page, viewport.layout);
+
+            await navigation.openSection('network');
+            await expectSectionShown(page, viewport.layout, 'network');
+            await topBar.expectDocumentTheme(theme);
+            await topBar.openMenu();
+            await topBar.expectMenuContent(DEFAULT_PERSONA);
+
+            await hud.expectNoViolationsOfAccessibility();
+          });
+
+          test('has no violations of WCAG 2.1 A and AA with the reset question open', async ({ page }) => {
+            const navigation = createNavigationRobot(page);
+            const topBar = createTopBarRobot(page, viewport.layout);
+            const hud = createHudRobot(page, viewport.layout);
+
+            await navigation.openSection('network');
+            await expectSectionShown(page, viewport.layout, 'network');
+            await topBar.expectDocumentTheme(theme);
+            await topBar.requestReset();
+            await topBar.expectResetConfirmOpen();
+            await topBar.expectResetConfirmFocusedOnCancel();
 
             await hud.expectNoViolationsOfAccessibility();
           });

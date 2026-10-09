@@ -1,12 +1,15 @@
-import type { DemoPersonaListItemValue } from '../core/state/index';
 import type {
   EngineClientMessageValue,
   EngineControlResultMessageValue,
   EngineHostMessageValue,
   HeaderPairValue,
 } from './messages';
+import type { DemoPersonaListItemValue } from './personas';
 
-import { DemoPersonaKind } from './constants';
+import {
+  DemoPersonaGroup,
+  DemoPersonaKind,
+} from './constants';
 import {
   ENGINE_COORDINATIONS,
   ENGINE_ROLES,
@@ -67,15 +70,24 @@ const isUnavailableReason = (value: unknown): value is typeof ENGINE_UNAVAILABLE
 
 const isPersonaKind = (value: unknown): value is DemoPersonaKind => Object.values<unknown>(DemoPersonaKind).includes(value);
 
+const isPersonaGroup = (value: unknown): value is DemoPersonaGroup => Object.values<unknown>(DemoPersonaGroup).includes(value);
+
 const readPersona = (value: unknown): DemoPersonaListItemValue | undefined => {
   if (!isRecord(value)) {
     return undefined;
   }
 
-  const { id, kind, organizationId, organizationName, userId } = value;
+  const { group, id, kind, organizationId, organizationName, roleName, userDisplayName, userId } = value;
 
-  return isString(id) && isPersonaKind(kind) && isString(organizationId) && isString(organizationName) && isString(userId)
-    ? { id, kind, organizationId, organizationName, userId }
+  return isPersonaGroup(group)
+    && isString(id)
+    && isPersonaKind(kind)
+    && isString(organizationId)
+    && isString(organizationName)
+    && isString(roleName)
+    && isString(userDisplayName)
+    && isString(userId)
+    ? { group, id, kind, organizationId, organizationName, roleName, userDisplayName, userId }
     : undefined;
 };
 

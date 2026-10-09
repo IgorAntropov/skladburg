@@ -6,6 +6,7 @@ export type {
   DemoEngineStatusValue,
   IDemoControl,
 } from './demoControlTypes';
+export { DemoPersonaGroup } from './demoPersonaGroup';
 export { DemoPersonaKind } from './demoPersonaKind';
 export type {
   DemoPersonaListItemValue,

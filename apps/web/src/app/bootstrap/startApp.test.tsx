@@ -212,7 +212,9 @@ const unsubscribeFromStorageEvents = (spy: MockInstance<typeof window.addEventLi
   }
 };
 
-const findBrand = async (): Promise<HTMLElement> => within(await screen.findByRole('banner')).findByText(ENGINE_BRAND);
+const findProductName = async (): Promise<HTMLElement> => {
+  return within(await screen.findByRole('banner')).findByText(defaultLocaleCatalog['app.productName']);
+};
 
 describe('startApp', () => {
   let addEventListener: MockInstance<typeof window.addEventListener>;
@@ -244,7 +246,8 @@ describe('startApp', () => {
   it('renders the application with the settings from the engine', async () => {
     await startApp(createRootElement());
 
-    expect(await findBrand()).toBeDefined();
+    expect(await findProductName()).toBeDefined();
+    expect(within(screen.getByRole('banner')).queryByText(ENGINE_BRAND)).toBeNull();
     expect(document.title).toBe(
       defaultLocaleCatalog['app.documentTitle']
         .replace('{section}', defaultLocaleCatalog['section.warehouse.title'])
@@ -263,7 +266,7 @@ describe('startApp', () => {
     vi.mocked(createApiRuntime).mockResolvedValueOnce({ ...runtime, networkMode: 'online' });
 
     await startApp(createRootElement());
-    await findBrand();
+    await findProductName();
 
     expect(createQueryClient).toHaveBeenCalledExactlyOnceWith({ networkMode: 'online' });
     expect(syncQueriesWithRealtime).toHaveBeenCalledOnce();
@@ -296,7 +299,7 @@ describe('startApp', () => {
     await startApp(rootElement);
     fireEvent.click(await screen.findByRole('button'));
 
-    expect(await findBrand()).toBeDefined();
+    expect(await findProductName()).toBeDefined();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(rootElement.querySelector('main')).not.toBeNull();
     expect(document.querySelectorAll('main')).toHaveLength(1);
@@ -358,7 +361,7 @@ describe('startApp', () => {
 
     fireEvent.click(screen.getByRole('button'));
 
-    expect(await findBrand()).toBeDefined();
+    expect(await findProductName()).toBeDefined();
     expect(createLocalizer).toHaveBeenCalledTimes(3);
     expect(createApiRuntime).toHaveBeenCalledOnce();
   });
@@ -373,7 +376,7 @@ describe('startApp', () => {
 
     await startApp(createRootElement());
     fireEvent.click(await screen.findByRole('button'));
-    await findBrand();
+    await findProductName();
 
     expect(readDeviceTimeZone).toHaveBeenCalledOnce();
     expect(createLocalizer).toHaveBeenCalledTimes(3);
@@ -427,7 +430,7 @@ describe('startApp', () => {
 
     fireEvent.click(await screen.findByRole('button'));
 
-    expect(await findBrand()).toBeDefined();
+    expect(await findProductName()).toBeDefined();
     expect(events).toEqual(['create first', 'close first', 'create second']);
     expect(openRuntimeCount).toBe(1);
   });
@@ -487,13 +490,13 @@ describe('startApp', () => {
 
     fireEvent.click(await screen.findByRole('button'));
 
-    expect(await findBrand()).toBeDefined();
+    expect(await findProductName()).toBeDefined();
     expect(events).toEqual(['create first', 'stop first', 'close first', 'create second']);
   });
 
   it('starts the long task monitor once before the first start attempt', async () => {
     await startApp(createRootElement());
-    await findBrand();
+    await findProductName();
 
     expect(observeLongTasks).toHaveBeenCalledOnce();
 
@@ -509,7 +512,7 @@ describe('startApp', () => {
 
     await startApp(createRootElement());
     fireEvent.click(await screen.findByRole('button'));
-    await findBrand();
+    await findProductName();
 
     expect(createApiRuntime).toHaveBeenCalledTimes(2);
     expect(observeLongTasks).toHaveBeenCalledOnce();
@@ -521,7 +524,7 @@ describe('startApp', () => {
 
     await startApp(createRootElement());
     fireEvent.click(await screen.findByRole('button'));
-    await findBrand();
+    await findProductName();
 
     expect(createApiRuntime).toHaveBeenCalledTimes(2);
     expect(createHashLocation).toHaveBeenCalledExactlyOnceWith(window);
@@ -542,7 +545,7 @@ describe('startApp', () => {
       const themesAtRender = await recordThemeAtRender();
 
       await startApp(createRootElement());
-      await findBrand();
+      await findProductName();
 
       expect(themesAtRender).toEqual(['light']);
       expect(document.documentElement.style.colorScheme).toBe('light');
@@ -553,7 +556,7 @@ describe('startApp', () => {
       const themesAtRender = await recordThemeAtRender();
 
       await startApp(createRootElement());
-      await findBrand();
+      await findProductName();
 
       expect(themesAtRender).toEqual(['dark']);
       expect(document.documentElement.style.colorScheme).toBe('dark');
@@ -565,7 +568,7 @@ describe('startApp', () => {
       const themesAtRender = await recordThemeAtRender();
 
       await startApp(createRootElement());
-      await findBrand();
+      await findProductName();
 
       expect(themesAtRender).toEqual(['dark']);
     });
@@ -591,7 +594,7 @@ describe('startApp', () => {
 
       await startApp(createRootElement());
 
-      expect(await findBrand()).toBeDefined();
+      expect(await findProductName()).toBeDefined();
       expect(themesAtRender).toEqual(['light']);
       expect(getLoggedLabels(consoleError)).toEqual(['> themePersistence -> getDeviceStorage:']);
     });
@@ -603,7 +606,7 @@ describe('startApp', () => {
 
       await startApp(createRootElement());
 
-      expect(await findBrand()).toBeDefined();
+      expect(await findProductName()).toBeDefined();
       expect(themesAtRender).toEqual(['light']);
       expect(getLoggedLabels(consoleError)).toEqual(['> themePersistence -> readStoredThemePreference:']);
     });
@@ -613,14 +616,14 @@ describe('startApp', () => {
       const themesAtRender = await recordThemeAtRender();
 
       await startApp(createRootElement());
-      await findBrand();
+      await findProductName();
 
       expect(themesAtRender).toEqual(['light']);
     });
 
     it('follows the theme chosen in another tab', async () => {
       await startApp(createRootElement());
-      await findBrand();
+      await findProductName();
 
       window.localStorage.setItem(THEME_STORAGE_KEY, 'dark');
       window.dispatchEvent(new StorageEvent('storage', {
@@ -639,7 +642,7 @@ describe('startApp', () => {
 
       await startApp(createRootElement());
       fireEvent.click(await screen.findByRole('button'));
-      await findBrand();
+      await findProductName();
 
       const storageSubscriptions = addEventListener.mock.calls.filter(([type]) => type === 'storage');
 
@@ -656,7 +659,7 @@ describe('startApp', () => {
       vi.mocked(createApiRuntime).mockResolvedValue(createRuntime(vi.fn(), isDemo ? createDemoControl() : undefined));
 
       await startApp(createRootElement());
-      await findBrand();
+      await findProductName();
 
       return location;
     };
@@ -718,7 +721,7 @@ describe('startApp', () => {
       vi.mocked(createHashLocation).mockReturnValue(createMemoryLocation('/deals'));
 
       await startApp(createRootElement());
-      await findBrand();
+      await findProductName();
 
       expect(window.sessionStorage.getItem(ACTING_CONTEXT_STORAGE_KEY)).toBe(
         JSON.stringify({ organizationId: TEST_ORGANIZATION_ID, userId: TEST_USER_ID }),
@@ -766,7 +769,7 @@ describe('startApp', () => {
 
       await startApp(createRootElement());
       fireEvent.click(await screen.findByRole('button'));
-      await findBrand();
+      await findProductName();
 
       expect(events).toEqual(['create first', 'stop persist first', 'close first', 'create second']);
     });

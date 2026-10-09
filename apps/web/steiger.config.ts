@@ -6,6 +6,7 @@ export default defineConfig([
   {
     files: [
       './src/features/reset-demo/**',
+      './src/features/switch-persona/**',
       './src/features/switch-theme/**',
     ],
     rules: { 'fsd/insignificant-slice': 'off' },

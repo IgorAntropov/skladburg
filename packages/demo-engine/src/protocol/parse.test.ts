@@ -7,7 +7,10 @@ import {
   vi,
 } from 'vitest';
 
-import { DemoPersonaKind } from '../core/state/index';
+import {
+  DemoPersonaGroup,
+  DemoPersonaKind,
+} from './constants';
 import { EngineControlCommand } from './messages';
 import {
   parseEngineClientMessage,
@@ -15,17 +18,23 @@ import {
 } from './parse';
 
 const PERSONA = {
+  group: DemoPersonaGroup.FRESH,
   id: 'persona-1',
   kind: DemoPersonaKind.BUYER,
   organizationId: 'organization-1',
   organizationName: 'Organization 1',
+  roleName: 'Role 1',
+  userDisplayName: 'User One',
   userId: 'user-1',
 };
 
 const PERSONA_WITHOUT_ORGANIZATION_NAME = {
+  group: PERSONA.group,
   id: PERSONA.id,
   kind: PERSONA.kind,
   organizationId: PERSONA.organizationId,
+  roleName: PERSONA.roleName,
+  userDisplayName: PERSONA.userDisplayName,
   userId: PERSONA.userId,
 };
 
@@ -118,6 +127,12 @@ describe('parseEngineHostMessage', () => {
     { personas: [{ ...PERSONA, organizationName: 7 }], requestId: 'c1', type: 'control_result' },
     { personas: [{ ...PERSONA, organizationName: undefined }], requestId: 'c1', type: 'control_result' },
     { personas: [{ ...PERSONA, organizationName: null }], requestId: 'c1', type: 'control_result' },
+    { personas: [{ ...PERSONA, group: 'garden' }], requestId: 'c1', type: 'control_result' },
+    { personas: [{ ...PERSONA, group: undefined }], requestId: 'c1', type: 'control_result' },
+    { personas: [{ ...PERSONA, roleName: 7 }], requestId: 'c1', type: 'control_result' },
+    { personas: [{ ...PERSONA, roleName: undefined }], requestId: 'c1', type: 'control_result' },
+    { personas: [{ ...PERSONA, userDisplayName: null }], requestId: 'c1', type: 'control_result' },
+    { personas: [{ ...PERSONA, userDisplayName: undefined }], requestId: 'c1', type: 'control_result' },
     { personas: {}, requestId: 'c1', type: 'control_result' },
     { coordination: 'shared', epoch: 'e1', role: 'boss', storage: 'memory', storageHealth: 'ok', type: 'status' },
     { coordination: 'shared', epoch: 'e1', role: 'leader', storage: 'cloud', storageHealth: 'ok', type: 'status' },
@@ -139,6 +154,16 @@ describe('parseEngineHostMessage', () => {
     const cloned: unknown = structuredClone({ epoch: 'e1', seq: 9n, subscriptionId: 's1', type: 'subscribed' });
 
     expect(parseEngineHostMessage(cloned)).toEqual({ epoch: 'e1', seq: 9n, subscriptionId: 's1', type: 'subscribed' });
+  });
+
+  it('knows every persona group of the engine', () => {
+    for (const group of Object.values(DemoPersonaGroup)) {
+      expect(parseEngineHostMessage({ personas: [{ ...PERSONA, group }], requestId: 'c1', type: 'control_result' })).toBeDefined();
+    }
+  });
+
+  it('accepts an empty role name', () => {
+    expect(parseEngineHostMessage({ personas: [{ ...PERSONA, roleName: '' }], requestId: 'c1', type: 'control_result' })).toBeDefined();
   });
 
   it('knows every persona kind of the engine', () => {

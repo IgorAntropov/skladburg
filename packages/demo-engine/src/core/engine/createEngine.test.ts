@@ -16,6 +16,7 @@ import {
 } from '@connectrpc/connect';
 import {
   MembershipSchema,
+  RoleAssignmentSchema,
   RoleSchema,
   UserSchema,
 } from '@skladburg/contracts/access/v1/access';
@@ -51,6 +52,7 @@ import {
   SEED_VERSION,
   SeedOrganizationId,
   SeedPersonaId,
+  SeedRoleId,
   SeedUserId,
   SeedWarehouseId,
 } from '../seed/index';
@@ -146,6 +148,121 @@ describe('createEngine startup', () => {
     ]);
   });
 
+  it('lists the user name, the group and the role of every seed persona', async () => {
+    const { engine } = await createTestEngine();
+
+    expect(engine.listPersonas().map(persona => [persona.group, persona.userDisplayName, persona.roleName])).toEqual([
+      ['fresh', 'Анна Смирнова', 'Администратор'],
+      ['fresh', 'Сергей Кузнецов', 'Администратор'],
+      ['fresh', 'Дмитрий Васильев', 'Администратор'],
+      ['fresh', 'Иван Соколов', 'Кладовщик'],
+      ['construction', 'Елена Морозова', 'Администратор'],
+      ['construction', 'Андрей Новиков', 'Администратор'],
+      ['construction', 'Павел Волков', 'Администратор'],
+      ['construction', 'Мария Лебедева', 'Кладовщик'],
+    ]);
+  });
+
+  it('lists the user id of every persona', async () => {
+    const { engine } = await createTestEngine();
+    const personas = engine.listPersonas();
+
+    expect(personas.map(persona => persona.userId)).toEqual(
+      createEngineState(createSeedSnapshot()).read.list('personas').map(persona => persona.userId),
+    );
+  });
+
+  it('joins the distinct role names of the membership alphabetically and skips a missing role', async () => {
+    const seeded = createSeedSnapshot();
+    const reader = createEngineState(seeded).read;
+    const membership = reader.listBy('memberships', 'userId', SeedUserId.ADMIN_1)[0];
+    const adminRole = reader.get('roles', SeedRoleId.ADMIN_BUYER_1);
+    const storekeeperRole = reader.get('roles', SeedRoleId.STOREKEEPER_BUYER_1);
+
+    if (membership === undefined || adminRole === undefined || storekeeperRole === undefined) {
+      throw new Error('Expected the seed membership and roles');
+    }
+
+    const extended = create(MembershipSchema, {
+      id: membership.id,
+      organizationId: membership.organizationId,
+      roleAssignments: [
+        storekeeperRole.id,
+        adminRole.id,
+        adminRole.id,
+        '00000000-0000-4000-8000-000000000000',
+      ].map(roleId => create(RoleAssignmentSchema, { roleId, warehouseIds: [] })),
+      userId: membership.userId,
+    });
+    const collections = {
+      ...seeded.collections,
+      memberships: new Map([...seeded.collections.memberships, [membership.id, TABLE_DEFINITIONS.memberships.encode(extended)]]),
+    };
+    const { engine } = await createTestEngine({ storage: createSpyStorage({ ...seeded, collections }) });
+
+    expect(engine.listPersonas().find(persona => persona.id === SeedPersonaId.FRESH_BUYER)?.roleName).toBe('Администратор, Кладовщик');
+  });
+
+  it('leaves the role name empty for a user without a membership in the persona organization', async () => {
+    const seeded = createSeedSnapshot();
+    const reader = createEngineState(seeded).read;
+    const membership = reader.listBy('memberships', 'userId', SeedUserId.STOREKEEPER_1)[0];
+
+    if (membership === undefined) {
+      throw new Error('Expected the seed membership');
+    }
+
+    const memberships = new Map(seeded.collections.memberships);
+    memberships.delete(membership.id);
+    const { engine } = await createTestEngine({
+      storage: createSpyStorage({ ...seeded, collections: { ...seeded.collections, memberships } }),
+    });
+    const persona = engine.listPersonas().find(item => item.id === SeedPersonaId.FRESH_STOREKEEPER);
+
+    expect(persona?.roleName).toBe('');
+    expect(persona?.userDisplayName).toBe('Иван Соколов');
+  });
+
+  it('ignores the membership of the same user in another organization', async () => {
+    const seeded = createSeedSnapshot();
+    const reader = createEngineState(seeded).read;
+    const membership = reader.listBy('memberships', 'userId', SeedUserId.ADMIN_1)[0];
+
+    if (membership === undefined) {
+      throw new Error('Expected the seed membership');
+    }
+
+    const moved = create(MembershipSchema, {
+      id: membership.id,
+      organizationId: SeedOrganizationId.SELLER_1,
+      roleAssignments: membership.roleAssignments,
+      userId: membership.userId,
+    });
+    const collections = {
+      ...seeded.collections,
+      memberships: new Map([...seeded.collections.memberships, [membership.id, TABLE_DEFINITIONS.memberships.encode(moved)]]),
+    };
+    const { engine } = await createTestEngine({ storage: createSpyStorage({ ...seeded, collections }) });
+
+    expect(engine.listPersonas().find(persona => persona.id === SeedPersonaId.FRESH_BUYER)?.roleName).toBe('');
+  });
+
+  it('skips a persona whose user is missing and a persona whose organization is missing', async () => {
+    const seeded = createSeedSnapshot();
+    const users = new Map(seeded.collections.users);
+    const organizations = new Map(seeded.collections.organizations);
+    users.delete(SeedUserId.ADMIN_2);
+    organizations.delete(SeedOrganizationId.CARRIER_1);
+    const { engine } = await createTestEngine({
+      storage: createSpyStorage({ ...seeded, collections: { ...seeded.collections, organizations, users } }),
+    });
+    const ids = engine.listPersonas().map(persona => persona.id);
+
+    expect(ids).not.toContain(SeedPersonaId.FRESH_SELLER);
+    expect(ids).not.toContain(SeedPersonaId.FRESH_CARRIER);
+    expect(ids).toHaveLength(6);
+  });
+
   it('matches every listed organization name with the organization table of the seed', async () => {
     const { engine } = await createTestEngine();
     const seedReader = createEngineState(createSeedSnapshot()).read;
@@ -161,7 +278,7 @@ describe('createEngine startup', () => {
     expect(seedPersonas).toHaveLength(8);
 
     for (const persona of seedPersonas) {
-      expect(Object.keys(persona).sort()).toEqual(['id', 'kind', 'organizationId', 'userId']);
+      expect(Object.keys(persona).sort()).toEqual(['group', 'id', 'kind', 'organizationId', 'userId']);
     }
   });
 
@@ -215,6 +332,52 @@ describe('createEngine startup', () => {
     const caller = createEngineCaller(engine);
     const response = await caller.organization.listWarehouses({}, buyerOptions(caller));
     expect(response.warehouses).toHaveLength(3);
+  });
+
+  it('reseeds the snapshot left by the previous release, with personas without a group and numbered user names', async () => {
+    const seeded = createSeedSnapshot();
+    const reader = createEngineState(seeded).read;
+    const personas = new Map(
+      [...seeded.collections.personas].map(([id, stored]) => [
+        id,
+        Object.fromEntries(Object.entries(stored).filter(([key]) => key !== 'group')),
+      ]),
+    );
+    const users = new Map(seeded.collections.users);
+
+    const previousNames: readonly (readonly [string, string])[] = [
+      [SeedUserId.ADMIN_1, 'Администратор 1'],
+      [SeedUserId.ADMIN_2, 'Администратор 2'],
+    ];
+
+    for (const [userId, displayName] of previousNames) {
+      const user = reader.get('users', userId);
+
+      if (user === undefined) {
+        throw new Error('Expected the seed user');
+      }
+
+      const renamed = create(UserSchema, { ...user, displayName });
+      users.set(userId, TABLE_DEFINITIONS.users.encode(renamed));
+    }
+
+    const previousRelease = {
+      ...seeded,
+      collections: { ...seeded.collections, personas, users },
+      meta: { ...seeded.meta, seedVersion: SEED_VERSION - 1 },
+      schemaVersion: ENGINE_SCHEMA_VERSION - 1,
+    };
+    const storage = createSpyStorage(previousRelease);
+
+    const { engine } = await createTestEngine({ storage });
+
+    expect(storage.replaceAllCount()).toBe(1);
+    expect(await storage.load()).toEqual(seeded);
+    const [first] = engine.listPersonas();
+    expect(first?.id).toBe(SeedPersonaId.FRESH_BUYER);
+    expect(first?.userDisplayName).toBe('Анна Смирнова');
+    expect(first?.group).toBe('fresh');
+    expect(first?.roleName).toBe('Администратор');
   });
 
   it('does not reseed a stored snapshot whose schema and seed versions are both current', async () => {

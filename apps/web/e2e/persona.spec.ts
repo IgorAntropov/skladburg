@@ -2,12 +2,14 @@ import { test } from '@playwright/test';
 
 import {
   DEFAULT_PERSONA,
+  PERSONA_GROUPS,
   PERSONAS,
   STOREKEEPER_WAREHOUSE_NAMES,
 } from './fixtures/demoData.ts';
 import { toSectionHash } from './fixtures/routes.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';
 import { createPersonaRobot } from './robots/persona-robot.ts';
+import { createTopBarRobot } from './robots/top-bar-robot.ts';
 import { createWarehouseRobot } from './robots/warehouse-robot.ts';
 
 test.describe('start persona', () => {
@@ -23,6 +25,23 @@ test.describe('start persona', () => {
     await navigation.expectAddress(toSectionHash('network'));
     await persona.expectSectionHeading('network');
   });
+});
+
+test.describe('profile menu header of every persona', () => {
+  for (const { personas } of PERSONA_GROUPS) {
+    for (const persona of personas) {
+      test(`shows the name, the role, the organization and the side of ${persona.userDisplayName}`, async ({ page }) => {
+        const topBar = createTopBarRobot(page, 'desktop');
+        const personaRobot = createPersonaRobot(page);
+
+        await personaRobot.openAsPersona(toSectionHash('network'), persona.id);
+
+        await personaRobot.expectCurrentPersona(persona);
+        await topBar.openMenu();
+        await topBar.expectMenuContent(persona);
+      });
+    }
+  }
 });
 
 test.describe('switching the persona', () => {
@@ -166,30 +185,48 @@ test.describe('persona link', () => {
 });
 
 test.describe('persona menu with the keyboard', () => {
-  test('opens on the arrow down key of the focused trigger and keeps the persona', async ({ page }) => {
+  test('opens on Enter of the focused profile button with the focus inside and keeps the persona', async ({ page }) => {
     const navigation = createNavigationRobot(page);
     const persona = createPersonaRobot(page);
 
     await navigation.openSection('deals');
     await persona.expectCurrentPersona(DEFAULT_PERSONA);
 
-    await persona.openMenuWithArrowDown();
+    await persona.openMenuWithEnter();
 
     await persona.expectCheckedPersona(DEFAULT_PERSONA);
 
     await persona.closeMenuWithEscape();
 
+    await persona.expectTriggerFocused();
     await persona.expectCurrentPersona(DEFAULT_PERSONA);
     await navigation.expectAddress(toSectionHash('deals'));
   });
 
-  test('keeps the persona on the arrow keys and Escape of the open menu and returns the focus to the trigger', async ({ page }) => {
+  test('opens again on the arrow down key after the first opening', async ({ page }) => {
     const navigation = createNavigationRobot(page);
     const persona = createPersonaRobot(page);
 
     await navigation.openSection('deals');
     await persona.expectCurrentPersona(DEFAULT_PERSONA);
+    await persona.openMenuWithEnter();
+    await persona.closeMenuWithEscape();
+    await persona.expectTriggerFocused();
+
     await persona.openMenuWithArrowDown();
+
+    await persona.expectCheckedPersona(DEFAULT_PERSONA);
+    await persona.closeMenuWithEscape();
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+  });
+
+  test('keeps the persona on the arrow keys and Escape of the open menu and returns the focus to the profile button', async ({ page }) => {
+    const navigation = createNavigationRobot(page);
+    const persona = createPersonaRobot(page);
+
+    await navigation.openSection('deals');
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+    await persona.openMenuWithEnter();
 
     await persona.pressArrowDownInMenu(3);
     await persona.pressArrowUpInMenu(1);
@@ -204,13 +241,14 @@ test.describe('persona menu with the keyboard', () => {
     await navigation.expectAddress(toSectionHash('deals'));
   });
 
-  test('changes the persona to exactly the highlighted one on Enter', async ({ page }) => {
+  test('changes the persona to exactly the highlighted one on Enter and moves the focus to the new profile button', async ({ page }) => {
     const navigation = createNavigationRobot(page);
     const persona = createPersonaRobot(page);
 
     await navigation.openSection('network');
     await persona.expectCurrentPersona(DEFAULT_PERSONA);
-    await persona.openMenuWithArrowDown();
+    await persona.focusTriggerWithTab();
+    await persona.openMenuWithEnter();
 
     await persona.highlightPersonaWithArrows(PERSONAS.freshCarrier);
     await persona.expectCheckedPersona(DEFAULT_PERSONA);
@@ -219,6 +257,26 @@ test.describe('persona menu with the keyboard', () => {
     await persona.expectMenuClosed();
     await persona.expectCurrentPersona(PERSONAS.freshCarrier);
     await persona.expectSections(PERSONAS.freshCarrier.sections);
+    await persona.expectTriggerFocused();
+    await persona.expectSwitchAnnounced(PERSONAS.freshCarrier);
+  });
+
+  test('walks across the group border of the second vertical and changes to the highlighted persona', async ({ page }) => {
+    const navigation = createNavigationRobot(page);
+    const persona = createPersonaRobot(page);
+
+    await navigation.openSection('catalog');
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+    await persona.openMenuWithEnter();
+
+    await persona.highlightPersonaWithArrows(PERSONAS.constructionSeller);
+    await persona.pressEnterOnHighlightedPersona();
+
+    await persona.expectMenuClosed();
+    await persona.expectCurrentPersona(PERSONAS.constructionSeller);
+    await persona.expectTriggerFocused();
+    await persona.expectSwitchAnnounced(PERSONAS.constructionSeller);
+    await persona.expectSectionHeading('catalog');
   });
 });
 
@@ -248,6 +306,8 @@ test.describe('persona menu with the mouse', () => {
     await persona.selectPersona(PERSONAS.constructionSeller);
 
     await persona.expectCurrentPersona(PERSONAS.constructionSeller);
+    await persona.expectTriggerFocused();
+    await persona.expectSwitchAnnounced(PERSONAS.constructionSeller);
     await persona.openMenuWithClick();
     await persona.expectCheckedPersona(PERSONAS.constructionSeller);
   });

@@ -1,4 +1,4 @@
-export type { PersonaMenuRadioGroupProps } from './ui/PersonaMenuRadioGroup';
-export { PersonaMenuRadioGroup } from './ui/PersonaMenuRadioGroup';
-export type { PersonaSwitcherProps } from './ui/PersonaSwitcher';
-export { PersonaSwitcher } from './ui/PersonaSwitcher';
+export type { CurrentPersonaValue } from './model/useCurrentPersona';
+export { useCurrentPersona } from './model/useCurrentPersona';
+export type { PersonaMenuGroupsProps } from './ui/PersonaMenuGroups';
+export { PersonaMenuGroups } from './ui/PersonaMenuGroups';

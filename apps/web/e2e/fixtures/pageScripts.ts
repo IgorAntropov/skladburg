@@ -65,3 +65,11 @@ export const createBlockMainThreadScript = (durationMs: number): string => [
   '}, 0);',
   '})()',
 ].join(' ');
+
+export const READ_LANDMARKS_HIDDEN_FROM_READERS = [
+  '(() => {',
+  'const landmarks = [...document.querySelectorAll("header, main, [role=banner], [role=main]")];',
+  'return landmarks.filter((landmark) => landmark.closest("[aria-hidden=true]") !== null).length;',
+  '})()',
+].join(' ');
+

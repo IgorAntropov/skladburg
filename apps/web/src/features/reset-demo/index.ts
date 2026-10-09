@@ -1,3 +1,3 @@
 export { useIsDemoResetAvailable } from './api/useIsDemoResetAvailable';
-export { ResetDemoButton } from './ui/ResetDemoButton';
+export { useIsDemoResetPending } from './api/useIsDemoResetPending';
 export { ResetDemoConfirm } from './ui/ResetDemoConfirm';

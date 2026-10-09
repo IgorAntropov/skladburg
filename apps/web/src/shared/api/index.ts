@@ -51,4 +51,5 @@ export type {
   DemoPersonaListItemValue,
   IDemoControl,
 } from './transport/demo';
+export { DemoPersonaGroup } from './transport/demo/demoPersonaGroup';
 export { DemoPersonaKind } from './transport/demo/demoPersonaKind';

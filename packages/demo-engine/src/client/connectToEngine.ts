@@ -5,8 +5,8 @@ import {
   ConnectError,
 } from '@connectrpc/connect';
 
-import type { DemoPersonaListItemValue } from '../core/state/index';
 import type {
+  DemoPersonaListItemValue,
   EngineClientMessageValue,
   EngineControlResultMessageValue,
   EngineHostMessageValue,

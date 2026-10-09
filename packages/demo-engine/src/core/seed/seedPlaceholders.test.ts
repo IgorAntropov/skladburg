@@ -8,7 +8,7 @@ import { createSeedRecords } from './seedSnapshot';
 
 const ORGANIZATION_NAME_PATTERN = /^(Покупатель|Продавец|Логист) \d+$/;
 const LEGAL_NAME_PATTERN = /^ООО «(Покупатель|Продавец|Логист) \d+»$/;
-const USER_NAME_PATTERN = /^(Администратор|Кладовщик) \d+$/;
+const USER_NAME_PATTERN = /^[А-ЯЁ][а-яё]+ [А-ЯЁ][а-яё]+$/;
 const ROLE_NAME_PATTERN = /^(Администратор|Кладовщик)$/;
 const WAREHOUSE_NAME_PATTERN = /^(Склад|Площадка) \d+$/;
 
@@ -110,6 +110,12 @@ describe('seed placeholder names', () => {
     for (const { displayName } of records.users) {
       expect(displayName).toMatch(USER_NAME_PATTERN);
     }
+  });
+
+  it('gives every user a different name', () => {
+    const names = records.users.map(user => user.displayName);
+
+    expect(new Set(names).size).toBe(names.length);
   });
 
   it('names roles by the placeholder pattern', () => {

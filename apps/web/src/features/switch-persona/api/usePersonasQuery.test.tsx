@@ -26,29 +26,17 @@ import type {
 import {
   ApiRuntimeProvider,
   createQueryClient,
-  DemoPersonaKind,
 } from '@/shared/api';
 import { createTestRuntime } from '@/shared/api/index.testing';
 
+import {
+  FRESH_BUYER_FIXTURE,
+  FRESH_CARRIER_FIXTURE,
+} from '../lib/testing/personaFixtures';
 import { personaKeys } from './personaKeys';
 import { usePersonasQuery } from './usePersonasQuery';
 
-const PERSONAS: readonly DemoPersonaListItemValue[] = [
-  {
-    id: 'f9000001-0000-4000-8000-000000000000',
-    kind: DemoPersonaKind.BUYER,
-    organizationId: 'f9100001-0000-4000-8000-000000000000',
-    organizationName: 'Север-Опт',
-    userId: 'f9200001-0000-4000-8000-000000000000',
-  },
-  {
-    id: 'f9000002-0000-4000-8000-000000000000',
-    kind: DemoPersonaKind.CARRIER,
-    organizationId: 'f9100002-0000-4000-8000-000000000000',
-    organizationName: 'Быстрый рейс',
-    userId: 'f9200002-0000-4000-8000-000000000000',
-  },
-];
+const PERSONAS: readonly DemoPersonaListItemValue[] = [FRESH_BUYER_FIXTURE, FRESH_CARRIER_FIXTURE];
 
 const createDemoControl = (listPersonas: IDemoControl['listPersonas']): IDemoControl => ({
   listPersonas,

@@ -20,6 +20,25 @@
   --color-focus: #0f1730;
   --color-skeleton: rgb(30 42 74 / 0.08);
   --color-scrim: rgb(14 20 38 / 0.45);
+  --color-side-label-buyer: #8344b9;
+  --color-side-label-seller: #596517;
+  --color-side-label-carrier: #6e285e;
+  --color-avatar-1: #87565c;
+  --color-avatar-2: #8b623d;
+  --color-avatar-3: #156864;
+  --color-avatar-4: #2f7388;
+  --color-avatar-5: #525c69;
+  --color-avatar-6: #68678e;
+  --color-avatar-7: #60463b;
+  --color-avatar-8: #334f6d;
+  --color-on-avatar-1: #ffffff;
+  --color-on-avatar-2: #ffffff;
+  --color-on-avatar-3: #ffffff;
+  --color-on-avatar-4: #ffffff;
+  --color-on-avatar-5: #ffffff;
+  --color-on-avatar-6: #ffffff;
+  --color-on-avatar-7: #ffffff;
+  --color-on-avatar-8: #ffffff;
   --radius-control: 0.5rem;
   --radius-panel: 0.875rem;
   --blur-panel: 16px;
@@ -35,6 +54,12 @@
   --color-on-status-ok: #0b1226;
   --color-on-status-warning: #0b1226;
   --color-on-status-alarm: #0b1226;
+  --color-side-buyer: #8344b9;
+  --color-side-seller: #596517;
+  --color-side-carrier: #6e285e;
+  --color-on-side-buyer: #ffffff;
+  --color-on-side-seller: #ffffff;
+  --color-on-side-carrier: #ffffff;
 }
 
 :root {
@@ -67,6 +92,25 @@
   --color-focus: #e3e9ff;
   --color-skeleton: rgb(232 228 220 / 0.1);
   --color-scrim: rgb(0 0 0 / 0.6);
+  --color-side-label-buyer: #c794f2;
+  --color-side-label-seller: #a2b563;
+  --color-side-label-carrier: #fdbadd;
+  --color-avatar-1: #e0a5ab;
+  --color-avatar-2: #c38f65;
+  --color-avatar-3: #68adaa;
+  --color-avatar-4: #8bc8de;
+  --color-avatar-5: #a1acbb;
+  --color-avatar-6: #afafe0;
+  --color-avatar-7: #ae9184;
+  --color-avatar-8: #82a2c3;
+  --color-on-avatar-1: #0b1226;
+  --color-on-avatar-2: #0b1226;
+  --color-on-avatar-3: #0b1226;
+  --color-on-avatar-4: #0b1226;
+  --color-on-avatar-5: #0b1226;
+  --color-on-avatar-6: #0b1226;
+  --color-on-avatar-7: #0b1226;
+  --color-on-avatar-8: #0b1226;
   --shadow-panel:
     0 12px 32px -12px rgb(0 0 0 / 0.6), 0 1px 2px rgb(0 0 0 / 0.4);
 }

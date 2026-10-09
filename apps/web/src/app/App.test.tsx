@@ -33,11 +33,16 @@ import { createLocalizer } from '@/shared/i18n';
 import { createMemoryLocation } from '@/shared/routing/index.testing';
 
 import { App } from './App';
-import { registerSessionRoute } from './lib/testing/sessionFixtures';
+import {
+  registerSessionRoute,
+  SESSION_ORGANIZATION_NAME,
+  SESSION_USER_DISPLAY_NAME,
+} from './lib/testing/sessionFixtures';
 import { createTestThemeStore } from './lib/testing/themeFixtures';
 
 const ORGANIZATION_ID = 'f4000002-0000-4000-8000-000000000000';
 const BRAND_NAME = 'Северный склад';
+const PRODUCT_NAME = defaultLocaleCatalog['app.productName'];
 const WAREHOUSE_PATH = '/warehouse';
 const OVERRIDDEN_PLACEHOLDER = 'Склад «Север» скоро откроется';
 
@@ -111,7 +116,7 @@ describe('App', () => {
 
     expect(waiting.textContent).toBe('');
 
-    await screen.findByText(BRAND_NAME);
+    await screen.findByText(PRODUCT_NAME);
   });
 
   it('renders the main landmark', async () => {
@@ -122,14 +127,27 @@ describe('App', () => {
     expect(screen.getByRole('main').getAttribute('aria-busy')).toBeNull();
   });
 
-  it('renders the brand name from the settings of the engine, excluded from translation', async () => {
+  it('renders the product name in the banner, excluded from translation, and not the brand of the organization', async () => {
     await renderApp();
 
-    const brand = await screen.findByText(BRAND_NAME);
+    const productName = await screen.findByText(PRODUCT_NAME);
 
-    expect(brand.getAttribute('translate')).toBe('no');
-    expect(brand.closest('header')).toBe(screen.getByRole('banner'));
+    expect(productName.getAttribute('translate')).toBe('no');
+    expect(productName.closest('header')).toBe(screen.getByRole('banner'));
+    expect(screen.queryByText(BRAND_NAME)).toBeNull();
     expect(screen.queryByText(defaultTenant.brandName)).toBeNull();
+  });
+
+  it('renders the profile button of the session in the banner', async () => {
+    await renderApp();
+
+    const button = await screen.findByRole('button', {
+      name: defaultLocaleCatalog['profile.button.label']
+        .replace('{name}', SESSION_USER_DISPLAY_NAME)
+        .replace('{organization}', SESSION_ORGANIZATION_NAME),
+    });
+
+    expect(button.closest('header')).toBe(screen.getByRole('banner'));
   });
 
   it('renders the placeholder from the locale catalog', async () => {
@@ -148,7 +166,7 @@ describe('App', () => {
   it('sets the document language and title from the settings of the engine', async () => {
     await renderApp();
 
-    await screen.findByText(BRAND_NAME);
+    await screen.findByText(PRODUCT_NAME);
 
     expect(document.documentElement.lang).toBe(defaultTenant.defaultLocale);
     expect(document.title).toBe(

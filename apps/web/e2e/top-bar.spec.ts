@@ -14,8 +14,9 @@ import { createPersonaRobot } from './robots/persona-robot.ts';
 import { createTopBarRobot } from './robots/top-bar-robot.ts';
 import { createWarehouseRobot } from './robots/warehouse-robot.ts';
 
+const NARROW_PHONE_VIEWPORT = { height: 740, width: 360 };
+
 for (const viewport of VIEWPORT_SCENARIOS) {
-  const isDesktop = viewport.layout === 'desktop';
   const isPhone = viewport.layout === 'phone';
 
   test.describe(`top bar on ${viewport.name}`, () => {
@@ -26,20 +27,30 @@ for (const viewport of VIEWPORT_SCENARIOS) {
     });
 
     test.describe('content', () => {
-      test('shows the brand, sections, search, persona switcher and theme without a horizontal scroll', async ({ page }) => {
+      test('shows the product mark, sections, search and the profile button with initials, no scroll', async ({ page }) => {
         const navigation = createNavigationRobot(page);
         const topBar = createTopBarRobot(page, viewport.layout);
 
         await navigation.openRoot();
 
         await topBar.expectBannerShown();
-        await topBar.expectBrand(DEFAULT_PERSONA.organizationName);
+        await topBar.expectProductMark();
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+        await topBar.expectProfileButtonLast();
+        await topBar.expectNoSignInLabel();
         await topBar.expectSections(DEFAULT_PERSONA.sections);
         await topBar.expectSearchAvailable();
-        await topBar.expectPersonaSwitcher(DEFAULT_PERSONA);
-        await topBar.expectThemeControl();
-        await topBar.expectThemeChecked('light');
         await topBar.expectNoHorizontalScroll();
+      });
+
+      test('gives the profile button a touch target of at least 44 px', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openRoot();
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+
+        await topBar.expectButtonTouchTarget();
       });
 
       test('marks the current section and follows the address', async ({ page }) => {
@@ -54,13 +65,201 @@ for (const viewport of VIEWPORT_SCENARIOS) {
       });
     });
 
+    test.describe('profile menu content', () => {
+      test('shows the header, two groups of four personas with one checked, the theme row and the reset item', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openSection('network');
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+
+        await topBar.openMenu();
+
+        await topBar.expectMenuContent(DEFAULT_PERSONA);
+        await topBar.closeMenuWithEscape();
+        await topBar.expectFocusOnProfileButton();
+      });
+
+      test('shows the carrier name, role and side after switching to it', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const persona = createPersonaRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openSection('network');
+        await persona.selectPersona(PERSONAS.freshCarrier);
+
+        await topBar.openMenu();
+
+        await topBar.expectMenuContent(PERSONAS.freshCarrier);
+      });
+
+      test('gives every menu item a touch target of at least 44 px', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openSection('network');
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+        await topBar.openMenu();
+
+        await topBar.expectMenuItemsTouchTargets();
+      });
+
+      test('keeps the page without a horizontal scroll with the menu open', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openSection('network');
+        await topBar.expectSearchAvailable();
+        await topBar.openMenu();
+
+        await topBar.expectNoHorizontalScroll();
+      });
+
+      test('closes on Escape and returns the focus to the profile button', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openSection('network');
+        await topBar.openMenu();
+
+        await topBar.closeMenuWithEscape();
+
+        await topBar.expectFocusOnProfileButton();
+        await navigation.expectAddress(toSectionHash('network'));
+      });
+
+      test('keeps the banner and the main area available to assistive technology while open', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openSection('network');
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+        await topBar.openMenu();
+
+        await topBar.expectBannerAndMainExposed();
+      });
+
+      test('closes on a click outside the menu without moving the focus back to the profile button', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openSection('network');
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+        await topBar.openMenu();
+
+        await topBar.clickOutsideMenu();
+
+        await topBar.expectMenuClosed();
+        await topBar.expectFocusNotOnProfileButton();
+        await navigation.expectAddress(toSectionHash('network'));
+      });
+
+      test('closes on a click of the search and leaves the focus in it', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openSection('network');
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+        await topBar.openMenu();
+
+        await topBar.clickSearchWhileMenuOpen();
+
+        await topBar.expectMenuClosed();
+        await topBar.expectFocusOnSearchField();
+      });
+
+      test('closes on Tab with the focus on the profile button and lets the next Tab move on', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openSection('network');
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+        await topBar.openMenu();
+
+        await topBar.pressTabInMenu();
+
+        await topBar.expectMenuClosed();
+        await topBar.expectFocusOnProfileButton();
+
+        await topBar.pressTab();
+
+        await topBar.expectFocusNotOnProfileButton();
+        await topBar.expectMenuClosed();
+      });
+
+      test('closes on Shift+Tab with the focus on the profile button', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openSection('network');
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+        await topBar.openMenu();
+
+        await topBar.pressShiftTabInMenu();
+
+        await topBar.expectMenuClosed();
+        await topBar.expectFocusOnProfileButton();
+      });
+
+      if (!isPhone) {
+        test('closes on a click of a section link and goes to the section', async ({ page }) => {
+          const navigation = createNavigationRobot(page);
+          const persona = createPersonaRobot(page);
+          const topBar = createTopBarRobot(page, viewport.layout);
+
+          await navigation.openSection('network');
+          await topBar.expectProfileButton(DEFAULT_PERSONA);
+          await topBar.openMenu();
+
+          await topBar.clickSectionLinkWhileMenuOpen('catalog');
+
+          await topBar.expectMenuClosed();
+          await navigation.expectAddress(toSectionHash('catalog'));
+          await persona.expectSectionHeading('catalog');
+          await topBar.expectCurrentSection('catalog');
+        });
+      }
+
+      if (isPhone) {
+        test('moves the sections into the menu and goes to the chosen one', async ({ page }) => {
+          const navigation = createNavigationRobot(page);
+          const persona = createPersonaRobot(page);
+          const topBar = createTopBarRobot(page, viewport.layout);
+
+          await navigation.openSection('network');
+          await topBar.expectProfileButton(DEFAULT_PERSONA);
+          await topBar.expectSections(DEFAULT_PERSONA.sections);
+
+          await topBar.selectMenuSection('catalog');
+
+          await navigation.expectAddress(toSectionHash('catalog'));
+          await persona.expectSectionHeading('catalog');
+          await topBar.expectMenuClosed();
+          await topBar.expectCurrentSection('catalog');
+        });
+      }
+      else {
+        test('keeps the sections out of the menu', async ({ page }) => {
+          const navigation = createNavigationRobot(page);
+          const topBar = createTopBarRobot(page, viewport.layout);
+
+          await navigation.openSection('network');
+          await topBar.expectProfileButton(DEFAULT_PERSONA);
+
+          await topBar.openMenu();
+
+          await topBar.expectNoSectionsInMenu();
+        });
+      }
+    });
+
     test.describe('search', () => {
       test('takes the focus on the slash key', async ({ page }) => {
         const navigation = createNavigationRobot(page);
         const topBar = createTopBarRobot(page, viewport.layout);
 
         await navigation.openSection('catalog');
-        await topBar.expectBrand(DEFAULT_PERSONA.organizationName);
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
 
         await topBar.pressSlash();
 
@@ -73,7 +272,7 @@ for (const viewport of VIEWPORT_SCENARIOS) {
         const topBar = createTopBarRobot(page, viewport.layout);
 
         await navigation.openSection('catalog');
-        await topBar.expectBrand(DEFAULT_PERSONA.organizationName);
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
 
         await topBar.pressSlashOfRussianLayout();
 
@@ -86,7 +285,7 @@ for (const viewport of VIEWPORT_SCENARIOS) {
         const topBar = createTopBarRobot(page, viewport.layout);
 
         await navigation.openSection('catalog');
-        await topBar.expectBrand(DEFAULT_PERSONA.organizationName);
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
         await topBar.pressSlash();
         await topBar.expectFocusOnSearchField();
 
@@ -101,7 +300,7 @@ for (const viewport of VIEWPORT_SCENARIOS) {
         const topBar = createTopBarRobot(page, viewport.layout);
 
         await navigation.openSection('catalog');
-        await topBar.expectBrand(DEFAULT_PERSONA.organizationName);
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
         await topBar.focusKnownElement('catalog');
         await topBar.pressSlash();
         await topBar.expectFocusOnSearchField();
@@ -127,7 +326,7 @@ for (const viewport of VIEWPORT_SCENARIOS) {
           const topBar = createTopBarRobot(page, viewport.layout);
 
           await navigation.openSection('catalog');
-          await topBar.expectBrand(DEFAULT_PERSONA.organizationName);
+          await topBar.expectProfileButton(DEFAULT_PERSONA);
           await topBar.openSearchWithToggle();
           await topBar.typeInSearch('abc');
           await topBar.expectSearchValue('abc');
@@ -144,7 +343,7 @@ for (const viewport of VIEWPORT_SCENARIOS) {
           const topBar = createTopBarRobot(page, viewport.layout);
 
           await navigation.openSection('catalog');
-          await topBar.expectBrand(DEFAULT_PERSONA.organizationName);
+          await topBar.expectProfileButton(DEFAULT_PERSONA);
           await topBar.blurActiveElement();
           await topBar.pressSlash();
           await topBar.expectFocusOnSearchField();
@@ -156,6 +355,20 @@ for (const viewport of VIEWPORT_SCENARIOS) {
           await topBar.expectFocusOnSearchToggle();
           await topBar.expectFocusNotOnBody();
         });
+
+        test('keeps the profile button inside the panel with the search open and no horizontal scroll', async ({ page }) => {
+          const navigation = createNavigationRobot(page);
+          const topBar = createTopBarRobot(page, viewport.layout);
+
+          await navigation.openSection('catalog');
+          await topBar.expectProfileButton(DEFAULT_PERSONA);
+
+          await topBar.openSearchWithToggle();
+
+          await topBar.expectProfileButton(DEFAULT_PERSONA);
+          await topBar.expectProfileButtonLast();
+          await topBar.expectNoHorizontalScroll();
+        });
       }
       else {
         test('keeps the focus in the cleared field on Escape when nothing had it before the slash key', async ({ page }) => {
@@ -163,7 +376,7 @@ for (const viewport of VIEWPORT_SCENARIOS) {
           const topBar = createTopBarRobot(page, viewport.layout);
 
           await navigation.openSection('catalog');
-          await topBar.expectBrand(DEFAULT_PERSONA.organizationName);
+          await topBar.expectProfileButton(DEFAULT_PERSONA);
           await topBar.blurActiveElement();
           await topBar.pressSlash();
           await topBar.expectFocusOnSearchField();
@@ -183,7 +396,7 @@ for (const viewport of VIEWPORT_SCENARIOS) {
         const topBar = createTopBarRobot(page, viewport.layout);
 
         await navigation.openSection('catalog');
-        await topBar.expectBrand(DEFAULT_PERSONA.organizationName);
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
         await topBar.pressSlash();
         await topBar.typeInSearch('abc');
         await topBar.expectSearchNoteHidden();
@@ -200,7 +413,18 @@ for (const viewport of VIEWPORT_SCENARIOS) {
     });
 
     test.describe('theme', () => {
-      test('switches to dark, paints the banner with the dark panel, keeps the section marker and survives a reload', async ({ page }) => {
+      test('offers the three themes as one row of icon items with the light one checked', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
+
+        await navigation.openSection('network');
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
+
+        await topBar.expectThemeRow();
+        await topBar.expectThemeChecked('light');
+      });
+
+      test('switches to dark from the menu, paints the banner dark, keeps the section marker and survives a reload', async ({ page }) => {
         const navigation = createNavigationRobot(page);
         const topBar = createTopBarRobot(page, viewport.layout);
 
@@ -220,6 +444,7 @@ for (const viewport of VIEWPORT_SCENARIOS) {
         await navigation.reload();
 
         await topBar.expectBannerShown();
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
         await topBar.expectDocumentTheme('dark');
         await topBar.expectThemeChecked('dark');
         await topBar.expectPanelBackgroundFromTheme();
@@ -242,69 +467,55 @@ for (const viewport of VIEWPORT_SCENARIOS) {
         await topBar.expectPanelBackgroundFromTheme();
       });
 
-      if (isDesktop) {
-        test('changes the value with the arrow keys of the radio group', async ({ page }) => {
-          const navigation = createNavigationRobot(page);
-          const topBar = createTopBarRobot(page, viewport.layout);
+      test('moves the focus over the theme items with the arrow keys without changing the theme', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
 
-          await navigation.openSection('network');
-          await topBar.expectThemeChecked('light');
-          await topBar.focusThemeOption('light');
+        await navigation.openSection('network');
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
 
-          await topBar.pressArrowOnTheme('ArrowRight');
-
-          await topBar.expectThemeChecked('dark');
-          await topBar.expectDocumentTheme('dark');
-
-          await topBar.pressArrowOnTheme('ArrowRight');
-
-          await topBar.expectThemeChecked('system');
-
-          await topBar.pressArrowOnTheme('ArrowLeft');
-
-          await topBar.expectThemeChecked('dark');
-          await topBar.expectDocumentTheme('dark');
-        });
-      }
+        await topBar.expectThemeFocusMovesWithoutChange('light');
+      });
     });
 
     test.describe('demo reset', () => {
-      test('asks first, focuses the cancel button and returns the focus to the opener on cancel', async ({ page }) => {
+      test('asks first, focuses the cancel button and returns the focus to the profile button on cancel', async ({ page }) => {
         const navigation = createNavigationRobot(page);
         const topBar = createTopBarRobot(page, viewport.layout);
 
         await navigation.openSection('warehouse');
-        await topBar.expectBannerShown();
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
 
         await topBar.requestReset();
 
         await topBar.expectResetConfirmOpen();
         await topBar.expectResetConfirmFocusedOnCancel();
+        await topBar.expectNoHorizontalScroll();
 
         await topBar.cancelResetConfirm();
 
         await topBar.expectResetConfirmClosed();
-        await topBar.expectFocusOnResetOpener();
+        await topBar.expectFocusOnProfileButton();
         await topBar.expectResetNotAnnounced();
       });
 
-      test('closes the question on Escape and returns the focus to the opener', async ({ page }) => {
+      test('closes the question on Escape and returns the focus to the profile button', async ({ page }) => {
         const navigation = createNavigationRobot(page);
         const topBar = createTopBarRobot(page, viewport.layout);
 
         await navigation.openSection('warehouse');
-        await topBar.expectBannerShown();
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
         await topBar.requestReset();
         await topBar.expectResetConfirmFocusedOnCancel();
 
         await topBar.closeResetConfirmWithEscape();
 
         await topBar.expectResetConfirmClosed();
-        await topBar.expectFocusOnResetOpener();
+        await topBar.expectFocusOnProfileButton();
         await topBar.expectResetNotAnnounced();
       });
 
-      test('resets after the confirmation, announces it and shows the seed warehouses', async ({ page }) => {
+      test('resets after the confirmation, announces it, focuses the profile button and shows the seed warehouses', async ({ page }) => {
         const navigation = createNavigationRobot(page);
         const topBar = createTopBarRobot(page, viewport.layout);
         const warehouse = createWarehouseRobot(page);
@@ -318,157 +529,86 @@ for (const viewport of VIEWPORT_SCENARIOS) {
 
         await topBar.expectResetConfirmClosed();
         await topBar.expectResetAnnounced();
-        await topBar.expectFocusOnResetOpener();
+        await topBar.expectFocusOnProfileButton();
         await warehouse.expectEngineData();
         await navigation.expectAddress(toSectionHash('warehouse'));
       });
-
-      if (isDesktop) {
-        test('keeps the button mounted and expanded while the question is open', async ({ page }) => {
-          const navigation = createNavigationRobot(page);
-          const topBar = createTopBarRobot(page, viewport.layout);
-
-          await navigation.openSection('warehouse');
-          await topBar.expectResetButtonExpanded(false);
-
-          await topBar.requestReset();
-
-          await topBar.expectResetButtonExpanded(true);
-          await topBar.expectResetConfirmOpen();
-
-          await topBar.closeResetConfirmWithEscape();
-
-          await topBar.expectResetButtonExpanded(false);
-        });
-      }
     });
 
-    test.describe('persona switcher', () => {
-      if (isDesktop) {
-        test('keeps the focus on the trigger of the new switcher after a change with the keyboard only', async ({ page }) => {
-          const navigation = createNavigationRobot(page);
-          const persona = createPersonaRobot(page);
+    test.describe('persona change', () => {
+      test('keeps the focus on the profile button of the new persona after a change from the menu', async ({ page }) => {
+        const navigation = createNavigationRobot(page);
+        const persona = createPersonaRobot(page);
+        const topBar = createTopBarRobot(page, viewport.layout);
 
-          await navigation.openSection('network');
-          await persona.expectCurrentPersona(DEFAULT_PERSONA);
+        await navigation.openSection('network');
+        await topBar.expectProfileButton(DEFAULT_PERSONA);
 
-          await persona.focusTriggerWithTab();
-          await page.keyboard.press('Enter');
-          await persona.expectMenuOpen();
-          await persona.highlightPersonaWithArrows(PERSONAS.freshCarrier);
-          await persona.pressEnterOnHighlightedPersona();
+        await persona.selectPersona(PERSONAS.freshCarrier);
 
-          await persona.expectMenuClosed();
-          await persona.expectCurrentPersona(PERSONAS.freshCarrier);
-          await persona.expectTriggerFocused();
-          await persona.expectSwitchAnnounced(PERSONAS.freshCarrier);
-        });
-      }
-      else {
-        test('keeps the focus on the menu button after a change from the menu', async ({ page }) => {
-          const navigation = createNavigationRobot(page);
-          const persona = createPersonaRobot(page);
-          const topBar = createTopBarRobot(page, viewport.layout);
-
-          await navigation.openSection('network');
-          await topBar.expectBrand(DEFAULT_PERSONA.organizationName);
-
-          await topBar.selectMenuPersona(PERSONAS.freshCarrier);
-
-          await topBar.expectBrand(PERSONAS.freshCarrier.organizationName);
-          await topBar.expectFocusOnMenuButton();
-          await persona.expectSwitchAnnounced(PERSONAS.freshCarrier);
-          await topBar.expectPersonaSwitcher(PERSONAS.freshCarrier);
-          await topBar.expectSections(PERSONAS.freshCarrier.sections);
-        });
-      }
+        await topBar.expectProfileButton(PERSONAS.freshCarrier);
+        await topBar.expectFocusOnProfileButton();
+        await persona.expectSwitchAnnounced(PERSONAS.freshCarrier);
+        await topBar.expectPersonaPicker(PERSONAS.freshCarrier);
+        await topBar.expectSections(PERSONAS.freshCarrier.sections);
+      });
     });
-
-    if (!isDesktop) {
-      test.describe('menu', () => {
-        test('does not request the menu chunk on load and requests it once on the first opening', async ({ page }) => {
-          const navigation = createNavigationRobot(page);
-          const topBar = createTopBarRobot(page, viewport.layout);
-
-          await navigation.openSection('network');
-          await topBar.expectBrand(DEFAULT_PERSONA.organizationName);
-          await page.waitForLoadState('networkidle');
-
-          await topBar.expectMenuChunkRequestCount(0);
-
-          await topBar.openMenu();
-
-          await topBar.expectMenuChunkRequestCount(1);
-
-          await topBar.closeMenuWithEscape();
-          await topBar.openMenu();
-          await topBar.closeMenuWithEscape();
-
-          await topBar.expectMenuChunkRequestCount(1);
-        });
-
-        test('closes on Escape and returns the focus to the menu button', async ({ page }) => {
-          const navigation = createNavigationRobot(page);
-          const topBar = createTopBarRobot(page, viewport.layout);
-
-          await navigation.openSection('network');
-          await topBar.openMenu();
-
-          await topBar.closeMenuWithEscape();
-
-          await topBar.expectFocusOnMenuButton();
-          await navigation.expectAddress(toSectionHash('network'));
-        });
-
-        test('opens the reset question from the menu and returns the focus to the menu button', async ({ page }) => {
-          const navigation = createNavigationRobot(page);
-          const topBar = createTopBarRobot(page, viewport.layout);
-
-          await navigation.openSection('network');
-          await topBar.expectBannerShown();
-
-          await topBar.requestReset();
-
-          await topBar.expectResetConfirmOpen();
-          await topBar.expectResetConfirmFocusedOnCancel();
-
-          await topBar.cancelResetConfirm();
-
-          await topBar.expectFocusOnMenuButton();
-          await topBar.expectResetConfirmClosed();
-        });
-
-        test('keeps the page without a horizontal scroll with the menu and the search open', async ({ page }) => {
-          const navigation = createNavigationRobot(page);
-          const topBar = createTopBarRobot(page, viewport.layout);
-
-          await navigation.openSection('network');
-          await topBar.expectSearchAvailable();
-          await topBar.openMenu();
-
-          await topBar.expectNoHorizontalScroll();
-        });
-      });
-    }
-
-    if (isPhone) {
-      test.describe('sections in the menu', () => {
-        test('goes to the chosen section and closes the menu', async ({ page }) => {
-          const navigation = createNavigationRobot(page);
-          const persona = createPersonaRobot(page);
-          const topBar = createTopBarRobot(page, viewport.layout);
-
-          await navigation.openSection('network');
-          await topBar.expectBrand(DEFAULT_PERSONA.organizationName);
-
-          await topBar.selectMenuSection('catalog');
-
-          await navigation.expectAddress(toSectionHash('catalog'));
-          await persona.expectSectionHeading('catalog');
-          await topBar.expectMenuClosed();
-          await topBar.expectCurrentSection('catalog');
-        });
-      });
-    }
   });
 }
+
+test.describe('profile menu on a laptop 1280x800', () => {
+  test.use({
+    hasTouch: false,
+    isMobile: false,
+    viewport: { height: 800, width: 1280 },
+  });
+
+  test('keeps the reset item reachable with the keyboard and inside the window', async ({ page }) => {
+    const navigation = createNavigationRobot(page);
+    const persona = createPersonaRobot(page);
+    const topBar = createTopBarRobot(page, 'desktop');
+
+    await navigation.openSection('network');
+    await topBar.expectProfileButton(DEFAULT_PERSONA);
+
+    await persona.openMenuWithEnter();
+
+    await topBar.expectResetItemReachableWithKeyboard();
+  });
+});
+
+test.describe('top bar on phone 360x740', () => {
+  test.use({
+    hasTouch: true,
+    isMobile: true,
+    viewport: NARROW_PHONE_VIEWPORT,
+  });
+
+  test('keeps the product mark, search and profile button inside the panel with the search open and no scroll', async ({ page }) => {
+    const navigation = createNavigationRobot(page);
+    const topBar = createTopBarRobot(page, 'phone');
+
+    await navigation.openSection('network');
+    await topBar.expectProfileButton(DEFAULT_PERSONA);
+    await topBar.expectProductMark();
+
+    await topBar.openSearchWithToggle();
+
+    await topBar.expectProfileButton(DEFAULT_PERSONA);
+    await topBar.expectProfileButtonLast();
+    await topBar.expectNoHorizontalScroll();
+  });
+
+  test('keeps the page without a horizontal scroll with the profile menu open', async ({ page }) => {
+    const navigation = createNavigationRobot(page);
+    const topBar = createTopBarRobot(page, 'phone');
+
+    await navigation.openSection('network');
+    await topBar.expectProfileButton(DEFAULT_PERSONA);
+
+    await topBar.openMenu();
+    await topBar.expectMenuContent(DEFAULT_PERSONA);
+
+    await topBar.expectNoHorizontalScroll();
+  });
+});

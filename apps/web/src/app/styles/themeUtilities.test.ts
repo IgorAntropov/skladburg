@@ -160,6 +160,44 @@ describe('panel shadow', () => {
   });
 });
 
+describe('side and avatar utilities', () => {
+  it('generates classes for the avatar tones and the side colors from the theme tokens', async () => {
+    const css = await readBuiltCss([
+      'bg-avatar-1',
+      'bg-avatar-8',
+      'text-on-avatar-1',
+      'text-on-avatar-8',
+      'text-side-label-buyer',
+      'text-side-label-seller',
+      'text-side-label-carrier',
+      'bg-side-buyer',
+      'text-on-side-buyer',
+    ]);
+
+    expect(css).toContain('.bg-avatar-1');
+    expect(css).toContain('.bg-avatar-8');
+    expect(css).toContain('.text-on-avatar-1');
+    expect(css).toContain('.text-on-avatar-8');
+    expect(css).toContain('.text-side-label-buyer');
+    expect(css).toContain('.text-side-label-seller');
+    expect(css).toContain('.text-side-label-carrier');
+    expect(css).toContain('.bg-side-buyer');
+    expect(css).toContain('.text-on-side-buyer');
+  });
+
+  it('keeps the side fill literal in the utility so that a theme override cannot recolor it', async () => {
+    const css = await readBuiltCss(['bg-side-seller']);
+
+    expect(css).toMatch(/\.bg-side-seller\s*\{\s*background-color:\s*#596517;?\s*\}/);
+  });
+
+  it('points the side label utility at the theme variable', async () => {
+    const css = await readBuiltCss(['text-side-label-seller']);
+
+    expect(css).toMatch(/\.text-side-label-seller\s*\{\s*color:\s*var\(--color-side-label-seller\);?\s*\}/);
+  });
+});
+
 describe('stylesheet sources', () => {
   it('keeps test files and test helpers out of the class scan', () => {
     expect(indexCss).toMatch(/^@source not '[^']*\*\.test\.\*';$/m);

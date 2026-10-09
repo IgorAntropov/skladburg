@@ -59,9 +59,16 @@ const sharedUiViewTestFilePath = fileURLToPath(new URL('../../apps/web/src/share
 const sharedLibFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/probe-effect.ts', import.meta.url));
 const widgetFilePath = fileURLToPath(new URL('../../apps/web/src/widgets/probe/ui/probe-logic.ts', import.meta.url));
 const widgetTestFilePath = fileURLToPath(new URL('../../apps/web/src/widgets/probe/ui/probe-logic.test.ts', import.meta.url));
-const topBarFilePath = fileURLToPath(new URL('../../apps/web/src/widgets/top-bar/ui/probe-launcher.ts', import.meta.url));
-const topBarTestFilePath = fileURLToPath(new URL('../../apps/web/src/widgets/top-bar/ui/probe-launcher.test.ts', import.meta.url));
-const phoneMenuFilePath = fileURLToPath(new URL('../../apps/web/src/widgets/top-bar/ui/PhoneMenu.tsx', import.meta.url));
+const profileMenuFilePath = fileURLToPath(new URL('../../apps/web/src/widgets/profile-menu/ui/probe-launcher.ts', import.meta.url));
+const profileMenuTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/profile-menu/ui/probe-launcher.test.ts', import.meta.url),
+);
+const profileMenuChunkFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/profile-menu/ui/menu/ProfileMenu.tsx', import.meta.url),
+);
+const profileMenuChunkTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/profile-menu/ui/menu/ProfileMenu.test.tsx', import.meta.url),
+);
 const scriptsProbeFilePath = fileURLToPath(new URL('./probe-tool.ts', import.meta.url));
 
 const formattingRuleIds: ReadonlySet<string> = new Set([
@@ -1407,7 +1414,11 @@ describe('eslint.config.ts with the local rules', () => {
 
     const lazyAppSpecifiers: readonly (readonly [string, string])[] = [
       ['the persona switcher feature', personaSwitcherSpecifier],
-      ['a nested path of the persona switcher feature', '@/features/switch-persona/ui/PersonaSwitcher'],
+      ['a nested path of the persona switcher feature', '@/features/switch-persona/ui/PersonaMenuGroups'],
+      ['the theme switcher feature', '@/features/switch-theme'],
+      ['a nested path of the theme switcher feature', '@/features/switch-theme/ui/ThemeMenuRadioGroup'],
+      ['the demo reset feature', '@/features/reset-demo'],
+      ['a nested path of the demo reset feature', '@/features/reset-demo/ui/ResetDemoConfirm'],
       ['the catalog page', '@/pages/catalog'],
       ['a nested path of a page', '@/pages/warehouse/ui/WarehousePage'],
     ];
@@ -1429,7 +1440,7 @@ describe('eslint.config.ts with the local rules', () => {
     describe.each([
       ['app', applicationScriptFilePath],
       ['a widget', widgetFilePath],
-      ['widgets/top-bar', topBarFilePath],
+      ['widgets/profile-menu', profileMenuFilePath],
     ])('in %s', (_zoneName, filePath) => {
       it.each(lazyAppSpecifiers)('reports a value import of %s', async (_name, specifier) => {
         expect(await readLazyMessages(toValueImport(specifier), filePath)).toHaveLength(1);
@@ -1459,8 +1470,16 @@ describe('eslint.config.ts with the local rules', () => {
         expect(await readLazyMessages(toValueImport('@/features/switch-persona-tools'), filePath)).toEqual([]);
       });
 
+      it('does not report a sibling slice of the theme switcher feature', async () => {
+        expect(await readLazyMessages(toValueImport('@/features/switch-theme-tools'), filePath)).toEqual([]);
+      });
+
+      it('does not report a sibling slice of the demo reset feature', async () => {
+        expect(await readLazyMessages(toValueImport('@/features/reset-demo-tools'), filePath)).toEqual([]);
+      });
+
       it('does not report another feature', async () => {
-        expect(await readLazyMessages(toValueImport('@/features/switch-theme'), filePath)).toEqual([]);
+        expect(await readLazyMessages(toValueImport('@/features/scan-barcode'), filePath)).toEqual([]);
       });
 
       it('explains why the module must not be imported statically', async () => {
@@ -1475,7 +1494,7 @@ describe('eslint.config.ts with the local rules', () => {
     it.each([
       ['a test in app', applicationTestFilePath],
       ['a test of a widget', widgetTestFilePath],
-      ['a test in widgets/top-bar', topBarTestFilePath],
+      ['a test in widgets/profile-menu', profileMenuTestFilePath],
     ])('allows value imports of lazy modules in %s', async (_name, filePath) => {
       for (const [, specifier] of lazyAppSpecifiers) {
         expect(await readLazyMessages(toValueImport(specifier), filePath), specifier).toEqual([]);
@@ -1492,21 +1511,31 @@ describe('eslint.config.ts with the local rules', () => {
       }
     });
 
-    describe('the lazy chunk of the phone menu', () => {
-      it.each(lazyAppSpecifiers)('allows a value import of %s in PhoneMenu.tsx', async (_name, specifier) => {
-        expect(await readLazyMessages(toValueImport(specifier), phoneMenuFilePath)).toEqual([]);
+    describe('the lazy chunk of the profile menu', () => {
+      it.each(lazyAppSpecifiers)('allows a value import of %s in the chunk', async (_name, specifier) => {
+        expect(await readLazyMessages(toValueImport(specifier), profileMenuChunkFilePath)).toEqual([]);
+      });
+
+      it.each(lazyAppSpecifiers)('allows a value import of %s in a test of the chunk', async (_name, specifier) => {
+        expect(await readLazyMessages(toValueImport(specifier), profileMenuChunkTestFilePath)).toEqual([]);
       });
 
       it.each([
-        ['a sibling module', './PhoneMenu'],
-        ['a path ending with PhoneMenu', '../ui/PhoneMenu'],
-        ['a path with the extension', './PhoneMenu.tsx'],
-      ])('reports a value import of %s in widgets/top-bar', async (_name, specifier) => {
-        const messages = await readLazyMessages(toValueImport(specifier), topBarFilePath);
+        ['a sibling folder', './menu/ProfileMenu'],
+        ['the folder itself', './menu'],
+        ['a parent folder path', '../menu/ProfileMenu'],
+        ['a nested path', './ui/menu/ProfileMenu'],
+        ['an alias path', '@/widgets/profile-menu/ui/menu/ProfileMenu'],
+      ])('reports a value import of %s in widgets/profile-menu', async (_name, specifier) => {
+        const messages = await readLazyMessages(toValueImport(specifier), profileMenuFilePath);
 
         expect(messages).toHaveLength(1);
-        expect(messages[0]).toContain('PhoneMenu');
+        expect(messages[0]).toContain('profile menu chunk');
         expect(messages[0]).toContain(lazyMessagePart);
+      });
+
+      it('reports a re-export of a value of the chunk in widgets/profile-menu', async () => {
+        expect(await readLazyMessages('export { ProfileMenu } from \'./menu/ProfileMenu\';\n', profileMenuFilePath)).toHaveLength(1);
       });
 
       it.each([
@@ -1514,20 +1543,24 @@ describe('eslint.config.ts with the local rules', () => {
         ['an import with only inline types', toNamedTypeImport],
         ['import()', toDynamicImport],
         ['an import type query', toTypeQuery],
-      ])('allows %s of ./PhoneMenu in widgets/top-bar', async (_name, toCode) => {
-        expect(await readLazyMessages(toCode('./PhoneMenu'), topBarFilePath)).toEqual([]);
+      ])('allows %s of ./menu/ProfileMenu in widgets/profile-menu', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode('./menu/ProfileMenu'), profileMenuFilePath)).toEqual([]);
       });
 
-      it('allows a value import of ./PhoneMenu in a test of widgets/top-bar', async () => {
-        expect(await readLazyMessages(toValueImport('./PhoneMenu'), topBarTestFilePath)).toEqual([]);
+      it('allows a value import of ./menu/ProfileMenu in a test of widgets/profile-menu', async () => {
+        expect(await readLazyMessages(toValueImport('./menu/ProfileMenu'), profileMenuTestFilePath)).toEqual([]);
+      });
+
+      it('does not report the dropdown menu primitive in widgets/profile-menu', async () => {
+        expect(await readLazyMessages(toValueImport('@/shared/ui/dropdown-menu'), profileMenuFilePath)).toEqual([]);
       });
 
       it.each([
         ['app', applicationScriptFilePath],
-        ['a widget outside top-bar', widgetFilePath],
+        ['a widget outside profile-menu', widgetFilePath],
         ['a page', pageFilePath],
-      ])('does not restrict ./PhoneMenu in %s', async (_name, filePath) => {
-        expect(await readLazyMessages(toValueImport('./PhoneMenu'), filePath)).toEqual([]);
+      ])('does not restrict ./menu/ProfileMenu in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('./menu/ProfileMenu'), filePath)).toEqual([]);
       });
     });
 
@@ -1544,7 +1577,7 @@ describe('eslint.config.ts with the local rules', () => {
         ['app', applicationScriptFilePath],
         ['app/bootstrap', bootstrapFilePath],
         ['a widget', widgetFilePath],
-        ['widgets/top-bar', topBarFilePath],
+        ['widgets/profile-menu', profileMenuFilePath],
       ])('keeps the engine, registry and testing entries restricted in %s', async (_name, filePath) => {
         const baseRestrictedCodes = [engineImportCode, registryImportCode, apiTestingEntryCode, routingTestingEntryCode];
 
@@ -1562,7 +1595,7 @@ describe('eslint.config.ts with the local rules', () => {
       it.each([
         ['app', applicationScriptFilePath],
         ['a widget', widgetFilePath],
-        ['widgets/top-bar', topBarFilePath],
+        ['widgets/profile-menu', profileMenuFilePath],
       ])('reports the lazy module and the engine together in %s', async (_name, filePath) => {
         const outcome = await lint(untypedEslint, `${engineImportCode}${lazyImportCode}`, filePath);
 
@@ -1574,7 +1607,7 @@ describe('eslint.config.ts with the local rules', () => {
         ['app', applicationScriptFilePath],
         ['app/bootstrap', bootstrapFilePath],
         ['a widget', widgetFilePath],
-        ['widgets/top-bar', topBarFilePath],
+        ['widgets/profile-menu', profileMenuFilePath],
       ])('keeps the side-effect import restricted next to the lazy module in %s', async (_name, filePath) => {
         const outcome = await lint(untypedEslint, `${sideEffectCode}${lazyImportCode}`, filePath);
 

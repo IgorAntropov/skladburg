@@ -21,7 +21,10 @@ import {
   SeedUserId,
 } from '../seed/index';
 import { createEmptySnapshot } from './emptySnapshot';
-import { DemoPersonaKind } from './records';
+import {
+  DemoPersonaGroup,
+  DemoPersonaKind,
+} from './records';
 import {
   ENGINE_SCHEMA_VERSION,
   isCurrentSnapshot,
@@ -55,6 +58,26 @@ const SHAPE_FINGERPRINTS: Readonly<Record<number, readonly string[]>> = {
     'collection.organizationSettings:bytes',
     'collection.organizations:bytes',
     'collection.personas:{id:string,kind:string,organizationId:string,userId:string}',
+    'collection.roles:bytes',
+    'collection.spheres:bytes',
+    'collection.users:bytes',
+    'collection.warehouses:bytes',
+    'meta.channelSeq:record<bigint>',
+    'meta.randomState:{a:number,b:number,c:number,d:number}',
+    'meta.schedulerDueAtMs:record<number>',
+    'meta.seedVersion:number',
+    'meta.timeScale:number',
+    'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
+    'meta.worldTimeMs:number',
+  ],
+  3: [
+    'collection.boardNodes:bytes',
+    'collection.cities:bytes',
+    'collection.idempotency:{id:string,method:string,requestBytes:bytes,responseBytes:bytes}',
+    'collection.memberships:bytes',
+    'collection.organizationSettings:bytes',
+    'collection.organizations:bytes',
+    'collection.personas:{group:string,id:string,kind:string,organizationId:string,userId:string}',
     'collection.roles:bytes',
     'collection.spheres:bytes',
     'collection.users:bytes',
@@ -118,6 +141,7 @@ const populatedTask: SchedulerTaskValue = {
   intervalMs: 1_000,
   run: (transaction) => {
     transaction.put('personas', {
+      group: DemoPersonaGroup.FRESH,
       id: 'fingerprint-persona',
       kind: DemoPersonaKind.BUYER,
       organizationId: SeedOrganizationId.BUYER_1,
@@ -187,8 +211,8 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 2 since the meta carries the scheduler deadlines', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(2);
+  it('is version 3 since the persona record carries its group', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(3);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
   });
 });

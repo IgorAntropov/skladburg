@@ -36,6 +36,10 @@ const CARRIER_TEXT = 'Carrier';
 const SELLER_TEXT = 'Seller';
 const ACTION_TEXT = 'Reset';
 const HEADING_TEXT = 'Roles';
+const ORGANIZATION_TEXT = 'Organization';
+const FULL_NAME = 'Buyer, Administrator · Organization';
+const OUTSIDE_LABEL = 'Outside action';
+const OUTSIDE_REGION_LABEL = 'Outside region';
 
 interface RoleMenuProps {
   onReset?: (() => void) | undefined;
@@ -59,6 +63,15 @@ const RoleMenu = ({ onReset = vi.fn(), onValueChange, value }: RoleMenuProps): R
       <DropdownMenuItem onSelect={onReset}>{ACTION_TEXT}</DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>
+);
+
+const RoleMenuWithOutside = (): ReactElement => (
+  <div>
+    <nav aria-label={OUTSIDE_REGION_LABEL}>
+      <Button aria-label={OUTSIDE_LABEL}>{OUTSIDE_LABEL}</Button>
+    </nav>
+    <RoleMenu onValueChange={vi.fn()} value="buyer" />
+  </div>
 );
 
 const openWithArrowDown = async (): Promise<HTMLElement> => {
@@ -174,6 +187,144 @@ describe('DropdownMenu', () => {
     });
   });
 
+  it('does not hide the rest of the page from assistive technology while open', async () => {
+    render(<RoleMenuWithOutside />);
+
+    await openWithArrowDown();
+    const outsideRegion = screen.getByLabelText(OUTSIDE_REGION_LABEL);
+    const outsideButton = screen.getByRole('button', { name: OUTSIDE_LABEL });
+    const trigger = screen.getByRole('button', { name: TRIGGER_LABEL });
+
+    expect(outsideRegion.closest('[aria-hidden="true"]')).toBeNull();
+    expect(outsideRegion.closest('[data-aria-hidden]')).toBeNull();
+    expect(outsideButton.closest('[aria-hidden="true"]')).toBeNull();
+    expect(trigger.closest('[aria-hidden="true"]')).toBeNull();
+    expect(document.body.getAttribute('data-scroll-locked')).toBeNull();
+    expect(document.body.style.pointerEvents).not.toBe('none');
+  });
+
+  it('closes on a pointer press outside the menu', async () => {
+    const onValueChange = vi.fn();
+    render(
+      <div>
+        <Button aria-label={OUTSIDE_LABEL}>{OUTSIDE_LABEL}</Button>
+        <RoleMenu onValueChange={onValueChange} value="buyer" />
+      </div>,
+    );
+
+    await openWithArrowDown();
+    fireEvent.pointerDown(screen.getByRole('button', { name: OUTSIDE_LABEL }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+    expect(onValueChange).not.toHaveBeenCalled();
+  });
+
+  it('does not pull the focus back to the trigger after a press outside', async () => {
+    render(<RoleMenuWithOutside />);
+
+    const trigger = await openWithArrowDown();
+    const outsideButton = screen.getByRole('button', { name: OUTSIDE_LABEL });
+    fireEvent.pointerDown(outsideButton);
+    outsideButton.focus();
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+    expect(document.activeElement).toBe(outsideButton);
+    expect(document.activeElement).not.toBe(trigger);
+  });
+
+  it('closes when the focus moves to an element outside the menu', async () => {
+    render(<RoleMenuWithOutside />);
+
+    await openWithArrowDown();
+    screen.getByRole('button', { name: OUTSIDE_LABEL }).focus();
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+  });
+
+  it.each([
+    ['Tab', false],
+    ['Shift+Tab', true],
+  ])('closes the menu on %s, returns the focus to the trigger and does not change the value', async (_name, isShift) => {
+    const onValueChange = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <DropdownMenu onOpenChange={onOpenChange}>
+        <DropdownMenuTrigger>
+          <Button aria-label={TRIGGER_LABEL}>{TRIGGER_TEXT}</Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent label={MENU_LABEL}>
+          <DropdownMenuRadioGroup label={GROUP_LABEL} onValueChange={onValueChange} value="buyer">
+            <DropdownMenuRadioItem value="buyer">{BUYER_TEXT}</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="carrier">{CARRIER_TEXT}</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>,
+    );
+
+    const trigger = await openWithArrowDown();
+    const carrier = screen.getByRole('menuitemradio', { name: CARRIER_TEXT });
+    carrier.focus();
+    onOpenChange.mockClear();
+    const isNotCancelled = fireEvent.keyDown(carrier, { key: 'Tab', shiftKey: isShift });
+
+    expect(isNotCancelled).toBe(false);
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onValueChange).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(document.activeElement).toBe(trigger);
+    });
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('asks the owner of a controlled menu to close it on Tab and leaves it open until the owner agrees', async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <DropdownMenu onOpenChange={onOpenChange} open>
+        <DropdownMenuTrigger>
+          <Button aria-label={TRIGGER_LABEL}>{TRIGGER_TEXT}</Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent label={MENU_LABEL}>
+          <DropdownMenuItem onSelect={vi.fn()}>{ACTION_TEXT}</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>,
+    );
+
+    const item = await screen.findByRole('menuitem', { name: ACTION_TEXT });
+    item.focus();
+    fireEvent.keyDown(item, { key: 'Tab' });
+
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.getByRole('menu', { name: MENU_LABEL })).toBeTruthy();
+  });
+
+  it('lets the next Tab from the trigger follow the page order after the menu is closed by Tab', async () => {
+    render(<RoleMenuWithOutside />);
+
+    const trigger = await openWithArrowDown();
+    const carrier = screen.getByRole('menuitemradio', { name: CARRIER_TEXT });
+    carrier.focus();
+    fireEvent.keyDown(carrier, { key: 'Tab' });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(trigger);
+    });
+
+    const isNotCancelled = fireEvent.keyDown(trigger, { key: 'Tab' });
+
+    expect(isNotCancelled).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
   it('does not select a disabled item', async () => {
     const onValueChange = vi.fn();
     render(<RoleMenu onValueChange={onValueChange} value="buyer" />);
@@ -265,5 +416,86 @@ describe('DropdownMenu', () => {
 
     expect(screen.getByRole('menuitemradio', { name: BUYER_TEXT }).className).toContain('min-h-11');
     expect(screen.getByRole('menuitem', { name: ACTION_TEXT }).className).toContain('min-h-11');
+  });
+
+  it('keeps the content width and the indicator at the start by default', async () => {
+    render(<RoleMenu onValueChange={vi.fn()} value="buyer" />);
+
+    await openWithArrowDown();
+    const buyer = screen.getByRole('menuitemradio', { name: BUYER_TEXT });
+
+    expect(screen.getByRole('menu').className).not.toContain('w-[');
+    expect(buyer.getAttribute('aria-label')).toBeNull();
+    expect(buyer.firstElementChild?.className).not.toContain('ml-auto');
+    expect(buyer.lastChild?.textContent).toBe(BUYER_TEXT);
+  });
+
+  it('limits the profile width to the viewport', async () => {
+    render(
+      <DropdownMenu open>
+        <DropdownMenuTrigger>
+          <Button aria-label={TRIGGER_LABEL}>{TRIGGER_TEXT}</Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent label={MENU_LABEL} width="profile">
+          <DropdownMenuItem onSelect={vi.fn()}>{ACTION_TEXT}</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>,
+    );
+
+    const menu = await screen.findByRole('menu', { name: MENU_LABEL });
+
+    expect(menu.className).toContain('w-[min(22rem,calc(100vw-1rem))]');
+    expect(menu.className).toContain('min-w-48');
+  });
+
+  it('names a radio item by its label instead of its content', async () => {
+    render(
+      <DropdownMenu open>
+        <DropdownMenuTrigger>
+          <Button aria-label={TRIGGER_LABEL}>{TRIGGER_TEXT}</Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent label={MENU_LABEL}>
+          <DropdownMenuRadioGroup label={GROUP_LABEL} onValueChange={vi.fn()} value="buyer">
+            <DropdownMenuRadioItem label={FULL_NAME} value="buyer">
+              <span>{BUYER_TEXT}</span>
+              <span>{ORGANIZATION_TEXT}</span>
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>,
+    );
+
+    const item = await screen.findByRole('menuitemradio', { name: FULL_NAME });
+
+    expect(item.getAttribute('aria-label')).toBe(FULL_NAME);
+    expect(item.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('puts the check after the content, pushed to the end, when the indicator is placed at the end', async () => {
+    const onValueChange = vi.fn();
+    render(
+      <DropdownMenu open>
+        <DropdownMenuTrigger>
+          <Button aria-label={TRIGGER_LABEL}>{TRIGGER_TEXT}</Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent label={MENU_LABEL}>
+          <DropdownMenuRadioGroup label={GROUP_LABEL} onValueChange={onValueChange} value="buyer">
+            <DropdownMenuRadioItem indicatorPlacement="end" value="buyer">{BUYER_TEXT}</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem indicatorPlacement="end" value="carrier">{CARRIER_TEXT}</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>,
+    );
+
+    const buyer = await screen.findByRole('menuitemradio', { name: BUYER_TEXT });
+
+    expect(buyer.firstChild?.textContent).toBe(BUYER_TEXT);
+    expect(buyer.lastElementChild?.className).toContain('ml-auto');
+    expect(buyer.lastElementChild?.querySelector('svg')).not.toBeNull();
+    expect(screen.getByRole('menuitemradio', { name: CARRIER_TEXT }).lastElementChild?.querySelector('svg')).toBeNull();
+
+    fireEvent.click(screen.getByRole('menuitemradio', { name: CARRIER_TEXT }));
+
+    expect(onValueChange).toHaveBeenCalledWith('carrier');
   });
 });

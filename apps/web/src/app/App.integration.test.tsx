@@ -53,6 +53,8 @@ import { App } from './App';
 import { createTestThemeStore } from './lib/testing/themeFixtures';
 
 const BRAND_NAME = 'Покупатель 1';
+const PRODUCT_NAME = defaultLocaleCatalog['app.productName'];
+const SIGN_IN_LINE = /Войти как/;
 const SEED_WAREHOUSE_COUNT = 3;
 const LIST_WAREHOUSES_PATH = '/ListWarehouses';
 
@@ -236,7 +238,33 @@ const startApplication = async ({
   };
 };
 
-const getBrand = (): HTMLElement => within(screen.getByRole('banner')).getByText(BRAND_NAME);
+const formatProfileButtonName = (userDisplayName: string, organizationName: string): string => {
+  return defaultLocaleCatalog['profile.button.label']
+    .replace('{name}', userDisplayName)
+    .replace('{organization}', organizationName);
+};
+
+const BUYER_BUTTON_NAME = formatProfileButtonName('Анна Смирнова', BRAND_NAME);
+const STOREKEEPER_BUTTON_NAME = formatProfileButtonName('Иван Соколов', BRAND_NAME);
+const CARRIER_BUTTON_NAME = formatProfileButtonName('Дмитрий Васильев', 'Логист 1');
+const PROFILE_BUTTON_PATTERN = new RegExp(`^${defaultLocaleCatalog['profile.button.loading']}`);
+
+const PERSONA_GROUP_PATTERN = new RegExp(`^${defaultLocaleCatalog['persona.group.label'].split('{group}')[0] ?? ''}`);
+const PERSONA_COUNT = 8;
+
+const getProductName = (): HTMLElement => within(screen.getByRole('banner')).getByText(PRODUCT_NAME);
+
+const findProfileButton = (name: string = BUYER_BUTTON_NAME): Promise<HTMLElement> => screen.findByRole('button', { name });
+
+const getProfileButton = (): HTMLElement => screen.getByRole('button', { name: PROFILE_BUTTON_PATTERN });
+
+const openProfileMenu = async (buttonName: string = BUYER_BUTTON_NAME): Promise<HTMLElement> => {
+  const button = await findProfileButton(buttonName);
+
+  fireEvent.click(button);
+
+  return screen.findByRole('menu', { name: defaultLocaleCatalog['profile.menu.label'] });
+};
 
 const getWarehouseItems = (): HTMLElement[] => {
   const section = screen.getByRole('region', { name: defaultLocaleCatalog['warehouse.warehouses.title'] });
@@ -288,9 +316,12 @@ describe('App with the demo engine in the same thread', () => {
   it('shows the organization of the profile with its warehouses and synchronizes the document', async () => {
     await startApplication();
 
-    const brand = getBrand();
+    const productName = getProductName();
 
-    expect(brand.getAttribute('translate')).toBe('no');
+    expect(productName.getAttribute('translate')).toBe('no');
+    expect(within(screen.getByRole('banner')).queryByText(BRAND_NAME)).toBeNull();
+    expect(await findProfileButton()).toBeDefined();
+    expect(within(screen.getByRole('banner')).queryByText(SIGN_IN_LINE)).toBeNull();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(defaultLocaleCatalog['section.warehouse.title']);
     expect(await screen.findByRole('region', { name: defaultLocaleCatalog['warehouse.organization.title'] })).toBeDefined();
     await waitFor(() => {
@@ -334,8 +365,14 @@ describe('App with the demo engine in the same thread', () => {
     await createWarehouse(runtime);
     await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT + 1);
 
-    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: defaultLocaleCatalog['demo.reset.label'] }));
-    const confirmation = screen.getByRole('group', { name: defaultLocaleCatalog['demo.reset.confirm.prompt'] });
+    const menu = await openProfileMenu();
+    const resetItem = within(menu).getByRole('menuitem', { name: defaultLocaleCatalog['demo.reset.menuItem'] });
+
+    resetItem.focus();
+    fireEvent.keyDown(resetItem, { key: 'Enter' });
+
+    const confirmation = await screen.findByRole('group', { name: defaultLocaleCatalog['demo.reset.confirm.prompt'] });
+    const busyPlaceholderCountBeforeReset = getBusyPlaceholderCount();
 
     expect(getWarehouseItems()).toHaveLength(SEED_WAREHOUSE_COUNT + 1);
 
@@ -343,10 +380,14 @@ describe('App with the demo engine in the same thread', () => {
 
     await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
     await waitFor(() => {
-      expect(within(screen.getByRole('banner')).getByRole('button', { name: defaultLocaleCatalog['demo.reset.label'] })).toBeDefined();
+      expect(screen.queryByRole('group', { name: defaultLocaleCatalog['demo.reset.confirm.prompt'] })).toBeNull();
     });
-    expect(getBrand()).toBeDefined();
-    expect(getBusyPlaceholderCount()).toBe(0);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(getProfileButton());
+    });
+    expect(getProductName()).toBeDefined();
+    expect(await findProfileButton()).toBeDefined();
+    expect(getBusyPlaceholderCount()).toBe(busyPlaceholderCountBeforeReset);
   });
 });
 
@@ -358,34 +399,27 @@ const getNavigationTitles = (): string[] => {
 
 const getSectionTitle = (section: AppSectionValue): string => defaultLocaleCatalog[SECTION_TITLE_KEYS[section]];
 
-const formatPersonaOption = (kindKey: 'persona.kind.carrier' | 'persona.kind.storekeeper', organizationName: string): string => {
+const formatPersonaOption = (name: string, role: string, organizationName: string): string => {
   return defaultLocaleCatalog['persona.option']
-    .replace('{kind}', defaultLocaleCatalog[kindKey])
+    .replace('{name}', name)
+    .replace('{role}', role)
     .replace('{organization}', organizationName);
 };
 
-const STOREKEEPER_OPTION = formatPersonaOption('persona.kind.storekeeper', BRAND_NAME);
-const CARRIER_OPTION = formatPersonaOption('persona.kind.carrier', 'Логист 1');
+const STOREKEEPER_OPTION = formatPersonaOption('Иван Соколов', 'Кладовщик', BRAND_NAME);
+const CARRIER_OPTION = formatPersonaOption('Дмитрий Васильев', 'Администратор', 'Логист 1');
 
 const choosePersona = async (optionName: string): Promise<void> => {
-  const trigger = await screen.findByRole('button', { name: new RegExp(`^${defaultLocaleCatalog['persona.label']}`) });
+  const menu = await openProfileMenu();
+  const option = await within(menu).findByRole('menuitemradio', { name: optionName });
 
   await waitFor(() => {
-    expect(trigger.getAttribute('aria-disabled')).toBeNull();
-    expect(trigger.hasAttribute('disabled')).toBe(false);
-    expect(trigger.getAttribute('aria-label')).toContain(`${defaultLocaleCatalog['persona.label']}:`);
+    expect(option.getAttribute('aria-disabled')).toBeNull();
+    expect(option.hasAttribute('data-disabled')).toBe(false);
   });
-  trigger.focus();
-  fireEvent.keyDown(trigger, { key: 'ArrowDown' });
-
-  const option = await screen.findByRole('menuitemradio', { name: optionName });
-
   option.focus();
   fireEvent.keyDown(option, { key: 'Enter' });
 };
-
-const PERSONA_TRIGGER_NAME = new RegExp(`^${defaultLocaleCatalog['persona.label']}`);
-const MENU_BUTTON_NAME = defaultLocaleCatalog['menu.open'];
 
 const getLiveRegion = (): HTMLElement => {
   const region = document.querySelector<HTMLElement>('body > div > [aria-live="polite"]');
@@ -422,23 +456,26 @@ const watchAnnouncements = (): AnnouncementWatchValue => {
   return { getHeard: () => heard, stop };
 };
 
-const chooseFromPhoneMenu = async (optionName: string): Promise<void> => {
-  const menuButton = await screen.findByRole('button', { name: MENU_BUTTON_NAME });
-
-  fireEvent.click(menuButton);
-
-  const menu = await screen.findByRole('menu', { name: defaultLocaleCatalog['menu.label'] });
-  const option = await within(menu).findByRole('menuitemradio', { name: optionName });
-
-  option.focus();
-  fireEvent.keyDown(option, { key: 'Enter' });
+const waitForSettledFocus = async (): Promise<void> => {
+  await act(async () => {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 60);
+    });
+  });
 };
 
-describe('App focus and announcements when the persona changes', () => {
-  it('puts the focus on the trigger of the new switcher and announces the switch and the arrival', async () => {
+describe.each(['desktop', 'phone'] as const)('App focus and announcements when the persona changes on a %s', (viewportClass) => {
+  const prepare = (): void => {
+    if (viewportClass === 'phone') {
+      installPhoneViewport();
+    }
+  };
+
+  it('puts the focus on the profile button of the new bar and announces the switch and the arrival', async () => {
+    prepare();
     const { frames } = await startApplication();
     await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
-    const previousTrigger = await screen.findByRole('button', { name: PERSONA_TRIGGER_NAME });
+    const previousButton = await findProfileButton();
     const watch = watchAnnouncements();
 
     await choosePersona(STOREKEEPER_OPTION);
@@ -449,44 +486,75 @@ describe('App focus and announcements when the persona changes', () => {
         defaultLocaleCatalog['persona.switched'].replace('{persona}', STOREKEEPER_OPTION),
       ]);
     });
-    const trigger = await screen.findByRole('button', { name: PERSONA_TRIGGER_NAME });
+    const button = await findProfileButton(STOREKEEPER_BUTTON_NAME);
 
-    expect(trigger).not.toBe(previousTrigger);
+    expect(button).not.toBe(previousButton);
+    expect(screen.queryByRole('button', { name: BUYER_BUTTON_NAME })).toBeNull();
     await waitFor(() => {
-      expect(trigger.hasAttribute('disabled')).toBe(false);
-      expect(document.activeElement).toBe(trigger);
+      expect(document.activeElement).toBe(button);
     });
+    await waitForSettledFocus();
+
+    expect(document.activeElement).toBe(await findProfileButton(STOREKEEPER_BUTTON_NAME));
+    expect(screen.queryByRole('menu')).toBeNull();
     watch.stop();
   });
 
-  it('puts the focus on the menu button of the new bar when the persona is chosen in the phone menu', async () => {
-    installPhoneViewport();
+  it('names the new button with the user and the organization of the new persona', async () => {
+    prepare();
     const { frames } = await startApplication();
     await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
-    const previousMenuButton = await screen.findByRole('button', { name: MENU_BUTTON_NAME });
-    const watch = watchAnnouncements();
 
-    await chooseFromPhoneMenu(STOREKEEPER_OPTION);
+    await choosePersona(CARRIER_OPTION);
+
+    const button = await findProfileButton(CARRIER_BUTTON_NAME);
+
+    expect(button.getAttribute('aria-label')).toBe(CARRIER_BUTTON_NAME);
+    expect(within(screen.getByRole('banner')).queryByText(SIGN_IN_LINE)).toBeNull();
+  });
+
+  it('marks the chosen persona as the only checked item of the reopened menu', async () => {
+    prepare();
+    const { frames } = await startApplication();
+    await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
+    await choosePersona(STOREKEEPER_OPTION);
+    await findProfileButton(STOREKEEPER_BUTTON_NAME);
+
+    const menu = await openProfileMenu(STOREKEEPER_BUTTON_NAME);
+    const option = await within(menu).findByRole('menuitemradio', { name: STOREKEEPER_OPTION });
+    const personaItems = within(menu)
+      .getAllByRole('group', { name: PERSONA_GROUP_PATTERN })
+      .flatMap(group => within(group).getAllByRole('menuitemradio'));
+    const checked = personaItems.filter(item => item.getAttribute('aria-checked') === 'true');
+
+    expect(personaItems).toHaveLength(PERSONA_COUNT);
+    expect(checked).toEqual([option]);
+  });
+
+  it('announces the error by its text and keeps the persona and the focus on the profile button when the engine refuses', async () => {
+    prepare();
+    const { frames, runtime } = await startApplication();
+    await expectWarehouseCount(frames, SEED_WAREHOUSE_COUNT);
+    await findProfileButton();
+    const watch = watchAnnouncements();
+    const setSpy = vi.spyOn(runtime.actingContext, 'set').mockImplementationOnce(() => {
+      throw new Error('the engine refuses');
+    });
+
+    await choosePersona(STOREKEEPER_OPTION);
 
     await waitFor(() => {
       expect(watch.getHeard()).toEqual([
         defaultLocaleCatalog['persona.switching'],
-        defaultLocaleCatalog['persona.switched'].replace('{persona}', STOREKEEPER_OPTION),
+        defaultLocaleCatalog['persona.switchError'],
       ]);
     });
-    await waitFor(() => {
-      const menuButton = screen.getByRole('button', { name: MENU_BUTTON_NAME });
+    await waitForSettledFocus();
 
-      expect(menuButton).not.toBe(previousMenuButton);
-      expect(document.activeElement).toBe(menuButton);
-    });
-    await act(async () => {
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, 60);
-      });
-    });
-
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: MENU_BUTTON_NAME }));
+    expect(setSpy).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: BUYER_BUTTON_NAME }));
+    expect(runtime.actingContext.get().userId).toBe(SeedUserId.ADMIN_1);
+    expect(getWarehouseItems()).toHaveLength(SEED_WAREHOUSE_COUNT);
     watch.stop();
   });
 });
@@ -548,12 +616,12 @@ describe('App sections of the persona on the demo engine', () => {
     expect(location.read().path).toBe('/warehouse');
   });
 
-  it('leads the persona that switches to the carrier away from the warehouse and changes the brand', async () => {
+  it('leads the persona that switches to the carrier away from the warehouse and renames the profile button', async () => {
     const { location } = await startApplication({ initialPath: '/deals' });
 
     await choosePersona(CARRIER_OPTION);
 
-    expect(await screen.findByText('Логист 1', { selector: 'header p' })).toBeDefined();
+    expect(await findProfileButton(CARRIER_BUTTON_NAME)).toBeDefined();
     await waitFor(() => {
       expect(getNavigationTitles()).toEqual([getSectionTitle('network'), getSectionTitle('deals')]);
     });

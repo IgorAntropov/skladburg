@@ -11,6 +11,16 @@ import {
 
 import { THEME_OPTIONS } from '../model/themeOptions';
 
+const THEME_ROW_CLASS_NAME = [
+  'grid grid-cols-3 gap-1.5',
+  '[&>[role=menuitemradio]]:border [&>[role=menuitemradio]]:border-transparent',
+  '[&>[role=menuitemradio][aria-checked=true]]:border-indicator',
+  '[&>[role=menuitemradio][aria-checked=true]:not([data-highlighted])]:bg-skeleton',
+  '[&>[role=menuitemradio]]:relative [&>[role=menuitemradio]]:justify-center',
+  '[&>[role=menuitemradio]>span]:absolute [&>[role=menuitemradio]>span]:top-1/2 [&>[role=menuitemradio]>span]:right-2',
+  '[&>[role=menuitemradio]>span]:ml-0 [&>[role=menuitemradio]>span]:-translate-y-1/2',
+].join(' ');
+
 export const ThemeMenuRadioGroup = (): ReactElement => {
   const { t } = useI18n();
   const { preference, setPreference } = useThemePreference();
@@ -22,12 +32,18 @@ export const ThemeMenuRadioGroup = (): ReactElement => {
 
   return (
     <DropdownMenuRadioGroup label={t('theme.label')} onValueChange={handleThemeChange} value={preference}>
-      {THEME_OPTIONS.map(option => (
-        <DropdownMenuRadioItem key={option.value} value={option.value}>
-          <option.Icon aria-hidden className="size-4" />
-          {t(option.labelKey)}
-        </DropdownMenuRadioItem>
-      ))}
+      <div className={THEME_ROW_CLASS_NAME}>
+        {THEME_OPTIONS.map(option => (
+          <DropdownMenuRadioItem
+            indicatorPlacement="end"
+            key={option.value}
+            label={t(option.labelKey)}
+            value={option.value}
+          >
+            <option.Icon aria-hidden className="size-5 in-aria-checked:text-indicator" />
+          </DropdownMenuRadioItem>
+        ))}
+      </div>
     </DropdownMenuRadioGroup>
   );
 };

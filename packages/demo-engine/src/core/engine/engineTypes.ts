@@ -6,8 +6,8 @@ import type {
   IEngineStorage,
   IRealTimeSource,
 } from '../ports/index';
+import type { DemoPersonaListItemValue } from '../protocol';
 import type { EngineSeedValue } from '../seed/index';
-import type { DemoPersonaListItemValue } from '../state/index';
 
 export interface CreateEngineOptionsValue {
   epoch: string;

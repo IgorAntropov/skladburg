@@ -9,8 +9,8 @@ export {
   type VolatileMetaValue,
 } from './engineState';
 export {
+  DemoPersonaGroup,
   DemoPersonaKind,
-  type DemoPersonaListItemValue,
   type DemoPersonaValue,
   type IdempotencyRecordValue,
 } from './records';

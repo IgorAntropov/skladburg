@@ -63,9 +63,22 @@ describe('createCachedSectionLoaders', () => {
     const failure: unknown = await deals().then(() => undefined, (error: unknown) => error);
 
     expect(failure).toBeInstanceOf(SectionChunkLoadError);
-    expect(failure).toMatchObject({ cause: CHUNK_ERROR, name: 'SectionChunkLoadError', section: 'deals' });
+    expect(failure).toMatchObject({ attempt: 1, cause: CHUNK_ERROR, name: 'SectionChunkLoadError', section: 'deals' });
     expect(await deals()).toBe(loadedModule);
     expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it('counts the attempts of every section loader apart', async () => {
+    const cached = createCachedSectionLoaders(createLoaders(() => Promise.reject(CHUNK_ERROR)));
+    const getFailure = (section: 'catalog' | 'deals'): Promise<unknown> => {
+      return cached[section]().then(() => undefined, (error: unknown) => error);
+    };
+
+    expect(await getFailure('deals')).toMatchObject({ attempt: 1 });
+    expect(await getFailure('deals')).toMatchObject({ attempt: 2 });
+    expect(await getFailure('catalog')).toMatchObject({ attempt: 1 });
+    expect(await getFailure('deals')).toMatchObject({ attempt: 3 });
+    expect(await getFailure('catalog')).toMatchObject({ attempt: 2 });
   });
 
   it('shares the failure between the calls made during the same loading', async () => {

@@ -3,6 +3,13 @@ export interface BudgetChunkValue {
   gzipBytes: number;
   imports: readonly string[];
   isEntry: boolean;
+  moduleIds: readonly string[];
+}
+
+export interface ForbiddenPackageViolationValue {
+  chunkFileName: string;
+  entryFileName: string;
+  packageName: string;
 }
 
 export interface InitialBundleChunkValue {

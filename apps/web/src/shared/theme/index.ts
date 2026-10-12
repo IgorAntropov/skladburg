@@ -1,6 +1,7 @@
 export { bindThemeToDocument } from './bindThemeToDocument';
 export { createThemePreferenceStore } from './createThemePreferenceStore';
 export {
+  DARK_COLOR_SCHEME_QUERY,
   DEFAULT_THEME_PREFERENCE,
   getDeviceStorage,
 } from './themePersistence';

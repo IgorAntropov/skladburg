@@ -4,6 +4,7 @@ import type {
 } from 'react';
 
 import type { ViewportClassValue } from '@/shared/lib/viewport';
+import type { SkeletonTimingValue } from '@/shared/ui';
 
 import { cn } from '@/shared/lib/cn';
 import { useViewportClass } from '@/shared/lib/viewport';
@@ -38,6 +39,7 @@ import {
 
 interface HudLayoutSkeletonProps {
   label: string;
+  timing?: SkeletonTimingValue | undefined;
   zones: HudSkeletonZonesValue;
 }
 
@@ -309,9 +311,12 @@ const SKELETON_ZONES: Readonly<Record<ViewportClassValue, (props: SkeletonZonesP
   tablet: TabletSkeletonZones,
 };
 
-export const HudLayoutSkeleton = ({ label, zones }: HudLayoutSkeletonProps): ReactElement => {
+export const HudLayoutSkeleton = ({ label, timing, zones }: HudLayoutSkeletonProps): ReactElement => {
   const viewportClass = useViewportClass();
-  const isVisible = useDelayedVisibility(true);
+  const isDelayElapsed = useDelayedVisibility(true, timing);
+
+  const isVisibleAtOnce = timing !== undefined && timing.delayMs <= 0;
+  const isVisible = isVisibleAtOnce || isDelayElapsed;
 
   const SkeletonZones = SKELETON_ZONES[viewportClass];
 

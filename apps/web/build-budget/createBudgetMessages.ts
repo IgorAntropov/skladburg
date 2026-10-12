@@ -1,4 +1,7 @@
-import type { InitialBundleValue } from './bundleBudgetTypes.ts';
+import type {
+  ForbiddenPackageViolationValue,
+  InitialBundleValue,
+} from './bundleBudgetTypes.ts';
 
 import {
   formatKiloBytes,
@@ -33,3 +36,10 @@ export const createBudgetViolationMessage = (bundle: InitialBundleValue, limitBy
     `Chunks loaded at startup: ${describeChunks(bundle).join(', ')}.`,
   ].join(' ');
 };
+
+export const createForbiddenPackageMessage = (violation: ForbiddenPackageViolationValue): string =>
+  [
+    `Package "${violation.packageName}" is bundled into the initial JS of entry "${violation.entryFileName}"`,
+    `(chunk "${violation.chunkFileName}").`,
+    'Load it through a dynamic import() so it stays out of the startup graph.',
+  ].join(' ');

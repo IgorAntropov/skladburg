@@ -5,12 +5,13 @@ import {
   vi,
 } from 'vitest';
 
-import type { ModuleLoader } from './createCachedModuleLoader';
-
-import {
-  createCachedModuleLoader,
-  toLazyModuleLoader,
+import type {
+  MapLoadErrorFunction,
+  ModuleLoader,
 } from './createCachedModuleLoader';
+
+import { ChunkLoadError } from './ChunkLoadError';
+import { createCachedModuleLoader } from './createCachedModuleLoader';
 
 interface TestModuleValue {
   name: string;
@@ -140,7 +141,7 @@ describe('createCachedModuleLoader', () => {
     })).rejects.toThrow('callback failed');
   });
 
-  it('passes the source error through, forgets the failure and tries again on the next call', async () => {
+  it('rejects with the chunk error that keeps the source error, forgets the failure and tries again on the next call', async () => {
     const loadedModule = createModule();
     const loader = vi.fn<ModuleLoader<TestModuleValue>>()
       .mockRejectedValueOnce(LOAD_ERROR)
@@ -149,64 +150,76 @@ describe('createCachedModuleLoader', () => {
 
     const failure: unknown = await load().then(() => undefined, (error: unknown) => error);
 
-    expect(failure).toBe(LOAD_ERROR);
+    expect(failure).toBeInstanceOf(ChunkLoadError);
+    expect(failure).toMatchObject({ attempt: 1, cause: LOAD_ERROR, name: 'ChunkLoadError' });
     expect(await load()).toBe(loadedModule);
     expect(loader).toHaveBeenCalledTimes(2);
   });
 
-  it('shares the failure between the calls made during the same loading', async () => {
+  it('shares the failure between the calls made during the same loading and counts it once', async () => {
     const loader = vi.fn<ModuleLoader<TestModuleValue>>().mockRejectedValue(LOAD_ERROR);
     const load = createCachedModuleLoader(loader);
 
     const results = await Promise.allSettled([load(), load()]);
 
     expect(results.map(result => result.status)).toEqual(['rejected', 'rejected']);
+    expect(results).toMatchObject([{ reason: { attempt: 1 } }, { reason: { attempt: 1 } }]);
     expect(loader).toHaveBeenCalledOnce();
   });
 
-  it('rejects with the mapped error that keeps the source error and still forgets the failure', async () => {
+  it('counts the attempts of one loader and stops loading after a success', async () => {
+    const loader = vi.fn<ModuleLoader<TestModuleValue>>()
+      .mockRejectedValueOnce(LOAD_ERROR)
+      .mockRejectedValueOnce(LOAD_ERROR)
+      .mockResolvedValueOnce(createModule());
+    const load = createCachedModuleLoader(loader);
+
+    const first: unknown = await load().then(() => undefined, (error: unknown) => error);
+    const second: unknown = await load().then(() => undefined, (error: unknown) => error);
+    await load();
+    await load();
+
+    expect(first).toMatchObject({ attempt: 1 });
+    expect(second).toMatchObject({ attempt: 2 });
+    expect(loader).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps the attempts of every loader apart', async () => {
+    const loadFirst = createCachedModuleLoader(vi.fn<ModuleLoader<TestModuleValue>>().mockRejectedValue(LOAD_ERROR));
+    const loadSecond = createCachedModuleLoader(vi.fn<ModuleLoader<TestModuleValue>>().mockRejectedValue(LOAD_ERROR));
+
+    await loadFirst().then(undefined, () => undefined);
+    const failure: unknown = await loadSecond().then(() => undefined, (error: unknown) => error);
+
+    expect(failure).toMatchObject({ attempt: 1 });
+  });
+
+  it('rejects with the error from mapLoadError that gets the attempt and the source error', async () => {
+    class TestChunkLoadError extends ChunkLoadError {}
     const loadedModule = createModule();
     const loader = vi.fn<ModuleLoader<TestModuleValue>>()
       .mockRejectedValueOnce(LOAD_ERROR)
+      .mockRejectedValueOnce(LOAD_ERROR)
       .mockResolvedValueOnce(loadedModule);
-    const load = createCachedModuleLoader(loader, error => new TypeError('mapped', { cause: error }));
+    const load = createCachedModuleLoader(loader, {
+      mapLoadError: ({ attempt, cause }) => new TestChunkLoadError(attempt, 'mapped', { cause }),
+    });
 
-    const failure: unknown = await load().then(() => undefined, (error: unknown) => error);
+    const first: unknown = await load().then(() => undefined, (error: unknown) => error);
+    const second: unknown = await load().then(() => undefined, (error: unknown) => error);
 
-    expect(failure).toBeInstanceOf(TypeError);
-    expect(failure).toMatchObject({ cause: LOAD_ERROR, message: 'mapped' });
+    expect(first).toBeInstanceOf(TestChunkLoadError);
+    expect(first).toMatchObject({ attempt: 1, cause: LOAD_ERROR, message: 'mapped' });
+    expect(second).toMatchObject({ attempt: 2 });
     expect(await load()).toBe(loadedModule);
   });
 
   it('does not map anything when the module is loaded', async () => {
     const loadedModule = createModule();
-    const mapLoadError = vi.fn<(error: unknown) => unknown>();
-    const load = createCachedModuleLoader(createLoader(loadedModule), mapLoadError);
+    const mapLoadError = vi.fn<MapLoadErrorFunction>();
+    const load = createCachedModuleLoader(createLoader(loadedModule), { mapLoadError });
 
     expect(await load()).toBe(loadedModule);
     expect(mapLoadError).not.toHaveBeenCalled();
-  });
-});
-
-describe('toLazyModuleLoader', () => {
-  it('keeps the synchronous callback of the cached loader once the module is loaded', async () => {
-    const loadedModule = createModule();
-    const load = createCachedModuleLoader(createLoader(loadedModule));
-    const lazyLoad = toLazyModuleLoader(load);
-    await lazyLoad();
-    const onFulfilled = vi.fn((module: TestModuleValue): TestModuleValue => module);
-
-    void lazyLoad().then(onFulfilled);
-
-    expect(onFulfilled).toHaveBeenCalledOnce();
-    expect(onFulfilled).toHaveBeenCalledWith(loadedModule);
-  });
-
-  it('passes the loading error through to the lazy component', async () => {
-    const lazyLoad = toLazyModuleLoader(createCachedModuleLoader(vi.fn<ModuleLoader<TestModuleValue>>().mockRejectedValue(LOAD_ERROR)));
-
-    const failure: unknown = await lazyLoad().then(() => undefined, (error: unknown) => error);
-
-    expect(failure).toBe(LOAD_ERROR);
   });
 });

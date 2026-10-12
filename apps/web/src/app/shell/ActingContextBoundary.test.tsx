@@ -25,6 +25,10 @@ import {
 } from '@/shared/api/index.testing';
 
 import { ActingContextBoundary } from './ActingContextBoundary';
+import {
+  BOOT_SKELETON_TIMING,
+  useBootSkeletonTiming,
+} from './bootSkeletonTiming';
 
 const OTHER_USER_ID = 'f1000009-0000-4000-8000-000000000000';
 const OTHER_ORGANIZATION_ID = 'f0000009-0000-4000-8000-000000000000';
@@ -43,11 +47,18 @@ const Counter = (): ReactElement => {
   );
 };
 
+const TimingProbe = (): ReactElement => {
+  const timing = useBootSkeletonTiming();
+
+  return <p data-testid="timing">{String(timing?.delayMs)}</p>;
+};
+
 const renderBoundary = (runtime: ApiRuntimeValue): void => {
   render(
     <ApiRuntimeProvider runtime={runtime}>
       <ActingContextBoundary>
         <Counter />
+        <TimingProbe />
       </ActingContextBoundary>
     </ApiRuntimeProvider>,
   );
@@ -104,5 +115,55 @@ describe('ActingContextBoundary', () => {
     });
 
     expect(screen.getByTestId('counter').textContent).toBe('0');
+  });
+
+  describe('skeleton timing', () => {
+    it('shows the skeleton of the first context at once', () => {
+      renderBoundary(createTestRuntime());
+
+      expect(screen.getByTestId('timing').textContent).toBe(String(BOOT_SKELETON_TIMING.delayMs));
+    });
+
+    it('keeps the immediate timing while the context stays the same', () => {
+      const runtime = createTestRuntime();
+      renderBoundary(runtime);
+
+      act(() => {
+        runtime.actingContext.set({ organizationId: TEST_ORGANIZATION_ID, userId: TEST_USER_ID });
+      });
+
+      expect(screen.getByTestId('timing').textContent).toBe(String(BOOT_SKELETON_TIMING.delayMs));
+    });
+
+    it('returns to the default thresholds once the context changes', () => {
+      const runtime = createTestRuntime();
+      renderBoundary(runtime);
+
+      act(() => {
+        runtime.actingContext.set({ organizationId: OTHER_ORGANIZATION_ID, userId: TEST_USER_ID });
+      });
+
+      expect(screen.getByTestId('timing').textContent).toBe(String(undefined));
+    });
+
+    it('does not bring the immediate timing back when the first context returns', () => {
+      const runtime = createTestRuntime();
+      renderBoundary(runtime);
+
+      act(() => {
+        runtime.actingContext.set({ organizationId: OTHER_ORGANIZATION_ID, userId: OTHER_USER_ID });
+      });
+      act(() => {
+        runtime.actingContext.set({ organizationId: TEST_ORGANIZATION_ID, userId: TEST_USER_ID });
+      });
+
+      expect(screen.getByTestId('timing').textContent).toBe(String(undefined));
+    });
+
+    it('uses the default thresholds outside of the boundary', () => {
+      render(<TimingProbe />);
+
+      expect(screen.getByTestId('timing').textContent).toBe(String(undefined));
+    });
   });
 });

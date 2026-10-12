@@ -7,6 +7,7 @@ import {
   render,
   screen,
 } from '@testing-library/react';
+import { StrictMode } from 'react';
 import {
   afterEach,
   describe,
@@ -98,6 +99,66 @@ describe('MotionScope', () => {
     });
 
     expect(await screen.findByText(LOADED_TEXT)).toBeDefined();
+  });
+
+  describe('when the chunk of the features cannot be loaded', () => {
+    const FEATURES_ERROR = new Error('motion chunk is unavailable');
+
+    const waitForMacrotask = async (): Promise<void> => {
+      await act(async () => {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 0);
+        });
+      });
+    };
+
+    it('keeps the children, reports no loaded features and settles the loading without a rejection', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      vi.mocked(loadMotionFeatures).mockRejectedValue(FEATURES_ERROR);
+
+      try {
+        render(
+          <MotionScope>
+            <FeaturesStatus />
+            <p>{CONTENT_TEXT}</p>
+          </MotionScope>,
+        );
+        await waitForMacrotask();
+        await waitForMacrotask();
+
+        expect(screen.getByText(CONTENT_TEXT)).toBeDefined();
+        expect(screen.getByText(PENDING_TEXT)).toBeDefined();
+        expect(consoleError).toHaveBeenCalledOnce();
+      }
+      finally {
+        consoleError.mockRestore();
+        vi.mocked(loadMotionFeatures).mockReset();
+      }
+    });
+
+    it('writes the failure to the log once even when the effect runs twice', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      vi.mocked(loadMotionFeatures).mockRejectedValue(FEATURES_ERROR);
+
+      try {
+        render(
+          <StrictMode>
+            <MotionScope>
+              <FeaturesStatus />
+            </MotionScope>
+          </StrictMode>,
+        );
+        await waitForMacrotask();
+
+        expect(vi.mocked(loadMotionFeatures).mock.calls.length).toBeGreaterThan(1);
+        expect(consoleError).toHaveBeenCalledExactlyOnceWith('> MotionScope -> loadFeatures:', { error: FEATURES_ERROR });
+        expect(screen.getByText(PENDING_TEXT)).toBeDefined();
+      }
+      finally {
+        consoleError.mockRestore();
+        vi.mocked(loadMotionFeatures).mockReset();
+      }
+    });
   });
 
   it('reports the features as not loaded outside of a scope', () => {

@@ -9,6 +9,7 @@ import type { InitialBundleValue } from './bundleBudgetTypes.ts';
 import {
   createBudgetReport,
   createBudgetViolationMessage,
+  createForbiddenPackageMessage,
 } from './createBudgetMessages.ts';
 
 const bundle: InitialBundleValue = {
@@ -41,5 +42,20 @@ describe('createBudgetViolationMessage', () => {
     expect(message).toContain('120.00 kB');
     expect(message).toContain('10.46 kB');
     expect(message).toContain('assets/index.js 127.26 kB, assets/i18n.js 3.20 kB');
+  });
+});
+
+describe('createForbiddenPackageMessage', () => {
+  it('names the package, entry and chunk', () => {
+    const message = createForbiddenPackageMessage({
+      chunkFileName: 'assets/vendor.js',
+      entryFileName: 'assets/index.js',
+      packageName: '@tanstack/query-core',
+    });
+
+    expect(message).toContain('Package "@tanstack/query-core"');
+    expect(message).toContain('entry "assets/index.js"');
+    expect(message).toContain('chunk "assets/vendor.js"');
+    expect(message).toContain('dynamic import()');
   });
 });

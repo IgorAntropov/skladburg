@@ -18,8 +18,11 @@ import {
   toTenantSettings,
   useOrganizationSettingsQuery,
 } from '@/entities/organization';
+import { useAddress } from '@/shared/routing';
 import { TenantSettingsProvider } from '@/shared/tenant';
 
+import { useBootSkeletonTiming } from './bootSkeletonTiming';
+import { ShellSkeleton } from './ShellSkeleton';
 import { StartErrorScreen } from './StartErrorScreen';
 
 interface TenantSettingsGateProps {
@@ -29,6 +32,8 @@ interface TenantSettingsGateProps {
 
 export const TenantSettingsGate = ({ children, localizer }: TenantSettingsGateProps): ReactElement => {
   const { data, isError, refetch } = useOrganizationSettingsQuery();
+  const { address } = useAddress();
+  const skeletonTiming = useBootSkeletonTiming();
 
   const [appliedSettings, setAppliedSettings] = useState<TenantSettingsValue | undefined>(undefined);
   const [failedSettings, setFailedSettings] = useState<TenantSettingsValue | undefined>(undefined);
@@ -90,7 +95,7 @@ export const TenantSettingsGate = ({ children, localizer }: TenantSettingsGatePr
   }
 
   if (appliedSettings === undefined) {
-    return <main aria-busy className="min-h-dvh bg-canvas" />;
+    return <ShellSkeleton address={address} timing={skeletonTiming} />;
   }
 
   return <TenantSettingsProvider tenantSettings={appliedSettings}>{children}</TenantSettingsProvider>;

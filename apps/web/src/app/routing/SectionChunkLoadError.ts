@@ -1,10 +1,12 @@
 import type { AppSectionValue } from '@/shared/routing';
 
-export class SectionChunkLoadError extends Error {
+import { ChunkLoadError } from '@/shared/lib/module-loader';
+
+export class SectionChunkLoadError extends ChunkLoadError {
   readonly section: AppSectionValue;
 
-  constructor(section: AppSectionValue, options?: ErrorOptions) {
-    super(`Section chunk failed to load: ${section}`, options);
+  constructor(section: AppSectionValue, attempt: number, options?: ErrorOptions) {
+    super(attempt, `Section chunk failed to load: ${section}`, options);
     this.name = 'SectionChunkLoadError';
     this.section = section;
   }

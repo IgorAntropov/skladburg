@@ -54,10 +54,13 @@ import {
   LocalizerProvider,
   useI18n,
 } from '@/shared/i18n';
+import { RoutingProvider } from '@/shared/routing';
+import { createMemoryLocation } from '@/shared/routing/index.testing';
 import { useTenantSettings } from '@/shared/tenant';
 
 import { TenantSettingsGate } from './TenantSettingsGate';
 
+const WAREHOUSE_PATH = '/warehouse';
 const ORGANIZATION_ID = 'f3000001-0000-4000-8000-000000000000';
 const FIRST_BRAND = 'Северный склад';
 const SECOND_BRAND = 'Южный склад';
@@ -165,15 +168,17 @@ const renderGate = async (
   options.prepare?.({ applyOriginal, applyTenant, queryClient });
 
   const tree = (
-    <LocalizerProvider localizer={localizer}>
-      <ApiRuntimeProvider runtime={runtime}>
-        <QueryClientProvider client={queryClient}>
-          <TenantSettingsGate localizer={localizer}>
-            <Probe />
-          </TenantSettingsGate>
-        </QueryClientProvider>
-      </ApiRuntimeProvider>
-    </LocalizerProvider>
+    <RoutingProvider location={createMemoryLocation(WAREHOUSE_PATH)}>
+      <LocalizerProvider localizer={localizer}>
+        <ApiRuntimeProvider runtime={runtime}>
+          <QueryClientProvider client={queryClient}>
+            <TenantSettingsGate localizer={localizer}>
+              <Probe />
+            </TenantSettingsGate>
+          </QueryClientProvider>
+        </ApiRuntimeProvider>
+      </LocalizerProvider>
+    </RoutingProvider>
   );
 
   render(options.isStrict === true ? <StrictMode>{tree}</StrictMode> : tree);
@@ -233,7 +238,7 @@ describe('TenantSettingsGate', () => {
     expect(applyTenant).toHaveBeenCalledTimes(1);
   });
 
-  it('shows an empty busy landmark while the settings are loading', async () => {
+  it('shows the skeleton of the shell in a busy landmark while the settings are loading', async () => {
     const response = createDeferred();
     const { applyTenant } = await renderGate(async () => {
       await response.promise;
@@ -243,8 +248,9 @@ describe('TenantSettingsGate', () => {
 
     const waiting = screen.getByRole('main', { busy: true });
 
-    expect(waiting.textContent).toBe('');
+    expect(waiting.textContent).toBe(defaultLocaleCatalog['session.loading']);
     expect(waiting.getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByTestId('hud-layout-skeleton')).toBeDefined();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(applyTenant).not.toHaveBeenCalled();
 

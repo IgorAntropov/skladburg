@@ -12,7 +12,9 @@ import type {
 import { SectionChunkLoadError } from './SectionChunkLoadError';
 
 const createCachedSectionLoader = (section: AppSectionValue, loader: SectionLoader): CachedSectionLoader => {
-  return createCachedModuleLoader(loader, error => new SectionChunkLoadError(section, { cause: error }));
+  return createCachedModuleLoader(loader, {
+    mapLoadError: ({ attempt, cause }) => new SectionChunkLoadError(section, attempt, { cause }),
+  });
 };
 
 export const createCachedSectionLoaders = (loaders: SectionLoadersValue): CachedSectionLoadersValue => {

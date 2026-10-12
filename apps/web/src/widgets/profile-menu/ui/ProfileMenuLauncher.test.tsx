@@ -17,6 +17,7 @@ import {
 
 import type { IDemoControl } from '@/shared/api';
 import type { IFakeViewport } from '@/shared/lib/viewport/index.testing';
+import type { IMemoryLocation } from '@/shared/routing/index.testing';
 
 import { installFakeViewport } from '@/shared/lib/viewport/index.testing';
 import { APP_SECTIONS } from '@/shared/routing';
@@ -36,11 +37,15 @@ const READY_BUTTON_NAME = defaultLocaleCatalog['profile.button.label']
   .replace('{name}', 'Анна Смирнова')
   .replace('{organization}', 'Заказчик 1');
 const RESETTING_BUTTON_NAME = defaultLocaleCatalog['profile.button.resetting'];
-const CHUNK_ERROR_MESSAGE = defaultLocaleCatalog['routing.chunkError.message'];
+const CHUNK_ERROR_MESSAGE = defaultLocaleCatalog['profile.menu.loadError.message'];
+const CHUNK_ERROR_REPEATED = defaultLocaleCatalog['profile.menu.loadError.repeated'];
+const RETRY_NAME = defaultLocaleCatalog['common.retry'];
+const RELOAD_NAME = defaultLocaleCatalog['routing.chunkError.reload'];
 
 interface RenderedLauncherValue {
   demoControl: IDemoControl;
   loadProfileMenu: LoadProfileMenuType;
+  location: IMemoryLocation;
 }
 
 interface RenderLauncherOptionsValue {
@@ -113,7 +118,7 @@ const renderLauncher = async ({
     </harness.ProfileTreeProviders>,
   );
 
-  return { demoControl, loadProfileMenu: mockedLoadProfileMenu };
+  return { demoControl, loadProfileMenu: mockedLoadProfileMenu, location };
 };
 
 const getButton = (): HTMLElement => screen.getByRole('button', { hidden: true, name: /^Профиль/ });
@@ -262,6 +267,39 @@ describe('ProfileMenuLauncher', () => {
       expect(await screen.findByRole('menu', { name: MENU_NAME })).toBeDefined();
       expect(loadProfileMenu).toHaveBeenCalledTimes(2);
       expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('offers a retry that loads the menu again after the first failure', async () => {
+      const { loadProfileMenu, location } = await renderLauncher({ rejectedLoadCount: 1 });
+      await waitForReadyButton();
+      fireEvent.click(getButton());
+      await screen.findByRole('alert');
+
+      fireEvent.click(screen.getByRole('button', { name: RETRY_NAME }));
+
+      expect(await screen.findByRole('menu', { name: MENU_NAME })).toBeDefined();
+      expect(loadProfileMenu).toHaveBeenCalledTimes(2);
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(location.reloadCount).toBe(0);
+    });
+
+    it('offers to reload the page instead of a retry when the menu fails to load the second time', async () => {
+      const { loadProfileMenu, location } = await renderLauncher({ rejectedLoadCount: 2 });
+      await waitForReadyButton();
+      fireEvent.click(getButton());
+      await screen.findByRole('alert');
+
+      fireEvent.click(screen.getByRole('button', { name: RETRY_NAME }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert').textContent).toBe(CHUNK_ERROR_REPEATED);
+      });
+      expect(screen.queryByRole('button', { name: RETRY_NAME })).toBeNull();
+      expect(loadProfileMenu).toHaveBeenCalledTimes(2);
+
+      fireEvent.click(screen.getByRole('button', { name: RELOAD_NAME }));
+
+      expect(location.reloadCount).toBe(1);
     });
 
     it('stays silent when only the warm-up fails and loads again on the press', async () => {

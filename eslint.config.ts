@@ -27,6 +27,7 @@ const rawControlFiles: string[] = ['apps/web/src/**/*.tsx'];
 const rawControlExemptFiles: string[] = ['apps/web/src/shared/ui/**', 'apps/web/src/**/*.test.tsx'];
 const webTestFiles: string[] = ['apps/web/src/**/*.test.{ts,tsx}'];
 const lazyAppFiles: string[] = ['apps/web/src/app/**/*.{ts,tsx}'];
+const lazyMountAppFiles: string[] = ['apps/web/src/app/bootstrap/mountApp.tsx'];
 const lazyWidgetFiles: string[] = ['apps/web/src/widgets/**/*.{ts,tsx}'];
 const lazyProfileMenuFiles: string[] = ['apps/web/src/widgets/profile-menu/**/*.{ts,tsx}'];
 const lazyProfileMenuChunkFiles: string[] = ['apps/web/src/widgets/profile-menu/ui/menu/**/*.{ts,tsx}'];
@@ -119,6 +120,16 @@ const profileMenuChunkLazyRestriction: LazyModuleRestrictionValue = {
   regex: '(^|/)menu(/|$)',
 };
 
+const mountAppLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the application mount module',
+  regex: '(^|/)mountApp$',
+};
+
+const appRootLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the App component',
+  regex: '(^|/)App$',
+};
+
 const appLazyRestrictions: LazyModuleRestrictionValue[] = [
   personaSwitcherLazyRestriction,
   themeSwitcherLazyRestriction,
@@ -126,6 +137,11 @@ const appLazyRestrictions: LazyModuleRestrictionValue[] = [
   sectionPagesLazyRestriction,
 ];
 const profileMenuLazyRestrictions: LazyModuleRestrictionValue[] = [...appLazyRestrictions, profileMenuChunkLazyRestriction];
+const startLazyRestrictions: LazyModuleRestrictionValue[] = [
+  ...appLazyRestrictions,
+  mountAppLazyRestriction,
+  appRootLazyRestriction,
+];
 
 interface SyntaxRestrictionValue {
   message: string;
@@ -522,7 +538,11 @@ export default defineConfig(
   },
   {
     files: lazyAppFiles,
-    ignores: webTestFiles,
+    ignores: [...webTestFiles, ...lazyMountAppFiles],
+    rules: createLazyModuleRules(startLazyRestrictions),
+  },
+  {
+    files: lazyMountAppFiles,
     rules: createLazyModuleRules(appLazyRestrictions),
   },
   {

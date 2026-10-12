@@ -10,6 +10,7 @@ import {
 } from 'motion/react';
 import {
   useCallback,
+  useRef,
   useState,
 } from 'react';
 
@@ -20,15 +21,28 @@ interface MotionScopeProps {
   children: ReactNode;
 }
 
+const NEVER_LOADED_FEATURES: Promise<FeatureBundle> = new Promise<FeatureBundle>(() => undefined);
+
 export const MotionScope = ({ children }: MotionScopeProps): ReactElement => {
   const [areFeaturesLoaded, setAreFeaturesLoaded] = useState(false);
+  const isFailureReportedRef = useRef(false);
 
   const handleFeaturesLoad = useCallback(async (): Promise<FeatureBundle> => {
-    const features = await loadMotionFeatures();
+    try {
+      const features = await loadMotionFeatures();
 
-    setAreFeaturesLoaded(true);
+      setAreFeaturesLoaded(true);
 
-    return features;
+      return features;
+    }
+    catch (error) {
+      if (!isFailureReportedRef.current) {
+        isFailureReportedRef.current = true;
+        console.error('> MotionScope -> loadFeatures:', { error });
+      }
+
+      return NEVER_LOADED_FEATURES;
+    }
   }, []);
 
   return (

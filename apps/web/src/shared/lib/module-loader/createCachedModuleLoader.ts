@@ -1,14 +1,29 @@
-export type CachedModuleLoader<TModule> = () => PromiseLike<TModule>;
+import { ChunkLoadError } from './ChunkLoadError';
 
-export type MapLoadErrorFunction = (error: unknown) => unknown;
+export type CachedModuleLoader<TModule> = () => Promise<TModule>;
+
+export interface CachedModuleLoaderOptionsValue {
+  mapLoadError?: MapLoadErrorFunction | undefined;
+}
+
+export interface ChunkLoadFailureValue {
+  attempt: number;
+  cause: unknown;
+}
+
+export type MapLoadErrorFunction = (failure: ChunkLoadFailureValue) => ChunkLoadError;
 
 export type ModuleLoader<TModule> = () => Promise<TModule>;
 
-const createLoadedModule = <TModule>(loadedModule: TModule): PromiseLike<TModule> => ({
-  then<TResult1 = TModule, TResult2 = never>(
+const createChunkLoadError: MapLoadErrorFunction = ({ attempt, cause }) => new ChunkLoadError(attempt, undefined, { cause });
+
+const createLoadedModule = <TModule>(loadedModule: TModule): Promise<TModule> => {
+  const resolved = Promise.resolve(loadedModule);
+
+  const then = <TResult1 = TModule, TResult2 = never>(
     onFulfilled?: ((module: TModule) => PromiseLike<TResult1> | TResult1) | null,
     onRejected?: ((reason: unknown) => PromiseLike<TResult2> | TResult2) | null,
-  ): PromiseLike<TResult1 | TResult2> {
+  ): Promise<TResult1 | TResult2> => {
     if (onFulfilled === undefined || onFulfilled === null) {
       return Promise.resolve(loadedModule).then(onFulfilled, onRejected);
     }
@@ -16,13 +31,17 @@ const createLoadedModule = <TModule>(loadedModule: TModule): PromiseLike<TModule
     return new Promise<TResult1 | TResult2>((resolve) => {
       resolve(onFulfilled(loadedModule));
     });
-  },
-});
+  };
+
+  return Object.assign(resolved, { then });
+};
 
 export const createCachedModuleLoader = <TModule>(
   loader: ModuleLoader<TModule>,
-  mapLoadError?: MapLoadErrorFunction,
+  options?: CachedModuleLoaderOptionsValue,
 ): CachedModuleLoader<TModule> => {
+  const mapLoadError = options?.mapLoadError ?? createChunkLoadError;
+  let failureCount = 0;
   let loadedModule: undefined | { module: TModule };
   let pendingModule: Promise<TModule> | undefined;
 
@@ -39,15 +58,12 @@ export const createCachedModuleLoader = <TModule>(
       },
       (error: unknown) => {
         pendingModule = undefined;
+        failureCount += 1;
 
-        throw mapLoadError === undefined ? error : mapLoadError(error);
+        throw mapLoadError({ attempt: failureCount, cause: error });
       },
     );
 
     return pendingModule;
   };
-};
-
-export const toLazyModuleLoader = <TModule>(loader: CachedModuleLoader<TModule>): ModuleLoader<TModule> => {
-  return () => loader() as Promise<TModule>;
 };

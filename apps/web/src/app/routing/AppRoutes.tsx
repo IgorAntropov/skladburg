@@ -1,12 +1,14 @@
 import type { ReactElement } from 'react';
 
 import {
+  useCallback,
   useEffect,
   useState,
 } from 'react';
 
 import type { AppSectionValue } from '@/shared/routing';
 
+import { createLazyComponent } from '@/shared/lib/module-loader';
 import {
   getAddressSection,
   useAddress,
@@ -16,11 +18,13 @@ import { useDelayedVisibility } from '@/shared/ui';
 import type { SectionLoadersValue } from './sectionPages';
 
 import { useAvailableSections } from '../access';
+import { useBootSkeletonTiming } from '../shell/bootSkeletonTiming';
 import { createCachedSectionLoaders } from './createCachedSectionLoaders';
 import { NoSectionsScreen } from './NoSectionsScreen';
 import { ReadyRoutes } from './ReadyRoutes';
 import { RouteFrame } from './RouteFrame';
 import { createSectionPages } from './sectionPages';
+import { SectionRetryContext } from './SectionRetryContext';
 import { getSkeletonZones } from './sectionSkeletonZones';
 import { SessionErrorScreen } from './SessionErrorScreen';
 import { SessionPendingScreen } from './SessionPendingScreen';
@@ -37,12 +41,18 @@ export const AppRoutes = ({ sectionLoaders }: AppRoutesProps): ReactElement => {
   const availableSections = useAvailableSections();
 
   const [cachedLoaders] = useState(() => createCachedSectionLoaders(sectionLoaders));
-  const [sectionPages] = useState(() => createSectionPages(cachedLoaders));
+  const [sectionPages, setSectionPages] = useState(() => createSectionPages(cachedLoaders));
+  const skeletonTiming = useBootSkeletonTiming();
 
   const isSessionLoading = availableSections.kind === 'loading';
   const isSkeletonHeld = useDelayedVisibility(isSessionLoading);
   const isSessionPending = isSessionLoading || isSkeletonHeld;
   const sectionToPrewarm = isSessionLoading && address !== undefined ? getAddressSection(address) : undefined;
+
+  const handleSectionRetry = useCallback((section: AppSectionValue): void => {
+    console.log('> AppRoutes -> handleSectionRetry:', { section });
+    setSectionPages(current => ({ ...current, [section]: createLazyComponent(cachedLoaders[section]) }));
+  }, [cachedLoaders]);
 
   useEffect(() => {
     const prewarmSection = (section: AppSectionValue): void => {
@@ -57,7 +67,7 @@ export const AppRoutes = ({ sectionLoaders }: AppRoutesProps): ReactElement => {
   }, [cachedLoaders, sectionToPrewarm]);
 
   if (isSessionPending) {
-    return <SessionPendingScreen zones={getSkeletonZones(address)} />;
+    return <SessionPendingScreen timing={skeletonTiming} zones={getSkeletonZones(address)} />;
   }
 
   switch (availableSections.kind) {
@@ -79,12 +89,14 @@ export const AppRoutes = ({ sectionLoaders }: AppRoutesProps): ReactElement => {
       );
     case 'ready':
       return (
-        <ReadyRoutes
-          cachedLoaders={cachedLoaders}
-          landingSection={availableSections.landingSection}
-          sectionPages={sectionPages}
-          sections={availableSections.sections}
-        />
+        <SectionRetryContext value={handleSectionRetry}>
+          <ReadyRoutes
+            cachedLoaders={cachedLoaders}
+            landingSection={availableSections.landingSection}
+            sectionPages={sectionPages}
+            sections={availableSections.sections}
+          />
+        </SectionRetryContext>
       );
     default: {
       const unhandledSections: never = availableSections;

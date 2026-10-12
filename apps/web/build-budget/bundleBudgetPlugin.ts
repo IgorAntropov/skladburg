@@ -1,12 +1,21 @@
 import type { Plugin } from 'vite';
 
-import type { BudgetChunkValue } from './bundleBudgetTypes.ts';
+import type {
+  BudgetChunkValue,
+  ForbiddenPackageViolationValue,
+} from './bundleBudgetTypes.ts';
 
 import { BYTES_PER_KILOBYTE } from './bundleBudgetConstants.ts';
 import {
   createBudgetReport,
   createBudgetViolationMessage,
+  createForbiddenPackageMessage,
 } from './createBudgetMessages.ts';
+import {
+  assertValidForbiddenPackages,
+  createForbiddenPackageMatcher,
+  findForbiddenPackageViolations,
+} from './forbiddenPackages.ts';
 import { gzipSizeInBytes } from './gzipSizeInBytes.ts';
 import { measureInitialBundles } from './measureInitialBundles.ts';
 
@@ -15,10 +24,11 @@ export interface BundleBudgetContextValue {
 }
 
 export type BundleBudgetOutputValue
-  = | { code: string; fileName: string; imports: readonly string[]; isEntry: boolean; type: 'chunk' }
+  = | { code: string; fileName: string; imports: readonly string[]; isEntry: boolean; moduleIds: readonly string[]; type: 'chunk' }
     | { type: 'asset' };
 
 export interface BundleBudgetPluginOptionsValue {
+  forbiddenInitialPackages: readonly string[];
   maxInitialGzipKiloBytes: number;
 }
 
@@ -39,6 +49,7 @@ const toBudgetChunks = (bundle: Readonly<Record<string, BundleBudgetOutputValue>
             gzipBytes: gzipSizeInBytes(output.code),
             imports: output.imports,
             isEntry: output.isEntry,
+            moduleIds: output.moduleIds,
           },
         ]
       : [],
@@ -52,18 +63,30 @@ const assertValidLimit = (maxInitialGzipKiloBytes: number): void => {
 
 export const bundleBudgetPlugin = (options: BundleBudgetPluginOptionsValue): BundleBudgetPluginValue => {
   assertValidLimit(options.maxInitialGzipKiloBytes);
+  assertValidForbiddenPackages(options.forbiddenInitialPackages);
 
   const limitBytes = options.maxInitialGzipKiloBytes * BYTES_PER_KILOBYTE;
+  const isForbiddenPackage = createForbiddenPackageMatcher(options.forbiddenInitialPackages);
 
   return {
     apply: 'build',
     enforce: 'post',
     generateBundle(_options, bundle) {
-      const initialBundles = measureInitialBundles(toBudgetChunks(bundle));
-      const violations = initialBundles.filter(initialBundle => initialBundle.gzipBytes > limitBytes);
+      const budgetChunks = toBudgetChunks(bundle);
+      const moduleIdsByFileName = new Map(budgetChunks.map(chunk => [chunk.fileName, chunk.moduleIds]));
+      const initialBundles = measureInitialBundles(budgetChunks);
+      const sizeViolations = initialBundles.filter(initialBundle => initialBundle.gzipBytes > limitBytes);
+      const packageViolations: ForbiddenPackageViolationValue[] = initialBundles.flatMap(initialBundle =>
+        findForbiddenPackageViolations(initialBundle, moduleIdsByFileName, isForbiddenPackage),
+      );
 
-      if (violations.length > 0) {
-        this.error(violations.map(violation => createBudgetViolationMessage(violation, limitBytes)).join('\n'));
+      if (sizeViolations.length > 0 || packageViolations.length > 0) {
+        this.error(
+          [
+            ...packageViolations.map(createForbiddenPackageMessage),
+            ...sizeViolations.map(violation => createBudgetViolationMessage(violation, limitBytes)),
+          ].join('\n'),
+        );
       }
 
       for (const initialBundle of initialBundles) {

@@ -12,6 +12,7 @@ const createChunk = (overrides: Partial<BudgetChunkValue> & Pick<BudgetChunkValu
   gzipBytes: 100,
   imports: [],
   isEntry: false,
+  moduleIds: [],
   ...overrides,
 });
 

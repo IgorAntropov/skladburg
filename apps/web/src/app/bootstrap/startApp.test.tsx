@@ -1,4 +1,7 @@
-import type { MockInstance } from 'vitest';
+import type {
+  Mock,
+  MockInstance,
+} from 'vitest';
 
 import { create } from '@bufbuild/protobuf';
 import {
@@ -54,6 +57,7 @@ import {
   TEST_USER_ID,
 } from '@/shared/api/index.testing';
 import { createLocalizer } from '@/shared/i18n';
+import { createCachedModuleLoader } from '@/shared/lib/module-loader';
 import { observeLongTasks } from '@/shared/lib/performance';
 import {
   APP_SECTIONS,
@@ -81,6 +85,12 @@ vi.mock('@/shared/api', async (importOriginal) => {
   };
 });
 
+vi.mock('@/shared/lib/module-loader', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/shared/lib/module-loader')>();
+
+  return { ...original, createCachedModuleLoader: vi.fn(original.createCachedModuleLoader) };
+});
+
 vi.mock('@/shared/lib/performance', () => ({ observeLongTasks: vi.fn() }));
 
 vi.mock('@/shared/routing', async (importOriginal) => {
@@ -103,6 +113,7 @@ vi.mock('@/shared/i18n', async (importOriginal) => {
 
 const WAREHOUSE_PATH = '/warehouse';
 const THEME_STORAGE_KEY = 'theme-preference';
+const APP_RENDER_NUMBER = 2;
 const ENGINE_BRAND = 'Северный склад';
 const ENGINE_ORGANIZATION_ID = 'f4000001-0000-4000-8000-000000000000';
 
@@ -153,7 +164,7 @@ const getLoggedLabels = (spy: MockInstance<typeof console.error>): unknown[] => 
   return spy.mock.calls.map(([label]: unknown[]) => label);
 };
 
-const failFirstRender = async (): Promise<void> => {
+const failAppRender = async (): Promise<void> => {
   const original = await vi.importActual<typeof import('react-dom/client')>('react-dom/client');
   let renderCount = 0;
 
@@ -164,7 +175,7 @@ const failFirstRender = async (): Promise<void> => {
       render: (children) => {
         renderCount += 1;
 
-        if (renderCount === 1) {
+        if (renderCount === APP_RENDER_NUMBER) {
           throw new Error('render failed');
         }
 
@@ -198,6 +209,63 @@ const recordThemeAtRender = async (): Promise<(string | undefined)[]> => {
   return themesAtRender;
 };
 
+interface GateValue {
+  open: () => void;
+  promise: Promise<void>;
+}
+
+const createGate = (): GateValue => {
+  let open: () => void = () => undefined;
+  const promise = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+
+  return { open, promise };
+};
+
+const failProfileLocalizerOnce = async (): Promise<void> => {
+  const original = await vi.importActual<typeof import('@/shared/i18n')>('@/shared/i18n');
+  let isFirstAttempt = true;
+
+  vi.mocked(createLocalizer).mockImplementation((options) => {
+    if (options.tenant === defaultTenant && isFirstAttempt) {
+      isFirstAttempt = false;
+
+      return Promise.reject(new Error('catalog chunk is unavailable'));
+    }
+
+    return original.createLocalizer(options);
+  });
+};
+
+const failMountAppLoad = async (failureCount = 1): Promise<void> => {
+  const original = await vi.importActual<typeof import('@/shared/lib/module-loader')>('@/shared/lib/module-loader');
+  let remainingFailureCount = failureCount;
+
+  vi.mocked(createCachedModuleLoader).mockImplementationOnce(loader => original.createCachedModuleLoader(() => {
+    if (remainingFailureCount > 0) {
+      remainingFailureCount -= 1;
+
+      return Promise.reject(new Error('Failed to fetch dynamically imported module'));
+    }
+
+    return loader();
+  }));
+};
+
+const trackMountAppLoad = async (): Promise<Mock<() => Promise<unknown>>> => {
+  const original = await vi.importActual<typeof import('@/shared/lib/module-loader')>('@/shared/lib/module-loader');
+  const trackedLoad = vi.fn<() => Promise<unknown>>();
+
+  vi.mocked(createCachedModuleLoader).mockImplementationOnce((loader) => {
+    trackedLoad.mockImplementation(loader);
+
+    return original.createCachedModuleLoader(trackedLoad);
+  });
+
+  return trackedLoad;
+};
+
 const restoreDocumentTheme = (): void => {
   document.documentElement.removeAttribute('data-theme');
   document.documentElement.style.removeProperty('color-scheme');
@@ -228,6 +296,7 @@ describe('startApp', () => {
     vi.mocked(persistActingContext).mockClear();
     window.sessionStorage.clear();
     vi.mocked(createLocalizer).mockReset();
+    vi.mocked(createCachedModuleLoader).mockReset();
     vi.mocked(observeLongTasks).mockClear();
     vi.mocked(createHashLocation).mockReset();
     vi.mocked(createHashLocation).mockImplementation(() => createMemoryLocation(WAREHOUSE_PATH));
@@ -367,10 +436,7 @@ describe('startApp', () => {
 
   it('retries the localizer of the profile and shows the start error on the fallback localizer', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const original = await vi.importActual<typeof import('@/shared/i18n')>('@/shared/i18n');
-    vi.mocked(createLocalizer)
-      .mockRejectedValueOnce(new Error('catalog chunk is unavailable'))
-      .mockImplementation(original.createLocalizer);
+    await failProfileLocalizerOnce();
 
     await startApp(createRootElement());
 
@@ -386,10 +452,7 @@ describe('startApp', () => {
 
   it('reads the device time zone once and gives it to every localizer', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const original = await vi.importActual<typeof import('@/shared/i18n')>('@/shared/i18n');
-    vi.mocked(createLocalizer)
-      .mockRejectedValueOnce(new Error('catalog chunk is unavailable'))
-      .mockImplementation(original.createLocalizer);
+    await failProfileLocalizerOnce();
     vi.mocked(readDeviceTimeZone).mockClear();
 
     await startApp(createRootElement());
@@ -465,14 +528,14 @@ describe('startApp', () => {
     await startApp(createRootElement());
 
     expect(await screen.findByRole('alert')).toBeDefined();
-    expect(getLoggedLabels(consoleError)).toEqual(['> startApp -> tryStart:', '> startApp -> release:']);
+    expect(getLoggedLabels(consoleError)).toEqual(['> mountApp -> release:', '> startApp -> tryStart:']);
   });
 
   it('stops the realtime synchronization when the render fails after it started', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const stopSync = vi.fn();
     vi.mocked(syncQueriesWithRealtime).mockReturnValueOnce(stopSync);
-    await failFirstRender();
+    await failAppRender();
 
     await startApp(createRootElement());
 
@@ -484,7 +547,7 @@ describe('startApp', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const stopReturn = vi.fn();
     vi.mocked(returnToDefaultPersonaOnDemoReset).mockReturnValueOnce(stopReturn);
-    await failFirstRender();
+    await failAppRender();
 
     await startApp(createRootElement());
 
@@ -512,7 +575,7 @@ describe('startApp', () => {
       .mockReturnValueOnce(() => {
         events.push('stop second');
       });
-    await failFirstRender();
+    await failAppRender();
 
     await startApp(createRootElement());
 
@@ -570,6 +633,119 @@ describe('startApp', () => {
     expect(location.history).toEqual(['/network']);
   });
 
+  describe('boot sequence', () => {
+    it('shows the shell skeleton while the runtime is starting and then the application in the same root', async () => {
+      let resolveRuntime: (runtime: ApiRuntimeValue) => void = () => undefined;
+      vi.mocked(createApiRuntime).mockReturnValueOnce(new Promise<ApiRuntimeValue>((resolve) => {
+        resolveRuntime = resolve;
+      }));
+      const rootElement = createRootElement();
+
+      const starting = startApp(rootElement);
+
+      expect(await screen.findByTestId('hud-layout-skeleton')).toBeDefined();
+      expect(screen.getByRole('main', { busy: true }).textContent).toBe(defaultLocaleCatalog['session.loading']);
+      expect(screen.queryByRole('banner')).toBeNull();
+      await waitFor(() => {
+        expect(createApiRuntime).toHaveBeenCalledOnce();
+      });
+
+      resolveRuntime(createRuntime());
+      await starting;
+
+      expect(await findProductName()).toBeDefined();
+      expect(rootElement.querySelectorAll('header')).toHaveLength(1);
+    });
+
+    it('renders the start error screen when the application module cannot be loaded and starts it on retry', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      await failMountAppLoad();
+
+      await startApp(createRootElement());
+
+      expect((await screen.findByRole('alert')).textContent).toBe(defaultLocaleCatalog['app.startError.message']);
+      expect(consoleError.mock.calls[0]?.[0]).toBe('> startApp -> tryStart:');
+      expect(createApiRuntime).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole('button', { name: defaultLocaleCatalog['common.retry'] }));
+
+      expect(await findProductName()).toBeDefined();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(createApiRuntime).toHaveBeenCalledOnce();
+    });
+
+    it('offers to reload the page instead of a retry when the application module fails to load the second time', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const location = createMemoryLocation(WAREHOUSE_PATH);
+      vi.mocked(createHashLocation).mockReturnValue(location);
+      await failMountAppLoad(2);
+
+      await startApp(createRootElement());
+      fireEvent.click(await screen.findByRole('button', { name: defaultLocaleCatalog['common.retry'] }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert').textContent).toBe(defaultLocaleCatalog['app.startError.repeated']);
+      });
+      expect(screen.queryByRole('button', { name: defaultLocaleCatalog['common.retry'] })).toBeNull();
+
+      fireEvent.click(screen.getByRole('button', { name: defaultLocaleCatalog['routing.chunkError.reload'] }));
+
+      expect(location.reloadCount).toBe(1);
+      expect(createApiRuntime).not.toHaveBeenCalled();
+    });
+
+    it('keeps the retry for a failure that is not a chunk failure however many times it repeats', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      vi.mocked(createApiRuntime)
+        .mockRejectedValueOnce(new Error('the engine is unavailable'))
+        .mockRejectedValueOnce(new Error('the engine is unavailable'))
+        .mockRejectedValueOnce(new Error('the engine is unavailable'));
+
+      await startApp(createRootElement());
+      fireEvent.click(await screen.findByRole('button', { name: defaultLocaleCatalog['common.retry'] }));
+      await waitFor(expectButtonEnabled);
+      fireEvent.click(screen.getByRole('button', { name: defaultLocaleCatalog['common.retry'] }));
+      await waitFor(expectButtonEnabled);
+
+      expect((await screen.findByRole('alert')).textContent).toBe(defaultLocaleCatalog['app.startError.message']);
+      expect(createApiRuntime).toHaveBeenCalledTimes(3);
+    });
+
+    it('starts loading the application module and the localizer of the profile before the skeleton is drawn', async () => {
+      const skeletonLocalizerGate = createGate();
+      const original = await vi.importActual<typeof import('@/shared/i18n')>('@/shared/i18n');
+      vi.mocked(createLocalizer).mockImplementation((options) => {
+        return options.tenant === defaultTenant
+          ? original.createLocalizer(options)
+          : skeletonLocalizerGate.promise.then(() => original.createLocalizer(options));
+      });
+      const loadMountApp = await trackMountAppLoad();
+
+      const starting = startApp(createRootElement());
+
+      await waitFor(() => {
+        expect(loadMountApp).toHaveBeenCalledOnce();
+      });
+      expect(createLocalizer).toHaveBeenCalledWith(expect.objectContaining({ tenant: defaultTenant }));
+      expect(screen.queryByTestId('hud-layout-skeleton')).toBeNull();
+
+      skeletonLocalizerGate.open();
+      await starting;
+
+      expect(await findProductName()).toBeDefined();
+    });
+
+    it('shows the failure of the application module on the start error screen even when it arrives before the skeleton', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      await failMountAppLoad();
+
+      await startApp(createRootElement());
+
+      expect((await screen.findByRole('alert')).textContent).toBe(defaultLocaleCatalog['app.startError.message']);
+      expect(screen.queryByTestId('hud-layout-skeleton')).toBeNull();
+    });
+  });
+
   describe('theme of the device', () => {
     it('puts the light theme on the document before the first render when nothing is stored', async () => {
       const themesAtRender = await recordThemeAtRender();
@@ -577,7 +753,7 @@ describe('startApp', () => {
       await startApp(createRootElement());
       await findProductName();
 
-      expect(themesAtRender).toEqual(['light']);
+      expect(themesAtRender).toEqual(['light', 'light']);
       expect(document.documentElement.style.colorScheme).toBe('light');
     });
 
@@ -588,7 +764,7 @@ describe('startApp', () => {
       await startApp(createRootElement());
       await findProductName();
 
-      expect(themesAtRender).toEqual(['dark']);
+      expect(themesAtRender).toEqual(['dark', 'dark']);
       expect(document.documentElement.style.colorScheme).toBe('dark');
     });
 
@@ -600,7 +776,7 @@ describe('startApp', () => {
       await startApp(createRootElement());
       await findProductName();
 
-      expect(themesAtRender).toEqual(['dark']);
+      expect(themesAtRender).toEqual(['dark', 'dark']);
     });
   });
 
@@ -692,7 +868,7 @@ describe('startApp', () => {
       vi.spyOn(console, 'error').mockImplementation(() => undefined);
       const stopPersist = vi.fn();
       vi.mocked(persistActingContext).mockReturnValueOnce(stopPersist);
-      await failFirstRender();
+      await failAppRender();
 
       await startApp(createRootElement());
 
@@ -719,7 +895,7 @@ describe('startApp', () => {
       vi.mocked(persistActingContext).mockReturnValueOnce(() => {
         events.push('stop persist first');
       });
-      await failFirstRender();
+      await failAppRender();
 
       await startApp(createRootElement());
       fireEvent.click(await screen.findByRole('button'));
@@ -735,12 +911,12 @@ describe('startApp', () => {
       vi.mocked(persistActingContext).mockReturnValueOnce(() => {
         throw new Error('storage is gone');
       });
-      await failFirstRender();
+      await failAppRender();
 
       await startApp(createRootElement());
 
       expect(close).toHaveBeenCalledOnce();
-      expect(getLoggedLabels(consoleError)).toContain('> startApp -> release:');
+      expect(getLoggedLabels(consoleError)).toContain('> mountApp -> release:');
     });
 
     describe('on the demo engine', () => {

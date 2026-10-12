@@ -464,13 +464,37 @@ describe('AppRoutes chunk failure', () => {
     expect(getLoggedLabels(consoleError)).toContain('> SectionErrorBoundary -> componentDidCatch:');
   });
 
-  it('reloads the page on retry', async () => {
+  it('loads the chunk again on retry without reloading the page and draws the section when it loads', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const { location } = await renderFailingDeals();
+    const loaders = createStubLoaders();
+    loaders.deals.mockRejectedValueOnce(CHUNK_ERROR);
+    const { location } = await renderRoutes('/deals', loaders);
 
     fireEvent.click(await screen.findByRole('button', { name: defaultLocaleCatalog['common.retry'] }));
 
+    expect(await screen.findByTestId('page-deals')).toBeDefined();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(loaders.deals).toHaveBeenCalledTimes(2);
+    expect(location.reloadCount).toBe(0);
+  });
+
+  it('offers to reload the page instead of a retry when the chunk fails the second time', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { loaders, location } = await renderFailingDeals();
+
+    fireEvent.click(await screen.findByRole('button', { name: defaultLocaleCatalog['common.retry'] }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toBe(defaultLocaleCatalog['routing.chunkError.repeated']);
+    });
+    expect(screen.queryByRole('button', { name: defaultLocaleCatalog['common.retry'] })).toBeNull();
+    expect(loaders.deals).toHaveBeenCalledTimes(2);
+    expect(location.reloadCount).toBe(0);
+
+    fireEvent.click(screen.getByRole('button', { name: defaultLocaleCatalog['routing.chunkError.reload'] }));
+
     expect(location.reloadCount).toBe(1);
+    expect(loaders.deals).toHaveBeenCalledTimes(2);
   });
 
   it('shows the error screen for an object of the failing section', async () => {

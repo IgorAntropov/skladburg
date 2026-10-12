@@ -7,37 +7,51 @@ import {
   defaultTenant,
 } from 'virtual:build-profile';
 
-import type { ApiRuntimeValue } from '@/shared/api';
 import type { ILocalizer } from '@/shared/i18n';
+import type { ChunkRecoveryValue } from '@/shared/lib/module-loader';
 
-import {
-  createApiRuntime,
-  createQueryClient,
-  getTabStorage,
-  persistActingContext,
-  readPersistedActingContext,
-  returnToDefaultPersonaOnDemoReset,
-  syncQueriesWithRealtime,
-} from '@/shared/api';
 import {
   createLocalizer,
   LocalizerProvider,
 } from '@/shared/i18n';
+import {
+  ChunkLoadError,
+  createCachedModuleLoader,
+  getChunkRecovery,
+} from '@/shared/lib/module-loader';
 import { observeLongTasks } from '@/shared/lib/performance';
-import { createHashLocation } from '@/shared/routing';
+import {
+  createHashLocation,
+  parseAddressPath,
+  RoutingProvider,
+} from '@/shared/routing';
 import {
   bindThemeToDocument,
   createThemePreferenceStore,
   getDeviceStorage,
 } from '@/shared/theme';
 
-import { App } from '../App';
+import { BOOT_SKELETON_TIMING } from '../shell/bootSkeletonTiming';
+import { ShellSkeleton } from '../shell/ShellSkeleton';
 import { StartErrorScreen } from '../shell/StartErrorScreen';
+import '../styles/index.css';
 import { readColorSchemeQuery } from './readColorSchemeQuery';
 import { readDeviceTimeZone } from './readDeviceTimeZone';
-import { removeSearchParam } from './removeSearchParam';
 
-const PERSONA_PARAM = 'as';
+type MountAppFunction = typeof import('./mountApp').mountApp;
+
+type StartPartsOutcomeValue
+  = | { error: unknown; kind: 'failed' }
+    | { kind: 'loaded'; parts: StartPartsValue };
+
+interface StartPartsValue {
+  appLocalizer: ILocalizer;
+  mountApp: MountAppFunction;
+}
+
+const getStartRecovery = (error: unknown): ChunkRecoveryValue => {
+  return error instanceof ChunkLoadError ? getChunkRecovery(error) : 'retry';
+};
 
 const createProfileLocalizer = (userTimeZone: string): Promise<ILocalizer> => createLocalizer({
   bundledLocales,
@@ -59,15 +73,6 @@ const createStartErrorLocalizer = (userTimeZone: string): Promise<ILocalizer> =>
   });
 };
 
-const runReleaseStep = (step: string, release: (() => void) | undefined): void => {
-  try {
-    release?.();
-  }
-  catch (error) {
-    console.error('> startApp -> release:', { error, step, tenantId: defaultTenant.tenantId });
-  }
-};
-
 export const startApp = async (rootElement: HTMLElement): Promise<void> => {
   const themeStore = createThemePreferenceStore({
     colorSchemeQuery: readColorSchemeQuery(window),
@@ -80,43 +85,63 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
   const root = createRoot(rootElement);
   const userTimeZone = readDeviceTimeZone();
   const locationSource = createHashLocation(window);
-  const tabStorage = getTabStorage(window);
+  const loadMountApp = createCachedModuleLoader(() => import('./mountApp'));
 
   let localizer: ILocalizer | undefined;
-  let runtime: ApiRuntimeValue | undefined;
-  let stopSync: (() => void) | undefined;
-  let stopReturnToDefaultPersona: (() => void) | undefined;
-  let stopPersist: (() => void) | undefined;
+  let startErrorLocalizer: ILocalizer | undefined;
+  let releaseApp: (() => void) | undefined;
 
-  const releaseRuntime = (): void => {
-    const releasedStopSync = stopSync;
-    const releasedStopReturnToDefaultPersona = stopReturnToDefaultPersona;
-    const releasedStopPersist = stopPersist;
-    const releasedRuntime = runtime;
+  const getStartErrorLocalizer = async (): Promise<ILocalizer> => {
+    startErrorLocalizer ??= await createStartErrorLocalizer(userTimeZone);
 
-    stopSync = undefined;
-    stopReturnToDefaultPersona = undefined;
-    stopPersist = undefined;
-    runtime = undefined;
-    runReleaseStep('stopSync', releasedStopSync);
-    runReleaseStep('stopReturnToDefaultPersona', releasedStopReturnToDefaultPersona);
-    runReleaseStep('stopPersist', releasedStopPersist);
-    runReleaseStep('close', releasedRuntime === undefined
-      ? undefined
-      : () => {
-          releasedRuntime.close();
-        });
+    return startErrorLocalizer;
   };
 
-  const renderStartError = async (onRetry: () => Promise<void>): Promise<void> => {
+  const loadStartParts = async (): Promise<StartPartsValue> => {
+    const [appLocalizer, { mountApp }] = await Promise.all([
+      localizer ?? createProfileLocalizer(userTimeZone),
+      loadMountApp(),
+    ]);
+    localizer = appLocalizer;
+
+    return { appLocalizer, mountApp };
+  };
+
+  const beginLoadingStartParts = (): Promise<StartPartsOutcomeValue> => {
+    return loadStartParts().then(
+      (parts): StartPartsOutcomeValue => ({ kind: 'loaded', parts }),
+      (error: unknown): StartPartsOutcomeValue => ({ error, kind: 'failed' }),
+    );
+  };
+
+  const renderSkeleton = async (): Promise<void> => {
     try {
-      const startErrorLocalizer = localizer ?? await createStartErrorLocalizer(userTimeZone);
+      const skeletonLocalizer = await getStartErrorLocalizer();
 
       root.render(
         <StrictMode>
-          <LocalizerProvider localizer={startErrorLocalizer}>
-            <StartErrorScreen onRetry={onRetry} />
+          <LocalizerProvider localizer={skeletonLocalizer}>
+            <ShellSkeleton address={parseAddressPath(locationSource.read().path)} timing={BOOT_SKELETON_TIMING} />
           </LocalizerProvider>
+        </StrictMode>,
+      );
+    }
+    catch (error) {
+      console.error('> startApp -> renderSkeleton:', { error, tenantId: defaultTenant.tenantId });
+    }
+  };
+
+  const renderStartError = async (onRetry: () => Promise<void>, recovery: ChunkRecoveryValue): Promise<void> => {
+    try {
+      const errorLocalizer = localizer ?? await getStartErrorLocalizer();
+
+      root.render(
+        <StrictMode>
+          <RoutingProvider location={locationSource}>
+            <LocalizerProvider localizer={errorLocalizer}>
+              <StartErrorScreen onRetry={onRetry} recovery={recovery} />
+            </LocalizerProvider>
+          </RoutingProvider>
         </StrictMode>,
       );
     }
@@ -125,55 +150,27 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
     }
   };
 
-  const tryStart = async (): Promise<void> => {
-    releaseRuntime();
+  const tryStart = async (loadingParts: Promise<StartPartsOutcomeValue> = beginLoadingStartParts()): Promise<void> => {
+    releaseApp?.();
+    releaseApp = undefined;
 
     try {
-      const appLocalizer = localizer ?? await createProfileLocalizer(userTimeZone);
-      localizer = appLocalizer;
+      const outcome = await loadingParts;
 
-      const addressSnapshot = locationSource.read();
-      const nextRuntime = await createApiRuntime({
-        defaultOrganizationId: defaultTenant.tenantId,
-        preferredContext: readPersistedActingContext(tabStorage),
-        preferredPersonaId: addressSnapshot.searchParams.get(PERSONA_PARAM) ?? undefined,
-      });
-      runtime = nextRuntime;
-      stopPersist = persistActingContext(nextRuntime.actingContext, tabStorage);
-
-      if (nextRuntime.demoControl !== undefined && addressSnapshot.searchParams.has(PERSONA_PARAM)) {
-        locationSource.navigate(removeSearchParam(addressSnapshot, PERSONA_PARAM), { isReplace: true });
+      if (outcome.kind === 'failed') {
+        throw outcome.error;
       }
 
-      const queryClient = createQueryClient({ networkMode: nextRuntime.networkMode });
-      stopSync = syncQueriesWithRealtime({
-        demoControl: nextRuntime.demoControl,
-        queryClient,
-        realtime: nextRuntime.realtime,
+      releaseApp = await outcome.parts.mountApp({
+        localizer: outcome.parts.appLocalizer,
+        locationSource,
+        root,
+        themeStore,
       });
-      stopReturnToDefaultPersona = returnToDefaultPersonaOnDemoReset({
-        actingContext: nextRuntime.actingContext,
-        defaultOrganizationId: defaultTenant.tenantId,
-        demoControl: nextRuntime.demoControl,
-        queryClient,
-      });
-
-      root.render(
-        <StrictMode>
-          <App
-            localizer={appLocalizer}
-            location={locationSource}
-            queryClient={queryClient}
-            runtime={nextRuntime}
-            themeStore={themeStore}
-          />
-        </StrictMode>,
-      );
     }
     catch (error) {
       console.error('> startApp -> tryStart:', { error, tenantId: defaultTenant.tenantId });
-      releaseRuntime();
-      await renderStartError(tryStart);
+      await renderStartError(() => tryStart(), getStartRecovery(error));
     }
   };
 
@@ -181,5 +178,8 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
     observeLongTasks();
   }
 
-  await tryStart();
+  const firstLoadingParts = beginLoadingStartParts();
+
+  await renderSkeleton();
+  await tryStart(firstLoadingParts);
 };

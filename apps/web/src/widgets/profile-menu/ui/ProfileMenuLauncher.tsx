@@ -3,17 +3,26 @@ import type {
   ReactElement,
 } from 'react';
 
+import { TriangleAlert } from 'lucide-react';
 import {
   useEffect,
   useRef,
   useState,
 } from 'react';
 
+import type { ChunkRecoveryValue } from '@/shared/lib/module-loader';
 import type { AppSectionValue } from '@/shared/routing';
 
 import { useI18n } from '@/shared/i18n';
-import { createCachedModuleLoader } from '@/shared/lib/module-loader';
-import { useFocusHandoff } from '@/shared/ui';
+import {
+  createCachedModuleLoader,
+  getChunkRecovery,
+} from '@/shared/lib/module-loader';
+import { useReloadPage } from '@/shared/routing';
+import {
+  Button,
+  useFocusHandoff,
+} from '@/shared/ui';
 
 import type { ProfileMenuProps } from './menu/ProfileMenu';
 import type { ProfileResetConfirmLayerProps } from './menu/ProfileResetConfirmLayer';
@@ -29,7 +38,7 @@ export interface ProfileMenuLauncherProps {
 
 type ProfileMenuComponent = ComponentType<ProfileMenuProps>;
 type ProfileMenuLaunchStateValue
-  = | { kind: 'error' }
+  = | { kind: 'error'; recovery: ChunkRecoveryValue }
     | { kind: 'idle' }
     | { kind: 'loading' }
     | { kind: 'ready'; ProfileMenu: ProfileMenuComponent; ProfileResetConfirmLayer: ProfileResetConfirmLayerComponent };
@@ -43,12 +52,15 @@ const loadCachedProfileMenu = createCachedModuleLoader(loadProfileMenu);
 const LAUNCHER_CLASS_NAME = 'relative flex';
 
 const LOAD_ERROR_CLASS_NAME = [
-  'absolute top-full right-0 z-20 mt-2 w-72 max-w-[calc(100vw-2rem)]',
-  'rounded-control border border-line bg-panel-solid p-3 text-sm text-on-panel shadow-panel',
+  'absolute top-full right-0 z-20 mt-2 flex w-72 max-w-[calc(100vw-2rem)] flex-col items-start gap-3',
+  'rounded-panel border border-line bg-panel-solid p-4 text-on-panel shadow-raised',
 ].join(' ');
+
+const LOAD_ERROR_BADGE_CLASS_NAME = 'flex size-6 shrink-0 items-center justify-center rounded-full bg-status-alarm text-on-status-alarm';
 
 export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLauncherProps): ReactElement => {
   const { t } = useI18n();
+  const reloadPage = useReloadPage();
   const { cancelFocus, requestFocus } = useFocusHandoff<HTMLButtonElement>(PROFILE_MENU_FOCUS_KEY);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [launchState, setLaunchState] = useState<ProfileMenuLaunchStateValue>(IDLE_STATE);
@@ -59,6 +71,7 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
 
   const isLoading = launchState.kind === 'loading';
   const isLoadFailed = launchState.kind === 'error';
+  const isReloadNeeded = launchState.kind === 'error' && launchState.recovery === 'reload';
 
   const handleWarmUp = (): void => {
     if (launchState.kind === 'ready') {
@@ -87,13 +100,18 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
       (error: unknown) => {
         settlement.isSettled = true;
         console.log('> ProfileMenuLauncher -> handleButtonClick:', { error });
-        setLaunchState({ kind: 'error' });
+        setLaunchState({ kind: 'error', recovery: getChunkRecovery(error) });
       },
     );
 
     if (!settlement.isSettled) {
       setLaunchState({ kind: 'loading' });
     }
+  };
+
+  const handleReloadClick = (): void => {
+    console.log('> ProfileMenuLauncher -> handleReloadClick:', {});
+    reloadPage();
   };
 
   const handleOpenChange = (nextIsOpen: boolean): void => {
@@ -165,7 +183,19 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
         onPointerEnter={handleWarmUp}
       />
       {isLoadFailed && (
-        <p className={LOAD_ERROR_CLASS_NAME} role="alert">{t('routing.chunkError.message')}</p>
+        <div className={LOAD_ERROR_CLASS_NAME}>
+          <div className="flex items-start gap-2">
+            <span aria-hidden className={LOAD_ERROR_BADGE_CLASS_NAME}>
+              <TriangleAlert className="size-4" />
+            </span>
+            <p className="text-base leading-6" role="alert">
+              {isReloadNeeded ? t('profile.menu.loadError.repeated') : t('profile.menu.loadError.message')}
+            </p>
+          </div>
+          {isReloadNeeded
+            ? <Button onClick={handleReloadClick} variant="secondary">{t('routing.chunkError.reload')}</Button>
+            : <Button onClick={handleButtonClick} variant="secondary">{t('common.retry')}</Button>}
+        </div>
       )}
     </div>
   );

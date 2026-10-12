@@ -3,15 +3,13 @@ import type {
   LazyExoticComponent,
 } from 'react';
 
-import { lazy } from 'react';
-
 import type { CachedModuleLoader } from '@/shared/lib/module-loader';
 import type {
   AppSectionValue,
   ObjectRefValue,
 } from '@/shared/routing';
 
-import { toLazyModuleLoader } from '@/shared/lib/module-loader';
+import { createLazyComponent } from '@/shared/lib/module-loader';
 
 export type CachedSectionLoader = CachedModuleLoader<SectionModuleValue>;
 
@@ -39,8 +37,8 @@ export const DEFAULT_SECTION_LOADERS: SectionLoadersValue = {
 };
 
 export const createSectionPages = (loaders: CachedSectionLoadersValue): SectionPagesValue => ({
-  catalog: lazy(toLazyModuleLoader(loaders.catalog)),
-  deals: lazy(toLazyModuleLoader(loaders.deals)),
-  network: lazy(toLazyModuleLoader(loaders.network)),
-  warehouse: lazy(toLazyModuleLoader(loaders.warehouse)),
+  catalog: createLazyComponent(loaders.catalog),
+  deals: createLazyComponent(loaders.deals),
+  network: createLazyComponent(loaders.network),
+  warehouse: createLazyComponent(loaders.warehouse),
 });

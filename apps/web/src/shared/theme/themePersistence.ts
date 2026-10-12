@@ -1,8 +1,12 @@
 import type { ThemePreferenceValue } from './themeTypes';
 
-export const THEME_STORAGE_KEY = 'theme-preference';
+import { THEME_STORAGE_KEY } from './themeConstants';
 
-export const DEFAULT_THEME_PREFERENCE: ThemePreferenceValue = 'light';
+export {
+  DARK_COLOR_SCHEME_QUERY,
+  DEFAULT_THEME_PREFERENCE,
+  THEME_STORAGE_KEY,
+} from './themeConstants';
 
 export const parseThemePreference = (value: unknown): ThemePreferenceValue | undefined => {
   return value === 'dark' || value === 'light' || value === 'system' ? value : undefined;

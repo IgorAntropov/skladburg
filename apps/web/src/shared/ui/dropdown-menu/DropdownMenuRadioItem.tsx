@@ -19,6 +19,7 @@ interface DropdownMenuRadioItemProps {
   disabled?: boolean | undefined;
   indicatorPlacement?: 'none' | 'start' | undefined;
   label?: string | undefined;
+  testId?: string | undefined;
   value: string;
 }
 
@@ -27,12 +28,19 @@ export const DropdownMenuRadioItem = ({
   disabled,
   indicatorPlacement = 'start',
   label,
+  testId,
   value,
 }: DropdownMenuRadioItemProps): ReactElement => {
   const isIndicatorShown = indicatorPlacement !== 'none';
 
   return (
-    <RadioItem aria-label={label} className={DROPDOWN_MENU_ITEM_CLASS_NAME} disabled={disabled} value={value}>
+    <RadioItem
+      aria-label={label}
+      className={DROPDOWN_MENU_ITEM_CLASS_NAME}
+      data-testid={testId}
+      disabled={disabled}
+      value={value}
+    >
       {isIndicatorShown && (
         <span className={DROPDOWN_MENU_INDICATOR_SLOT_CLASS_NAME}>
           <ItemIndicator>

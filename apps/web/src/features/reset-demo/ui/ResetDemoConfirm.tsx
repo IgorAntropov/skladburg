@@ -83,6 +83,7 @@ export const ResetDemoConfirm = ({ isStacked = false, onClose }: ResetDemoConfir
         aria-describedby={hintId}
         aria-labelledby={promptId}
         className={cn(GROUP_CLASS_NAME, isStacked ? 'flex-col items-start' : 'flex-wrap items-center')}
+        data-testid="reset-confirm"
         onKeyDown={handleGroupKeyDown}
         role="group"
       >
@@ -101,6 +102,7 @@ export const ResetDemoConfirm = ({ isStacked = false, onClose }: ResetDemoConfir
           </Button>
           <Button
             className="min-w-28"
+            data-testid="reset-confirm-accept"
             onClick={handleAcceptClick}
             pending={isPending}
             pendingLabel={t('demo.reset.pending')}

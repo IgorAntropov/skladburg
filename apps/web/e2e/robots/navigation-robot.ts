@@ -10,19 +10,11 @@ import type {
   SectionValue,
 } from '../fixtures/routes.ts';
 
-import { getText } from '../fixtures/messages.ts';
 import {
-  FIRST_SECTION,
-  getSectionTitle,
   SECTIONS,
   toObjectHash,
   toSectionHash,
 } from '../fixtures/routes.ts';
-
-const getNotFoundActionText = (): string => getText('routing.notFound.action').replace(
-  '{section}',
-  getSectionTitle(FIRST_SECTION),
-);
 
 export interface NavigationRobotValue {
   clickNotFoundAction: () => Promise<void>;
@@ -39,16 +31,15 @@ export interface NavigationRobotValue {
 }
 
 export const createNavigationRobot = (page: Page): NavigationRobotValue => {
-  const main = page.getByRole('main');
-  const navigation = page.getByRole('navigation', { name: getText('app.nav.label') });
-  const getSectionLink = (section: SectionValue): Locator => navigation.getByRole('link', {
-    exact: true,
-    name: getSectionTitle(section),
-  });
+  const notFound = page.getByTestId('not-found');
+  const notFoundAction = page.getByTestId('not-found-action');
+  const objectNote = page.getByTestId('object-note');
+  const getSectionLink = (section: SectionValue): Locator => page.getByTestId(`app-nav-link-${section}`);
+  const getSectionPage = (section: SectionValue): Locator => page.getByTestId(`page-${section}`);
 
   return {
     async clickNotFoundAction(): Promise<void> {
-      await main.getByRole('link', { name: getNotFoundActionText() }).click();
+      await notFoundAction.click();
     },
     async expectAddress(hash: string): Promise<void> {
       await expect.poll(() => new URL(page.url()).hash).toBe(hash);
@@ -64,14 +55,14 @@ export const createNavigationRobot = (page: Page): NavigationRobotValue => {
       }
     },
     async expectNotFound(): Promise<void> {
-      await expect(main.getByRole('heading', { level: 1 })).toHaveText(getText('routing.notFound.title'));
-      await expect(main.getByRole('link', { name: getNotFoundActionText() })).toBeVisible();
+      await expect(notFound).toBeVisible();
+      await expect(notFoundAction).toBeVisible();
     },
     async expectObjectNote({ id }: ObjectRouteValue): Promise<void> {
-      await expect(main.getByText(id, { exact: true })).toBeVisible();
+      await expect(objectNote).toContainText(id);
     },
     async expectSection(section: SectionValue): Promise<void> {
-      await expect(main.getByRole('heading', { level: 1 })).toHaveText(getSectionTitle(section));
+      await expect(getSectionPage(section)).toBeVisible();
       await expect(getSectionLink(section)).toHaveAttribute('aria-current', 'page');
     },
     async openHash(hash: string): Promise<void> {

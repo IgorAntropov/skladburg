@@ -10,11 +10,11 @@ export interface HudRobotValue {
 }
 
 export const createHudRobot = (page: Page): HudRobotValue => {
-  const main = page.getByRole('main');
+  const networkPage = page.getByTestId('page-network');
 
   return {
     async expectNoViolationsOfAccessibility(): Promise<void> {
-      await expect(main).toBeVisible();
+      await expect(networkPage).toBeVisible();
 
       const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
 

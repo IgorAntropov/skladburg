@@ -36,7 +36,6 @@ const ResetConfirmPresence = ({ onClose }: Pick<ProfileResetConfirmLayerProps, '
       animate={RESET_CONFIRM_SHOWN_STATE}
       aria-hidden={isPresent ? undefined : true}
       className={LAYER_CLASS_NAME}
-      data-testid="profile-reset-confirm-layer"
       exit={RESET_CONFIRM_HIDDEN_STATE}
       inert={!isPresent}
       initial={isEntranceSkipped ? false : RESET_CONFIRM_HIDDEN_STATE}

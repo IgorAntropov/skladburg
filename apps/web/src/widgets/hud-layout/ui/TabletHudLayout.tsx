@@ -82,7 +82,7 @@ export const TabletHudLayout = ({
   const bottomTabs: readonly TabsItemValue[] = isBottomTabbed
     ? [
         {
-          content: <div className={TRACKER_TAB_CLASS_NAME} data-testid="hud-zone-tracker">{tracker}</div>,
+          content: <div className={TRACKER_TAB_CLASS_NAME}>{tracker}</div>,
           id: 'tracker',
           label: t('hud.tracker.label'),
         },
@@ -97,11 +97,11 @@ export const TabletHudLayout = ({
   return (
     <>
       {isKpiShown && (
-        <HudZone className={HUD_TABLET_KPI_ZONE_CLASS_NAME} label={t('hud.kpi.label')} testId="hud-zone-kpi">{kpi}</HudZone>
+        <HudZone className={HUD_TABLET_KPI_ZONE_CLASS_NAME} label={t('hud.kpi.label')}>{kpi}</HudZone>
       )}
       <div className={HUD_TABLET_MAIN_CLASS_NAME}>
         {isPanelShown && (
-          <HudZone className={HUD_TABLET_PANEL_ZONE_CLASS_NAME} label={t('hud.panel.label')} testId="hud-zone-panel">{panel}</HudZone>
+          <HudZone className={HUD_TABLET_PANEL_ZONE_CLASS_NAME} label={t('hud.panel.label')}>{panel}</HudZone>
         )}
       </div>
       {isBottomTabbed && (
@@ -109,7 +109,7 @@ export const TabletHudLayout = ({
           className={HUD_TABLET_BOTTOM_ZONE_CLASS_NAME}
           label={t('hud.bottom.label')}
           padding="flush-edge"
-          testId="hud-zone-lists"
+
         >
           <div className={BOTTOM_TABS_CLASS_NAME} data-testid="hud-bottom-tabs">
             <Tabs items={bottomTabs} label={t('hud.bottom.label')} />
@@ -121,7 +121,7 @@ export const TabletHudLayout = ({
           className={HUD_TABLET_BOTTOM_ZONE_CLASS_NAME}
           label={t('hud.tracker.label')}
           padding="edge"
-          testId="hud-zone-tracker"
+
         >
           {tracker}
         </HudZone>
@@ -131,7 +131,7 @@ export const TabletHudLayout = ({
           className={HUD_TABLET_BOTTOM_ZONE_CLASS_NAME}
           label={t('hud.lists.label')}
           padding="edge"
-          testId="hud-zone-lists"
+
         >
           <ListsZoneContent header={listsHeader} tabs={listTabs} />
         </HudZone>

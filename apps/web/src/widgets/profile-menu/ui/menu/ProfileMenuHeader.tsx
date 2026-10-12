@@ -40,7 +40,7 @@ export const ProfileMenuHeader = (): ReactElement => {
 
   if (summaryState.kind === 'error') {
     return (
-      <div className={HEADER_CLASS_NAME} data-testid="profile-menu-header-error">
+      <div className={HEADER_CLASS_NAME}>
         <Avatar name="" seed="" size="lg" />
         <p className="min-w-0 flex-1 text-base leading-6 font-medium">{t('profile.header.error')}</p>
       </div>
@@ -53,17 +53,17 @@ export const ProfileMenuHeader = (): ReactElement => {
   const secondLine = hasRole ? t('profile.role', { organization: organizationName, role: roleName }) : organizationName;
 
   return (
-    <div className={HEADER_CLASS_NAME} data-testid="profile-menu-header">
+    <div className={HEADER_CLASS_NAME}>
       <Avatar name={userDisplayName} seed={userId} size="lg" />
       <div className={HEADER_TEXT_CLASS_NAME}>
-        <p className={NAME_CLASS_NAME} data-testid="profile-menu-name">{userDisplayName}</p>
+        <p className={NAME_CLASS_NAME}>{userDisplayName}</p>
         {isPersonaPending
           ? (
               <div className="flex h-5 items-center">
                 <Skeleton className="h-3.5 w-48" />
               </div>
             )
-          : <p className="max-w-full text-sm leading-5 break-words text-on-panel-muted" data-testid="profile-menu-role">{secondLine}</p>}
+          : <p className="max-w-full text-sm leading-5 break-words text-on-panel-muted">{secondLine}</p>}
         <SideBadges sides={sides} />
       </div>
     </div>

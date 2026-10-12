@@ -41,7 +41,12 @@ export const SectionNav = ({ currentSection, sections }: SectionNavProps): React
 
           return (
             <li className="flex" key={section}>
-              <AddressLink aria-current={ariaCurrent} className={NAV_LINK_CLASS_NAME} to={{ kind: 'section', section }}>
+              <AddressLink
+                aria-current={ariaCurrent}
+                className={NAV_LINK_CLASS_NAME}
+                data-testid={`app-nav-link-${section}`}
+                to={{ kind: 'section', section }}
+              >
                 <span className={NAV_LABEL_CLASS_NAME} data-label={title}>{title}</span>
               </AddressLink>
             </li>

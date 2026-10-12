@@ -58,7 +58,6 @@ interface SkeletonZoneProps {
   children: ReactNode;
   className?: string | undefined;
   padding?: HudZonePaddingValue | undefined;
-  testId: string;
 }
 
 interface SkeletonZonesProps {
@@ -95,13 +94,9 @@ const SkeletonZone = ({
   children,
   className,
   padding = 'zone',
-  testId,
 }: SkeletonZoneProps): ReactElement => {
   return (
-    <Panel
-      className={cn(HUD_ZONE_CLASS_NAME, HUD_ZONE_PADDING_CLASS_NAMES[padding], ZONE_CLASS_NAME, className)}
-      data-testid={testId}
-    >
+    <Panel className={cn(HUD_ZONE_CLASS_NAME, HUD_ZONE_PADDING_CLASS_NAMES[padding], ZONE_CLASS_NAME, className)}>
       {children}
     </Panel>
   );
@@ -201,12 +196,12 @@ const DesktopSkeletonZones = ({ zones }: SkeletonZonesProps): ReactElement => {
       {isLeftColumnShown && (
         <div className={HUD_DESKTOP_SIDE_COLUMN_CLASS_NAME}>
           {zones.hasKpi && (
-            <SkeletonZone className={HUD_DESKTOP_KPI_ZONE_CLASS_NAME} testId="hud-skeleton-kpi">
+            <SkeletonZone className={HUD_DESKTOP_KPI_ZONE_CLASS_NAME}>
               <KpiSkeleton />
             </SkeletonZone>
           )}
           {zones.hasTracker && (
-            <SkeletonZone className={HUD_DESKTOP_TRACKER_ZONE_CLASS_NAME} testId="hud-skeleton-tracker">
+            <SkeletonZone className={HUD_DESKTOP_TRACKER_ZONE_CLASS_NAME}>
               <TrackerSkeleton />
             </SkeletonZone>
           )}
@@ -214,7 +209,7 @@ const DesktopSkeletonZones = ({ zones }: SkeletonZonesProps): ReactElement => {
       )}
       {zones.hasPanel && (
         <div className={HUD_DESKTOP_CENTER_COLUMN_CLASS_NAME}>
-          <SkeletonZone className={HUD_DESKTOP_PANEL_ZONE_CLASS_NAME} testId="hud-skeleton-panel">
+          <SkeletonZone className={HUD_DESKTOP_PANEL_ZONE_CLASS_NAME}>
             <PanelSkeleton />
           </SkeletonZone>
         </div>
@@ -222,12 +217,12 @@ const DesktopSkeletonZones = ({ zones }: SkeletonZonesProps): ReactElement => {
       {isRightColumnShown && (
         <div className={cn(HUD_DESKTOP_SIDE_COLUMN_CLASS_NAME, 'ml-auto')}>
           {zones.hasInspector && (
-            <SkeletonZone className={HUD_DESKTOP_INSPECTOR_ZONE_CLASS_NAME} testId="hud-skeleton-inspector">
+            <SkeletonZone className={HUD_DESKTOP_INSPECTOR_ZONE_CLASS_NAME}>
               <InspectorSkeleton />
             </SkeletonZone>
           )}
           {zones.lists !== undefined && (
-            <SkeletonZone className={HUD_DESKTOP_LISTS_ZONE_CLASS_NAME} testId="hud-skeleton-lists">
+            <SkeletonZone className={HUD_DESKTOP_LISTS_ZONE_CLASS_NAME}>
               <ListsSkeleton hasHeader={zones.lists.hasHeader} tabIds={TAB_IDS} />
             </SkeletonZone>
           )}
@@ -242,7 +237,7 @@ const TabletBottomSkeleton = ({ zones }: SkeletonZonesProps): null | ReactElemen
 
   if (zones.hasTracker && lists !== undefined) {
     return (
-      <SkeletonZone className={HUD_TABLET_BOTTOM_ZONE_CLASS_NAME} padding="flush-edge" testId="hud-skeleton-lists">
+      <SkeletonZone className={HUD_TABLET_BOTTOM_ZONE_CLASS_NAME} padding="flush-edge">
         <ListsSkeleton hasHeader={lists.hasHeader} isHeaderInPanel panelClassName="min-h-32" tabIds={BOTTOM_TAB_IDS} />
       </SkeletonZone>
     );
@@ -250,7 +245,7 @@ const TabletBottomSkeleton = ({ zones }: SkeletonZonesProps): null | ReactElemen
 
   if (zones.hasTracker) {
     return (
-      <SkeletonZone className={HUD_TABLET_BOTTOM_ZONE_CLASS_NAME} padding="edge" testId="hud-skeleton-tracker">
+      <SkeletonZone className={HUD_TABLET_BOTTOM_ZONE_CLASS_NAME} padding="edge">
         <TrackerSkeleton />
       </SkeletonZone>
     );
@@ -258,7 +253,7 @@ const TabletBottomSkeleton = ({ zones }: SkeletonZonesProps): null | ReactElemen
 
   if (lists !== undefined) {
     return (
-      <SkeletonZone className={HUD_TABLET_BOTTOM_ZONE_CLASS_NAME} padding="edge" testId="hud-skeleton-lists">
+      <SkeletonZone className={HUD_TABLET_BOTTOM_ZONE_CLASS_NAME} padding="edge">
         <ListsSkeleton hasHeader={lists.hasHeader} tabIds={TAB_IDS} />
       </SkeletonZone>
     );
@@ -271,13 +266,13 @@ const TabletSkeletonZones = ({ zones }: SkeletonZonesProps): ReactElement => {
   return (
     <>
       {zones.hasKpi && (
-        <SkeletonZone className={HUD_TABLET_KPI_ZONE_CLASS_NAME} testId="hud-skeleton-kpi">
+        <SkeletonZone className={HUD_TABLET_KPI_ZONE_CLASS_NAME}>
           <KpiSkeleton />
         </SkeletonZone>
       )}
       <div className={HUD_TABLET_MAIN_CLASS_NAME}>
         {zones.hasPanel && (
-          <SkeletonZone className={HUD_TABLET_PANEL_ZONE_CLASS_NAME} testId="hud-skeleton-panel">
+          <SkeletonZone className={HUD_TABLET_PANEL_ZONE_CLASS_NAME}>
             <PanelSkeleton />
           </SkeletonZone>
         )}
@@ -295,12 +290,12 @@ const PhoneSkeletonZones = ({ zones }: SkeletonZonesProps): ReactElement => {
   return (
     <>
       {lists !== undefined && (
-        <SkeletonZone className={HUD_PHONE_MAIN_CLASS_NAME} testId="hud-skeleton-lists">
+        <SkeletonZone className={HUD_PHONE_MAIN_CLASS_NAME}>
           <ListsSkeleton hasHeader={lists.hasHeader} tabIds={TAB_IDS} />
         </SkeletonZone>
       )}
       {isPanelMain && (
-        <SkeletonZone className={HUD_PHONE_MAIN_CLASS_NAME} testId="hud-skeleton-panel">
+        <SkeletonZone className={HUD_PHONE_MAIN_CLASS_NAME}>
           <PanelSkeleton />
         </SkeletonZone>
       )}

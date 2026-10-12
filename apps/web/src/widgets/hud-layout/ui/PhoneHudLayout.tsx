@@ -28,12 +28,12 @@ export const PhoneHudLayout = ({
   return (
     <>
       {isListsShown && (
-        <HudZone className={HUD_PHONE_MAIN_CLASS_NAME} label={t('hud.lists.label')} testId="hud-zone-lists">
+        <HudZone className={HUD_PHONE_MAIN_CLASS_NAME} label={t('hud.lists.label')}>
           <ListsZoneContent header={listsHeader} tabs={listTabs} />
         </HudZone>
       )}
       {isPanelMain && (
-        <HudZone className={HUD_PHONE_MAIN_CLASS_NAME} label={t('hud.panel.label')} testId="hud-zone-panel">{panel}</HudZone>
+        <HudZone className={HUD_PHONE_MAIN_CLASS_NAME} label={t('hud.panel.label')}>{panel}</HudZone>
       )}
       {isInspectorOpen && <InspectorSheet key={inspectorKey}>{inspector}</InspectorSheet>}
     </>

@@ -39,7 +39,6 @@ export const InspectorDrawer = ({ children, onClose }: InspectorDrawerProps): Re
     <section
       aria-label={t('hud.inspector.title')}
       className={DRAWER_CLASS_NAME}
-      data-testid="hud-zone-inspector"
       onKeyDown={handleKeyDown}
     >
       {children}

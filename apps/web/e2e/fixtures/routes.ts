@@ -1,5 +1,3 @@
-import { getText } from './messages.ts';
-
 export const SECTIONS = ['network', 'catalog', 'deals', 'warehouse'] as const;
 
 export interface ObjectRouteValue {
@@ -21,5 +19,3 @@ export const FIRST_SECTION: SectionValue = 'network';
 export const toSectionHash = (section: SectionValue): string => `#/${section}`;
 
 export const toObjectHash = ({ id, segment }: ObjectRouteValue): string => `#/${segment}/${id}`;
-
-export const getSectionTitle = (section: SectionValue): string => getText(`section.${section}.title`);

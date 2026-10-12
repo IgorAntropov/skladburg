@@ -34,7 +34,7 @@ export const WarehousePage = ({ focus }: WarehousePageProps): ReactElement => {
   ];
 
   return (
-    <>
+    <div className="contents" data-testid="page-warehouse">
       <h1 className="sr-only">{t('section.warehouse.title')}</h1>
       <HudLayout
         {...inspectorFocus}
@@ -43,6 +43,6 @@ export const WarehousePage = ({ focus }: WarehousePageProps): ReactElement => {
         listTabs={listTabs}
         scene={<ScenePlaceholder label={t('warehouse.placeholder')} />}
       />
-    </>
+    </div>
   );
 };

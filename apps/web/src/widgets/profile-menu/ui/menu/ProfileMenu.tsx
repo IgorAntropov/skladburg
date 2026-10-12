@@ -108,7 +108,7 @@ const ProfileMenuItems = ({
       </div>
       {isScrollPartShown && (
         <>
-          <div className={MENU_SCROLL_PART_CLASS_NAME} data-testid="profile-menu-scroll">
+          <div className={MENU_SCROLL_PART_CLASS_NAME}>
             {isSectionsShown && <ProfileSections currentSection={currentSection} sections={sections} />}
             {isSectionsSeparatorShown && <DropdownMenuSeparator />}
             {isDemoActive && <PersonaMenuGroups focusKey={PROFILE_MENU_FOCUS_KEY} />}
@@ -116,13 +116,13 @@ const ProfileMenuItems = ({
           <DropdownMenuSeparator />
         </>
       )}
-      <div className={MENU_FIXED_PART_CLASS_NAME} data-testid="profile-menu-footer">
+      <div className={MENU_FIXED_PART_CLASS_NAME}>
         <DropdownMenuLabel>{t('theme.label')}</DropdownMenuLabel>
         <ThemeMenuRadioGroup />
         {isDemoResetAvailable && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={handleResetSelect}>
+            <DropdownMenuItem onSelect={handleResetSelect} testId="profile-menu-reset">
               <RotateCcw aria-hidden className="size-4 shrink-0 text-on-panel-muted" />
               {t('demo.reset.menuItem')}
             </DropdownMenuItem>
@@ -155,7 +155,7 @@ export const ProfileMenu = ({
       <DropdownMenuTrigger>
         <ProfileButton busyReason={isResetPending ? 'resetting' : undefined} buttonRef={buttonRef} />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" label={t('profile.menu.label')} width="profile">
+      <DropdownMenuContent align="end" label={t('profile.menu.label')} testId="profile-menu" width="profile">
         <ProfileMenuItems {...itemsProps} />
       </DropdownMenuContent>
     </DropdownMenu>

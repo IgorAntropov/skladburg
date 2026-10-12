@@ -26,7 +26,7 @@ export const SideBadges = ({ sides }: SideBadgesProps): null | ReactElement => {
   }
 
   return (
-    <div className="mt-1.5 flex flex-wrap justify-start gap-2" data-testid="profile-menu-sides">
+    <div className="mt-1.5 flex flex-wrap justify-start gap-2">
       {knownSides.map((side) => {
         const { className, Icon, labelKey } = SIDE_BADGES[side];
 

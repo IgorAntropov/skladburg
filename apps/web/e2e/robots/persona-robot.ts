@@ -4,7 +4,6 @@ import { expect } from '@playwright/test';
 
 import type { PersonaValue } from '../fixtures/demoData.ts';
 
-import { getProfileButtonLabel } from '../fixtures/personaLabels.ts';
 import { createProfileMenuLocators } from './profile-menu-locators.ts';
 
 export interface PersonaRobotValue {
@@ -23,7 +22,13 @@ export const createPersonaRobot = (page: Page): PersonaRobotValue => {
   const expectCurrentPersona = async (persona: PersonaValue): Promise<void> => {
     await expect(trigger).toBeEnabled();
     await expect(trigger).not.toHaveAttribute('aria-busy', 'true');
-    await expect(trigger).toHaveAccessibleName(getProfileButtonLabel(persona));
+
+    await trigger.click();
+    await expect(menu).toBeVisible();
+    await expect(getPersonaItem(persona)).toHaveAttribute('aria-checked', 'true');
+
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
   };
 
   return {

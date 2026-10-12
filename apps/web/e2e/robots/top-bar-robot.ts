@@ -2,7 +2,6 @@ import type { Page } from '@playwright/test';
 
 import { expect } from '@playwright/test';
 
-import { getText } from '../fixtures/messages.ts';
 import { createProfileMenuLocators } from './profile-menu-locators.ts';
 
 export interface TopBarRobotValue {
@@ -19,8 +18,8 @@ export const createTopBarRobot = (page: Page): TopBarRobotValue => {
     menu,
     resetItem,
   } = createProfileMenuLocators(page);
-  const resetConfirm = page.getByRole('group', { name: getText('demo.reset.confirm.prompt') });
-  const acceptResetButton = resetConfirm.getByRole('button', { exact: true, name: getText('demo.reset.confirm.accept') });
+  const resetConfirm = page.getByTestId('reset-confirm');
+  const acceptResetButton = page.getByTestId('reset-confirm-accept');
 
   return {
     async expectDocumentTheme(theme: 'dark' | 'light'): Promise<void> {

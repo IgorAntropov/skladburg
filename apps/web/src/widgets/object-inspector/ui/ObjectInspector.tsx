@@ -68,7 +68,7 @@ export const ObjectInspector = ({ focus, onClose }: ObjectInspectorProps): React
             <p className={OBJECT_CLASS_NAME}>
               {t('hud.inspector.object', { type: t(`object.type.${focus.type}`) })}
               {' '}
-              <span className={IDENTIFIER_CLASS_NAME} translate="no">{focus.id}</span>
+              <span className={IDENTIFIER_CLASS_NAME} data-testid="object-note" translate="no">{focus.id}</span>
             </p>
           )}
     </div>

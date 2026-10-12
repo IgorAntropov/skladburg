@@ -65,7 +65,7 @@ export const WarehouseListContent = (): ReactElement => {
             const hasAddress = warehouse.address !== '';
 
             return (
-              <li key={warehouse.id}>
+              <li data-testid="warehouse-list-item" key={warehouse.id}>
                 <Card className={WAREHOUSE_CARD_CLASS_NAME}>
                   <p className={WAREHOUSE_NAME_CLASS_NAME} translate="no">
                     {warehouse.name}

@@ -45,6 +45,7 @@ export const ProfileButton = ({ busyReason, buttonRef, className, ref, ...rest }
     <IconButton
       aria-haspopup="menu"
       className={cn('rounded-full', className)}
+      data-testid="profile-button"
       icon={<ProfileButtonIcon state={summaryState} />}
       label={label}
       pending={busyReason !== undefined}

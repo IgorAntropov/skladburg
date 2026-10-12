@@ -48,7 +48,7 @@ export const OrganizationCard = (): ReactElement => {
       {loadedOrganization => (
         <section aria-label={t('warehouse.organization.title')}>
           <Card>
-            <h2 className={ORGANIZATION_NAME_CLASS_NAME} translate="no">
+            <h2 className={ORGANIZATION_NAME_CLASS_NAME} data-testid="warehouse-organization-name" translate="no">
               {loadedOrganization.name}
             </h2>
             <p className={ORGANIZATION_LEGAL_NAME_CLASS_NAME} translate="no">

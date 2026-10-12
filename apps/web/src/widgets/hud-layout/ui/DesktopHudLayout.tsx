@@ -43,7 +43,7 @@ export const DesktopHudLayout = ({
       {isLeftColumnShown && (
         <div className={HUD_DESKTOP_SIDE_COLUMN_CLASS_NAME}>
           {isKpiShown && (
-            <HudZone className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_KPI_ZONE_CLASS_NAME)} label={t('hud.kpi.label')} testId="hud-zone-kpi">
+            <HudZone className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_KPI_ZONE_CLASS_NAME)} label={t('hud.kpi.label')}>
               {kpi}
             </HudZone>
           )}
@@ -51,7 +51,7 @@ export const DesktopHudLayout = ({
             <HudZone
               className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_TRACKER_ZONE_CLASS_NAME)}
               label={t('hud.tracker.label')}
-              testId="hud-zone-tracker"
+
             >
               {tracker}
             </HudZone>
@@ -63,7 +63,7 @@ export const DesktopHudLayout = ({
           <HudZone
             className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_PANEL_ZONE_CLASS_NAME)}
             label={t('hud.panel.label')}
-            testId="hud-zone-panel"
+
           >
             {panel}
           </HudZone>
@@ -73,7 +73,7 @@ export const DesktopHudLayout = ({
         <HudZone
           className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_INSPECTOR_ZONE_CLASS_NAME)}
           label={t('hud.inspector.title')}
-          testId="hud-zone-inspector"
+
         >
           {inspector}
         </HudZone>
@@ -81,7 +81,7 @@ export const DesktopHudLayout = ({
           <HudZone
             className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_LISTS_ZONE_CLASS_NAME)}
             label={t('hud.lists.label')}
-            testId="hud-zone-lists"
+
           >
             <ListsZoneContent header={listsHeader} tabs={listTabs} />
           </HudZone>

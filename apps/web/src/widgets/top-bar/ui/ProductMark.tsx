@@ -7,7 +7,6 @@ export const ProductMark = (): ReactElement => (
   <svg
     aria-hidden
     className="size-6 shrink-0 text-indicator"
-    data-testid="product-mark"
     fill="none"
     focusable="false"
     stroke="currentColor"

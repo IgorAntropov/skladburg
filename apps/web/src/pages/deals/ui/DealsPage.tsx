@@ -20,11 +20,13 @@ export const DealsPage = ({ focus }: DealsPageProps): ReactElement => {
   const inspectorFocus = useInspectorFocus('deals', focus);
 
   return (
-    <HudLayout
-      {...inspectorFocus}
-      inspector={<ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
-      panel={<PanelPlaceholder description={t('section.deals.placeholder')} title={t('section.deals.title')} />}
-      scene={<ScenePlaceholder label={t('hud.scene.placeholder')} />}
-    />
+    <div className="contents" data-testid="page-deals">
+      <HudLayout
+        {...inspectorFocus}
+        inspector={<ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
+        panel={<PanelPlaceholder description={t('section.deals.placeholder')} title={t('section.deals.title')} />}
+        scene={<ScenePlaceholder label={t('hud.scene.placeholder')} />}
+      />
+    </div>
   );
 };

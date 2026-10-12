@@ -20,11 +20,13 @@ export const CatalogPage = ({ focus }: CatalogPageProps): ReactElement => {
   const inspectorFocus = useInspectorFocus('catalog', focus);
 
   return (
-    <HudLayout
-      {...inspectorFocus}
-      inspector={<ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
-      panel={<PanelPlaceholder description={t('section.catalog.placeholder')} title={t('section.catalog.title')} />}
-      scene={<ScenePlaceholder label={t('hud.scene.placeholder')} />}
-    />
+    <div className="contents" data-testid="page-catalog">
+      <HudLayout
+        {...inspectorFocus}
+        inspector={<ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
+        panel={<PanelPlaceholder description={t('section.catalog.placeholder')} title={t('section.catalog.title')} />}
+        scene={<ScenePlaceholder label={t('hud.scene.placeholder')} />}
+      />
+    </div>
   );
 };

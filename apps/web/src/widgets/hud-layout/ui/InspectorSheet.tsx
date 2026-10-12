@@ -66,7 +66,6 @@ export const InspectorSheet = ({ children }: InspectorSheetProps): ReactElement 
     <section
       aria-label={t('hud.inspector.title')}
       className={SHEET_CLASS_NAME}
-      data-testid="hud-inspector-sheet"
       onKeyDown={handleKeyDown}
     >
       <Button

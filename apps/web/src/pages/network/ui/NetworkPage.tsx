@@ -47,7 +47,7 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
   ];
 
   return (
-    <>
+    <div className="contents" data-testid="page-network">
       <h1 className="sr-only">{t('section.network.title')}</h1>
       <HudLayout
         {...inspectorFocus}
@@ -57,6 +57,6 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
         scene={<ScenePlaceholder label={t('section.network.placeholder')} />}
         tracker={<ZoneEmptyState icon={ListChecks} text={t('hud.tracker.empty')} />}
       />
-    </>
+    </div>
   );
 };

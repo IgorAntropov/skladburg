@@ -15,6 +15,7 @@ import {
   useIsDemoResetAvailable,
   useIsDemoResetPending,
 } from '@/features/reset-demo';
+import { GraphicsMenuRadioGroup } from '@/features/scene-settings';
 import { PersonaMenuGroups } from '@/features/switch-persona';
 import { ThemeMenuRadioGroup } from '@/features/switch-theme';
 import { useDemoControl } from '@/shared/api';
@@ -39,14 +40,14 @@ export { ProfileResetConfirmLayer } from './ProfileResetConfirmLayer';
 const MENU_ITEM_SELECTOR = '[role^="menuitem"]';
 
 const MENU_ROOT_CLASS_NAME = [
-  'flex max-h-[calc(var(--radix-dropdown-menu-content-available-height)-0.875rem)] flex-col',
+  'flex max-h-[calc(var(--radix-dropdown-menu-content-available-height)-0.875rem)] flex-col overflow-y-auto overscroll-contain',
   '[&_[role^=menuitem]:active:not([data-disabled])]:bg-on-panel/20!',
 ].join(' ');
 
 const MENU_FIXED_PART_CLASS_NAME = 'shrink-0';
 
 const MENU_SCROLL_PART_CLASS_NAME = [
-  'min-h-0 flex-auto overflow-y-auto overscroll-contain scroll-shadow-y',
+  'min-h-44 flex-auto overflow-y-auto overscroll-contain scroll-shadow-y',
   '[&_[role=menuitemradio]]:py-1',
 ].join(' ');
 
@@ -119,6 +120,9 @@ const ProfileMenuItems = ({
       <div className={MENU_FIXED_PART_CLASS_NAME}>
         <DropdownMenuLabel>{t('theme.label')}</DropdownMenuLabel>
         <ThemeMenuRadioGroup />
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>{t('graphics.label')}</DropdownMenuLabel>
+        <GraphicsMenuRadioGroup />
         {isDemoResetAvailable && (
           <>
             <DropdownMenuSeparator />

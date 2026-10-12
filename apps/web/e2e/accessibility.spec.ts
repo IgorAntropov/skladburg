@@ -1,6 +1,5 @@
-import { test } from '@playwright/test';
-
 import { DEFAULT_PERSONA } from './fixtures/demoData.ts';
+import { test } from './fixtures/test.ts';
 import { DESKTOP_VIEWPORT } from './fixtures/viewports.ts';
 import { createHudRobot } from './robots/hud-robot.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';

@@ -15,11 +15,14 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
+      },
     },
     {
       name: 'webkit',
-      testIgnore: /accessibility\.spec\.ts$/,
+      testIgnore: /(?:accessibility|scene-budget)\.spec\.ts$/,
       use: { ...devices['Desktop Safari'] },
     },
   ],

@@ -6,10 +6,10 @@ import { useI18n } from '@/shared/i18n';
 import {
   HudLayout,
   PanelPlaceholder,
-  ScenePlaceholder,
   useInspectorFocus,
 } from '@/widgets/hud-layout';
 import { ObjectInspector } from '@/widgets/object-inspector';
+import { ScenePlaceholder } from '@/widgets/scene-viewport';
 
 interface CatalogPageProps {
   focus: ObjectRefValue | undefined;

@@ -1,7 +1,4 @@
-import type {
-  ComponentType,
-  LazyExoticComponent,
-} from 'react';
+import type { ComponentType } from 'react';
 
 import type { CachedModuleLoader } from '@/shared/lib/module-loader';
 import type {
@@ -27,7 +24,7 @@ export interface SectionPageProps {
   focus: ObjectRefValue | undefined;
 }
 
-export type SectionPagesValue = Readonly<Record<AppSectionValue, LazyExoticComponent<ComponentType<SectionPageProps>>>>;
+export type SectionPagesValue = Readonly<Record<AppSectionValue, ComponentType<SectionPageProps>>>;
 
 export const DEFAULT_SECTION_LOADERS: SectionLoadersValue = {
   catalog: () => import('@/pages/catalog').then(module => ({ default: module.CatalogPage })),

@@ -1,5 +1,3 @@
-import { test } from '@playwright/test';
-
 import { PERSONAS } from './fixtures/demoData.ts';
 import {
   DEAL_ROUTE,
@@ -7,6 +5,7 @@ import {
   toObjectHash,
   toSectionHash,
 } from './fixtures/routes.ts';
+import { test } from './fixtures/test.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';
 import { createPersonaRobot } from './robots/persona-robot.ts';
 

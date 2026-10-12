@@ -9,6 +9,19 @@ import { themeBootScriptPlugin } from './build-theme/themeBootScriptPlugin.ts';
 
 const MAX_INITIAL_GZIP_KILOBYTES = 90;
 
+const MAX_SCENE_GZIP_KILOBYTES = 300;
+
+const FORBIDDEN_PACKAGES = ['stats-gl', 'stats.js'];
+
+const LAZY_ENTRY_BUDGETS = [
+  {
+    entries: ['src/widgets/scene-viewport/scene/SceneRoot.tsx', 'src/pages/network/scene/NetworkBoardScene.tsx'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_SCENE_GZIP_KILOBYTES,
+    name: 'scene',
+  },
+];
+
 const FORBIDDEN_INITIAL_PACKAGES = [
   '@bufbuild/protobuf',
   '@connectrpc/*',
@@ -42,6 +55,8 @@ export default defineConfig({
     tailwindcss(),
     bundleBudgetPlugin({
       forbiddenInitialPackages: FORBIDDEN_INITIAL_PACKAGES,
+      forbiddenPackages: FORBIDDEN_PACKAGES,
+      lazyEntryBudgets: LAZY_ENTRY_BUDGETS,
       maxInitialGzipKiloBytes: MAX_INITIAL_GZIP_KILOBYTES,
     }),
   ],

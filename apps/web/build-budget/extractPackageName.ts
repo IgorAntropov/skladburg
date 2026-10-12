@@ -8,8 +8,11 @@ const stripQuery = (moduleId: string): string => {
   return queryStart === -1 ? moduleId : moduleId.slice(0, queryStart);
 };
 
+export const normalizeModuleId = (moduleId: string): string =>
+  `/${stripQuery(moduleId.replaceAll(WINDOWS_SEPARATOR_PATTERN, '/'))}`;
+
 export const extractPackageName = (moduleId: string): string | undefined => {
-  const normalizedId = `/${stripQuery(moduleId.replaceAll(WINDOWS_SEPARATOR_PATTERN, '/'))}`;
+  const normalizedId = normalizeModuleId(moduleId);
   const segmentStart = normalizedId.lastIndexOf(NODE_MODULES_SEGMENT);
 
   if (segmentStart === -1) {

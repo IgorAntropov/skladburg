@@ -11,6 +11,7 @@ import { measureInitialBundles } from './measureInitialBundles.ts';
 const createChunk = (overrides: Partial<BudgetChunkValue> & Pick<BudgetChunkValue, 'fileName'>): BudgetChunkValue => ({
   gzipBytes: 100,
   imports: [],
+  isDynamicEntry: false,
   isEntry: false,
   moduleIds: [],
   ...overrides,

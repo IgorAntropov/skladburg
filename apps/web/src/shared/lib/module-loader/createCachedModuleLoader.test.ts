@@ -68,14 +68,16 @@ describe('createCachedModuleLoader', () => {
     expect(await loadSecond()).toBe(secondModule);
   });
 
-  it('calls the callback at once when the module is already loaded', async () => {
+  it('does not call the callback synchronously when the module is already loaded and gives it the module later', async () => {
     const loadedModule = createModule();
     const load = createCachedModuleLoader(createLoader(loadedModule));
     await load();
     const onFulfilled = vi.fn((module: TestModuleValue): TestModuleValue => module);
 
-    void load().then(onFulfilled);
+    const result = load().then(onFulfilled);
 
+    expect(onFulfilled).not.toHaveBeenCalled();
+    await result;
     expect(onFulfilled).toHaveBeenCalledOnce();
     expect(onFulfilled).toHaveBeenCalledWith(loadedModule);
   });
@@ -100,45 +102,60 @@ describe('createCachedModuleLoader', () => {
     expect(title).toBe('ready');
   });
 
-  it('lets one thenable of the loaded module be awaited twice', async () => {
-    const loadedModule = createModule();
-    const load = createCachedModuleLoader(createLoader(loadedModule));
-    await load();
-    const loaded = load();
-
-    expect(await loaded.then(module => module.name)).toBe(loadedModule.name);
-    expect(await loaded.then(module => module === loadedModule)).toBe(true);
-  });
-
-  it('resolves to the module when the loaded module is awaited without callbacks', async () => {
-    const loadedModule = createModule();
-    const load = createCachedModuleLoader(createLoader(loadedModule));
-    await load();
-
-    expect(await load().then()).toBe(loadedModule);
-    expect(await load().then(undefined, undefined)).toBe(loadedModule);
-    expect(await load().then(null, null)).toBe(loadedModule);
-  });
-
-  it('does not call the rejection callback for the loaded module', async () => {
-    const loadedModule = createModule();
-    const load = createCachedModuleLoader(createLoader(loadedModule));
-    await load();
-    const onRejected = vi.fn<(reason: unknown) => void>();
-
-    const result = await load().then(module => module === loadedModule, onRejected);
-
-    expect(result).toBe(true);
-    expect(onRejected).not.toHaveBeenCalled();
-  });
-
-  it('rejects when the callback of the loaded module throws', async () => {
+  it('gives a plain promise without its own then before and after the module is loaded', async () => {
     const load = createCachedModuleLoader(createLoader());
+
+    const beforeLoad = load();
+    await beforeLoad;
+    const afterLoad = load();
+
+    expect(Object.hasOwn(beforeLoad, 'then')).toBe(false);
+    expect(Object.hasOwn(afterLoad, 'then')).toBe(false);
+    expect(afterLoad).toBeInstanceOf(Promise);
+  });
+
+  it('gives the same fulfilled promise on every call once the module is loaded', async () => {
+    const loadedModule = createModule();
+    const load = createCachedModuleLoader(createLoader(loadedModule));
     await load();
 
-    await expect(load().then(() => {
-      throw new Error('callback failed');
-    })).rejects.toThrow('callback failed');
+    const first = load();
+    const second = load();
+
+    expect(second).toBe(first);
+    expect(await first).toBe(loadedModule);
+    expect(await second.then(module => module === loadedModule)).toBe(true);
+  });
+
+  it('has no loaded module to peek at before the loading, while it runs and after a failure', async () => {
+    const loader = vi.fn<ModuleLoader<TestModuleValue>>()
+      .mockRejectedValueOnce(LOAD_ERROR)
+      .mockResolvedValueOnce(createModule());
+    const load = createCachedModuleLoader(loader);
+
+    expect(load.peekLoadedModule()).toBeUndefined();
+
+    const failedLoading = load();
+
+    expect(load.peekLoadedModule()).toBeUndefined();
+    await failedLoading.then(undefined, () => undefined);
+    expect(load.peekLoadedModule()).toBeUndefined();
+
+    const retriedLoading = load();
+
+    expect(load.peekLoadedModule()).toBeUndefined();
+    await retriedLoading;
+  });
+
+  it('gives the loaded module to peek at without calling the source loader again', async () => {
+    const loadedModule = createModule();
+    const loader = createLoader(loadedModule);
+    const load = createCachedModuleLoader(loader);
+    await load();
+
+    expect(load.peekLoadedModule()).toBe(loadedModule);
+    expect(load.peekLoadedModule()).toBe(loadedModule);
+    expect(loader).toHaveBeenCalledOnce();
   });
 
   it('rejects with the chunk error that keeps the source error, forgets the failure and tries again on the next call', async () => {

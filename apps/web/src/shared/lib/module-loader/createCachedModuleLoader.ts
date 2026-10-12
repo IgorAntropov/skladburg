@@ -1,6 +1,9 @@
 import { ChunkLoadError } from './ChunkLoadError';
 
-export type CachedModuleLoader<TModule> = () => Promise<TModule>;
+export interface CachedModuleLoader<TModule> {
+  (): Promise<TModule>;
+  peekLoadedModule: () => TModule | undefined;
+}
 
 export interface CachedModuleLoaderOptionsValue {
   mapLoadError?: MapLoadErrorFunction | undefined;
@@ -17,25 +20,6 @@ export type ModuleLoader<TModule> = () => Promise<TModule>;
 
 const createChunkLoadError: MapLoadErrorFunction = ({ attempt, cause }) => new ChunkLoadError(attempt, undefined, { cause });
 
-const createLoadedModule = <TModule>(loadedModule: TModule): Promise<TModule> => {
-  const resolved = Promise.resolve(loadedModule);
-
-  const then = <TResult1 = TModule, TResult2 = never>(
-    onFulfilled?: ((module: TModule) => PromiseLike<TResult1> | TResult1) | null,
-    onRejected?: ((reason: unknown) => PromiseLike<TResult2> | TResult2) | null,
-  ): Promise<TResult1 | TResult2> => {
-    if (onFulfilled === undefined || onFulfilled === null) {
-      return Promise.resolve(loadedModule).then(onFulfilled, onRejected);
-    }
-
-    return new Promise<TResult1 | TResult2>((resolve) => {
-      resolve(onFulfilled(loadedModule));
-    });
-  };
-
-  return Object.assign(resolved, { then });
-};
-
 export const createCachedModuleLoader = <TModule>(
   loader: ModuleLoader<TModule>,
   options?: CachedModuleLoaderOptionsValue,
@@ -45,11 +29,7 @@ export const createCachedModuleLoader = <TModule>(
   let loadedModule: undefined | { module: TModule };
   let pendingModule: Promise<TModule> | undefined;
 
-  return () => {
-    if (loadedModule !== undefined) {
-      return createLoadedModule(loadedModule.module);
-    }
-
+  const load = (): Promise<TModule> => {
     pendingModule ??= loader().then(
       (module) => {
         loadedModule = { module };
@@ -66,4 +46,8 @@ export const createCachedModuleLoader = <TModule>(
 
     return pendingModule;
   };
+
+  const peekLoadedModule = (): TModule | undefined => loadedModule?.module;
+
+  return Object.assign(load, { peekLoadedModule });
 };

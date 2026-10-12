@@ -1,4 +1,6 @@
 import type {
+  BudgetChunkValue,
+  ChunkPackageViolationValue,
   ForbiddenPackageViolationValue,
   InitialBundleValue,
 } from './bundleBudgetTypes.ts';
@@ -37,25 +39,43 @@ export const createForbiddenPackageMatcher = (patterns: readonly string[]): Forb
     exactNames.has(packageName) || scopePrefixes.some(prefix => packageName.startsWith(prefix));
 };
 
+const listForbiddenPackageNames = (
+  moduleIds: readonly string[],
+  isForbidden: ForbiddenPackageMatcherFunction,
+): string[] => {
+  const packageNames = new Set<string>();
+
+  for (const moduleId of moduleIds) {
+    const packageName = extractPackageName(moduleId);
+
+    if (packageName !== undefined && isForbidden(packageName)) {
+      packageNames.add(packageName);
+    }
+  }
+
+  return [...packageNames];
+};
+
 export const findForbiddenPackageViolations = (
   initialBundle: InitialBundleValue,
   moduleIdsByFileName: ReadonlyMap<string, readonly string[]>,
   isForbidden: ForbiddenPackageMatcherFunction,
 ): ForbiddenPackageViolationValue[] =>
-  initialBundle.chunks.flatMap((chunk) => {
-    const packageNames = new Set<string>();
-
-    for (const moduleId of moduleIdsByFileName.get(chunk.fileName) ?? []) {
-      const packageName = extractPackageName(moduleId);
-
-      if (packageName !== undefined && isForbidden(packageName)) {
-        packageNames.add(packageName);
-      }
-    }
-
-    return [...packageNames].map(packageName => ({
+  initialBundle.chunks.flatMap(chunk =>
+    listForbiddenPackageNames(moduleIdsByFileName.get(chunk.fileName) ?? [], isForbidden).map(packageName => ({
       chunkFileName: chunk.fileName,
       entryFileName: initialBundle.entryFileName,
       packageName,
-    }));
-  });
+    })),
+  );
+
+export const findForbiddenPackagesInChunks = (
+  chunks: readonly BudgetChunkValue[],
+  isForbidden: ForbiddenPackageMatcherFunction,
+): ChunkPackageViolationValue[] =>
+  chunks.flatMap(chunk =>
+    listForbiddenPackageNames(chunk.moduleIds, isForbidden).map(packageName => ({
+      chunkFileName: chunk.fileName,
+      packageName,
+    })),
+  );

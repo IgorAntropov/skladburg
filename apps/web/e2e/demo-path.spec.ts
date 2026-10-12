@@ -1,5 +1,3 @@
-import { test } from '@playwright/test';
-
 import {
   DEFAULT_PERSONA,
   PERSONAS,
@@ -8,6 +6,7 @@ import {
   FIRST_SECTION,
   toSectionHash,
 } from './fixtures/routes.ts';
+import { test } from './fixtures/test.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';
 import { createPersonaRobot } from './robots/persona-robot.ts';
 import { createTopBarRobot } from './robots/top-bar-robot.ts';

@@ -42,6 +42,7 @@ type ProfileMenuLaunchStateValue
     | { kind: 'idle' }
     | { kind: 'loading' }
     | { kind: 'ready'; ProfileMenu: ProfileMenuComponent; ProfileResetConfirmLayer: ProfileResetConfirmLayerComponent };
+type ProfileMenuModuleValue = Awaited<ReturnType<typeof loadProfileMenu>>;
 
 type ProfileResetConfirmLayerComponent = ComponentType<ProfileResetConfirmLayerProps>;
 
@@ -82,31 +83,31 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
     });
   };
 
+  const showLoadedMenu = (loadedModule: ProfileMenuModuleValue): void => {
+    setLaunchState({
+      kind: 'ready',
+      ProfileMenu: loadedModule.ProfileMenu,
+      ProfileResetConfirmLayer: loadedModule.ProfileResetConfirmLayer,
+    });
+    setIsOpenedByLaunch(true);
+    setIsOpen(true);
+  };
+
   const handleButtonClick = (): void => {
     console.log('> ProfileMenuLauncher -> handleButtonClick:', { kind: launchState.kind });
-    const settlement = { isSettled: false };
+    const loadedModule = loadCachedProfileMenu.peekLoadedModule();
 
-    void loadCachedProfileMenu().then(
-      (loadedModule) => {
-        settlement.isSettled = true;
-        setLaunchState({
-          kind: 'ready',
-          ProfileMenu: loadedModule.ProfileMenu,
-          ProfileResetConfirmLayer: loadedModule.ProfileResetConfirmLayer,
-        });
-        setIsOpenedByLaunch(true);
-        setIsOpen(true);
-      },
-      (error: unknown) => {
-        settlement.isSettled = true;
-        console.log('> ProfileMenuLauncher -> handleButtonClick:', { error });
-        setLaunchState({ kind: 'error', recovery: getChunkRecovery(error) });
-      },
-    );
+    if (loadedModule !== undefined) {
+      showLoadedMenu(loadedModule);
 
-    if (!settlement.isSettled) {
-      setLaunchState({ kind: 'loading' });
+      return;
     }
+
+    setLaunchState({ kind: 'loading' });
+    void loadCachedProfileMenu().then(showLoadedMenu, (error: unknown) => {
+      console.log('> ProfileMenuLauncher -> handleButtonClick:', { error });
+      setLaunchState({ kind: 'error', recovery: getChunkRecovery(error) });
+    });
   };
 
   const handleReloadClick = (): void => {

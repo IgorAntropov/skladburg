@@ -44,7 +44,20 @@ const SKELETON_SEPARATION_THRESHOLD = 1.3;
 
 const BARE_STATUS_ICON_THEMES: readonly ThemeNameValue[] = ['dark'];
 
+const WORLD_BACKGROUND_TOKEN_PATTERN = /--world-background:\s*(#[\da-f]{6})\s*;/i;
+
+const readWorldBackgroundToken = (): string => {
+  const value = WORLD_BACKGROUND_TOKEN_PATTERN.exec(themeCss)?.[1];
+
+  if (value === undefined) {
+    throw new Error('Token --world-background is missing in theme.css');
+  }
+
+  return value;
+};
+
 const WORLD_BACKGROUNDS: readonly string[] = [
+  readWorldBackgroundToken(),
   '#E8E4DC',
   '#D4A867',
   '#F2711C',

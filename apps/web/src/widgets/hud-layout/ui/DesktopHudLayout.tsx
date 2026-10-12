@@ -16,11 +16,10 @@ import {
   HUD_DESKTOP_PANEL_ZONE_CLASS_NAME,
   HUD_DESKTOP_SIDE_COLUMN_CLASS_NAME,
   HUD_DESKTOP_TRACKER_ZONE_CLASS_NAME,
+  HUD_INTERACTIVE_CLASS_NAME,
 } from './hudStyles';
 import { HudZone } from './HudZone';
 import { ListsZoneContent } from './ListsZoneContent';
-
-const ZONE_CLASS_NAME = 'pointer-events-auto';
 
 export const DesktopHudLayout = ({
   inspector,
@@ -43,13 +42,13 @@ export const DesktopHudLayout = ({
       {isLeftColumnShown && (
         <div className={HUD_DESKTOP_SIDE_COLUMN_CLASS_NAME}>
           {isKpiShown && (
-            <HudZone className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_KPI_ZONE_CLASS_NAME)} label={t('hud.kpi.label')}>
+            <HudZone className={cn(HUD_INTERACTIVE_CLASS_NAME, HUD_DESKTOP_KPI_ZONE_CLASS_NAME)} label={t('hud.kpi.label')}>
               {kpi}
             </HudZone>
           )}
           {isTrackerShown && (
             <HudZone
-              className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_TRACKER_ZONE_CLASS_NAME)}
+              className={cn(HUD_INTERACTIVE_CLASS_NAME, HUD_DESKTOP_TRACKER_ZONE_CLASS_NAME)}
               label={t('hud.tracker.label')}
 
             >
@@ -61,7 +60,7 @@ export const DesktopHudLayout = ({
       {isPanelShown && (
         <div className={HUD_DESKTOP_CENTER_COLUMN_CLASS_NAME}>
           <HudZone
-            className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_PANEL_ZONE_CLASS_NAME)}
+            className={cn(HUD_INTERACTIVE_CLASS_NAME, HUD_DESKTOP_PANEL_ZONE_CLASS_NAME)}
             label={t('hud.panel.label')}
 
           >
@@ -71,7 +70,7 @@ export const DesktopHudLayout = ({
       )}
       <div className={cn(HUD_DESKTOP_SIDE_COLUMN_CLASS_NAME, 'ml-auto')}>
         <HudZone
-          className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_INSPECTOR_ZONE_CLASS_NAME)}
+          className={cn(HUD_INTERACTIVE_CLASS_NAME, HUD_DESKTOP_INSPECTOR_ZONE_CLASS_NAME)}
           label={t('hud.inspector.title')}
 
         >
@@ -79,7 +78,7 @@ export const DesktopHudLayout = ({
         </HudZone>
         {isListsShown && (
           <HudZone
-            className={cn(ZONE_CLASS_NAME, HUD_DESKTOP_LISTS_ZONE_CLASS_NAME)}
+            className={cn(HUD_INTERACTIVE_CLASS_NAME, HUD_DESKTOP_LISTS_ZONE_CLASS_NAME)}
             label={t('hud.lists.label')}
 
           >

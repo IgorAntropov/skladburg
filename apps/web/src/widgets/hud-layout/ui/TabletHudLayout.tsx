@@ -6,6 +6,7 @@ import type {
 import type { TabsItemValue } from '@/shared/ui';
 
 import { useI18n } from '@/shared/i18n';
+import { cn } from '@/shared/lib/cn';
 import { Tabs } from '@/shared/ui';
 
 import type { HudZonesProps } from '../lib/hudLayoutTypes';
@@ -16,6 +17,7 @@ import {
 } from '../lib/hasLists';
 import { hasSlot } from '../lib/hasSlot';
 import {
+  HUD_INTERACTIVE_CLASS_NAME,
   HUD_TABLET_BOTTOM_ZONE_CLASS_NAME,
   HUD_TABLET_KPI_ZONE_CLASS_NAME,
   HUD_TABLET_MAIN_CLASS_NAME,
@@ -30,6 +32,12 @@ const BOTTOM_TABS_CLASS_NAME = 'flex min-h-0 flex-1 flex-col [&_[role=tabpanel]]
 const TRACKER_TAB_CLASS_NAME = 'flex flex-1 flex-col @container';
 
 const LIST_TAB_WITH_HEADER_CLASS_NAME = 'flex min-h-0 flex-1 flex-col gap-3';
+
+const KPI_ZONE_CLASS_NAME = cn(HUD_INTERACTIVE_CLASS_NAME, HUD_TABLET_KPI_ZONE_CLASS_NAME);
+
+const PANEL_ZONE_CLASS_NAME = cn(HUD_INTERACTIVE_CLASS_NAME, HUD_TABLET_PANEL_ZONE_CLASS_NAME);
+
+const BOTTOM_ZONE_CLASS_NAME = cn(HUD_INTERACTIVE_CLASS_NAME, HUD_TABLET_BOTTOM_ZONE_CLASS_NAME);
 
 const withListsHeader = (tab: TabsItemValue, header: ReactNode): TabsItemValue => {
   if (!hasSlot(header)) {
@@ -97,16 +105,16 @@ export const TabletHudLayout = ({
   return (
     <>
       {isKpiShown && (
-        <HudZone className={HUD_TABLET_KPI_ZONE_CLASS_NAME} label={t('hud.kpi.label')}>{kpi}</HudZone>
+        <HudZone className={KPI_ZONE_CLASS_NAME} label={t('hud.kpi.label')}>{kpi}</HudZone>
       )}
       <div className={HUD_TABLET_MAIN_CLASS_NAME}>
         {isPanelShown && (
-          <HudZone className={HUD_TABLET_PANEL_ZONE_CLASS_NAME} label={t('hud.panel.label')}>{panel}</HudZone>
+          <HudZone className={PANEL_ZONE_CLASS_NAME} label={t('hud.panel.label')}>{panel}</HudZone>
         )}
       </div>
       {isBottomTabbed && (
         <HudZone
-          className={HUD_TABLET_BOTTOM_ZONE_CLASS_NAME}
+          className={BOTTOM_ZONE_CLASS_NAME}
           label={t('hud.bottom.label')}
           padding="flush-edge"
 
@@ -118,7 +126,7 @@ export const TabletHudLayout = ({
       )}
       {isTrackerAlone && (
         <HudZone
-          className={HUD_TABLET_BOTTOM_ZONE_CLASS_NAME}
+          className={BOTTOM_ZONE_CLASS_NAME}
           label={t('hud.tracker.label')}
           padding="edge"
 
@@ -128,7 +136,7 @@ export const TabletHudLayout = ({
       )}
       {isListsAlone && (
         <HudZone
-          className={HUD_TABLET_BOTTOM_ZONE_CLASS_NAME}
+          className={BOTTOM_ZONE_CLASS_NAME}
           label={t('hud.lists.label')}
           padding="edge"
 
@@ -136,7 +144,9 @@ export const TabletHudLayout = ({
           <ListsZoneContent header={listsHeader} tabs={listTabs} />
         </HudZone>
       )}
-      {isInspectorOpen && <InspectorDrawer onClose={onInspectorClose}>{inspector}</InspectorDrawer>}
+      {isInspectorOpen && (
+        <InspectorDrawer onClose={onInspectorClose}>{inspector}</InspectorDrawer>
+      )}
     </>
   );
 };

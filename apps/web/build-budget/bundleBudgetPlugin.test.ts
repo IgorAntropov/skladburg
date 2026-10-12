@@ -10,6 +10,7 @@ import {
 import type {
   BundleBudgetContextValue,
   BundleBudgetOutputValue,
+  BundleBudgetPluginOptionsValue,
 } from './bundleBudgetPlugin.ts';
 
 import { bundleBudgetPlugin } from './bundleBudgetPlugin.ts';
@@ -30,11 +31,12 @@ const createNoise = (length: number): string => {
 const createChunk = (
   fileName: string,
   code: string,
-  options: { imports?: string[]; isEntry?: boolean; moduleIds?: string[] } = {},
+  options: { imports?: string[]; isDynamicEntry?: boolean; isEntry?: boolean; moduleIds?: string[] } = {},
 ): BundleBudgetOutputValue => ({
   code,
   fileName,
   imports: options.imports ?? [],
+  isDynamicEntry: options.isDynamicEntry ?? false,
   isEntry: options.isEntry ?? false,
   moduleIds: options.moduleIds ?? [],
   type: 'chunk',
@@ -61,6 +63,19 @@ const createRunner = (
 ): (() => void) => {
   return () => {
     runBudget(maxInitialGzipKiloBytes, bundle, forbiddenInitialPackages);
+  };
+};
+
+const createOptionsRunner = (
+  options: Partial<BundleBudgetPluginOptionsValue>,
+  bundle: Record<string, BundleBudgetOutputValue>,
+): (() => void) => {
+  return () => {
+    bundleBudgetPlugin({ forbiddenInitialPackages: [], maxInitialGzipKiloBytes: 100, ...options }).generateBundle.call(
+      createContext(),
+      {},
+      bundle,
+    );
   };
 };
 
@@ -252,74 +267,6 @@ describe('bundleBudgetPlugin forbidden initial packages', () => {
     expect(console.log).toHaveBeenCalledTimes(1);
   });
 
-  it('matches a scope wildcard', () => {
-    const bundle = {
-      'assets/index.js': createChunk('assets/index.js', entryCode, {
-        isEntry: true,
-        moduleIds: ['/repo/node_modules/@tanstack/query-core/build/modern/index.js'],
-      }),
-    };
-
-    expect(createForbiddenRunner(bundle, ['@tanstack/*'])).toThrow('Package "@tanstack/query-core"');
-    expect(createForbiddenRunner(bundle, ['@radix-ui/*'])).not.toThrow();
-  });
-
-  it('finds a package in the pnpm layout', () => {
-    const run = createForbiddenRunner(
-      {
-        'assets/index.js': createChunk('assets/index.js', entryCode, {
-          isEntry: true,
-          moduleIds: [
-            '/repo/node_modules/.pnpm/@radix-ui+react-slot@1.4.0_react@19.3.0/node_modules/@radix-ui/react-slot/dist/index.mjs',
-          ],
-        }),
-      },
-      ['@radix-ui/*'],
-    );
-
-    expect(run).toThrow('Package "@radix-ui/react-slot"');
-  });
-
-  it('does not match a package with a similar name', () => {
-    const bundle = {
-      'assets/index.js': createChunk('assets/index.js', entryCode, {
-        isEntry: true,
-        moduleIds: [
-          '/repo/node_modules/three-stdlib/index.js',
-          '/repo/node_modules/@tanstack-foo/x/index.js',
-          '/repo/node_modules/motion-dom/dist/index.js',
-        ],
-      }),
-    };
-
-    expect(createForbiddenRunner(bundle, ['three', '@tanstack/*', 'motion'])).not.toThrow();
-  });
-
-  it('ignores virtual and application modules', () => {
-    const bundle = {
-      'assets/index.js': createChunk('assets/index.js', entryCode, {
-        isEntry: true,
-        moduleIds: ['\0vite/preload-helper.js', '/repo/apps/web/src/three/index.ts'],
-      }),
-    };
-
-    expect(createForbiddenRunner(bundle, ['three'])).not.toThrow();
-  });
-
-  it('catches a virtual module that wraps a forbidden package', () => {
-    const run = createForbiddenRunner(
-      {
-        'assets/index.js': createChunk('assets/index.js', entryCode, {
-          isEntry: true,
-          moduleIds: ['\0/repo/node_modules/zustand/index.js?commonjs-es-import'],
-        }),
-      },
-      ['zustand'],
-    );
-
-    expect(run).toThrow('Package "zustand"');
-  });
-
   it('reports every violation in one message', () => {
     const run = createForbiddenRunner(
       {
@@ -384,5 +331,121 @@ describe('bundleBudgetPlugin forbidden initial packages', () => {
 
     expect(createRunner(100, bundle, [])).not.toThrow();
     expect(console.log).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('bundleBudgetPlugin forbidden packages in any chunk', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('fails when the package is in a lazy chunk and names the package and chunk', () => {
+    const run = createOptionsRunner(
+      { forbiddenPackages: ['stats-gl'] },
+      {
+        'assets/index.js': createChunk('assets/index.js', entryCode, { isEntry: true }),
+        'assets/scene.js': createChunk('assets/scene.js', '', {
+          isDynamicEntry: true,
+          moduleIds: ['/repo/node_modules/stats-gl/dist/main.js'],
+        }),
+      },
+    );
+
+    expect(run).toThrow('Package "stats-gl"');
+    expect(run).toThrow('chunk "assets/scene.js"');
+    expect(console.log).not.toHaveBeenCalled();
+  });
+
+  it('passes when the list is empty or the package is absent', () => {
+    const bundle = {
+      'assets/index.js': createChunk('assets/index.js', entryCode, { isEntry: true }),
+      'assets/scene.js': createChunk('assets/scene.js', '', {
+        isDynamicEntry: true,
+        moduleIds: ['/repo/node_modules/stats-gl/dist/main.js'],
+      }),
+    };
+
+    expect(createOptionsRunner({}, bundle)).not.toThrow();
+    expect(createOptionsRunner({ forbiddenPackages: ['stats.js'] }, bundle)).not.toThrow();
+  });
+
+  it('rejects an invalid pattern', () => {
+    expect(() => bundleBudgetPlugin({ forbiddenInitialPackages: [], forbiddenPackages: ['*'], maxInitialGzipKiloBytes: 90 })).toThrow(
+      'exact package name',
+    );
+  });
+});
+
+describe('bundleBudgetPlugin lazy entry budgets', () => {
+  const sceneEntry = 'src/scene/Root.tsx';
+  const sceneCode = createNoise(20_000);
+  const sceneKiloBytes = gzipSizeInBytes(sceneCode) / 1000;
+  const sceneBundle = {
+    'assets/index.js': createChunk('assets/index.js', entryCode, { isEntry: true }),
+    'assets/Root.js': createChunk('assets/Root.js', sceneCode, {
+      isDynamicEntry: true,
+      moduleIds: ['/repo/apps/web/src/scene/Root.tsx'],
+    }),
+  };
+
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('logs the size of the lazy bundle when it fits', () => {
+    createOptionsRunner(
+      { lazyEntryBudgets: [{ entries: [sceneEntry], maxGzipKiloBytes: sceneKiloBytes + 1, name: 'scene' }] },
+      sceneBundle,
+    )();
+
+    expect(console.log).toHaveBeenCalledWith(
+      '> bundleBudgetPlugin -> generateBundle:',
+      expect.objectContaining({ chunks: [expect.stringContaining('assets/Root.js')], name: 'scene' }),
+    );
+  });
+
+  it('fails above the limit with name, size and limit', () => {
+    const run = createOptionsRunner(
+      { lazyEntryBudgets: [{ entries: [sceneEntry], maxGzipKiloBytes: sceneKiloBytes / 2, name: 'scene' }] },
+      sceneBundle,
+    );
+
+    expect(run).toThrow('Lazy bundle "scene"');
+    expect(run).toThrow(`${sceneKiloBytes.toFixed(2)} kB gzip`);
+    expect(run).toThrow(`budget of ${(sceneKiloBytes / 2).toFixed(2)} kB`);
+  });
+
+  it('fails when a required entry is missing and only warns otherwise', () => {
+    const missingBudget = { entries: ['src/scene/Gone.tsx'], maxGzipKiloBytes: 300, name: 'scene' };
+
+    expect(createOptionsRunner({ lazyEntryBudgets: [{ ...missingBudget, isRequired: true }] }, sceneBundle)).toThrow(
+      'module "src/scene/Gone.tsx"',
+    );
+
+    createOptionsRunner({ lazyEntryBudgets: [missingBudget] }, sceneBundle)();
+
+    expect(console.warn).toHaveBeenCalledWith(
+      '> bundleBudgetPlugin -> generateBundle:',
+      expect.stringContaining('src/scene/Gone.tsx'),
+    );
+  });
+
+  it('rejects an invalid budget', () => {
+    expect(() =>
+      bundleBudgetPlugin({
+        forbiddenInitialPackages: [],
+        lazyEntryBudgets: [{ entries: [], maxGzipKiloBytes: 300, name: 'scene' }],
+        maxInitialGzipKiloBytes: 90,
+      }),
+    ).toThrow('at least one entry');
   });
 });

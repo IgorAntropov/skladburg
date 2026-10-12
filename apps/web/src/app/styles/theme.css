@@ -104,6 +104,17 @@
     0 20px 44px -14px rgb(30 42 74 / 0.5), 0 4px 10px -2px rgb(30 42 74 / 0.22);
 }
 
+:root {
+  --world-background: #8591ad;
+  --world-board: #d6cfc0;
+  --world-board-edge: #66583c;
+  --world-tile: #e6e1d6;
+  --world-tile-seam: #c8c0af;
+  --world-sun-day: #fff0d9;
+  --world-sky-day: #eaf1ff;
+  --world-ground-day: #8a8272;
+}
+
 @utility shadow-panel {
   --tw-shadow: var(--shadow-panel);
   box-shadow:

@@ -4,11 +4,15 @@ import {
   it,
 } from 'vitest';
 
-import type { InitialBundleValue } from './bundleBudgetTypes.ts';
+import type {
+  BudgetChunkValue,
+  InitialBundleValue,
+} from './bundleBudgetTypes.ts';
 
 import {
   assertValidForbiddenPackages,
   createForbiddenPackageMatcher,
+  findForbiddenPackagesInChunks,
   findForbiddenPackageViolations,
 } from './forbiddenPackages.ts';
 
@@ -108,6 +112,49 @@ describe('findForbiddenPackageViolations', () => {
   it('skips chunks without module ids', () => {
     expect(
       findForbiddenPackageViolations(initialBundle, new Map(), createForbiddenPackageMatcher(['three'])),
+    ).toEqual([]);
+  });
+});
+
+describe('findForbiddenPackagesInChunks', () => {
+  const createChunk = (fileName: string, moduleIds: string[]): BudgetChunkValue => ({
+    fileName,
+    gzipBytes: 1,
+    imports: [],
+    isDynamicEntry: false,
+    isEntry: false,
+    moduleIds,
+  });
+
+  it('finds a package in an entry, a shared chunk and a lazy chunk alike', () => {
+    const violations = findForbiddenPackagesInChunks(
+      [
+        { ...createChunk('index.js', ['/n/node_modules/stats-gl/a.js']), isEntry: true },
+        createChunk('shared.js', ['/n/node_modules/stats-gl/b.js']),
+        { ...createChunk('scene.js', ['/n/node_modules/stats.js/src/Stats.js']), isDynamicEntry: true },
+      ],
+      createForbiddenPackageMatcher(['stats-gl', 'stats.js']),
+    );
+
+    expect(violations).toEqual([
+      { chunkFileName: 'index.js', packageName: 'stats-gl' },
+      { chunkFileName: 'shared.js', packageName: 'stats-gl' },
+      { chunkFileName: 'scene.js', packageName: 'stats.js' },
+    ]);
+  });
+
+  it('lists each package once per chunk and ignores other packages', () => {
+    const violations = findForbiddenPackagesInChunks(
+      [createChunk('scene.js', ['/n/node_modules/stats-gl/a.js', '/n/node_modules/stats-gl/b.js', '/n/node_modules/three/c.js'])],
+      createForbiddenPackageMatcher(['stats-gl']),
+    );
+
+    expect(violations).toEqual([{ chunkFileName: 'scene.js', packageName: 'stats-gl' }]);
+  });
+
+  it('finds nothing for an empty list', () => {
+    expect(
+      findForbiddenPackagesInChunks([createChunk('scene.js', ['/n/node_modules/stats-gl/a.js'])], createForbiddenPackageMatcher([])),
     ).toEqual([]);
   });
 });

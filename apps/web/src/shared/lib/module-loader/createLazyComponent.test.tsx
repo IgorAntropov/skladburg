@@ -58,4 +58,42 @@ describe('createLazyComponent', () => {
     expect(screen.queryByText(FALLBACK_TEXT)).toBeNull();
     expect(screen.getByText(`${CONTENT_TEXT} ${SECOND_TITLE}`)).toBeDefined();
   });
+
+  it('shows the component at once when the module was loaded after the lazy component was created', async () => {
+    const load = createCachedModuleLoader(() => Promise.resolve({ default: TestPage }));
+    const Lazy = createLazyComponent<TestPageProps>(load);
+    await load();
+
+    render(
+      <Suspense fallback={<p>{FALLBACK_TEXT}</p>}>
+        <Lazy title={FIRST_TITLE} />
+      </Suspense>,
+    );
+
+    expect(screen.queryByText(FALLBACK_TEXT)).toBeNull();
+    expect(screen.getByText(`${CONTENT_TEXT} ${FIRST_TITLE}`)).toBeDefined();
+  });
+
+  it('shows the fallback while the module loads and the component once it is loaded', async () => {
+    let finishLoading: () => void = () => undefined;
+    const load = createCachedModuleLoader(() => new Promise<{ default: typeof TestPage }>((resolve) => {
+      finishLoading = (): void => {
+        resolve({ default: TestPage });
+      };
+    }));
+    const Lazy = createLazyComponent<TestPageProps>(load);
+
+    render(
+      <Suspense fallback={<p>{FALLBACK_TEXT}</p>}>
+        <Lazy title={FIRST_TITLE} />
+      </Suspense>,
+    );
+
+    expect(screen.getByText(FALLBACK_TEXT)).toBeDefined();
+
+    finishLoading();
+
+    expect(await screen.findByText(`${CONTENT_TEXT} ${FIRST_TITLE}`)).toBeDefined();
+    expect(screen.queryByText(FALLBACK_TEXT)).toBeNull();
+  });
 });

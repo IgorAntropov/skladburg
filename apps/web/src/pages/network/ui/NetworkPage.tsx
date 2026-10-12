@@ -14,11 +14,13 @@ import type { TabsItemValue } from '@/shared/ui';
 import { useI18n } from '@/shared/i18n';
 import {
   HudLayout,
-  ScenePlaceholder,
   useInspectorFocus,
   ZoneEmptyState,
 } from '@/widgets/hud-layout';
 import { ObjectInspector } from '@/widgets/object-inspector';
+import { SceneViewport } from '@/widgets/scene-viewport';
+
+import { loadNetworkScene } from './loadNetworkScene';
 
 interface NetworkPageProps {
   focus: ObjectRefValue | undefined;
@@ -54,7 +56,7 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
         inspector={<ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
         kpi={<ZoneEmptyState icon={ChartNoAxesColumn} text={t('hud.kpi.empty')} />}
         listTabs={listTabs}
-        scene={<ScenePlaceholder label={t('section.network.placeholder')} />}
+        scene={<SceneViewport label={t('section.network.placeholder')} loadScene={loadNetworkScene} />}
         tracker={<ZoneEmptyState icon={ListChecks} text={t('hud.tracker.empty')} />}
       />
     </div>

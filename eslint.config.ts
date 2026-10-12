@@ -34,6 +34,8 @@ const lazyProfileMenuChunkFiles: string[] = ['apps/web/src/widgets/profile-menu/
 const motionSegmentFiles: string[] = ['apps/web/src/shared/lib/motion/**/*.{ts,tsx}'];
 const motionSegmentTestFiles: string[] = ['apps/web/src/shared/lib/motion/**/*.test.{ts,tsx}'];
 const lazyProfileMenuChunkTestFiles: string[] = ['apps/web/src/widgets/profile-menu/ui/menu/**/*.test.{ts,tsx}'];
+const sceneSegmentFiles: string[] = ['apps/web/src/**/scene/**', 'apps/web/src/shared/3d/**'];
+const lazyWidgetSceneFiles: string[] = ['apps/web/src/widgets/**/scene/**/*.{ts,tsx}'];
 
 interface BoundaryRestrictionValue {
   importPattern: string;
@@ -91,6 +93,36 @@ interface LazyModuleRestrictionValue {
   moduleLabel: string;
   regex: string;
 }
+
+interface SceneImportRestrictionValue {
+  message: string;
+  regex: string;
+}
+
+const sceneEngineImportRestrictions: SceneImportRestrictionValue[] = [
+  {
+    message: 'three is imported by value only inside a scene segment or shared/3d; use import type or move the code into scene',
+    regex: '^three(/|$)',
+  },
+  {
+    message: '@react-three/* is imported by value only inside a scene segment or shared/3d; use import type or move the code into scene',
+    regex: '^@react-three(/|$)',
+  },
+  {
+    message: 'shared/3d is imported by value only inside a scene segment or shared/3d; use import type or move the code into scene',
+    regex: '^@/shared/3d(/|$)',
+  },
+];
+
+const sceneModuleImportRestriction: SceneImportRestrictionValue = {
+  message: 'A scene segment is loaded lazily through import(); a static value import pulls three into the bundle; use import type',
+  regex: '(^|/)scene(/|$)',
+};
+
+const sceneBoundaryImportRestrictions: SceneImportRestrictionValue[] = [
+  ...sceneEngineImportRestrictions,
+  sceneModuleImportRestriction,
+];
 
 const lazyModuleMessageSuffix = 'is loaded lazily through import(); a static value import pulls it into the initial bundle; '
   + 'use import type';
@@ -166,15 +198,21 @@ const createBoundaryRules = (
   ],
 });
 
-const createLazyModuleRules = (restrictions: readonly LazyModuleRestrictionValue[]): Linter.RulesRecord => ({
+const createLazyModuleRules = (
+  restrictions: readonly LazyModuleRestrictionValue[],
+  extraRestrictions: readonly SceneImportRestrictionValue[] = [],
+): Linter.RulesRecord => ({
   '@typescript-eslint/no-restricted-imports': [
     'error',
     {
-      patterns: restrictions.map(({ moduleLabel, regex }) => ({
-        allowTypeImports: true,
-        message: `${moduleLabel} ${lazyModuleMessageSuffix}`,
-        regex,
-      })),
+      patterns: [
+        ...restrictions.map(({ moduleLabel, regex }) => ({
+          allowTypeImports: true,
+          message: `${moduleLabel} ${lazyModuleMessageSuffix}`,
+          regex,
+        })),
+        ...extraRestrictions.map(({ message, regex }) => ({ allowTypeImports: true, message, regex })),
+      ],
     },
   ],
 });
@@ -537,23 +575,38 @@ export default defineConfig(
     rules: createBoundaryRules([engineRestrictionForTests, registryRestriction, motionPackageRestriction], webSyntaxRestrictions),
   },
   {
+    files: engineBoundaryFiles,
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([], sceneBoundaryImportRestrictions),
+  },
+  {
+    files: engineBoundaryTestFiles,
+    ignores: sceneSegmentFiles,
+    rules: createLazyModuleRules([], sceneEngineImportRestrictions),
+  },
+  {
     files: lazyAppFiles,
     ignores: [...webTestFiles, ...lazyMountAppFiles],
-    rules: createLazyModuleRules(startLazyRestrictions),
+    rules: createLazyModuleRules(startLazyRestrictions, sceneBoundaryImportRestrictions),
   },
   {
     files: lazyMountAppFiles,
-    rules: createLazyModuleRules(appLazyRestrictions),
+    rules: createLazyModuleRules(appLazyRestrictions, sceneBoundaryImportRestrictions),
   },
   {
     files: lazyWidgetFiles,
-    ignores: [...webTestFiles, ...lazyProfileMenuChunkFiles],
-    rules: createLazyModuleRules(appLazyRestrictions),
+    ignores: [...webTestFiles, ...lazyProfileMenuChunkFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules(appLazyRestrictions, sceneBoundaryImportRestrictions),
   },
   {
     files: lazyProfileMenuFiles,
     ignores: [...webTestFiles, ...lazyProfileMenuChunkFiles],
-    rules: createLazyModuleRules(profileMenuLazyRestrictions),
+    rules: createLazyModuleRules(profileMenuLazyRestrictions, sceneBoundaryImportRestrictions),
+  },
+  {
+    files: lazyWidgetSceneFiles,
+    ignores: webTestFiles,
+    rules: createLazyModuleRules(appLazyRestrictions),
   },
   {
     extends: [tseslint.configs.disableTypeChecked],

@@ -6,10 +6,10 @@ import type { TabsItemValue } from '@/shared/ui';
 import { useI18n } from '@/shared/i18n';
 import {
   HudLayout,
-  ScenePlaceholder,
   useInspectorFocus,
 } from '@/widgets/hud-layout';
 import { ObjectInspector } from '@/widgets/object-inspector';
+import { ScenePlaceholder } from '@/widgets/scene-viewport';
 
 import { useWarehousesQuery } from '../api/useWarehousesQuery';
 import { OrganizationCard } from './OrganizationCard';

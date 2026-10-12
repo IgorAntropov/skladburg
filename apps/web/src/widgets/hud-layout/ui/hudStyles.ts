@@ -8,6 +8,10 @@ export const HUD_SIDE_PADDING_CLASS_NAME = 'pr-[max(0.75rem,env(safe-area-inset-
 
 export const HUD_SIDE_MARGIN_CLASS_NAME = 'mr-[max(0.75rem,env(safe-area-inset-right))] ml-[max(0.75rem,env(safe-area-inset-left))]';
 
+export const HUD_INTERACTIVE_CLASS_NAME = 'pointer-events-auto';
+
+export const HUD_PASSTHROUGH_CLASS_NAME = 'pointer-events-none';
+
 export type HudZonePaddingValue = 'edge' | 'flush-edge' | 'zone';
 
 export const HUD_ZONE_CLASS_NAME = 'flex min-h-0 flex-col overflow-y-auto @container';
@@ -41,7 +45,7 @@ export const HUD_TABLET_KPI_ZONE_CLASS_NAME = 'min-h-28';
 
 export const HUD_TABLET_PANEL_ZONE_CLASS_NAME = 'max-h-full';
 
-export const HUD_TABLET_MAIN_CLASS_NAME = 'flex min-h-0 flex-1 flex-col';
+export const HUD_TABLET_MAIN_CLASS_NAME = 'pointer-events-none flex min-h-0 flex-1 flex-col';
 
 export const HUD_TABLET_BOTTOM_ZONE_CLASS_NAME = 'sticky bottom-0 z-10 max-h-[45dvh] shrink-0';
 

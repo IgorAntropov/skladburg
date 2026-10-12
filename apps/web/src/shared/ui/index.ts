@@ -48,6 +48,10 @@ export type {
 export { Tabs } from './tabs/Tabs';
 export type { TextInputProps } from './text-input/TextInput';
 export { TextInput } from './text-input/TextInput';
+export type { TooltipProps } from './tooltip/Tooltip';
+export { Tooltip } from './tooltip/Tooltip';
+export type { TooltipGroupProps } from './tooltip/TooltipGroup';
+export { TooltipGroup } from './tooltip/TooltipGroup';
 export type { ErrorNoticeProps } from './widget-states/ErrorNotice';
 export { ErrorNotice } from './widget-states/ErrorNotice';
 export type { WidgetStatesProps } from './widget-states/WidgetStates';

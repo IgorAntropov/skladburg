@@ -7,6 +7,7 @@ import {
 
 import type { ActingContextValue } from '../context/actingContextTypes';
 
+import { replaceActingContext } from '../query/replaceActingContext';
 import { useApiRuntime } from './useApiRuntime';
 
 export interface SwitchActingContextResultValue {
@@ -34,9 +35,7 @@ export const useSwitchActingContext = (): SwitchActingContextResultValue => {
     setIsSwitching(true);
 
     try {
-      await queryClient.cancelQueries();
-      actingContext.set(context);
-      queryClient.clear();
+      await replaceActingContext({ actingContext, context, queryClient });
     }
     finally {
       isSwitchingRef.current = false;

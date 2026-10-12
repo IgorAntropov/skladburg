@@ -44,20 +44,25 @@ test.describe('demo path', () => {
     await warehouse.expectEngineData();
   });
 
-  test('resets the demo after the confirmation and shows the data of the engine', async ({ page }) => {
+  test('resets the demo to the default persona after the confirmation', async ({ page }) => {
     const navigation = createNavigationRobot(page);
+    const persona = createPersonaRobot(page);
     const topBar = createTopBarRobot(page);
     const warehouse = createWarehouseRobot(page);
 
-    await navigation.openSection('warehouse');
-    await warehouse.expectEngineData();
+    await navigation.openSection(FIRST_SECTION);
+    await persona.selectPersona(PERSONAS.freshCarrier);
 
     await topBar.requestReset();
     await topBar.expectResetConfirmOpen();
     await topBar.resetFromConfirm();
 
     await topBar.expectResetConfirmClosed();
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+    await navigation.expectAvailableSections(DEFAULT_PERSONA.sections);
+    await navigation.expectAddress(toSectionHash(FIRST_SECTION));
+
+    await navigation.openSection('warehouse');
     await warehouse.expectEngineData();
-    await navigation.expectAddress(toSectionHash('warehouse'));
   });
 });

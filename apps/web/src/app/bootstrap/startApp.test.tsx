@@ -45,6 +45,7 @@ import {
   createApiRuntime,
   createQueryClient,
   persistActingContext,
+  returnToDefaultPersonaOnDemoReset,
   syncQueriesWithRealtime,
 } from '@/shared/api';
 import {
@@ -75,6 +76,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
     createApiRuntime: vi.fn(original.createApiRuntime),
     createQueryClient: vi.fn(original.createQueryClient),
     persistActingContext: vi.fn(original.persistActingContext),
+    returnToDefaultPersonaOnDemoReset: vi.fn(original.returnToDefaultPersonaOnDemoReset),
     syncQueriesWithRealtime: vi.fn(original.syncQueriesWithRealtime),
   };
 });
@@ -222,6 +224,7 @@ describe('startApp', () => {
     vi.mocked(createApiRuntime).mockImplementation(() => Promise.resolve(createRuntime()));
     vi.mocked(createQueryClient).mockReset();
     vi.mocked(syncQueriesWithRealtime).mockReset();
+    vi.mocked(returnToDefaultPersonaOnDemoReset).mockReset();
     vi.mocked(persistActingContext).mockClear();
     window.sessionStorage.clear();
     vi.mocked(createLocalizer).mockReset();
@@ -273,6 +276,24 @@ describe('startApp', () => {
     expect(syncOptions?.demoControl).toBe(runtime.demoControl);
     expect(syncOptions?.realtime).toBe(runtime.realtime);
     expect(syncOptions?.queryClient).toBeInstanceOf(QueryClient);
+  });
+
+  it('returns the tab to the default persona of the profile when the demo is reset', async () => {
+    const demoControl = createDemoControl();
+    const runtime = createRuntime(vi.fn(), demoControl);
+    vi.mocked(createApiRuntime).mockResolvedValueOnce(runtime);
+
+    await startApp(createRootElement());
+    await findProductName();
+
+    expect(returnToDefaultPersonaOnDemoReset).toHaveBeenCalledOnce();
+
+    const options = vi.mocked(returnToDefaultPersonaOnDemoReset).mock.calls[0]?.[0];
+
+    expect(options?.actingContext).toBe(runtime.actingContext);
+    expect(options?.defaultOrganizationId).toBe(defaultTenant.tenantId);
+    expect(options?.demoControl).toBe(demoControl);
+    expect(options?.queryClient).toBeInstanceOf(QueryClient);
   });
 
   it('reports a runtime failure to the console and renders the start error screen', async () => {
@@ -456,6 +477,18 @@ describe('startApp', () => {
     await startApp(createRootElement());
 
     expect(stopSync).toHaveBeenCalledOnce();
+    expect(await screen.findByRole('alert')).toBeDefined();
+  });
+
+  it('stops returning to the default persona when the render fails after it started', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const stopReturn = vi.fn();
+    vi.mocked(returnToDefaultPersonaOnDemoReset).mockReturnValueOnce(stopReturn);
+    await failFirstRender();
+
+    await startApp(createRootElement());
+
+    expect(stopReturn).toHaveBeenCalledOnce();
     expect(await screen.findByRole('alert')).toBeDefined();
   });
 

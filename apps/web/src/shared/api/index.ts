@@ -21,6 +21,8 @@ export type { ApiQueryMetaValue } from './query/apiQueryMetaTypes';
 export type { CreateQueryClientOptionsValue } from './query/createQueryClient';
 export { createQueryClient } from './query/createQueryClient';
 export { invalidateQueriesByChannel } from './query/invalidateQueriesByChannel';
+export type { ReturnToDefaultPersonaOnDemoResetOptionsValue } from './query/returnToDefaultPersonaOnDemoReset';
+export { returnToDefaultPersonaOnDemoReset } from './query/returnToDefaultPersonaOnDemoReset';
 export type { SyncQueriesWithRealtimeOptionsValue } from './query/syncQueriesWithRealtime';
 export { syncQueriesWithRealtime } from './query/syncQueriesWithRealtime';
 export { ApiRuntimeProvider } from './react/ApiRuntimeProvider';

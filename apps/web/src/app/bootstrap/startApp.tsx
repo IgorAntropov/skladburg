@@ -16,6 +16,7 @@ import {
   getTabStorage,
   persistActingContext,
   readPersistedActingContext,
+  returnToDefaultPersonaOnDemoReset,
   syncQueriesWithRealtime,
 } from '@/shared/api';
 import {
@@ -84,17 +85,21 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
   let localizer: ILocalizer | undefined;
   let runtime: ApiRuntimeValue | undefined;
   let stopSync: (() => void) | undefined;
+  let stopReturnToDefaultPersona: (() => void) | undefined;
   let stopPersist: (() => void) | undefined;
 
   const releaseRuntime = (): void => {
     const releasedStopSync = stopSync;
+    const releasedStopReturnToDefaultPersona = stopReturnToDefaultPersona;
     const releasedStopPersist = stopPersist;
     const releasedRuntime = runtime;
 
     stopSync = undefined;
+    stopReturnToDefaultPersona = undefined;
     stopPersist = undefined;
     runtime = undefined;
     runReleaseStep('stopSync', releasedStopSync);
+    runReleaseStep('stopReturnToDefaultPersona', releasedStopReturnToDefaultPersona);
     runReleaseStep('stopPersist', releasedStopPersist);
     runReleaseStep('close', releasedRuntime === undefined
       ? undefined
@@ -145,6 +150,12 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
         demoControl: nextRuntime.demoControl,
         queryClient,
         realtime: nextRuntime.realtime,
+      });
+      stopReturnToDefaultPersona = returnToDefaultPersonaOnDemoReset({
+        actingContext: nextRuntime.actingContext,
+        defaultOrganizationId: defaultTenant.tenantId,
+        demoControl: nextRuntime.demoControl,
+        queryClient,
       });
 
       root.render(

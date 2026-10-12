@@ -13,10 +13,12 @@ import type { AppSectionValue } from '@/shared/routing';
 
 import { useI18n } from '@/shared/i18n';
 import { createCachedModuleLoader } from '@/shared/lib/module-loader';
+import { useFocusHandoff } from '@/shared/ui';
 
 import type { ProfileMenuProps } from './menu/ProfileMenu';
 import type { ProfileResetConfirmLayerProps } from './menu/ProfileResetConfirmLayer';
 
+import { PROFILE_MENU_FOCUS_KEY } from '../lib/profileMenuFocusKey';
 import { loadProfileMenu } from './loadProfileMenu';
 import { ProfileButton } from './ProfileButton';
 
@@ -47,6 +49,7 @@ const LOAD_ERROR_CLASS_NAME = [
 
 export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLauncherProps): ReactElement => {
   const { t } = useI18n();
+  const { cancelFocus, requestFocus } = useFocusHandoff<HTMLButtonElement>(PROFILE_MENU_FOCUS_KEY);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [launchState, setLaunchState] = useState<ProfileMenuLaunchStateValue>(IDLE_STATE);
   const [isOpen, setIsOpen] = useState(false);
@@ -97,6 +100,7 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
     console.log('> ProfileMenuLauncher -> handleOpenChange:', { nextIsOpen });
     setIsOpen(nextIsOpen);
     if (nextIsOpen) {
+      cancelFocus();
       setIsResetConfirmShown(false);
     }
     else {
@@ -112,6 +116,7 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
   const handleResetConfirmClose = (): void => {
     console.log('> ProfileMenuLauncher -> handleResetConfirmClose:', {});
     setIsResetConfirmShown(false);
+    requestFocus();
     buttonRef.current?.focus();
   };
 

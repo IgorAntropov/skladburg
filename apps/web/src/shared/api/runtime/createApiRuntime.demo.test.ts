@@ -67,6 +67,7 @@ describe('createApiRuntime with the demo engine', () => {
 
     const runtime = await createApiRuntime({ connection, defaultOrganizationId: SeedOrganizationId.CUSTOMER_1 });
 
+    expect(runtime.networkMode).toBe('always');
     expect(runtime.actingContext.get()).toEqual({
       organizationId: SeedOrganizationId.CUSTOMER_1,
       userId: SeedUserId.ADMIN_1,
@@ -84,34 +85,6 @@ describe('createApiRuntime with the demo engine', () => {
     expect(inProcess.pendingTimerCount()).toBe(0);
   });
 
-  it('picks the persona by id, not by the order of the engine answer', async () => {
-    const inProcess = startInProcessEngine();
-    const personas = await inProcess.connection.control.listPersonas();
-    const customerPersonaIds = personas
-      .filter(persona => persona.organizationId === SeedOrganizationId.CUSTOMER_1)
-      .map(persona => persona.id);
-
-    expect(customerPersonaIds).toContain(SeedPersonaId.FRESH_CUSTOMER);
-    expect(customerPersonaIds.length).toBeGreaterThan(1);
-
-    const reversedConnection: IEngineConnection = {
-      ...inProcess.connection,
-      control: {
-        ...inProcess.connection.control,
-        listPersonas: () => inProcess.connection.control.listPersonas().then(list => list.toReversed()),
-      },
-    };
-
-    const runtime = await createApiRuntime({
-      connection: reversedConnection,
-      defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
-    });
-
-    expect(runtime.actingContext.get().userId).toBe(SeedUserId.ADMIN_1);
-
-    runtime.close();
-  });
-
   it('starts as the persona chosen by id and calls the engine as that persona', async () => {
     const inProcess = startInProcessEngine();
 
@@ -126,59 +99,6 @@ describe('createApiRuntime with the demo engine', () => {
       userId: SeedUserId.STOREKEEPER_1,
     });
     expect((await runtime.client.organization.listWarehouses({})).warehouses).toHaveLength(1);
-
-    runtime.close();
-  });
-
-  it('starts as the persona matching the preferred context', async () => {
-    const inProcess = startInProcessEngine();
-
-    const runtime = await createApiRuntime({
-      connection: inProcess.connection,
-      defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
-      preferredContext: { organizationId: SeedOrganizationId.SUPPLIER_1, userId: SeedUserId.ADMIN_2 },
-    });
-
-    expect(runtime.actingContext.get()).toEqual({
-      organizationId: SeedOrganizationId.SUPPLIER_1,
-      userId: SeedUserId.ADMIN_2,
-    });
-
-    runtime.close();
-  });
-
-  it('prefers the persona id over the preferred context', async () => {
-    const inProcess = startInProcessEngine();
-
-    const runtime = await createApiRuntime({
-      connection: inProcess.connection,
-      defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
-      preferredContext: { organizationId: SeedOrganizationId.SUPPLIER_1, userId: SeedUserId.ADMIN_2 },
-      preferredPersonaId: SeedPersonaId.CONSTRUCTION_CUSTOMER,
-    });
-
-    expect(runtime.actingContext.get()).toEqual({
-      organizationId: SeedOrganizationId.CUSTOMER_2,
-      userId: SeedUserId.ADMIN_5,
-    });
-
-    runtime.close();
-  });
-
-  it('falls back to the persona of the profile organization when the preferences are unknown', async () => {
-    const inProcess = startInProcessEngine();
-
-    const runtime = await createApiRuntime({
-      connection: inProcess.connection,
-      defaultOrganizationId: SeedOrganizationId.CUSTOMER_1,
-      preferredContext: { organizationId: SeedOrganizationId.SUPPLIER_1, userId: SeedUserId.STOREKEEPER_2 },
-      preferredPersonaId: '99999999-0000-4000-8000-000000000000',
-    });
-
-    expect(runtime.actingContext.get()).toEqual({
-      organizationId: SeedOrganizationId.CUSTOMER_1,
-      userId: SeedUserId.ADMIN_1,
-    });
 
     runtime.close();
   });

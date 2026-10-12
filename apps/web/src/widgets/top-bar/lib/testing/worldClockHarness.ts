@@ -17,7 +17,6 @@ export const WORLD_START_MS = WORLD_MINUTE_START_MS + 20_000;
 
 export interface WorldClockRoutesOptionsValue {
   failure?: ConnectError | undefined;
-  gate?: Promise<void> | undefined;
   timeScale?: number | undefined;
   worldStartMs?: number | undefined;
 }
@@ -31,7 +30,6 @@ export const createUnavailableFailure = (): ConnectError => new ConnectError('cl
 
 export const createWorldClockRoutes = ({
   failure,
-  gate,
   timeScale = 1,
   worldStartMs = WORLD_START_MS,
 }: WorldClockRoutesOptionsValue = {}): WorldClockRoutesValue => {
@@ -39,10 +37,8 @@ export const createWorldClockRoutes = ({
 
   const routes = (router: ConnectRouter): void => {
     router.service(ClockService, {
-      getWorldClock: async (): Promise<GetWorldClockResponse> => {
+      getWorldClock: (): GetWorldClockResponse => {
         callCount += 1;
-        await gate;
-
         if (failure !== undefined) {
           throw failure;
         }

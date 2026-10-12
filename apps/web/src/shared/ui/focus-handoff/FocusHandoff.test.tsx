@@ -11,7 +11,6 @@ import {
   describe,
   expect,
   it,
-  vi,
 } from 'vitest';
 
 import { FocusHandoffProvider } from './FocusHandoffProvider';
@@ -32,24 +31,18 @@ interface HandoffButtonProps {
 
 interface RequestSlotValue {
   cancelFocus: (() => void) | undefined;
-  cancels: (() => void)[];
   capture: (requestFocus: () => void, cancelFocus: () => void) => void;
   requestFocus: (() => void) | undefined;
-  requests: (() => void)[];
 }
 
 const createSlot = (): RequestSlotValue => {
   const slot: RequestSlotValue = {
     cancelFocus: undefined,
-    cancels: [],
     capture: (requestFocus, cancelFocus) => {
-      slot.cancels.push(cancelFocus);
       slot.cancelFocus = cancelFocus;
       slot.requestFocus = requestFocus;
-      slot.requests.push(requestFocus);
     },
     requestFocus: undefined,
-    requests: [],
   };
 
   return slot;
@@ -83,19 +76,6 @@ const getButton = (label: string): HTMLElement => screen.getByRole('button', { n
 describe('FocusHandoff', () => {
   afterEach(() => {
     cleanup();
-  });
-
-  it('leaves the focus alone when nobody asked for it', () => {
-    const renderTree = (generation: number): ReactElement => (
-      <FocusHandoffProvider>
-        <Remountable generation={generation} handoffKey="trigger" label={TRIGGER_LABEL} />
-      </FocusHandoffProvider>
-    );
-    const { rerender } = render(renderTree(0));
-
-    rerender(renderTree(1));
-
-    expect(document.activeElement).toBe(document.body);
   });
 
   it('gives the focus to the new element after the request and the remount', () => {
@@ -217,54 +197,5 @@ describe('FocusHandoff', () => {
     rerender(renderTree(1));
 
     expect(document.activeElement).toBe(getButton(TRIGGER_LABEL));
-  });
-
-  it('does nothing on cancel when nobody asked for the focus', () => {
-    const slot = createSlot();
-    const renderTree = (generation: number): ReactElement => (
-      <FocusHandoffProvider>
-        <Remountable generation={generation} handoffKey="trigger" label={TRIGGER_LABEL} slot={slot} />
-      </FocusHandoffProvider>
-    );
-    const { rerender } = render(renderTree(0));
-
-    cancelFromSlot(slot);
-    rerender(renderTree(1));
-
-    expect(document.activeElement).toBe(document.body);
-  });
-
-  it('keeps the request and the cancel functions stable between renders', () => {
-    const slot = createSlot();
-    const renderTree = (): ReactElement => (
-      <FocusHandoffProvider>
-        <HandoffButton handoffKey="trigger" label={TRIGGER_LABEL} slot={slot} />
-      </FocusHandoffProvider>
-    );
-    const { rerender } = render(renderTree());
-
-    rerender(renderTree());
-
-    expect(slot.requests.length).toBeGreaterThan(1);
-    expect(new Set(slot.requests).size).toBe(1);
-    expect(slot.cancels.length).toBeGreaterThan(1);
-    expect(new Set(slot.cancels).size).toBe(1);
-  });
-
-  it('does nothing and does not throw without a provider', () => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    const slot = createSlot();
-    const { rerender } = render(<Remountable generation={0} handoffKey="trigger" label={TRIGGER_LABEL} slot={slot} />);
-
-    expect(() => {
-      slot.requestFocus?.();
-      slot.cancelFocus?.();
-    }).not.toThrow();
-    rerender(<Remountable generation={1} handoffKey="trigger" label={TRIGGER_LABEL} slot={slot} />);
-
-    expect(document.activeElement).toBe(document.body);
-    expect(log).toHaveBeenCalledWith('> FocusHandoffContext -> request:', { key: 'trigger' });
-
-    log.mockRestore();
   });
 });

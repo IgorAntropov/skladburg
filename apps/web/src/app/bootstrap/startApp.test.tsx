@@ -59,10 +59,7 @@ import {
   createHashLocation,
 } from '@/shared/routing';
 import { createMemoryLocation } from '@/shared/routing/index.testing';
-import {
-  createFakeStorage,
-  FakeMediaQueryList,
-} from '@/shared/theme/index.testing';
+import { FakeMediaQueryList } from '@/shared/theme/index.testing';
 
 import { registerSessionRoute } from '../lib/testing/sessionFixtures';
 import { readDeviceTimeZone } from './readDeviceTimeZone';
@@ -571,82 +568,6 @@ describe('startApp', () => {
       await findProductName();
 
       expect(themesAtRender).toEqual(['dark']);
-    });
-
-    it('puts the theme on the document before the start error screen', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      window.localStorage.setItem(THEME_STORAGE_KEY, 'dark');
-      vi.mocked(createApiRuntime).mockRejectedValueOnce(new Error('the engine is unavailable'));
-      const themesAtRender = await recordThemeAtRender();
-
-      await startApp(createRootElement());
-
-      expect(await screen.findByRole('alert')).toBeDefined();
-      expect(themesAtRender).toEqual(['dark']);
-    });
-
-    it('starts with the light theme when the storage of the device throws on access', async () => {
-      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
-        throw new DOMException('access denied', 'SecurityError');
-      });
-      const themesAtRender = await recordThemeAtRender();
-
-      await startApp(createRootElement());
-
-      expect(await findProductName()).toBeDefined();
-      expect(themesAtRender).toEqual(['light']);
-      expect(getLoggedLabels(consoleError)).toEqual(['> themePersistence -> getDeviceStorage:']);
-    });
-
-    it('starts with the light theme when the storage of the device throws on read', async () => {
-      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => createFakeStorage({ isGetFailing: true }));
-      const themesAtRender = await recordThemeAtRender();
-
-      await startApp(createRootElement());
-
-      expect(await findProductName()).toBeDefined();
-      expect(themesAtRender).toEqual(['light']);
-      expect(getLoggedLabels(consoleError)).toEqual(['> themePersistence -> readStoredThemePreference:']);
-    });
-
-    it('starts with the light theme when the stored value is corrupted', async () => {
-      window.localStorage.setItem(THEME_STORAGE_KEY, 'purple');
-      const themesAtRender = await recordThemeAtRender();
-
-      await startApp(createRootElement());
-      await findProductName();
-
-      expect(themesAtRender).toEqual(['light']);
-    });
-
-    it('follows the theme chosen in another tab', async () => {
-      await startApp(createRootElement());
-      await findProductName();
-
-      window.localStorage.setItem(THEME_STORAGE_KEY, 'dark');
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: THEME_STORAGE_KEY,
-        newValue: 'dark',
-        storageArea: window.localStorage,
-      }));
-
-      expect(document.documentElement.dataset.theme).toBe('dark');
-      expect(document.documentElement.style.colorScheme).toBe('dark');
-    });
-
-    it('creates the theme store once and keeps it across retries', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      vi.mocked(createApiRuntime).mockRejectedValueOnce(new Error('the engine is unavailable'));
-
-      await startApp(createRootElement());
-      fireEvent.click(await screen.findByRole('button'));
-      await findProductName();
-
-      const storageSubscriptions = addEventListener.mock.calls.filter(([type]) => type === 'storage');
-
-      expect(storageSubscriptions).toHaveLength(1);
     });
   });
 

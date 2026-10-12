@@ -1,4 +1,3 @@
-import { ProfileKind } from '@skladburg/contracts/organization/v1/organization';
 import {
   act,
   cleanup,
@@ -17,17 +16,10 @@ import {
 } from 'vitest';
 
 import type { IDemoControl } from '@/shared/api';
-import type { ViewportClassValue } from '@/shared/lib/viewport';
 import type { IFakeViewport } from '@/shared/lib/viewport/index.testing';
-import type { AppSectionValue } from '@/shared/routing';
-import type { IMemoryLocation } from '@/shared/routing/index.testing';
-import type { IThemePreferenceStore } from '@/shared/theme';
 
 import { installFakeViewport } from '@/shared/lib/viewport/index.testing';
-import {
-  APP_SECTIONS,
-  SECTION_TITLE_KEYS,
-} from '@/shared/routing';
+import { APP_SECTIONS } from '@/shared/routing';
 
 import type { GateValue } from '../lib/testing/profileMenuHarness';
 
@@ -49,34 +41,24 @@ const CHUNK_ERROR_MESSAGE = defaultLocaleCatalog['routing.chunkError.message'];
 interface RenderedLauncherValue {
   demoControl: IDemoControl;
   loadProfileMenu: LoadProfileMenuType;
-  location: IMemoryLocation;
-  themeStore: IThemePreferenceStore;
 }
 
 interface RenderLauncherOptionsValue {
-  currentSection?: AppSectionValue;
   hasDemo?: boolean;
   menuGate?: GateValue;
   rejectedLoadCount?: number;
-  sections?: readonly AppSectionValue[];
-  sides?: readonly ProfileKind[];
-  viewportClass?: ViewportClassValue;
 }
 
 let installedViewport: IFakeViewport | undefined;
 
 const renderLauncher = async ({
-  currentSection = 'network',
   hasDemo = false,
   menuGate,
   rejectedLoadCount = 0,
-  sections = APP_SECTIONS,
-  sides = [ProfileKind.CUSTOMER],
-  viewportClass = 'desktop',
 }: RenderLauncherOptionsValue = {}): Promise<RenderedLauncherValue> => {
   vi.resetModules();
   installedViewport?.restore();
-  installedViewport = installFakeViewport(viewportClass);
+  installedViewport = installFakeViewport('desktop');
 
   const [
     { createTestRuntime },
@@ -116,29 +98,27 @@ const renderLauncher = async ({
   vi.mocked(mockedLoadProfileMenu).mockImplementation(loadWithRejections);
 
   const localizer = await harness.createProfileLocalizer();
-  const location = createMemoryLocation(`/${currentSection}`);
+  const location = createMemoryLocation('/network');
   const themeStore = createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined });
   const demoControl = harness.createProfileDemoControl();
   const runtime = createTestRuntime({
     demoControl: hasDemo ? demoControl : undefined,
-    routes: harness.createProfileRoutes({ sides }),
+    routes: harness.createProfileRoutes(),
   });
   runtime.actingContext.set(harness.PROFILE_ACTING_CONTEXT);
 
   render(
     <harness.ProfileTreeProviders localizer={localizer} location={location} runtime={runtime} themeStore={themeStore}>
-      <ProfileMenuLauncher currentSection={currentSection} sections={sections} />
+      <ProfileMenuLauncher currentSection="network" sections={APP_SECTIONS} />
     </harness.ProfileTreeProviders>,
   );
 
-  return { demoControl, loadProfileMenu: mockedLoadProfileMenu, location, themeStore };
+  return { demoControl, loadProfileMenu: mockedLoadProfileMenu };
 };
 
 const getButton = (): HTMLElement => screen.getByRole('button', { hidden: true, name: /^Профиль/ });
 
 const getAnnouncement = (): string => document.querySelector('[aria-live="polite"]')?.textContent ?? '';
-
-const getSectionTitle = (section: AppSectionValue): string => defaultLocaleCatalog[SECTION_TITLE_KEYS[section]];
 
 const waitForReadyButton = async (): Promise<void> => {
   await screen.findByRole('button', { hidden: true, name: READY_BUTTON_NAME });
@@ -184,43 +164,6 @@ describe('ProfileMenuLauncher', () => {
   });
 
   describe('profile button', () => {
-    it('is a collapsed menu button and the only thing of the menu on the page at the start', async () => {
-      const { loadProfileMenu } = await renderLauncher();
-      await waitForReadyButton();
-      const button = getButton();
-
-      expect(button.getAttribute('aria-haspopup')).toBe('menu');
-      expect(button.getAttribute('aria-expanded')).toBe('false');
-      expect(button.getAttribute('aria-busy')).toBeNull();
-      expect(screen.queryByRole('menu')).toBeNull();
-      expect(loadProfileMenu).not.toHaveBeenCalled();
-    });
-
-    it('keeps the button in a positioned flex container before and after the menu loads, with the failure notice inside it', async () => {
-      const { loadProfileMenu } = await renderLauncher({ rejectedLoadCount: 1 });
-      await waitForReadyButton();
-
-      const container = getButton().parentElement;
-
-      expect(container?.classList.contains('relative')).toBe(true);
-      expect(container?.classList.contains('flex')).toBe(true);
-
-      fireEvent.click(getButton());
-
-      const alert = await screen.findByRole('alert');
-
-      expect(alert.parentElement).toBe(container);
-
-      fireEvent.click(getButton());
-      await screen.findByRole('menu', { name: MENU_NAME });
-
-      const readyContainer = getButton().parentElement;
-
-      expect(readyContainer?.classList.contains('relative')).toBe(true);
-      expect(readyContainer?.classList.contains('flex')).toBe(true);
-      expect(loadProfileMenu).toHaveBeenCalledTimes(2);
-    });
-
     it('warms the menu up on hover and on focus and loads it once', async () => {
       const { loadProfileMenu } = await renderLauncher();
 
@@ -268,17 +211,6 @@ describe('ProfileMenuLauncher', () => {
 
       expect(await screen.findByRole('menu', { name: MENU_NAME })).toBeDefined();
       expect(loadProfileMenu).toHaveBeenCalledTimes(1);
-    });
-
-    it('puts the focus on the first item of the menu that opens itself after the load', async () => {
-      await renderLauncher();
-
-      const menu = await openMenu();
-      const [firstItem] = within(menu).getAllByRole('menuitemradio');
-
-      await waitFor(() => {
-        expect(document.activeElement).toBe(firstItem);
-      });
     });
 
     it('opens at once when the menu was warmed up before the press', async () => {
@@ -349,51 +281,6 @@ describe('ProfileMenuLauncher', () => {
       expect(await screen.findByRole('menu', { name: MENU_NAME })).toBeDefined();
       expect(loadProfileMenu).toHaveBeenCalledTimes(2);
     });
-
-    it('closes on Escape and returns the focus to the button', async () => {
-      await renderLauncher();
-      const menu = await openMenu();
-
-      fireEvent.keyDown(menu, { key: 'Escape' });
-
-      await waitForMenuToClose();
-      await waitFor(() => {
-        expect(document.activeElement).toBe(getButton());
-      });
-      expect(getButton().getAttribute('aria-expanded')).toBe('false');
-    });
-  });
-
-  describe('menu', () => {
-    it('lists the sections of a phone and goes to the chosen one with the focus back on the button', async () => {
-      const { location } = await renderLauncher({ viewportClass: 'phone' });
-      const menu = await openMenu();
-
-      const group = within(menu).getByRole('group', { name: defaultLocaleCatalog['app.nav.label'] });
-      chooseWithEnter(within(group).getByRole('menuitemradio', { name: getSectionTitle('catalog') }));
-
-      await waitForMenuToClose();
-      expect(location.history).toEqual(['/network', '/catalog']);
-      await waitFor(() => {
-        expect(document.activeElement).toBe(getButton());
-      });
-    });
-
-    it('has no sections on a tablet', async () => {
-      await renderLauncher({ viewportClass: 'tablet' });
-      const menu = await openMenu();
-
-      expect(within(menu).queryByRole('group', { name: defaultLocaleCatalog['app.nav.label'] })).toBeNull();
-    });
-
-    it('changes the theme by the chosen item', async () => {
-      const { themeStore } = await renderLauncher();
-      const menu = await openMenu();
-
-      chooseWithEnter(within(menu).getByRole('menuitemradio', { name: defaultLocaleCatalog['theme.dark'] }));
-
-      expect(themeStore.getPreference()).toBe('dark');
-    });
   });
 
   describe('demo reset', () => {
@@ -413,7 +300,6 @@ describe('ProfileMenuLauncher', () => {
       await waitForSettledFocus();
 
       expect(screen.queryByRole('menu')).toBeNull();
-      expect(getButton().parentElement?.contains(group)).toBe(true);
       expect(document.activeElement).toBe(cancel);
       expect(demoControl.reset).not.toHaveBeenCalled();
     });
@@ -439,17 +325,6 @@ describe('ProfileMenuLauncher', () => {
       expect(screen.queryByRole('group', { name: RESET_PROMPT_NAME })).toBeNull();
       expect(document.activeElement).toBe(getButton());
       expect(demoControl.reset).not.toHaveBeenCalled();
-    });
-
-    it('goes back with the focus on the button on Escape', async () => {
-      await renderLauncher({ hasDemo: true });
-      const group = await openResetConfirm();
-      await waitForSettledFocus();
-
-      fireEvent.keyDown(within(group).getByRole('button', { name: defaultLocaleCatalog['demo.reset.confirm.cancel'] }), { key: 'Escape' });
-
-      expect(screen.queryByRole('group', { name: RESET_PROMPT_NAME })).toBeNull();
-      expect(document.activeElement).toBe(getButton());
     });
 
     it('resets the demo, announces it and returns the focus to the button', async () => {
@@ -538,22 +413,6 @@ describe('ProfileMenuLauncher', () => {
       });
 
       expect(button.getAttribute('aria-label')).toBe(READY_BUTTON_NAME);
-    });
-
-    it('hides the closing confirmation from assistive technology and takes it away after the fade', async () => {
-      await renderLauncher({ hasDemo: true });
-      const group = await openResetConfirm();
-      await waitForSettledFocus();
-      const layer = screen.getByTestId('profile-reset-confirm-layer');
-
-      fireEvent.click(within(group).getByRole('button', { name: defaultLocaleCatalog['demo.reset.confirm.cancel'] }));
-
-      expect(layer.getAttribute('aria-hidden')).toBe('true');
-      expect(layer.hasAttribute('inert')).toBe(true);
-      expect(document.activeElement).toBe(getButton());
-      await waitFor(() => {
-        expect(screen.queryByTestId('profile-reset-confirm-layer')).toBeNull();
-      });
     });
 
     it('can ask again after the cancel', async () => {

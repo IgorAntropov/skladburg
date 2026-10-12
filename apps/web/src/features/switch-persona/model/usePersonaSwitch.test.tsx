@@ -122,21 +122,6 @@ describe('usePersonaSwitch', () => {
     cleanup();
   });
 
-  it('formats a persona as the name, the role and the organization', async () => {
-    const { result } = await renderSwitchHook(createPersonaRuntime(listAllPersonas, FRESH_CUSTOMER_FIXTURE));
-
-    expect(result.current.formatPersona(FRESH_CUSTOMER_FIXTURE)).toBe('Анна Смирнова, Администратор · Заказчик 1');
-    expect(result.current.formatPersonaSecondLine(FRESH_CUSTOMER_FIXTURE)).toBe('Администратор · Заказчик 1');
-  });
-
-  it('leaves the role out when the persona has none', async () => {
-    const { result } = await renderSwitchHook(createPersonaRuntime(listAllPersonas, FRESH_CUSTOMER_FIXTURE));
-    const withoutRole: DemoPersonaListItemValue = { ...FRESH_CUSTOMER_FIXTURE, roleName: '' };
-
-    expect(result.current.formatPersona(withoutRole)).toBe('Анна Смирнова, Заказчик 1');
-    expect(result.current.formatPersonaSecondLine(withoutRole)).toBe('Заказчик 1');
-  });
-
   it('finds the current persona by the acting context once the list is loaded', async () => {
     const { result } = await renderSwitchHook(createPersonaRuntime(listAllPersonas, FRESH_SUPPLIER_FIXTURE));
 

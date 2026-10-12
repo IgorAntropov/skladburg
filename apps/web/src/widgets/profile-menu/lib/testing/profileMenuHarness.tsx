@@ -7,10 +7,6 @@ import type {
 
 import { create } from '@bufbuild/protobuf';
 import {
-  Code,
-  ConnectError,
-} from '@connectrpc/connect';
-import {
   AccessService,
   GetSessionResponseSchema,
 } from '@skladburg/contracts/access/v1/access';
@@ -57,19 +53,6 @@ export interface GateValue {
   promise: Promise<void>;
 }
 
-export interface ProfileDemoControlOptionsValue {
-  personas?: readonly DemoPersonaListItemValue[] | undefined;
-  personasGate?: GateValue | undefined;
-}
-
-export type ProfileSessionModeValue = 'error' | 'ready';
-
-export interface ProfileSessionOptionsValue {
-  sessionGate?: GateValue | undefined;
-  sessionMode?: ProfileSessionModeValue | undefined;
-  sides?: readonly ProfileKind[] | undefined;
-}
-
 interface ProfileTreeProvidersProps {
   children: ReactNode;
   localizer: ILocalizer;
@@ -78,7 +61,7 @@ interface ProfileTreeProvidersProps {
   themeStore: IThemePreferenceStore;
 }
 
-export const PROFILE_CUSTOMER_PERSONA: DemoPersonaListItemValue = {
+const PROFILE_CUSTOMER_PERSONA: DemoPersonaListItemValue = {
   group: DemoPersonaGroup.FRESH,
   id: 'f9000001-0000-4000-8000-000000000000',
   kind: DemoPersonaKind.CUSTOMER,
@@ -89,33 +72,7 @@ export const PROFILE_CUSTOMER_PERSONA: DemoPersonaListItemValue = {
   userId: 'f9200001-0000-4000-8000-000000000000',
 };
 
-export const PROFILE_SUPPLIER_PERSONA: DemoPersonaListItemValue = {
-  group: DemoPersonaGroup.FRESH,
-  id: 'f9000002-0000-4000-8000-000000000000',
-  kind: DemoPersonaKind.SUPPLIER,
-  organizationId: 'f9100002-0000-4000-8000-000000000000',
-  organizationName: 'Поставщик 1',
-  roleName: 'Администратор',
-  userDisplayName: 'Сергей Кузнецов',
-  userId: 'f9200002-0000-4000-8000-000000000000',
-};
-
-export const PROFILE_CONSTRUCTION_PERSONA: DemoPersonaListItemValue = {
-  group: DemoPersonaGroup.CONSTRUCTION,
-  id: 'f9000005-0000-4000-8000-000000000000',
-  kind: DemoPersonaKind.CUSTOMER,
-  organizationId: 'f9100004-0000-4000-8000-000000000000',
-  organizationName: 'Заказчик 2',
-  roleName: 'Администратор',
-  userDisplayName: 'Елена Морозова',
-  userId: 'f9200005-0000-4000-8000-000000000000',
-};
-
-export const PROFILE_PERSONAS: readonly DemoPersonaListItemValue[] = [
-  PROFILE_CUSTOMER_PERSONA,
-  PROFILE_SUPPLIER_PERSONA,
-  PROFILE_CONSTRUCTION_PERSONA,
-];
+const PROFILE_PERSONAS: readonly DemoPersonaListItemValue[] = [PROFILE_CUSTOMER_PERSONA];
 
 export const PROFILE_ACTING_CONTEXT = {
   organizationId: PROFILE_CUSTOMER_PERSONA.organizationId,
@@ -131,41 +88,26 @@ export const createGate = (): GateValue => {
   return { open, promise };
 };
 
-const createSession = (sides: readonly ProfileKind[]): GetSessionResponse => create(GetSessionResponseSchema, {
+const createSession = (): GetSessionResponse => create(GetSessionResponseSchema, {
   actingOrganizationId: PROFILE_CUSTOMER_PERSONA.organizationId,
   organizations: [
     create(OrganizationSchema, {
       id: PROFILE_CUSTOMER_PERSONA.organizationId,
       name: PROFILE_CUSTOMER_PERSONA.organizationName,
-      profiles: sides.map(kind => create(OrganizationProfileSchema, { kind })),
+      profiles: [create(OrganizationProfileSchema, { kind: ProfileKind.CUSTOMER })],
     }),
   ],
   user: { displayName: PROFILE_CUSTOMER_PERSONA.userDisplayName, id: PROFILE_CUSTOMER_PERSONA.userId },
 });
 
-export const createProfileRoutes = ({
-  sessionGate,
-  sessionMode = 'ready',
-  sides = [ProfileKind.CUSTOMER],
-}: ProfileSessionOptionsValue = {}): ((router: ConnectRouter) => void) => (router) => {
+export const createProfileRoutes = (): ((router: ConnectRouter) => void) => (router) => {
   router.service(AccessService, {
-    getSession: async () => {
-      await sessionGate?.promise;
-
-      if (sessionMode === 'error') {
-        throw new ConnectError('denied', Code.PermissionDenied);
-      }
-
-      return createSession(sides);
-    },
+    getSession: createSession,
   });
 };
 
-export const createProfileDemoControl = ({
-  personas = PROFILE_PERSONAS,
-  personasGate,
-}: ProfileDemoControlOptionsValue = {}): IDemoControl => ({
-  listPersonas: () => personasGate === undefined ? Promise.resolve(personas) : personasGate.promise.then(() => personas),
+export const createProfileDemoControl = (): IDemoControl => ({
+  listPersonas: () => Promise.resolve(PROFILE_PERSONAS),
   onReset: () => () => undefined,
   onStatus: () => () => undefined,
   reset: vi.fn(() => Promise.resolve()),

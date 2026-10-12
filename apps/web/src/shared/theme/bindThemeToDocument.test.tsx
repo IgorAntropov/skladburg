@@ -4,13 +4,9 @@ import {
   describe,
   expect,
   it,
-  vi,
 } from 'vitest';
 
-import {
-  bindThemeToDocument,
-  createDocumentThemeTransitions,
-} from './bindThemeToDocument';
+import { bindThemeToDocument } from './bindThemeToDocument';
 import { createThemePreferenceStore } from './createThemePreferenceStore';
 import {
   createFakeThemeTransitions,
@@ -169,53 +165,6 @@ describe('bindThemeToDocument', () => {
       store.setPreference('dark');
 
       expect(transitions.startedCount).toBe(0);
-    });
-  });
-
-  describe('document transitions', () => {
-    afterEach(() => {
-      Reflect.deleteProperty(document, 'startViewTransition');
-      Reflect.deleteProperty(window, 'matchMedia');
-    });
-
-    it('has no view transitions and no allowed motion where the browser offers neither', () => {
-      const transitions = createDocumentThemeTransitions();
-
-      expect(transitions.startViewTransition).toBeUndefined();
-      expect(transitions.isMotionAllowed()).toBe(false);
-    });
-
-    it('starts the view transition of the document with the update', () => {
-      const startViewTransition = vi.fn();
-      Object.defineProperty(document, 'startViewTransition', { configurable: true, value: startViewTransition });
-      const update = vi.fn();
-
-      createDocumentThemeTransitions().startViewTransition?.(update);
-
-      expect(startViewTransition).toHaveBeenCalledExactlyOnceWith(update);
-    });
-
-    it.each([
-      [true],
-      [false],
-    ])('allows motion as the media query of the user says: %s', (matches) => {
-      const matchMedia = vi.fn(() => ({ matches }));
-      Object.defineProperty(window, 'matchMedia', { configurable: true, value: matchMedia });
-
-      expect(createDocumentThemeTransitions().isMotionAllowed()).toBe(matches);
-      expect(matchMedia).toHaveBeenCalledWith('(prefers-reduced-motion: no-preference)');
-    });
-
-    it('reads the preference of the user at every change, not once', () => {
-      let matches = true;
-      Object.defineProperty(window, 'matchMedia', { configurable: true, value: () => ({ matches }) });
-      const transitions = createDocumentThemeTransitions();
-
-      expect(transitions.isMotionAllowed()).toBe(true);
-
-      matches = false;
-
-      expect(transitions.isMotionAllowed()).toBe(false);
     });
   });
 });

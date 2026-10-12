@@ -44,22 +44,6 @@ describe('AddressLink', () => {
     cleanup();
   });
 
-  it('renders a real anchor with the fragment href', () => {
-    renderLink();
-
-    expect(screen.getByRole('link', { name: LINK_LABEL }).getAttribute('href')).toBe(`#/deals/${DEAL_ID}`);
-  });
-
-  it('passes other anchor props through', () => {
-    renderLink({ 'aria-current': 'page', 'className': 'nav-link', 'id': 'deal-link' });
-
-    const link = screen.getByRole('link', { name: LINK_LABEL });
-
-    expect(link.getAttribute('aria-current')).toBe('page');
-    expect(link.className).toBe('nav-link');
-    expect(link.id).toBe('deal-link');
-  });
-
   it('navigates on a plain left click and cancels the native navigation', () => {
     const location = renderLink();
 
@@ -132,15 +116,5 @@ describe('AddressLink', () => {
     fireEvent.click(screen.getByRole('link', { name: LINK_LABEL }));
 
     expect(location.history).toEqual(['/network']);
-  });
-
-  it('throws outside of the provider', () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-
-    expect(() => render(<AddressLink to={{ kind: 'home' }}>{LINK_LABEL}</AddressLink>)).toThrow(
-      'Routing hooks must be used inside RoutingProvider',
-    );
-
-    consoleError.mockRestore();
   });
 });

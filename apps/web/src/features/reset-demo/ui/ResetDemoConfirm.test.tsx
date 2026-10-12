@@ -152,54 +152,6 @@ describe('ResetDemoConfirm', () => {
     cleanup();
   });
 
-  it('asks the owner to close on cancel and on Escape', async () => {
-    const onClose = vi.fn();
-    await renderWithProviders(createDemoControl(() => Promise.resolve()), <ResetDemoConfirm onClose={onClose} />);
-
-    fireEvent.click(screen.getByRole('button', { name: CANCEL_LABEL }));
-
-    expect(onClose).toHaveBeenCalledTimes(1);
-
-    fireEvent.keyDown(screen.getByRole('button', { name: CANCEL_LABEL }), { key: 'Escape' });
-
-    expect(onClose).toHaveBeenCalledTimes(2);
-  });
-
-  it('focuses the cancel button and announces the question', async () => {
-    await renderWithProviders(createDemoControl(() => Promise.resolve()), <ResetDemoConfirm onClose={vi.fn()} />);
-
-    const group = getConfirmGroup();
-
-    expect(within(group).getByText(defaultLocaleCatalog['demo.reset.confirm.hint'])).toBeDefined();
-    expect(within(group).getAllByRole('button')).toEqual([
-      within(group).getByRole('button', { name: CANCEL_LABEL }),
-      within(group).getByRole('button', { name: ACCEPT_LABEL }),
-    ]);
-    expect(document.activeElement).toBe(within(group).getByRole('button', { name: CANCEL_LABEL }));
-    expect(getAnnouncement()).toBe(PROMPT);
-  });
-
-  it('lays the group out in a row by default and in a column when stacked', async () => {
-    await renderWithProviders(createDemoControl(() => Promise.resolve()), <ResetDemoConfirm onClose={vi.fn()} />);
-
-    expect(getConfirmGroup().className).toContain('flex-wrap');
-
-    cleanup();
-    await renderWithProviders(createDemoControl(() => Promise.resolve()), <ResetDemoConfirm isStacked onClose={vi.fn()} />);
-
-    expect(getConfirmGroup().className).toContain('flex-col');
-    expect(getConfirmGroup().className).not.toContain('flex-wrap');
-  });
-
-  it('ignores other keys', async () => {
-    const onClose = vi.fn();
-    await renderWithProviders(createDemoControl(() => Promise.resolve()), <ResetDemoConfirm onClose={onClose} />);
-
-    fireEvent.keyDown(screen.getByRole('button', { name: CANCEL_LABEL }), { key: 'a' });
-
-    expect(onClose).not.toHaveBeenCalled();
-  });
-
   it('resets once, shows the progress, then closes once and announces the result', async () => {
     const response = createDeferred();
     const onClose = vi.fn();

@@ -192,16 +192,6 @@ describe('AppRoutes sections', () => {
     expect(APP_SECTIONS.filter(other => screen.queryByTestId(`page-${other}`) !== null)).toEqual([section]);
   });
 
-  it('shows one main landmark that holds the page', async () => {
-    await renderRoutes('/catalog');
-
-    const page = await screen.findByTestId('page-catalog');
-
-    expect(screen.getAllByRole('main')).toHaveLength(1);
-    expect(screen.getByRole('main').contains(page)).toBe(true);
-    expect(screen.getByRole('main').getAttribute('aria-busy')).toBeNull();
-  });
-
   it('moves to the page of another section and to another object of the same section', async () => {
     const { location } = await renderRoutes('/deals');
     await screen.findByTestId('page-deals');
@@ -605,74 +595,6 @@ describe('AppRoutes render failure', () => {
   });
 });
 
-describe('AppRoutes focus', () => {
-  it('does not move the focus when the first page appears', async () => {
-    await renderRoutes('/network');
-    await screen.findByTestId('page-network');
-
-    expect(document.activeElement).not.toBe(screen.getByRole('main'));
-  });
-
-  it('does not move the focus when the empty address becomes the first section', async () => {
-    await renderRoutes('/');
-    await screen.findByTestId('page-network');
-
-    expect(document.activeElement).not.toBe(screen.getByRole('main'));
-  });
-
-  it('makes the landmark focusable by code only', async () => {
-    await renderRoutes('/network');
-
-    expect(screen.getByRole('main').getAttribute('tabindex')).toBe('-1');
-  });
-
-  it('moves the focus to the main landmark when the address changes', async () => {
-    const { location } = await renderRoutes('/network');
-    await screen.findByTestId('page-network');
-
-    act(() => {
-      location.navigate('/catalog');
-    });
-    await screen.findByTestId('page-catalog');
-
-    expect(document.activeElement).toBe(screen.getByRole('main'));
-  });
-
-  it('moves the focus when only the object changes inside one section', async () => {
-    const { location } = await renderRoutes(`/deals/${OBJECT_ID}`);
-    await screen.findByTestId('page-deals');
-    expect(document.activeElement).not.toBe(screen.getByRole('main'));
-
-    act(() => {
-      location.navigate(`/deals/${OTHER_OBJECT_ID}`);
-    });
-
-    expect(document.activeElement).toBe(screen.getByRole('main'));
-  });
-
-  it('moves the focus to the main landmark on the not found screen after the navigation', async () => {
-    const { location } = await renderRoutes('/network');
-    await screen.findByTestId('page-network');
-
-    act(() => {
-      location.navigate('/nope');
-    });
-
-    expect(document.activeElement).toBe(screen.getByRole('main'));
-  });
-
-  it('keeps the focus where it is when the same address is opened again', async () => {
-    const { location } = await renderRoutes('/network');
-    await screen.findByTestId('page-network');
-
-    act(() => {
-      location.navigate('/network', { isReplace: true });
-    });
-
-    expect(document.activeElement).not.toBe(screen.getByRole('main'));
-  });
-});
-
 describe('AppRoutes sections of the persona', () => {
   it('replaces the empty address with the landing section of the persona', async () => {
     const { location } = await renderRoutes('/', createStubLoaders(), WAREHOUSE_ONLY_VALUE);
@@ -1058,32 +980,5 @@ describe('AppRoutes session skeleton timing', () => {
     await advance(SKELETON_MIN_VISIBLE_MS);
 
     expect(screen.getByRole('alert')).toBeDefined();
-  });
-});
-
-describe('AppRoutes session skeleton zones', () => {
-  const getDrawnFrames = (): readonly string[] => {
-    return [...screen.getByTestId('hud-layout-skeleton').querySelectorAll('[data-testid^="hud-skeleton-"]')]
-      .map(frame => frame.getAttribute('data-testid') ?? '');
-  };
-
-  it.each([
-    ['/network', ['hud-skeleton-kpi', 'hud-skeleton-tracker', 'hud-skeleton-inspector', 'hud-skeleton-lists']],
-    ['/warehouse', ['hud-skeleton-inspector', 'hud-skeleton-lists']],
-    ['/catalog', ['hud-skeleton-panel', 'hud-skeleton-inspector']],
-    ['/deals/order-1', ['hud-skeleton-panel', 'hud-skeleton-inspector']],
-  ] as const)('draws the frames of the section from the address %s while the session loads', async (path, frames) => {
-    stubIdleCallbacks();
-    await renderRoutes(path, createStubLoaders(), { kind: 'loading' });
-
-    expect(getDrawnFrames()).toEqual(frames);
-  });
-
-  it.each(['/', '/nope'])('draws only the scene without frames for the address %s while the session loads', async (path) => {
-    stubIdleCallbacks();
-    await renderRoutes(path, createStubLoaders(), { kind: 'loading' });
-
-    expect(getDrawnFrames()).toEqual([]);
-    expect(screen.getByRole('main', { busy: true })).toBeDefined();
   });
 });

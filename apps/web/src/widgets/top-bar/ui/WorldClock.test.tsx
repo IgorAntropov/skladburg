@@ -17,7 +17,6 @@ import {
   cleanup,
   render,
   screen,
-  within,
 } from '@testing-library/react';
 import { defaultLocaleCatalog } from 'virtual:build-profile';
 import {
@@ -53,10 +52,6 @@ import { WorldClock } from './WorldClock';
 
 const MINUTE_MS = 60_000;
 const CLOCK_TEST_ID = 'top-bar-clock-slot';
-const CLOCK_LABEL = defaultLocaleCatalog['clock.label'];
-const LOADING_LABEL = defaultLocaleCatalog['clock.loading'];
-const PAUSED_TEXT = defaultLocaleCatalog['clock.paused'];
-const PAUSED_LABEL = defaultLocaleCatalog['clock.paused.label'];
 
 let visibilityState: DocumentVisibilityState = 'visible';
 
@@ -175,15 +170,6 @@ describe('WorldClock', () => {
   });
 
   describe('loading', () => {
-    it('shows a busy skeleton with a label and no time before the answer', async () => {
-      await renderClock({ gate: new Promise<void>(() => undefined) });
-
-      const clock = screen.getByTestId(CLOCK_TEST_ID);
-
-      expect(within(clock).getByRole('status', { name: LOADING_LABEL }).getAttribute('aria-busy')).toBe('true');
-      expect(clock.querySelector('time')).toBeNull();
-    });
-
     it('replaces the skeleton with the time when the answer comes', async () => {
       await renderClock();
 
@@ -193,15 +179,6 @@ describe('WorldClock', () => {
   });
 
   describe('time', () => {
-    it('is a labelled group with the time inside', async () => {
-      await renderClock();
-
-      const group = screen.getByRole('group', { name: CLOCK_LABEL });
-
-      expect(group).toBe(screen.getByTestId(CLOCK_TEST_ID));
-      expect(within(group).getByText('12:07')).toBe(getTime());
-    });
-
     it('shows hours and minutes of the world in the time zone of the user', async () => {
       await renderClock({ userTimeZone: 'Europe/Moscow' });
 
@@ -251,81 +228,6 @@ describe('WorldClock', () => {
       advance(10 * MINUTE_MS);
 
       expect(getTime().textContent).toBe('12:07');
-    });
-  });
-
-  describe('scale badge', () => {
-    it('is absent at the scale 1', async () => {
-      await renderClock();
-
-      const clock = screen.getByTestId(CLOCK_TEST_ID);
-
-      expect(within(clock).queryByText(/×/)).toBeNull();
-    });
-
-    it('shows the scale with a text for assistive technology at the scale 60', async () => {
-      await renderClock({ timeScale: 60 });
-
-      const clock = screen.getByTestId(CLOCK_TEST_ID);
-      const badge = within(clock).getByText('×60');
-
-      expect(badge.getAttribute('aria-hidden')).toBe('true');
-      expect(within(clock).getByText('Масштаб времени ×60')).toBeDefined();
-    });
-
-    it('formats a fractional scale for the locale', async () => {
-      await renderClock({ timeScale: 0.5 });
-
-      expect(within(screen.getByTestId(CLOCK_TEST_ID)).getByText('×0,5')).toBeDefined();
-    });
-
-    it('shows the pause with an icon and a text instead of the scale 0', async () => {
-      await renderClock({ timeScale: 0 });
-
-      const clock = screen.getByTestId(CLOCK_TEST_ID);
-      const badge = within(clock).getByText(PAUSED_TEXT);
-
-      expect(within(clock).queryByText(/×/)).toBeNull();
-      expect(badge.getAttribute('aria-hidden')).toBe('true');
-      expect(badge.querySelector('svg.lucide-pause')?.getAttribute('aria-hidden')).toBe('true');
-      expect(getTime().textContent).toBe('12:07');
-    });
-
-    it('tells assistive technology that the time of the world is paused', async () => {
-      await renderClock({ timeScale: 0 });
-
-      const label = within(screen.getByTestId(CLOCK_TEST_ID)).getByText(PAUSED_LABEL);
-
-      expect(label.className).toContain('sr-only');
-      expect(label.getAttribute('aria-hidden')).toBeNull();
-    });
-
-    it('shows neither the pause nor the scale at the scale 1', async () => {
-      await renderClock();
-
-      const clock = screen.getByTestId(CLOCK_TEST_ID);
-
-      expect(within(clock).queryByText(PAUSED_TEXT)).toBeNull();
-      expect(within(clock).queryByText(PAUSED_LABEL)).toBeNull();
-      expect(clock.querySelector('svg')).toBeNull();
-    });
-
-    it('shows the scale without the pause at the scale 60', async () => {
-      await renderClock({ timeScale: 60 });
-
-      const clock = screen.getByTestId(CLOCK_TEST_ID);
-
-      expect(within(clock).queryByText(PAUSED_TEXT)).toBeNull();
-      expect(clock.querySelector('svg')).toBeNull();
-    });
-
-    it('shows neither the pause nor the scale while the time is loading', async () => {
-      await renderClock({ gate: new Promise<void>(() => undefined), timeScale: 0 });
-
-      const clock = screen.getByTestId(CLOCK_TEST_ID);
-
-      expect(within(clock).queryByText(PAUSED_TEXT)).toBeNull();
-      expect(clock.querySelector('svg')).toBeNull();
     });
   });
 

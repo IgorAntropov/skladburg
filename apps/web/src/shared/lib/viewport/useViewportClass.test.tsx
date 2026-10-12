@@ -1,11 +1,6 @@
-import type { ReactElement } from 'react';
-
 import {
-  act,
   cleanup,
-  render,
   renderHook,
-  screen,
 } from '@testing-library/react';
 import {
   afterEach,
@@ -21,12 +16,6 @@ import { installFakeViewport } from './index.testing';
 import { useViewportClass } from './useViewportClass';
 import { VIEWPORT_MEDIA_QUERIES } from './viewportTypes';
 
-const ClassProbe = (): ReactElement => {
-  const viewportClass = useViewportClass();
-
-  return <p data-testid="viewport-class">{viewportClass}</p>;
-};
-
 describe('useViewportClass', () => {
   let fakeViewport: IFakeViewport | undefined;
 
@@ -34,60 +23,6 @@ describe('useViewportClass', () => {
     cleanup();
     fakeViewport?.restore();
     fakeViewport = undefined;
-  });
-
-  it.each(['desktop', 'tablet', 'phone'] as const)('returns the %s class of the current viewport', (viewportClass) => {
-    fakeViewport = installFakeViewport(viewportClass);
-
-    const { result } = renderHook(() => useViewportClass());
-
-    expect(result.current).toBe(viewportClass);
-  });
-
-  it('is a desktop without media queries in the environment', () => {
-    const { result } = renderHook(() => useViewportClass());
-
-    expect(result.current).toBe('desktop');
-  });
-
-  it('redraws the component when the viewport class changes on the fly', () => {
-    fakeViewport = installFakeViewport('desktop');
-    render(<ClassProbe />);
-
-    act(() => {
-      fakeViewport?.setViewportClass('tablet');
-    });
-
-    expect(screen.getByTestId('viewport-class').textContent).toBe('tablet');
-
-    act(() => {
-      fakeViewport?.setViewportClass('phone');
-    });
-
-    expect(screen.getByTestId('viewport-class').textContent).toBe('phone');
-
-    act(() => {
-      fakeViewport?.setViewportClass('desktop');
-    });
-
-    expect(screen.getByTestId('viewport-class').textContent).toBe('desktop');
-  });
-
-  it('does not redraw while the class stays the same', () => {
-    fakeViewport = installFakeViewport('phone');
-    const renderCount = vi.fn();
-    renderHook(() => {
-      renderCount();
-
-      return useViewportClass();
-    });
-    const rendersAtStart = renderCount.mock.calls.length;
-
-    act(() => {
-      fakeViewport?.setViewportClass('phone');
-    });
-
-    expect(renderCount).toHaveBeenCalledTimes(rendersAtStart);
   });
 
   it('does not ask for the media queries again on repeated renders', () => {

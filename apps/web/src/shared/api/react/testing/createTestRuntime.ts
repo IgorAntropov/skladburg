@@ -2,10 +2,7 @@ import type { ConnectRouter } from '@connectrpc/connect';
 
 import { createRouterTransport } from '@connectrpc/connect';
 
-import type {
-  ApiRuntimeValue,
-  QueryNetworkModeValue,
-} from '../../runtime/apiRuntimeTypes';
+import type { ApiRuntimeValue } from '../../runtime/apiRuntimeTypes';
 import type { IDemoControl } from '../../transport/demo';
 
 import { createApiClient } from '../../client/createApiClient';
@@ -17,7 +14,6 @@ export const TEST_USER_ID = 'f0000002-0000-4000-8000-000000000000';
 
 export interface TestRuntimeOptionsValue {
   demoControl?: IDemoControl | undefined;
-  networkMode?: QueryNetworkModeValue | undefined;
   routes?: ((router: ConnectRouter) => void) | undefined;
 }
 
@@ -34,7 +30,7 @@ export const createTestRuntime = (options: TestRuntimeOptionsValue = {}): ApiRun
     client: createApiClient(transport),
     close: () => undefined,
     demoControl: options.demoControl,
-    networkMode: options.networkMode ?? 'always',
+    networkMode: 'always',
     realtime: {
       stop: () => undefined,
       subscribe: () => () => undefined,

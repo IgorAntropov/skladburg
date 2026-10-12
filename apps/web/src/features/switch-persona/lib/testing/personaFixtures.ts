@@ -91,7 +91,7 @@ export const CONSTRUCTION_SUPPLIER_FIXTURE = createPersonaFixture({
   userDisplayName: 'Андрей Новиков',
 });
 
-export const CONSTRUCTION_CARRIER_FIXTURE = createPersonaFixture({
+const CONSTRUCTION_CARRIER_FIXTURE = createPersonaFixture({
   group: DemoPersonaGroup.CONSTRUCTION,
   index: 7,
   kind: DemoPersonaKind.CARRIER,
@@ -101,7 +101,7 @@ export const CONSTRUCTION_CARRIER_FIXTURE = createPersonaFixture({
   userDisplayName: 'Павел Волков',
 });
 
-export const CONSTRUCTION_STOREKEEPER_FIXTURE = createPersonaFixture({
+const CONSTRUCTION_STOREKEEPER_FIXTURE = createPersonaFixture({
   group: DemoPersonaGroup.CONSTRUCTION,
   index: 8,
   kind: DemoPersonaKind.STOREKEEPER,

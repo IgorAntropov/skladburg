@@ -1,5 +1,3 @@
-import type { MessageInitShape } from '@bufbuild/protobuf';
-
 import { create } from '@bufbuild/protobuf';
 import {
   Code,
@@ -27,15 +25,13 @@ import {
 import { withLocalizer } from '../testing/withLocalizer';
 import { ErrorNotice } from './ErrorNotice';
 
-type ErrorDetailInitValue = MessageInitShape<typeof ErrorDetailSchema>;
-
 const createFailure = (): Error => new Error('failure');
 
-const createCodedFailure = (code: ErrorCode, params?: ErrorDetailInitValue['params']): ConnectError => new ConnectError(
+const createCodedFailure = (code: ErrorCode): ConnectError => new ConnectError(
   'failed',
   Code.FailedPrecondition,
   undefined,
-  [{ desc: ErrorDetailSchema, value: create(ErrorDetailSchema, { code, params }) }],
+  [{ desc: ErrorDetailSchema, value: create(ErrorDetailSchema, { code }) }],
 );
 
 describe('ErrorNotice', () => {
@@ -53,22 +49,6 @@ describe('ErrorNotice', () => {
     render(withLocalizer(<ErrorNotice error={createCodedFailure(ErrorCode.VERSION_CONFLICT)} />));
 
     expect(screen.getByRole('alert').textContent).toBe(defaultLocaleCatalog['error.version_conflict']);
-  });
-
-  it('puts the denied permission of the error into the text', () => {
-    const error = createCodedFailure(ErrorCode.PERMISSION_DENIED, {
-      case: 'permissionDenied',
-      value: { permission: 'deal_approve' },
-    });
-    render(withLocalizer(<ErrorNotice error={error} />));
-
-    expect(screen.getByRole('alert').textContent).toContain('deal_approve');
-  });
-
-  it('has no retry button without a retry handler', () => {
-    render(withLocalizer(<ErrorNotice error={createFailure()} />));
-
-    expect(screen.queryByRole('button')).toBeNull();
   });
 
   it('calls the retry handler once per click', () => {

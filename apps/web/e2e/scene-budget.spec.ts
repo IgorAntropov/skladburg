@@ -12,6 +12,7 @@ const RESIZED_VIEWPORT = { height: 700, width: 1100 } as const;
 const MIN_ROTATION_FRAMES = 10;
 const MAX_ROTATION_ANIMATION_MS = 1500;
 const MAX_REDUCED_MOTION_FRAMES = 3;
+const MIN_REDUCED_MOTION_FRAMES = 1;
 const MAX_LONG_TASK_COUNT = 0;
 
 const openReadyBoard = async (scene: SceneRobotValue): Promise<void> => {
@@ -24,12 +25,16 @@ const openReadyBoard = async (scene: SceneRobotValue): Promise<void> => {
 const measureRotation = async (
   scene: SceneRobotValue,
   rotate: () => Promise<void>,
+  minFrames: number,
 ): Promise<{ animationMs: number; frames: number; longTaskCount: number; settleMs: number }> => {
   const framesBefore = await scene.readDrawFrames();
 
   await scene.markMotionStart();
   await rotate();
-  await scene.waitForDrawFramesToExceed(framesBefore);
+  await scene.waitForDrawFramesToExceed(
+    framesBefore + minFrames - 1,
+    `rotation drew fewer than ${String(minFrames)} frames`,
+  );
   await scene.waitForIdle();
 
   const animationMs = await scene.readAnimationMs();
@@ -62,7 +67,11 @@ test.describe('camera motion', () => {
 
     await openReadyBoard(scene);
 
-    const rotation = await measureRotation(scene, async () => scene.pressCameraButton('rotate-right'));
+    const rotation = await measureRotation(
+      scene,
+      async () => scene.pressCameraButton('rotate-right'),
+      MIN_ROTATION_FRAMES,
+    );
 
     annotateRotation('rotation-button', rotation);
 
@@ -76,7 +85,11 @@ test.describe('camera motion', () => {
 
     await openReadyBoard(scene);
 
-    const rotation = await measureRotation(scene, async () => scene.pressKey('KeyE'));
+    const rotation = await measureRotation(
+      scene,
+      async () => scene.pressKey('KeyE'),
+      MIN_ROTATION_FRAMES,
+    );
 
     annotateRotation('rotation-key', rotation);
 
@@ -127,7 +140,11 @@ test.describe('scene frame budget', () => {
 
     await openReadyBoard(scene);
 
-    const rotation = await measureRotation(scene, async () => scene.pressCameraButton('rotate-right'));
+    const rotation = await measureRotation(
+      scene,
+      async () => scene.pressCameraButton('rotate-right'),
+      MIN_REDUCED_MOTION_FRAMES,
+    );
 
     annotateRotation('rotation-reduced-motion', rotation);
 

@@ -41,7 +41,7 @@ export interface SceneRobotValue {
   resizeWindow: (size: { height: number; width: number }) => Promise<void>;
   waitForCameraControls: () => Promise<void>;
   waitForDrawCallsToExceed: (count: number) => Promise<void>;
-  waitForDrawFramesToExceed: (count: number) => Promise<void>;
+  waitForDrawFramesToExceed: (count: number, message: string) => Promise<void>;
   waitForIdle: () => Promise<void>;
   watchSceneChunkRequests: () => void;
 }
@@ -141,8 +141,8 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     async waitForDrawCallsToExceed(count: number): Promise<void> {
       await expect.poll(readDrawCalls).toBeGreaterThan(count);
     },
-    async waitForDrawFramesToExceed(count: number): Promise<void> {
-      await expect.poll(readDrawFrames).toBeGreaterThan(count);
+    async waitForDrawFramesToExceed(count: number, message: string): Promise<void> {
+      await expect.poll(readDrawFrames, { message }).toBeGreaterThan(count);
     },
     async waitForIdle(): Promise<void> {
       await page.evaluate(createWaitForIdleScript(IDLE_WINDOW_MS));

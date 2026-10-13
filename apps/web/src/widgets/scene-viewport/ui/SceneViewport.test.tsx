@@ -75,10 +75,22 @@ const PHONE_MESSAGE = defaultLocaleCatalog['scene.off.phoneDefault'];
 const ENABLE_NAME = defaultLocaleCatalog['scene.off.enable'];
 
 const SCENE_BOUNDS = { maxX: 1, maxZ: 1, minX: -1, minZ: -1 };
+const SCENE_VIEW_BOX = {
+  maxX: 1,
+  maxY: 1,
+  maxZ: 1,
+  minX: -1,
+  minY: -1,
+  minZ: -1,
+};
 
 const SceneContent = (): ReactElement => <span data-testid="scene-content" />;
 
-const loadSceneModule = (): Promise<SceneModuleValue> => Promise.resolve({ bounds: SCENE_BOUNDS, default: SceneContent });
+const loadSceneModule = (): Promise<SceneModuleValue> => Promise.resolve({
+  bounds: SCENE_BOUNDS,
+  default: SceneContent,
+  viewBox: SCENE_VIEW_BOX,
+});
 
 const createFailingThenLoadingScene = (failureCount: number): Mock<() => Promise<SceneModuleValue>> => {
   let failedCount = 0;

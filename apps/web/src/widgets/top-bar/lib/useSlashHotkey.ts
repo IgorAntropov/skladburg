@@ -2,16 +2,13 @@ import type { RefObject } from 'react';
 
 import { useEffect } from 'react';
 
-import { isEditableTarget } from './isEditableTarget';
-
-const OVERLAY_SELECTOR = '[role="menu"], [role="dialog"], [role="alertdialog"]';
+import {
+  isEditableTarget,
+  isInsideOverlay,
+} from '@/shared/lib/keyboard';
 
 const isSlashKey = (event: KeyboardEvent): boolean => {
   return event.key === '/' || (event.code === 'Slash' && !event.shiftKey);
-};
-
-const isInsideOverlay = (target: EventTarget | null): boolean => {
-  return target instanceof Element && target.closest(OVERLAY_SELECTOR) !== null;
 };
 
 export const useSlashHotkey = (target: RefObject<HTMLInputElement | null>, onActivate?: (() => void)): void => {

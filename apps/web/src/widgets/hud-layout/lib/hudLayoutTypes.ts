@@ -12,6 +12,7 @@ export interface HudLayoutProps {
   onInspectorClose: () => void;
   panel?: ReactNode | undefined;
   scene: ReactNode;
+  sceneControls?: ReactNode | undefined;
   tracker?: ReactNode | undefined;
 }
 

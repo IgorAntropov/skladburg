@@ -4,3 +4,12 @@ export interface SceneBoundsValue {
   minX: number;
   minZ: number;
 }
+
+export interface SceneViewBoxValue {
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+  minX: number;
+  minY: number;
+  minZ: number;
+}

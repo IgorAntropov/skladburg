@@ -17,14 +17,16 @@ import {
 import type { SceneBoundsValue } from '../world/sceneBounds';
 
 import { useWorldMaterial } from '../materials/useWorldMaterial';
-import { getBoardLayout } from './getBoardLayout';
+import {
+  getBoardLayout,
+  TILE_HEIGHT_METERS,
+} from './getBoardLayout';
 import {
   getTileCenter,
   getTileGrid,
 } from './getTileGrid';
 
 const TILE_GAP_METERS = 0.08;
-const TILE_HEIGHT_METERS = 0.12;
 
 const tileMatrix = new Matrix4();
 

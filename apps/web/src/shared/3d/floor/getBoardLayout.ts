@@ -1,4 +1,7 @@
-import type { SceneBoundsValue } from '../world/sceneBounds';
+import type {
+  SceneBoundsValue,
+  SceneViewBoxValue,
+} from '../world/sceneBounds';
 
 export interface BoardLayoutValue {
   body: BoardPartLayoutValue;
@@ -17,6 +20,7 @@ export const BODY_THICKNESS_METERS = 0.5;
 export const RIM_WIDTH_METERS = 0.55;
 export const RIM_THICKNESS_METERS = 0.5;
 export const RIM_DROP_METERS = 0.1;
+export const TILE_HEIGHT_METERS = 0.12;
 
 export const getBoardLayout = (bounds: SceneBoundsValue): BoardLayoutValue => {
   const centerX = (bounds.minX + bounds.maxX) / 2;
@@ -40,3 +44,12 @@ export const getBoardLayout = (bounds: SceneBoundsValue): BoardLayoutValue => {
     },
   };
 };
+
+export const getBoardViewBox = (bounds: SceneBoundsValue): SceneViewBoxValue => ({
+  maxX: bounds.maxX + RIM_WIDTH_METERS,
+  maxY: TILE_HEIGHT_METERS,
+  maxZ: bounds.maxZ + RIM_WIDTH_METERS,
+  minX: bounds.minX - RIM_WIDTH_METERS,
+  minY: -RIM_DROP_METERS - RIM_THICKNESS_METERS,
+  minZ: bounds.minZ - RIM_WIDTH_METERS,
+});

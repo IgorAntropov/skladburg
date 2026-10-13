@@ -34,15 +34,16 @@ export const Tooltip = ({
 }: TooltipProps): ReactElement => {
   const isInsideGroup = use(TooltipGroupContext);
 
-  const hasShortcut = shortcut !== undefined;
+  const hasShortcut = shortcut !== undefined && shortcut !== '';
+  const activeShortcut = hasShortcut ? shortcut : undefined;
   const contentRole = hasShortcut ? undefined : 'presentation';
 
   const tooltip = (
     <Root>
-      <Trigger aria-keyshortcuts={shortcut} asChild>{children}</Trigger>
+      <Trigger aria-keyshortcuts={activeShortcut} asChild>{children}</Trigger>
       <Portal>
         <Content
-          aria-label={shortcut}
+          aria-label={activeShortcut}
           className={TOOLTIP_CONTENT_CLASS_NAME}
           collisionPadding={COLLISION_PADDING_PX}
           role={contentRole}

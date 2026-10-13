@@ -78,23 +78,6 @@ describe('Tooltip', () => {
     vi.useRealTimers();
   });
 
-  it('opens a standalone tooltip only after the open delay', () => {
-    render(
-      <Tooltip content={FIRST_CONTENT}>
-        <button type="button">{FIRST_TRIGGER_NAME}</button>
-      </Tooltip>,
-    );
-
-    hover(screen.getByRole('button', { name: FIRST_TRIGGER_NAME }));
-    advance(TOOLTIP_OPEN_DELAY_MS - 1);
-
-    expect(screen.queryByText(FIRST_CONTENT)).toBeNull();
-
-    advance(1);
-
-    expect(screen.getByText(FIRST_CONTENT)).toBeTruthy();
-  });
-
   it('does not share the skipped delay between standalone tooltips', () => {
     render(
       <>
@@ -144,7 +127,30 @@ describe('Tooltip', () => {
     expect(screen.queryByText(FIRST_CONTENT)).toBeNull();
   });
 
-  it('restores the open delay in a group after the skip window passes', () => {
+  it('opens the neighbour in a group without delay inside the skip window', () => {
+    render(
+      <TooltipGroup>
+        <Tooltip content={FIRST_CONTENT}>
+          <button type="button">{FIRST_TRIGGER_NAME}</button>
+        </Tooltip>
+        <Tooltip content={SECOND_CONTENT}>
+          <button type="button">{SECOND_TRIGGER_NAME}</button>
+        </Tooltip>
+      </TooltipGroup>,
+    );
+    const first = screen.getByRole('button', { name: FIRST_TRIGGER_NAME });
+    const second = screen.getByRole('button', { name: SECOND_TRIGGER_NAME });
+
+    hover(first);
+    advance(TOOLTIP_OPEN_DELAY_MS);
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    advance(TOOLTIP_SKIP_DELAY_MS - 1);
+    hover(second);
+
+    expect(screen.getByText(SECOND_CONTENT)).toBeTruthy();
+  });
+
+  it('opens the neighbour in a group only after the open delay once the skip window passes', () => {
     render(
       <TooltipGroup>
         <Tooltip content={FIRST_CONTENT}>
@@ -162,10 +168,13 @@ describe('Tooltip', () => {
     advance(TOOLTIP_OPEN_DELAY_MS);
     fireEvent.keyDown(document.body, { key: 'Escape' });
     advance(TOOLTIP_SKIP_DELAY_MS);
-    leave(first);
     hover(second);
 
     expect(screen.queryByText(SECOND_CONTENT)).toBeNull();
+
+    advance(TOOLTIP_OPEN_DELAY_MS);
+
+    expect(screen.getByText(SECOND_CONTENT)).toBeTruthy();
   });
 
   it('describes the trigger only by the shortcut and exposes it as a key shortcut', () => {
@@ -198,6 +207,23 @@ describe('Tooltip', () => {
 
     expect(trigger.hasAttribute('aria-keyshortcuts')).toBe(false);
     expect(screen.getAllByText(FIRST_CONTENT).length).toBeGreaterThan(0);
+    expect(readDescription(trigger)).toBe('');
+  });
+
+  it('treats an empty shortcut as no shortcut', () => {
+    render(
+      <Tooltip content={FIRST_CONTENT} shortcut="">
+        <button aria-label={FIRST_CONTENT} type="button" />
+      </Tooltip>,
+    );
+    const trigger = screen.getByRole('button', { name: FIRST_CONTENT });
+
+    act(() => {
+      trigger.focus();
+    });
+
+    expect(trigger.hasAttribute('aria-keyshortcuts')).toBe(false);
+    expect(document.querySelector('kbd')).toBeNull();
     expect(readDescription(trigger)).toBe('');
   });
 });

@@ -22,6 +22,7 @@ import {
   HUD_TABLET_KPI_ZONE_CLASS_NAME,
   HUD_TABLET_MAIN_CLASS_NAME,
   HUD_TABLET_PANEL_ZONE_CLASS_NAME,
+  HUD_TABLET_SCENE_CONTROLS_CLASS_NAME,
 } from './hudStyles';
 import { HudZone } from './HudZone';
 import { InspectorDrawer } from './InspectorDrawer';
@@ -75,6 +76,7 @@ export const TabletHudLayout = ({
   listTabs,
   onInspectorClose,
   panel,
+  sceneControls,
   tracker,
 }: HudZonesProps): ReactElement => {
   const { t } = useI18n();
@@ -83,6 +85,7 @@ export const TabletHudLayout = ({
   const isTrackerShown = hasSlot(tracker);
   const isListsShown = hasLists({ listsHeader, listTabs });
   const isPanelShown = hasSlot(panel);
+  const isSceneControlsShown = hasSlot(sceneControls);
   const isBottomTabbed = isTrackerShown && isListsShown;
   const isTrackerAlone = !isBottomTabbed && isTrackerShown;
   const isListsAlone = !isBottomTabbed && isListsShown;
@@ -110,6 +113,9 @@ export const TabletHudLayout = ({
       <div className={HUD_TABLET_MAIN_CLASS_NAME}>
         {isPanelShown && (
           <HudZone className={PANEL_ZONE_CLASS_NAME} label={t('hud.panel.label')}>{panel}</HudZone>
+        )}
+        {isSceneControlsShown && (
+          <div className={HUD_TABLET_SCENE_CONTROLS_CLASS_NAME}>{sceneControls}</div>
         )}
       </div>
       {isBottomTabbed && (

@@ -20,6 +20,7 @@ import {
   INITIAL_SCENE_VIEWPORT_STATE,
   reduceSceneViewport,
 } from '../model/sceneViewportMachine';
+import { useSceneCameraStore } from '../model/useSceneCameraStore';
 import { SceneErrorBoundary } from './SceneErrorBoundary';
 import { SceneErrorPlaceholder } from './SceneErrorPlaceholder';
 import { SceneFrame } from './SceneFrame';
@@ -52,6 +53,7 @@ export const SceneLive = ({
 }: SceneLiveProps): ReactElement => {
   const { t } = useI18n();
   const markSceneUnavailable = useSceneSettingsStore(state => state.markSceneUnavailable);
+  const setCameraReady = useSceneCameraStore(state => state.setCameraReady);
   const [state, dispatch] = useReducer(reduceSceneViewport, INITIAL_SCENE_VIEWPORT_STATE);
 
   const isLoading = state.phase === 'loading';
@@ -59,6 +61,7 @@ export const SceneLive = ({
   const isStageMounted = isLoading || state.phase === 'ready';
   const isErrorShown = state.phase === 'error';
   const isUnavailableShown = state.phase === 'unavailable';
+  const isSceneReady = state.phase === 'ready';
 
   const handleSceneReady = (): void => {
     console.log('> SceneLive -> handleSceneReady:', { attempt: state.attempt });
@@ -81,6 +84,19 @@ export const SceneLive = ({
       markSceneUnavailable();
     }
   }, [isUnavailableShown, markSceneUnavailable, state.attempt]);
+
+  useEffect(() => {
+    if (!isSceneReady) {
+      return undefined;
+    }
+
+    console.log('> SceneLive -> setCameraReady:', { attempt: state.attempt });
+    setCameraReady(true);
+
+    return () => {
+      setCameraReady(false);
+    };
+  }, [isSceneReady, setCameraReady, state.attempt]);
 
   return (
     <SceneFrame sceneState={SCENE_STATE_BY_PHASE[state.phase]}>

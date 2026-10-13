@@ -41,6 +41,7 @@ const SLOT_TEXT = {
   lists: 'Lists slot',
   panel: 'Panel slot',
   scene: 'Scene slot',
+  sceneControls: 'Scene controls slot',
   tracker: 'Tracker slot',
 } as const;
 
@@ -242,6 +243,24 @@ describe('HudLayout', () => {
         expect(onListsMount).toHaveBeenCalledTimes(1);
         expect(onSceneMount).toHaveBeenCalledTimes(1);
       });
+    });
+  });
+
+  describe('with the scene controls', () => {
+    it.each(['desktop', 'tablet'] as const)('shows them on a %s', (viewportClass) => {
+      viewport.setViewportClass(viewportClass);
+
+      renderLayout(createProps({ sceneControls: <p>{SLOT_TEXT.sceneControls}</p> }));
+
+      expect(screen.getByText(SLOT_TEXT.sceneControls)).toBeDefined();
+    });
+
+    it('does not render them on a phone', () => {
+      viewport.setViewportClass('phone');
+
+      renderLayout(createProps({ sceneControls: <p>{SLOT_TEXT.sceneControls}</p> }));
+
+      expect(screen.queryByText(SLOT_TEXT.sceneControls)).toBeNull();
     });
   });
 

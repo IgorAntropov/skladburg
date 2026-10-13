@@ -33,9 +33,11 @@ export const HUD_DESKTOP_KPI_ZONE_CLASS_NAME = 'min-h-48 max-h-[45%]';
 
 export const HUD_DESKTOP_TRACKER_ZONE_CLASS_NAME = cn('mt-auto', HUD_DESKTOP_KPI_ZONE_CLASS_NAME);
 
-export const HUD_DESKTOP_CENTER_COLUMN_CLASS_NAME = 'flex min-h-0 min-w-0 flex-1 items-start justify-center';
+export const HUD_DESKTOP_CENTER_COLUMN_CLASS_NAME = 'flex min-h-0 min-w-0 flex-1 flex-col items-center gap-4';
 
 export const HUD_DESKTOP_PANEL_ZONE_CLASS_NAME = 'max-h-full w-full max-w-4xl';
+
+export const HUD_DESKTOP_SCENE_CONTROLS_CLASS_NAME = 'pointer-events-none mt-auto flex shrink-0 justify-center *:pointer-events-auto';
 
 export const HUD_DESKTOP_INSPECTOR_ZONE_CLASS_NAME = 'min-h-56 max-h-[calc(55%-0.5rem)]';
 
@@ -46,6 +48,8 @@ export const HUD_TABLET_KPI_ZONE_CLASS_NAME = 'min-h-28';
 export const HUD_TABLET_PANEL_ZONE_CLASS_NAME = 'max-h-full';
 
 export const HUD_TABLET_MAIN_CLASS_NAME = 'pointer-events-none flex min-h-0 flex-1 flex-col';
+
+export const HUD_TABLET_SCENE_CONTROLS_CLASS_NAME = 'pointer-events-none mt-auto flex shrink-0 justify-end *:pointer-events-auto';
 
 export const HUD_TABLET_BOTTOM_ZONE_CLASS_NAME = 'sticky bottom-0 z-10 max-h-[45dvh] shrink-0';
 

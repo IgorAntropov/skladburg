@@ -1,3 +1,5 @@
+import type { SceneRobotValue } from './robots/scene-robot.ts';
+
 import {
   expect,
   test,
@@ -7,6 +9,81 @@ import { createSceneRobot } from './robots/scene-robot.ts';
 
 const REST_PERIOD_MS = 2000;
 const RESIZED_VIEWPORT = { height: 700, width: 1100 } as const;
+const MIN_ROTATION_FRAMES = 10;
+const MAX_ROTATION_ANIMATION_MS = 1500;
+const MAX_REDUCED_MOTION_FRAMES = 3;
+const MAX_LONG_TASK_COUNT = 0;
+
+const openReadyBoard = async (scene: SceneRobotValue): Promise<void> => {
+  await scene.openNetwork();
+  await scene.expectSceneState('ready');
+  await scene.waitForCameraControls();
+  await scene.waitForIdle();
+};
+
+const measureRotation = async (
+  scene: SceneRobotValue,
+  rotate: () => Promise<void>,
+): Promise<{ animationMs: number; frames: number; longTaskCount: number; settleMs: number }> => {
+  const framesBefore = await scene.readDrawFrames();
+
+  await scene.markMotionStart();
+  await rotate();
+  await scene.waitForDrawFramesToExceed(framesBefore);
+  await scene.waitForIdle();
+
+  const animationMs = await scene.readAnimationMs();
+  const frames = (await scene.readDrawFrames()) - framesBefore;
+  const settleMs = await scene.readSettleOffsetMs();
+  const longTaskCount = (await scene.readLongTaskDurations()).length;
+
+  await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
+
+  return { animationMs, frames, longTaskCount, settleMs };
+};
+
+const annotateRotation = (
+  type: string,
+  { animationMs, frames, settleMs }: { animationMs: number; frames: number; settleMs: number },
+): void => {
+  const description = `frames=${String(frames)} animationMs=${String(Math.round(animationMs))} settleMs=${String(Math.round(settleMs))}`;
+
+  test.info().annotations.push({ description, type });
+};
+test.describe('camera motion', () => {
+  test.use({
+    initialGraphicsPreference: null,
+    reducedMotion: 'no-preference',
+    viewport: DESKTOP_VIEWPORT,
+  });
+
+  test('turns the board with the button over many frames and then goes quiet', async ({ page }) => {
+    const scene = createSceneRobot(page);
+
+    await openReadyBoard(scene);
+
+    const rotation = await measureRotation(scene, async () => scene.pressCameraButton('rotate-right'));
+
+    annotateRotation('rotation-button', rotation);
+
+    expect(rotation.frames).toBeGreaterThanOrEqual(MIN_ROTATION_FRAMES);
+    expect(rotation.animationMs).toBeLessThanOrEqual(MAX_ROTATION_ANIMATION_MS);
+    expect(rotation.longTaskCount).toBe(MAX_LONG_TASK_COUNT);
+  });
+
+  test('turns the board with the E key like the button does', async ({ page }) => {
+    const scene = createSceneRobot(page);
+
+    await openReadyBoard(scene);
+
+    const rotation = await measureRotation(scene, async () => scene.pressKey('KeyE'));
+
+    annotateRotation('rotation-key', rotation);
+
+    expect(rotation.frames).toBeGreaterThanOrEqual(MIN_ROTATION_FRAMES);
+    expect(rotation.animationMs).toBeLessThanOrEqual(MAX_ROTATION_ANIMATION_MS);
+  });
+});
 
 test.describe('scene frame budget', () => {
   test.use({
@@ -43,6 +120,18 @@ test.describe('scene frame budget', () => {
     await scene.waitForIdle();
 
     await scene.expectNoDrawCallsFor(REST_PERIOD_MS);
+  });
+
+  test('jumps the board to the new angle in a couple of frames and goes quiet', async ({ page }) => {
+    const scene = createSceneRobot(page);
+
+    await openReadyBoard(scene);
+
+    const rotation = await measureRotation(scene, async () => scene.pressCameraButton('rotate-right'));
+
+    annotateRotation('rotation-reduced-motion', rotation);
+
+    expect(rotation.frames).toBeLessThanOrEqual(MAX_REDUCED_MOTION_FRAMES);
   });
 
   test('does not request the scene chunk without 3D and loads it after switching back to auto', async ({ page }) => {

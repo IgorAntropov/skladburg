@@ -18,7 +18,10 @@ import {
   ZoneEmptyState,
 } from '@/widgets/hud-layout';
 import { ObjectInspector } from '@/widgets/object-inspector';
-import { SceneViewport } from '@/widgets/scene-viewport';
+import {
+  SceneCameraControls,
+  SceneViewport,
+} from '@/widgets/scene-viewport';
 
 import { loadNetworkScene } from './loadNetworkScene';
 
@@ -57,6 +60,7 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
         kpi={<ZoneEmptyState icon={ChartNoAxesColumn} text={t('hud.kpi.empty')} />}
         listTabs={listTabs}
         scene={<SceneViewport label={t('section.network.placeholder')} loadScene={loadNetworkScene} />}
+        sceneControls={<SceneCameraControls />}
         tracker={<ZoneEmptyState icon={ListChecks} text={t('hud.tracker.empty')} />}
       />
     </div>

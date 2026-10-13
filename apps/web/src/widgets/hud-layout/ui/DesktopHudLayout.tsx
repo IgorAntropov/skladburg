@@ -14,6 +14,7 @@ import {
   HUD_DESKTOP_LISTS_ZONE_CLASS_NAME,
   HUD_DESKTOP_OVERLAY_CLASS_NAME,
   HUD_DESKTOP_PANEL_ZONE_CLASS_NAME,
+  HUD_DESKTOP_SCENE_CONTROLS_CLASS_NAME,
   HUD_DESKTOP_SIDE_COLUMN_CLASS_NAME,
   HUD_DESKTOP_TRACKER_ZONE_CLASS_NAME,
   HUD_INTERACTIVE_CLASS_NAME,
@@ -27,6 +28,7 @@ export const DesktopHudLayout = ({
   listsHeader,
   listTabs,
   panel,
+  sceneControls,
   tracker,
 }: HudZonesProps): ReactElement => {
   const { t } = useI18n();
@@ -35,6 +37,8 @@ export const DesktopHudLayout = ({
   const isTrackerShown = hasSlot(tracker);
   const isListsShown = hasLists({ listsHeader, listTabs });
   const isPanelShown = hasSlot(panel);
+  const isSceneControlsShown = hasSlot(sceneControls);
+  const isCenterColumnShown = isPanelShown || isSceneControlsShown;
   const isLeftColumnShown = isKpiShown || isTrackerShown;
 
   return (
@@ -57,15 +61,20 @@ export const DesktopHudLayout = ({
           )}
         </div>
       )}
-      {isPanelShown && (
+      {isCenterColumnShown && (
         <div className={HUD_DESKTOP_CENTER_COLUMN_CLASS_NAME}>
-          <HudZone
-            className={cn(HUD_INTERACTIVE_CLASS_NAME, HUD_DESKTOP_PANEL_ZONE_CLASS_NAME)}
-            label={t('hud.panel.label')}
+          {isPanelShown && (
+            <HudZone
+              className={cn(HUD_INTERACTIVE_CLASS_NAME, HUD_DESKTOP_PANEL_ZONE_CLASS_NAME)}
+              label={t('hud.panel.label')}
 
-          >
-            {panel}
-          </HudZone>
+            >
+              {panel}
+            </HudZone>
+          )}
+          {isSceneControlsShown && (
+            <div className={HUD_DESKTOP_SCENE_CONTROLS_CLASS_NAME}>{sceneControls}</div>
+          )}
         </div>
       )}
       <div className={cn(HUD_DESKTOP_SIDE_COLUMN_CLASS_NAME, 'ml-auto')}>

@@ -1,10 +1,17 @@
 import type { ReactElement } from 'react';
 
+import {
+  useCallback,
+  useRef,
+} from 'react';
+
 import type { QualityLevelValue } from '@/shared/3d';
 import type { CachedModuleLoader } from '@/shared/lib/module-loader';
 
 import type { SceneModuleValue } from '../model/sceneViewportTypes';
 
+import { subscribeToSceneCameraCommands } from '../model/subscribeToSceneCameraCommands';
+import { usePrefersReducedMotion } from '../model/usePrefersReducedMotion';
 import { useSceneModules } from '../model/useSceneModules';
 import { SceneLayer } from './SceneLayer';
 
@@ -21,6 +28,11 @@ const STAGE_LAYER_CLASS_NAME = [
   'motion-safe:transition-opacity motion-safe:duration-(--duration-panel) motion-safe:ease-out',
 ].join(' ');
 
+const JUMP_FADE_KEYFRAMES: Keyframe[] = [{ opacity: 0.3 }, { opacity: 1 }];
+const JUMP_FADE_DURATION_MS = 150;
+
+const JUMP_FADE_LAYER_CLASS_NAME = 'absolute inset-0';
+
 export const SceneStage = ({
   dprCeiling,
   isStatsShown,
@@ -29,6 +41,16 @@ export const SceneStage = ({
   onReady,
 }: SceneStageProps): null | ReactElement => {
   const modulesState = useSceneModules(loadScene);
+  const isReducedMotion = usePrefersReducedMotion();
+  const jumpFadeLayerRef = useRef<HTMLDivElement>(null);
+
+  const handleCameraJump = useCallback((): void => {
+    console.log('> SceneStage -> handleCameraJump:', { durationMs: JUMP_FADE_DURATION_MS });
+    jumpFadeLayerRef.current?.animate(JUMP_FADE_KEYFRAMES, {
+      duration: JUMP_FADE_DURATION_MS,
+      easing: 'ease-out',
+    });
+  }, []);
 
   if (modulesState.kind === 'failed') {
     throw modulesState.error;
@@ -43,14 +65,20 @@ export const SceneStage = ({
 
   return (
     <SceneLayer className={STAGE_LAYER_CLASS_NAME}>
-      <SceneRoot
-        bounds={sceneModule.bounds}
-        Content={sceneModule.default}
-        dprCeiling={dprCeiling}
-        isStatsShown={isStatsShown}
-        level={level}
-        onReady={onReady}
-      />
+      <div className={JUMP_FADE_LAYER_CLASS_NAME} ref={jumpFadeLayerRef}>
+        <SceneRoot
+          bounds={sceneModule.bounds}
+          Content={sceneModule.default}
+          dprCeiling={dprCeiling}
+          isReducedMotion={isReducedMotion}
+          isStatsShown={isStatsShown}
+          level={level}
+          onCameraJump={handleCameraJump}
+          onReady={onReady}
+          subscribeToCameraCommands={subscribeToSceneCameraCommands}
+          viewBox={sceneModule.viewBox}
+        />
+      </div>
     </SceneLayer>
   );
 };

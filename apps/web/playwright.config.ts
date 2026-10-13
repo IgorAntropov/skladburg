@@ -15,6 +15,12 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: /scene-budget\.spec\.ts$/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'chromium-scene',
+      testMatch: /scene-budget\.spec\.ts$/,
       use: {
         ...devices['Desktop Chrome'],
         launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },

@@ -6,7 +6,11 @@ import {
 
 import {
   getBoardLayout,
+  getBoardViewBox,
   RIM_DROP_METERS,
+  RIM_THICKNESS_METERS,
+  RIM_WIDTH_METERS,
+  TILE_HEIGHT_METERS,
 } from './getBoardLayout';
 
 const BOUNDS = {
@@ -60,6 +64,38 @@ describe('getBoardLayout', () => {
     [layout.body, layout.rim, layout.seam].forEach((part) => {
       expect(part.position[0]).toBe(6);
       expect(part.position[2]).toBe(3);
+    });
+  });
+});
+
+describe('getBoardViewBox', () => {
+  it('extends the tiled bounds by the rim on both ground axes', () => {
+    const viewBox = getBoardViewBox(BOUNDS);
+
+    expect(viewBox.minX).toBeCloseTo(-12 - RIM_WIDTH_METERS, 9);
+    expect(viewBox.maxX).toBeCloseTo(12 + RIM_WIDTH_METERS, 9);
+    expect(viewBox.minZ).toBeCloseTo(-8 - RIM_WIDTH_METERS, 9);
+    expect(viewBox.maxZ).toBeCloseTo(8 + RIM_WIDTH_METERS, 9);
+  });
+
+  it('spans from the bottom of the rim to the top of the tiles', () => {
+    const viewBox = getBoardViewBox(BOUNDS);
+    const layout = getBoardLayout(BOUNDS);
+
+    expect(viewBox.maxY).toBe(TILE_HEIGHT_METERS);
+    expect(viewBox.minY).toBeCloseTo(-RIM_DROP_METERS - RIM_THICKNESS_METERS, 9);
+    expect(viewBox.minY).toBeCloseTo(getBottom(layout.rim), 9);
+  });
+
+  it('covers every part of the board', () => {
+    const viewBox = getBoardViewBox(BOUNDS);
+    const layout = getBoardLayout(BOUNDS);
+
+    [layout.body, layout.rim, layout.seam].forEach((part) => {
+      expect(getTop(part)).toBeLessThanOrEqual(viewBox.maxY);
+      expect(getBottom(part)).toBeGreaterThanOrEqual(viewBox.minY - 1e-9);
+      expect(part.position[0] - part.scale[0] / 2).toBeGreaterThanOrEqual(viewBox.minX - 1e-9);
+      expect(part.position[2] + part.scale[2] / 2).toBeLessThanOrEqual(viewBox.maxZ + 1e-9);
     });
   });
 });

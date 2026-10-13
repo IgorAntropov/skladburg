@@ -14,6 +14,7 @@ import {
 import type {
   IIsometricCameraRig,
   QualityLevelValue,
+  SceneContentProps,
   SceneWorldValue,
 } from '@/shared/3d';
 import type { SceneInsetsValue } from '@/shared/lib/viewport';
@@ -24,6 +25,7 @@ import {
   QUALITY_LEVEL_SETTINGS,
   readWorldPalette,
   SceneCanvas,
+  WorldGeometryProvider,
   WorldMaterialsProvider,
 } from '@/shared/3d';
 
@@ -32,7 +34,7 @@ import type { SceneCameraCommandSubscription } from '../model/subscribeToSceneCa
 import { useSceneCameraCommands } from './useSceneCameraCommands';
 
 interface SceneRootProps {
-  Content: ComponentType;
+  Content: ComponentType<SceneContentProps>;
   dprCeiling: number;
   focusInsets: SceneInsetsValue;
   isReducedMotion: boolean;
@@ -85,8 +87,10 @@ const SceneRoot = ({
         world={world}
       />
       <WorldMaterialsProvider palette={palette}>
-        <DayLight />
-        <Content />
+        <WorldGeometryProvider>
+          <DayLight />
+          <Content level={level} />
+        </WorldGeometryProvider>
       </WorldMaterialsProvider>
       {isStatsVisible && (
         <Suspense fallback={null}>

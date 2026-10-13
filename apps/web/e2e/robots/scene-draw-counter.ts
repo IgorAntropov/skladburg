@@ -40,6 +40,28 @@ export const DRAW_COUNTER_INIT_SCRIPT = `
     }
   }
 
+  const pendingFrameIds = new Set();
+  const originalRequestAnimationFrame = window.requestAnimationFrame.bind(window);
+  const originalCancelAnimationFrame = window.cancelAnimationFrame.bind(window);
+
+  counter.countPendingFrames = () => pendingFrameIds.size;
+
+  window.requestAnimationFrame = (callback) => {
+    const id = originalRequestAnimationFrame((time) => {
+      pendingFrameIds.delete(id);
+      callback(time);
+    });
+
+    pendingFrameIds.add(id);
+
+    return id;
+  };
+
+  window.cancelAnimationFrame = (id) => {
+    pendingFrameIds.delete(id);
+    originalCancelAnimationFrame(id);
+  };
+
   const stampInput = () => {
     counter.inputAt = performance.now();
   };
@@ -84,7 +106,9 @@ window.__drawCounter.longTasks
 export const createWaitForIdleScript = (idleWindowMs: number): string => `
 new Promise((resolve) => {
   const check = () => {
-    if (performance.now() - window.__drawCounter.lastAt >= ${String(idleWindowMs)}) {
+    const counter = window.__drawCounter;
+
+    if (performance.now() - counter.lastAt >= ${String(idleWindowMs)} && counter.countPendingFrames() === 0) {
       resolve();
     }
     else {

@@ -20,9 +20,18 @@ const readWorldColor = (readProperty: (name: string) => string, name: string): R
 export const readWorldPalette = (readProperty: (name: string) => string): WorldPaletteValue => {
   return {
     background: readWorldColor(readProperty, WORLD_PALETTE_KEYS.background),
+    field: readWorldColor(readProperty, WORLD_PALETTE_KEYS.field),
+    fieldAlt: readWorldColor(readProperty, WORLD_PALETTE_KEYS.fieldAlt),
     ground: readWorldColor(readProperty, WORLD_PALETTE_KEYS.ground),
+    groundAlt: readWorldColor(readProperty, WORLD_PALETTE_KEYS.groundAlt),
     groundDay: readWorldColor(readProperty, WORLD_PALETTE_KEYS.groundDay),
+    rock: readWorldColor(readProperty, WORLD_PALETTE_KEYS.rock),
+    sand: readWorldColor(readProperty, WORLD_PALETTE_KEYS.sand),
     skyDay: readWorldColor(readProperty, WORLD_PALETTE_KEYS.skyDay),
     sunDay: readWorldColor(readProperty, WORLD_PALETTE_KEYS.sunDay),
+    treeCrown: readWorldColor(readProperty, WORLD_PALETTE_KEYS.treeCrown),
+    treeCrownDark: readWorldColor(readProperty, WORLD_PALETTE_KEYS.treeCrownDark),
+    treeTrunk: readWorldColor(readProperty, WORLD_PALETTE_KEYS.treeTrunk),
+    water: readWorldColor(readProperty, WORLD_PALETTE_KEYS.water),
   };
 };

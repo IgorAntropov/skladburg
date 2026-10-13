@@ -11,10 +11,19 @@ import { WORLD_PALETTE_KEYS } from './worldPaletteKeys';
 
 const PALETTE_KEYS: readonly WorldPaletteKeyValue[] = [
   'background',
+  'field',
+  'fieldAlt',
   'ground',
+  'groundAlt',
   'groundDay',
+  'rock',
+  'sand',
   'skyDay',
   'sunDay',
+  'treeCrown',
+  'treeCrownDark',
+  'treeTrunk',
+  'water',
 ];
 
 const createProperties = (): Map<string, string> => {

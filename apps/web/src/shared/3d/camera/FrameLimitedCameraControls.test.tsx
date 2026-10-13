@@ -84,6 +84,10 @@ const LOPSIDED_CASE: FrameCaseValue = {
 };
 
 class ProbeControls extends FrameLimitedCameraControls {
+  get currentZoom(): number {
+    return this._zoom;
+  }
+
   private elementHeight = ELEMENT_HEIGHT_PX;
 
   private elementWidth = ELEMENT_WIDTH_PX;
@@ -545,6 +549,27 @@ describe.each([DESKTOP_CASE, LOPSIDED_CASE])('FrameLimitedCameraControls in the 
     expect(rig.controls.minZoom).toBeCloseTo(resizedLimits.min, 9);
     expect(Math.abs(pixel.x - center.x)).toBeLessThan(PIXEL_TOLERANCE);
     expect(Math.abs(pixel.y - center.y)).toBeLessThan(PIXEL_TOLERANCE);
+  });
+
+  it('pulls the zoom back inside the refreshed limits when the canvas is resized', () => {
+    const resized = { height: viewport.height + 240, width: viewport.width + 480 };
+    const resizedLimits = getZoomLimits({ insets, viewport: resized, world: WORLD });
+
+    void rig.controls.zoomTo(zoomLimits.min, false);
+    stepFrame(rig);
+
+    rig.camera.left = -resized.width / 2;
+    rig.camera.right = resized.width / 2;
+    rig.camera.top = resized.height / 2;
+    rig.camera.bottom = -resized.height / 2;
+    rig.camera.updateProjectionMatrix();
+
+    expect(resizedLimits.min).toBeGreaterThan(zoomLimits.min);
+
+    runFrames(rig, 1);
+
+    expect(rig.controls.zoomEnd).toBeGreaterThanOrEqual(resizedLimits.min - 1e-9);
+    expect(rig.controls.currentZoom).toBeGreaterThanOrEqual(resizedLimits.min - 1e-9);
   });
 
   it('re-centers the target when the free area changes', () => {

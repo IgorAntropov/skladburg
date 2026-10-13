@@ -44,33 +44,45 @@ const SKELETON_SEPARATION_THRESHOLD = 1.3;
 
 const BARE_STATUS_ICON_THEMES: readonly ThemeNameValue[] = ['dark'];
 
-const WORLD_SURFACE_TOKEN_NAMES: readonly string[] = ['background', 'ground'];
+const { darkOverrideNames, tokens } = readThemeTokens(themeCss);
+
+const WORLD_TOKEN_PREFIX = '--world-';
 
 const WORLD_LIGHT_TOKEN_NAMES: readonly string[] = ['sun-day', 'sky-day', 'ground-day'];
 
-const WORLD_TOKEN_DECLARATION_PATTERN = /--world-([\w-]+):\s*(#[\da-f]{6})\s*;/gi;
+const WORLD_TERRAIN_TOKEN_NAMES: readonly string[] = [
+  'background',
+  'ground',
+  'ground-alt',
+  'field',
+  'field-alt',
+  'sand',
+  'water',
+  'tree-crown',
+  'tree-crown-dark',
+  'tree-trunk',
+  'rock',
+];
 
-const readWorldTokens = (): Map<string, string> => {
-  return new Map(
-    Array.from(themeCss.matchAll(WORLD_TOKEN_DECLARATION_PATTERN), (match): [string, string] => [
-      match[1] ?? '',
-      match[2] ?? '',
-    ]),
-  );
+const WORLD_TOKEN_DECLARATION_PATTERN = /--world-([\w-]+)\s*:\s*([^;}]*)[;}]/g;
+
+const WORLD_HEX_PATTERN = /^#[\da-f]{6}$/;
+
+const readWorldDeclarations = (): [string, string][] => {
+  return Array.from(themeCss.matchAll(WORLD_TOKEN_DECLARATION_PATTERN), (match): [string, string] => [
+    match[1] ?? '',
+    (match[2] ?? '').trim(),
+  ]);
+};
+
+const readWorldTokens = (): Map<string, string> => new Map(readWorldDeclarations());
+
+const readWorldSurfaceEntries = (): [string, string][] => {
+  return [...readWorldTokens()].filter(([name]) => !WORLD_LIGHT_TOKEN_NAMES.includes(name));
 };
 
 const readWorldSurfaceTokens = (): string[] => {
-  const worldTokens = readWorldTokens();
-
-  return WORLD_SURFACE_TOKEN_NAMES.map((name) => {
-    const value = worldTokens.get(name);
-
-    if (value === undefined) {
-      throw new Error(`Token --world-${name} is missing in theme.css`);
-    }
-
-    return value;
-  });
+  return readWorldSurfaceEntries().map(([, value]) => value);
 };
 
 const WORLD_BACKGROUNDS: readonly string[] = [
@@ -221,8 +233,6 @@ const CONTRAST_PAIRS: readonly ContrastPairValue[] = [
   },
 ];
 
-const { darkOverrideNames, tokens } = readThemeTokens(themeCss);
-
 const readColor = (theme: ThemeNameValue, name: string): RgbaColorValue => {
   const tokenName = `--color-${name}`;
   const rawValue = tokens[theme].get(tokenName);
@@ -359,10 +369,42 @@ describe('theme tokens contract', () => {
     expect(readBackdrops(theme, 'panel-solid')).toHaveLength(1);
   });
 
-  it('classifies every world token as a surface or a light color', () => {
-    const classified = [...WORLD_SURFACE_TOKEN_NAMES, ...WORLD_LIGHT_TOKEN_NAMES].toSorted();
+  it('declares every world token as a lowercase six-digit hex color', () => {
+    const invalidTokens = [...readWorldTokens()]
+      .filter(([, value]) => !WORLD_HEX_PATTERN.test(value))
+      .map(([name, value]) => `${WORLD_TOKEN_PREFIX}${name}: ${value}`);
 
-    expect([...readWorldTokens().keys()].toSorted()).toEqual(classified);
+    expect(invalidTokens).toEqual([]);
+  });
+
+  it('declares every world token once', () => {
+    const names = readWorldDeclarations().map(([name]) => name);
+
+    expect(names.filter((name, index) => names.indexOf(name) !== index)).toEqual([]);
+  });
+
+  it('declares every light token of the world', () => {
+    const missingLightTokens = WORLD_LIGHT_TOKEN_NAMES.filter(name => !readWorldTokens().has(name));
+
+    expect(missingLightTokens).toEqual([]);
+  });
+
+  it('keeps the world background equal to the ground', () => {
+    expect(readWorldTokens().get('background')).toBe(readWorldTokens().get('ground'));
+  });
+
+  it('keeps world tokens out of the dark block', () => {
+    const overriddenWorldTokens = darkOverrideNames.filter(name => name.startsWith(WORLD_TOKEN_PREFIX));
+
+    expect(overriddenWorldTokens).toEqual([]);
+  });
+
+  it('declares every terrain surface of the world and counts it as a panel backdrop', () => {
+    const surfaceNames = readWorldSurfaceEntries().map(([name]) => name);
+
+    expect(surfaceNames.toSorted()).toEqual(expect.arrayContaining(WORLD_TERRAIN_TOKEN_NAMES.toSorted()));
+    expect(surfaceNames.some(name => WORLD_LIGHT_TOKEN_NAMES.includes(name))).toBe(false);
+    expect(WORLD_BACKGROUNDS).toEqual(expect.arrayContaining(readWorldSurfaceTokens()));
   });
 
   it('reports a missing token with its name and theme', () => {

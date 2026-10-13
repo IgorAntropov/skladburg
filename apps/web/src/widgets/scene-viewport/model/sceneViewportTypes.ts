@@ -1,8 +1,12 @@
 import type { ComponentType } from 'react';
 
-import type { SceneWorldValue } from '@/shared/3d';
+import type {
+  SceneContentProps,
+  SceneWorldValue,
+} from '@/shared/3d';
 
 export interface SceneModuleValue {
-  default: ComponentType;
+  default: ComponentType<SceneContentProps>;
+  prepare: () => Promise<void>;
   world: SceneWorldValue;
 }

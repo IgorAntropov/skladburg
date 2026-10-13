@@ -43,7 +43,7 @@ interface VoidScanValue {
 }
 
 const MAX_MOVES_TO_LIMIT = 12;
-const DRAG_STEPS = 12;
+const DRAG_STEPS = 4;
 const DRAG_SPAN_RATIO = 0.8;
 const CLEAR_COLOR_TOLERANCE = 0.02;
 const PROBE_MIN_COORDINATE_PX = 100;

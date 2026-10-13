@@ -86,8 +86,7 @@ export class FrameLimitedCameraControls extends CameraControlsImpl {
     this.worldLimits = limits;
     this.regionOptions = { radius: 0, world: limits.world };
     this.applyFrameGeometry();
-    this._zoomEnd = clamp(this._zoomEnd, this.minZoom, this.maxZoom);
-    this._zoom = clamp(this._zoom, this.minZoom, this.maxZoom);
+    this.clampZoomToLimits();
     this.refreshBoundary();
     this._needsUpdate = true;
   }
@@ -95,6 +94,7 @@ export class FrameLimitedCameraControls extends CameraControlsImpl {
   override update(delta: number): boolean {
     if (this.isFrameGeometryStale()) {
       this.applyFrameGeometry();
+      this.clampZoomToLimits();
       this.refreshBoundary();
     }
 
@@ -142,6 +142,11 @@ export class FrameLimitedCameraControls extends CameraControlsImpl {
     this.minZoom = zoomLimits.min;
     this.maxZoom = zoomLimits.max;
     camera.setViewOffset(width, height, -shift.x, -shift.y, width, height);
+  }
+
+  private clampZoomToLimits(): void {
+    this._zoomEnd = clamp(this._zoomEnd, this.minZoom, this.maxZoom);
+    this._zoom = clamp(this._zoom, this.minZoom, this.maxZoom);
   }
 
   private isFrameGeometryStale(): boolean {

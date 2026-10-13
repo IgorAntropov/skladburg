@@ -23,6 +23,10 @@ import {
   vi,
 } from 'vitest';
 
+import type {
+  QualityLevelValue,
+  SceneContentProps,
+} from '@/shared/3d';
 import type { CachedModuleLoader } from '@/shared/lib/module-loader';
 import type { IFakeViewport } from '@/shared/lib/viewport/index.testing';
 import type { IMemoryLocation } from '@/shared/routing/index.testing';
@@ -45,7 +49,11 @@ const sceneRootControl = vi.hoisted(() => ({ isBroken: false }));
 vi.mock('../lib/webGlSupport', () => ({ isWebGlSupported: vi.fn(() => true) }));
 
 vi.mock('../scene/SceneRoot', () => {
-  const SceneRoot = ({ Content, onReady }: { Content: ComponentType; onReady: () => void }): ReactElement => {
+  const SceneRoot = ({ Content, level, onReady }: {
+    Content: ComponentType<SceneContentProps>;
+    level: QualityLevelValue;
+    onReady: () => void;
+  }): ReactElement => {
     if (sceneRootControl.isBroken) {
       throw new Error('the WebGL context was not created');
     }
@@ -56,7 +64,7 @@ vi.mock('../scene/SceneRoot', () => {
 
     return (
       <div data-testid="scene-root-probe">
-        <Content />
+        <Content level={level} />
       </div>
     );
   };
@@ -80,10 +88,11 @@ const SCENE_WORLD = {
   maxHeight: 1,
 };
 
-const SceneContent = (): ReactElement => <span data-testid="scene-content" />;
+const SceneContent = ({ level }: SceneContentProps): ReactElement => <span data-level={level} data-testid="scene-content" />;
 
 const loadSceneModule = (): Promise<SceneModuleValue> => Promise.resolve({
   default: SceneContent,
+  prepare: () => Promise.resolve(),
   world: SCENE_WORLD,
 });
 
@@ -218,7 +227,7 @@ describe('SceneViewport', () => {
       await waitFor(() => {
         expect(getSceneState()).toBe('ready');
       });
-      expect(screen.getByTestId('scene-content')).toBeTruthy();
+      expect(['high', 'low', 'medium']).toContain(screen.getByTestId('scene-content').dataset.level);
     });
 
     it('mounts an already loaded scene on the first render', async () => {

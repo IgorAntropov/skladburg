@@ -1,0 +1,1 @@
+export const NETWORK_WORLD_SEED = 20261013;

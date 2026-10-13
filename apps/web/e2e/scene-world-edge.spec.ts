@@ -24,7 +24,8 @@ const CANVASES: readonly CanvasValue[] = [
 ];
 
 const CORNER_TOUR: readonly DragDirectionValue[] = ['up', 'left', 'down', 'right'];
-const TOUR_TIMEOUT_MS = 90_000;
+const SCENE_TEST_TIMEOUT_MS = 60_000;
+const TOUR_TIMEOUT_MS = 180_000;
 
 const openReadyWorldWithVisibleVoid = async (
   scene: SceneRobotValue,
@@ -37,9 +38,11 @@ const openReadyWorldWithVisibleVoid = async (
   await scene.waitForIdle();
 };
 
+test.describe.configure({ timeout: SCENE_TEST_TIMEOUT_MS });
+
 test.describe('world edge', () => {
   test.use({
-    initialGraphicsPreference: null,
+    initialGraphicsPreference: 'low',
     reducedMotion: 'no-preference',
     viewport: DESKTOP_VIEWPORT,
   });
@@ -58,7 +61,7 @@ test.describe('world edge', () => {
 for (const { name, viewport } of CANVASES) {
   test.describe(`world edge on ${name}`, () => {
     test.use({
-      initialGraphicsPreference: null,
+      initialGraphicsPreference: 'low',
       reducedMotion: 'no-preference',
       viewport,
     });

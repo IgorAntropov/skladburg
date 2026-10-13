@@ -4,20 +4,23 @@ export type {
 } from './camera/cameraTypes';
 export { IsometricCameraRig } from './camera/IsometricCameraRig';
 export { SceneCanvas } from './canvas/SceneCanvas';
+export { WorldGeometryProvider } from './geometry/WorldGeometryProvider';
 export { DayLight } from './lighting/DayLight';
 export { useWorldMaterial } from './materials/useWorldMaterial';
 export { WorldMaterialsProvider } from './materials/WorldMaterialsProvider';
 export { readWorldPalette } from './palette/readWorldPalette';
 export type { QualityLevelValue } from './quality/qualityLevel';
 export { QUALITY_LEVEL_SETTINGS } from './quality/qualityLevel';
-export { FlatGround } from './world/FlatGround';
+export type { SceneContentProps } from './scene/sceneContentTypes';
+export {
+  EMPTY_TERRAIN_RESERVED,
+  loadWorldTerrain,
+  WorldTerrain,
+} from './terrain';
 export type { SceneBoundsValue } from './world/sceneBounds';
 export type {
   SceneHomeAreaValue,
   SceneWorldValue,
 } from './world/sceneWorld';
 export { createSquareWorld } from './world/sceneWorld';
-export {
-  DEFAULT_HOME_RADIUS_METERS,
-  WORLD_SIZE_METERS,
-} from './world/worldConstants';
+export { WORLD_SIZE_METERS } from './world/worldConstants';

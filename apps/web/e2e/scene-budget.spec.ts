@@ -7,7 +7,17 @@ import {
 import { DESKTOP_VIEWPORT } from './fixtures/viewports.ts';
 import { createSceneRobot } from './robots/scene-robot.ts';
 
+interface RotationMeasurementValue {
+  animationMs: number;
+  drawCallsPerFrame: number;
+  frames: number;
+  longTaskCount: number;
+  longTaskMaxMs: number;
+  settleMs: number;
+}
+
 const REST_PERIOD_MS = 2000;
+const SCENE_TEST_TIMEOUT_MS = 60_000;
 const RESIZED_VIEWPORT = { height: 700, width: 1100 } as const;
 const MIN_ROTATION_FRAMES = 10;
 const MAX_ROTATION_ANIMATION_MS = 1500;
@@ -26,8 +36,9 @@ const measureRotation = async (
   scene: SceneRobotValue,
   rotate: () => Promise<void>,
   minFrames: number,
-): Promise<{ animationMs: number; frames: number; longTaskCount: number; settleMs: number }> => {
+): Promise<RotationMeasurementValue> => {
   const framesBefore = await scene.readDrawFrames();
+  const drawCallsBefore = await scene.readDrawCalls();
 
   await scene.markMotionStart();
   await rotate();
@@ -39,25 +50,37 @@ const measureRotation = async (
 
   const animationMs = await scene.readAnimationMs();
   const frames = (await scene.readDrawFrames()) - framesBefore;
+  const drawCallsPerFrame = frames > 0 ? ((await scene.readDrawCalls()) - drawCallsBefore) / frames : 0;
   const settleMs = await scene.readSettleOffsetMs();
-  const longTaskCount = (await scene.readLongTaskDurations()).length;
+  const longTaskDurations = await scene.readLongTaskDurations();
+  const longTaskCount = longTaskDurations.length;
+  const longTaskMaxMs = Math.max(0, ...longTaskDurations);
 
   await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
 
-  return { animationMs, frames, longTaskCount, settleMs };
+  return { animationMs, drawCallsPerFrame, frames, longTaskCount, longTaskMaxMs, settleMs };
 };
 
 const annotateRotation = (
   type: string,
-  { animationMs, frames, settleMs }: { animationMs: number; frames: number; settleMs: number },
+  { animationMs, drawCallsPerFrame, frames, longTaskCount, longTaskMaxMs, settleMs }: RotationMeasurementValue,
 ): void => {
-  const description = `frames=${String(frames)} animationMs=${String(Math.round(animationMs))} settleMs=${String(Math.round(settleMs))}`;
+  const description = [
+    `frames=${String(frames)}`,
+    `drawCallsPerFrame=${String(Math.round(drawCallsPerFrame))}`,
+    `animationMs=${String(Math.round(animationMs))}`,
+    `settleMs=${String(Math.round(settleMs))}`,
+    `longTaskCount=${String(longTaskCount)}`,
+    `longTaskMaxMs=${String(Math.round(longTaskMaxMs))}`,
+  ].join(' ');
 
   test.info().annotations.push({ description, type });
 };
+test.describe.configure({ timeout: SCENE_TEST_TIMEOUT_MS });
+
 test.describe('camera motion', () => {
   test.use({
-    initialGraphicsPreference: null,
+    initialGraphicsPreference: 'low',
     reducedMotion: 'no-preference',
     viewport: DESKTOP_VIEWPORT,
   });
@@ -100,7 +123,7 @@ test.describe('camera motion', () => {
 
 test.describe('scene frame budget', () => {
   test.use({
-    initialGraphicsPreference: null,
+    initialGraphicsPreference: 'low',
     reducedMotion: 'reduce',
     viewport: DESKTOP_VIEWPORT,
   });

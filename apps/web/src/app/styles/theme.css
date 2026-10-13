@@ -107,6 +107,15 @@
 :root {
   --world-background: #9db08b;
   --world-ground: #9db08b;
+  --world-ground-alt: #87a077;
+  --world-field: #c8c792;
+  --world-field-alt: #b3b27c;
+  --world-sand: #e0d3ae;
+  --world-water: #72a3bb;
+  --world-tree-crown: #628c5a;
+  --world-tree-crown-dark: #416b4d;
+  --world-tree-trunk: #7d6450;
+  --world-rock: #a09d96;
   --world-sun-day: #fff0d9;
   --world-sky-day: #eaf1ff;
   --world-ground-day: #8a8272;

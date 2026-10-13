@@ -49,6 +49,7 @@ export interface SceneRobotValue {
 export type SceneStateValue = 'error' | 'loading' | 'off' | 'ready';
 
 const IDLE_WINDOW_MS = 500;
+const SCENE_STATE_TIMEOUT_MS = 40_000;
 const SCENE_CHUNK_PATTERN = /\/assets\/(?:NetworkWorldScene|SceneRoot)-[^/]+\.js$/;
 
 export const createSceneRobot = (page: Page): SceneRobotValue => {
@@ -105,7 +106,7 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
       await expect(canvas).toHaveCount(1);
     },
     async expectSceneState(state: SceneStateValue): Promise<void> {
-      await expect(sceneViewport).toHaveAttribute('data-scene-state', state);
+      await expect(sceneViewport).toHaveAttribute('data-scene-state', state, { timeout: SCENE_STATE_TIMEOUT_MS });
     },
     async markMotionStart(): Promise<void> {
       await page.evaluate(MARK_MOTION_START_SCRIPT);

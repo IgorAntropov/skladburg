@@ -17,10 +17,19 @@ import { createWorldMaterialRegistry } from './createWorldMaterialRegistry';
 const createUniformPalette = (color: RgbaColorValue): WorldPaletteValue => {
   return {
     background: color,
+    field: color,
+    fieldAlt: color,
     ground: color,
+    groundAlt: color,
     groundDay: color,
+    rock: color,
+    sand: color,
     skyDay: color,
     sunDay: color,
+    treeCrown: color,
+    treeCrownDark: color,
+    treeTrunk: color,
+    water: color,
   };
 };
 

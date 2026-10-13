@@ -5,6 +5,7 @@ import {
 
 const PREVIEW_PORT = '4174';
 const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}/`;
+const SCENE_SPECS = /(?:scene-budget|scene-world-edge)\.spec\.ts$/;
 
 export default defineConfig({
   expect: {
@@ -15,12 +16,12 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: /scene-budget\.spec\.ts$/,
+      testIgnore: SCENE_SPECS,
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'chromium-scene',
-      testMatch: /scene-budget\.spec\.ts$/,
+      testMatch: SCENE_SPECS,
       use: {
         ...devices['Desktop Chrome'],
         launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
@@ -28,7 +29,7 @@ export default defineConfig({
     },
     {
       name: 'webkit',
-      testIgnore: /(?:accessibility|scene-budget)\.spec\.ts$/,
+      testIgnore: [/accessibility\.spec\.ts$/, SCENE_SPECS],
       use: { ...devices['Desktop Safari'] },
     },
   ],

@@ -11,13 +11,10 @@ import { WORLD_PALETTE_KEYS } from './worldPaletteKeys';
 
 const PALETTE_KEYS: readonly WorldPaletteKeyValue[] = [
   'background',
-  'board',
-  'boardEdge',
+  'ground',
   'groundDay',
   'skyDay',
   'sunDay',
-  'tile',
-  'tileSeam',
 ];
 
 const createProperties = (): Map<string, string> => {
@@ -58,9 +55,9 @@ describe('readWorldPalette', () => {
 
   it('accepts values padded with whitespace as computed styles return them', () => {
     const properties = createProperties();
-    properties.set(WORLD_PALETTE_KEYS.tile, '  rgb(1 2 3)  ');
+    properties.set(WORLD_PALETTE_KEYS.ground, '  rgb(1 2 3)  ');
 
-    expect(readWorldPalette(createReader(properties)).tile).toEqual({
+    expect(readWorldPalette(createReader(properties)).ground).toEqual({
       alpha: 1,
       blue: 3,
       green: 2,

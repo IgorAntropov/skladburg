@@ -16,9 +16,11 @@ import {
   hasListTabs,
 } from '../lib/hasLists';
 import { hasSlot } from '../lib/hasSlot';
+import { HudFreeArea } from './HudFreeArea';
 import {
   HUD_INTERACTIVE_CLASS_NAME,
   HUD_TABLET_BOTTOM_ZONE_CLASS_NAME,
+  HUD_TABLET_FREE_AREA_CLASS_NAME,
   HUD_TABLET_KPI_ZONE_CLASS_NAME,
   HUD_TABLET_MAIN_CLASS_NAME,
   HUD_TABLET_PANEL_ZONE_CLASS_NAME,
@@ -69,6 +71,7 @@ const toListTabs = (
 };
 
 export const TabletHudLayout = ({
+  freeAreaRef,
   inspector,
   isInspectorOpen,
   kpi,
@@ -114,6 +117,7 @@ export const TabletHudLayout = ({
         {isPanelShown && (
           <HudZone className={PANEL_ZONE_CLASS_NAME} label={t('hud.panel.label')}>{panel}</HudZone>
         )}
+        <HudFreeArea className={HUD_TABLET_FREE_AREA_CLASS_NAME} ref={freeAreaRef} />
         {isSceneControlsShown && (
           <div className={HUD_TABLET_SCENE_CONTROLS_CLASS_NAME}>{sceneControls}</div>
         )}

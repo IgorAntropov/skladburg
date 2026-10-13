@@ -1,4 +1,7 @@
-import type { ReactNode } from 'react';
+import type {
+  ReactNode,
+  RefCallback,
+} from 'react';
 
 import type { TabsItemValue } from '@/shared/ui';
 
@@ -16,4 +19,6 @@ export interface HudLayoutProps {
   tracker?: ReactNode | undefined;
 }
 
-export type HudZonesProps = Omit<HudLayoutProps, 'scene'>;
+export interface HudZonesProps extends Omit<HudLayoutProps, 'scene'> {
+  freeAreaRef: RefCallback<HTMLDivElement>;
+}

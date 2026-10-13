@@ -96,7 +96,7 @@ export const catalog = {
   'routing.objectUnavailable.title': 'Нет доступа к объекту в этой роли',
   'routing.renderError.message': 'Раздел не открылся из-за ошибки. Попробуйте ещё раз',
   'routing.section.loading': 'Открываем раздел…',
-  'scene.camera.home': 'Вся доска',
+  'scene.camera.home': 'Домой',
   'scene.camera.label': 'Управление видом',
   'scene.camera.rotateLeft': 'Повернуть влево',
   'scene.camera.rotateRight': 'Повернуть вправо',

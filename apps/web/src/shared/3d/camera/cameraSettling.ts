@@ -18,14 +18,6 @@ export interface MutablePointValue {
   z: number;
 }
 
-export const getPanScale = (zoom: number, fitZoom: number): number => {
-  if (zoom <= 0) {
-    return 0;
-  }
-
-  return Math.min(1, Math.max(0, 1 - fitZoom / zoom));
-};
-
 export const limitFrameDelta = (delta: number): number => Math.min(Math.max(delta, 0), MAX_FRAME_DELTA_S);
 
 export const isAngleSettled = (current: number, end: number): boolean => Math.abs(end - current) <= SETTLE_ANGLE_RADIANS;

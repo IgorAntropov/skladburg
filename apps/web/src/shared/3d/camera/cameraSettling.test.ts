@@ -10,7 +10,6 @@ import {
   MAX_FRAME_DELTA_S,
 } from './cameraConstants';
 import {
-  getPanScale,
   isAngleSettled,
   isPointSettled,
   isZoomSettled,
@@ -29,20 +28,6 @@ describe('limitFrameDelta', () => {
 
   it('never goes negative', () => {
     expect(limitFrameDelta(-1)).toBe(0);
-  });
-});
-
-describe('getPanScale', () => {
-  it('locks the pan at the whole-board zoom and opens it up as the zoom grows', () => {
-    expect(getPanScale(40, 40)).toBe(0);
-    expect(getPanScale(80, 40)).toBeCloseTo(0.5, 9);
-    expect(getPanScale(240, 40)).toBeCloseTo(1 - 1 / 6, 9);
-  });
-
-  it('stays within zero and one for any zoom', () => {
-    expect(getPanScale(10, 40)).toBe(0);
-    expect(getPanScale(0, 40)).toBe(0);
-    expect(getPanScale(1e9, 40)).toBeLessThanOrEqual(1);
   });
 });
 

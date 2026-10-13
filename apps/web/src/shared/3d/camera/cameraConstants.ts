@@ -6,9 +6,11 @@ export const ISOMETRIC_POLAR_RADIANS = Math.PI / 2 - ISOMETRIC_ELEVATION_RADIANS
 
 export const QUARTER_TURN_RADIANS = Math.PI / 2;
 
-export const DEFAULT_FIT_MARGIN_RATIO = 0.06;
+export const HOME_MARGIN_RATIO = 0.06;
 
-export const MAX_ZOOM_FACTOR = 6;
+export const MAX_ZOOM_PX_PER_METER = 96;
+
+export const PAN_MIN_HALF_METERS = 16;
 
 export const ZOOM_STEP_FACTOR = 1.5;
 

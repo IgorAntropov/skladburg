@@ -15,7 +15,7 @@ const FORBIDDEN_PACKAGES = ['stats-gl', 'stats.js'];
 
 const LAZY_ENTRY_BUDGETS = [
   {
-    entries: ['src/widgets/scene-viewport/scene/SceneRoot.tsx', 'src/pages/network/scene/NetworkBoardScene.tsx'],
+    entries: ['src/widgets/scene-viewport/scene/SceneRoot.tsx', 'src/pages/network/scene/NetworkWorldScene.tsx'],
     isRequired: true,
     maxGzipKiloBytes: MAX_SCENE_GZIP_KILOBYTES,
     name: 'scene',

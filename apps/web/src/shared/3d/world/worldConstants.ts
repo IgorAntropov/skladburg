@@ -1,0 +1,9 @@
+export const WORLD_SIZE_METERS = 192;
+
+export const WORLD_EDGE_MARGIN_METERS = 2;
+
+export const DEFAULT_HOME_RADIUS_METERS = 20;
+
+export const DEFAULT_WORLD_MAX_HEIGHT_METERS = 12;
+
+export const GROUND_HEIGHT_METERS = 0;

@@ -8,6 +8,8 @@ import {
 import type { QualityLevelValue } from '@/shared/3d';
 import type { CachedModuleLoader } from '@/shared/lib/module-loader';
 
+import { useSceneInsets } from '@/shared/lib/viewport';
+
 import type { SceneModuleValue } from '../model/sceneViewportTypes';
 
 import { subscribeToSceneCameraCommands } from '../model/subscribeToSceneCameraCommands';
@@ -42,6 +44,7 @@ export const SceneStage = ({
 }: SceneStageProps): null | ReactElement => {
   const modulesState = useSceneModules(loadScene);
   const isReducedMotion = usePrefersReducedMotion();
+  const focusInsets = useSceneInsets();
   const jumpFadeLayerRef = useRef<HTMLDivElement>(null);
 
   const handleCameraJump = useCallback((): void => {
@@ -67,16 +70,16 @@ export const SceneStage = ({
     <SceneLayer className={STAGE_LAYER_CLASS_NAME}>
       <div className={JUMP_FADE_LAYER_CLASS_NAME} ref={jumpFadeLayerRef}>
         <SceneRoot
-          bounds={sceneModule.bounds}
           Content={sceneModule.default}
           dprCeiling={dprCeiling}
+          focusInsets={focusInsets}
           isReducedMotion={isReducedMotion}
           isStatsShown={isStatsShown}
           level={level}
           onCameraJump={handleCameraJump}
           onReady={onReady}
           subscribeToCameraCommands={subscribeToSceneCameraCommands}
-          viewBox={sceneModule.viewBox}
+          world={sceneModule.world}
         />
       </div>
     </SceneLayer>

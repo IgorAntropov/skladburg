@@ -105,11 +105,8 @@
 }
 
 :root {
-  --world-background: #8591ad;
-  --world-board: #d6cfc0;
-  --world-board-edge: #66583c;
-  --world-tile: #e6e1d6;
-  --world-tile-seam: #c8c0af;
+  --world-background: #9db08b;
+  --world-ground: #9db08b;
   --world-sun-day: #fff0d9;
   --world-sky-day: #eaf1ff;
   --world-ground-day: #8a8272;

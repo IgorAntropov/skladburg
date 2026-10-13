@@ -74,22 +74,17 @@ const PREFERENCE_MESSAGE = defaultLocaleCatalog['scene.off.preference'];
 const PHONE_MESSAGE = defaultLocaleCatalog['scene.off.phoneDefault'];
 const ENABLE_NAME = defaultLocaleCatalog['scene.off.enable'];
 
-const SCENE_BOUNDS = { maxX: 1, maxZ: 1, minX: -1, minZ: -1 };
-const SCENE_VIEW_BOX = {
-  maxX: 1,
-  maxY: 1,
-  maxZ: 1,
-  minX: -1,
-  minY: -1,
-  minZ: -1,
+const SCENE_WORLD = {
+  bounds: { maxX: 1, maxZ: 1, minX: -1, minZ: -1 },
+  home: { centerX: 0, centerZ: 0, radius: 1 },
+  maxHeight: 1,
 };
 
 const SceneContent = (): ReactElement => <span data-testid="scene-content" />;
 
 const loadSceneModule = (): Promise<SceneModuleValue> => Promise.resolve({
-  bounds: SCENE_BOUNDS,
   default: SceneContent,
-  viewBox: SCENE_VIEW_BOX,
+  world: SCENE_WORLD,
 });
 
 const createFailingThenLoadingScene = (failureCount: number): Mock<() => Promise<SceneModuleValue>> => {

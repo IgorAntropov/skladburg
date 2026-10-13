@@ -1,13 +1,18 @@
 import type { RefObject } from 'react';
 import type { Object3D } from 'three';
 
-export interface CameraFitValue {
+export interface CameraViewValue {
   target: ScenePointValue;
   zoom: number;
 }
 
 export interface FlyToOptionsValue {
   zoom?: number | undefined;
+}
+
+export interface FocusShiftValue {
+  x: number;
+  y: number;
 }
 
 export interface IIsometricCameraRig {

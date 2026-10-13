@@ -49,7 +49,7 @@ export interface SceneRobotValue {
 export type SceneStateValue = 'error' | 'loading' | 'off' | 'ready';
 
 const IDLE_WINDOW_MS = 500;
-const SCENE_CHUNK_PATTERN = /\/assets\/(?:NetworkBoardScene|SceneRoot)-[^/]+\.js$/;
+const SCENE_CHUNK_PATTERN = /\/assets\/(?:NetworkWorldScene|SceneRoot)-[^/]+\.js$/;
 
 export const createSceneRobot = (page: Page): SceneRobotValue => {
   const { button: profileButton, getGraphicsOption, menu } = createProfileMenuLocators(page);

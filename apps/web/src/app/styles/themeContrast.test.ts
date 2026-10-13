@@ -44,20 +44,37 @@ const SKELETON_SEPARATION_THRESHOLD = 1.3;
 
 const BARE_STATUS_ICON_THEMES: readonly ThemeNameValue[] = ['dark'];
 
-const WORLD_BACKGROUND_TOKEN_PATTERN = /--world-background:\s*(#[\da-f]{6})\s*;/i;
+const WORLD_SURFACE_TOKEN_NAMES: readonly string[] = ['background', 'ground'];
 
-const readWorldBackgroundToken = (): string => {
-  const value = WORLD_BACKGROUND_TOKEN_PATTERN.exec(themeCss)?.[1];
+const WORLD_LIGHT_TOKEN_NAMES: readonly string[] = ['sun-day', 'sky-day', 'ground-day'];
 
-  if (value === undefined) {
-    throw new Error('Token --world-background is missing in theme.css');
-  }
+const WORLD_TOKEN_DECLARATION_PATTERN = /--world-([\w-]+):\s*(#[\da-f]{6})\s*;/gi;
 
-  return value;
+const readWorldTokens = (): Map<string, string> => {
+  return new Map(
+    Array.from(themeCss.matchAll(WORLD_TOKEN_DECLARATION_PATTERN), (match): [string, string] => [
+      match[1] ?? '',
+      match[2] ?? '',
+    ]),
+  );
+};
+
+const readWorldSurfaceTokens = (): string[] => {
+  const worldTokens = readWorldTokens();
+
+  return WORLD_SURFACE_TOKEN_NAMES.map((name) => {
+    const value = worldTokens.get(name);
+
+    if (value === undefined) {
+      throw new Error(`Token --world-${name} is missing in theme.css`);
+    }
+
+    return value;
+  });
 };
 
 const WORLD_BACKGROUNDS: readonly string[] = [
-  readWorldBackgroundToken(),
+  ...readWorldSurfaceTokens(),
   '#E8E4DC',
   '#D4A867',
   '#F2711C',
@@ -340,6 +357,12 @@ describe('theme tokens contract', () => {
   it.each(THEME_NAMES)('mixes the translucent panel with the canvas and every world background in the %s theme', (theme) => {
     expect(readBackdrops(theme, 'panel')).toHaveLength(WORLD_BACKGROUNDS.length + 1);
     expect(readBackdrops(theme, 'panel-solid')).toHaveLength(1);
+  });
+
+  it('classifies every world token as a surface or a light color', () => {
+    const classified = [...WORLD_SURFACE_TOKEN_NAMES, ...WORLD_LIGHT_TOKEN_NAMES].toSorted();
+
+    expect([...readWorldTokens().keys()].toSorted()).toEqual(classified);
   });
 
   it('reports a missing token with its name and theme', () => {

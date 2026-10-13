@@ -17,13 +17,10 @@ import { createWorldMaterialRegistry } from './createWorldMaterialRegistry';
 const createUniformPalette = (color: RgbaColorValue): WorldPaletteValue => {
   return {
     background: color,
-    board: color,
-    boardEdge: color,
+    ground: color,
     groundDay: color,
     skyDay: color,
     sunDay: color,
-    tile: color,
-    tileSeam: color,
   };
 };
 
@@ -58,12 +55,12 @@ describe('createWorldMaterialRegistry', () => {
   it('returns one shared instance for a key', () => {
     const registry = createWorldMaterialRegistry(createUniformPalette(FIRST_COLOR));
 
-    expect(registry.get('tile')).toBe(registry.get('tile'));
-    expect(registry.get('tile')).not.toBe(registry.get('board'));
+    expect(registry.get('ground')).toBe(registry.get('ground'));
+    expect(registry.get('ground')).not.toBe(registry.get('background'));
   });
 
   it('creates flat-shaded matte materials in the palette color', () => {
-    const material = createWorldMaterialRegistry(createUniformPalette(FIRST_COLOR)).get('tile');
+    const material = createWorldMaterialRegistry(createUniformPalette(FIRST_COLOR)).get('ground');
 
     expect(material.flatShading).toBe(true);
     expect(material.roughness).toBe(1);
@@ -73,11 +70,11 @@ describe('createWorldMaterialRegistry', () => {
 
   it('recolors existing materials in place when the palette changes', () => {
     const registry = createWorldMaterialRegistry(createUniformPalette(FIRST_COLOR));
-    const material = registry.get('tile');
+    const material = registry.get('ground');
 
     registry.applyPalette(createUniformPalette(SECOND_COLOR));
 
-    expect(registry.get('tile')).toBe(material);
+    expect(registry.get('ground')).toBe(material);
     expect(readChannels(material)).toEqual([100, 150, 200]);
   });
 
@@ -86,19 +83,19 @@ describe('createWorldMaterialRegistry', () => {
 
     registry.applyPalette(createUniformPalette(SECOND_COLOR));
 
-    expect(readChannels(registry.get('board'))).toEqual([100, 150, 200]);
+    expect(readChannels(registry.get('background'))).toEqual([100, 150, 200]);
   });
 
   it('disposes every created material', () => {
     const registry = createWorldMaterialRegistry(createUniformPalette(FIRST_COLOR));
-    const tile = registry.get('tile');
-    const board = registry.get('board');
-    const tileDispose = vi.spyOn(tile, 'dispose');
-    const boardDispose = vi.spyOn(board, 'dispose');
+    const ground = registry.get('ground');
+    const background = registry.get('background');
+    const groundDispose = vi.spyOn(ground, 'dispose');
+    const backgroundDispose = vi.spyOn(background, 'dispose');
 
     registry.dispose();
 
-    expect(tileDispose).toHaveBeenCalledTimes(1);
-    expect(boardDispose).toHaveBeenCalledTimes(1);
+    expect(groundDispose).toHaveBeenCalledTimes(1);
+    expect(backgroundDispose).toHaveBeenCalledTimes(1);
   });
 });

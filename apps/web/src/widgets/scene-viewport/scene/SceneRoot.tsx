@@ -14,9 +14,9 @@ import {
 import type {
   IIsometricCameraRig,
   QualityLevelValue,
-  SceneBoundsValue,
-  SceneViewBoxValue,
+  SceneWorldValue,
 } from '@/shared/3d';
+import type { SceneInsetsValue } from '@/shared/lib/viewport';
 
 import {
   DayLight,
@@ -32,16 +32,16 @@ import type { SceneCameraCommandSubscription } from '../model/subscribeToSceneCa
 import { useSceneCameraCommands } from './useSceneCameraCommands';
 
 interface SceneRootProps {
-  bounds: SceneBoundsValue;
   Content: ComponentType;
   dprCeiling: number;
+  focusInsets: SceneInsetsValue;
   isReducedMotion: boolean;
   isStatsShown: boolean;
   level: QualityLevelValue;
   onCameraJump: () => void;
   onReady: () => void;
   subscribeToCameraCommands: SceneCameraCommandSubscription;
-  viewBox: SceneViewBoxValue;
+  world: SceneWorldValue;
 }
 
 const SceneDevStats = import.meta.env.DEV ? lazy(() => import('./SceneDevStats')) : undefined;
@@ -51,16 +51,16 @@ const readDocumentProperty = (name: string): string => {
 };
 
 const SceneRoot = ({
-  bounds,
   Content,
   dprCeiling,
+  focusInsets,
   isReducedMotion,
   isStatsShown,
   level,
   onCameraJump,
   onReady,
   subscribeToCameraCommands,
-  viewBox,
+  world,
 }: SceneRootProps): ReactElement => {
   const rigRef = useRef<IIsometricCameraRig>(null);
   const [palette] = useState(() => readWorldPalette(readDocumentProperty));
@@ -78,11 +78,11 @@ const SceneRoot = ({
   return (
     <SceneCanvas background={palette.background} dpr={dpr} onReady={onReady}>
       <IsometricCameraRig
-        bounds={bounds}
+        focusInsets={focusInsets}
         isReducedMotion={isReducedMotion}
         onJump={onCameraJump}
         ref={rigRef}
-        viewBox={viewBox}
+        world={world}
       />
       <WorldMaterialsProvider palette={palette}>
         <DayLight />

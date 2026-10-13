@@ -1,34 +1,52 @@
 import { CameraControlsImpl } from '@react-three/drei';
 import { OrthographicCamera } from 'three';
 
+import type { SceneInsetsValue } from '@/shared/lib/viewport';
+
 import type { SceneBoundsValue } from '../world/sceneBounds';
+import type { SceneWorldValue } from '../world/sceneWorld';
+import type { PanRegionOptionsValue } from './cameraWorld';
 
 import { ISOMETRIC_ELEVATION_RADIANS } from './cameraConstants';
 import {
-  getPanScale,
   isAngleSettled,
   isPointSettled,
   isZoomSettled,
   limitFrameDelta,
   shiftPointToGround,
 } from './cameraSettling';
+import {
+  getFocusShift,
+  getPanRegion,
+  getViewFootprintPx,
+  getZoomLimits,
+} from './cameraWorld';
 
 const FOLLOW_EPSILON_METERS = 1e-4;
+const KEEP_INSIDE_EPSILON_METERS = 1e-9;
 const GROUND_FORWARD_DRAG_FACTOR = 1 / Math.sin(ISOMETRIC_ELEVATION_RADIANS);
 
-export interface PanLimitsValue {
-  bounds: SceneBoundsValue;
-  fitZoom: number;
+export interface WorldLimitsValue {
+  insets: SceneInsetsValue;
+  world: SceneWorldValue;
 }
+
+const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
 
 export class FrameLimitedCameraControls extends CameraControlsImpl {
   get zoomEnd(): number {
     return this._zoomEnd;
   }
 
+  private footprintPx = 0;
+
   private groundHeight: number | undefined;
 
-  private panLimits: PanLimitsValue | undefined;
+  private readonly panRegion: SceneBoundsValue = { maxX: 0, maxZ: 0, minX: 0, minZ: 0 };
+
+  private regionOptions: PanRegionOptionsValue | undefined;
+
+  private worldLimits: undefined | WorldLimitsValue;
 
   constructor(...args: ConstructorParameters<typeof CameraControlsImpl>) {
     super(...args);
@@ -64,17 +82,33 @@ export class FrameLimitedCameraControls extends CameraControlsImpl {
     this.groundHeight = height;
   }
 
-  setPanLimits(limits: PanLimitsValue): void {
-    this.panLimits = limits;
+  setWorldLimits(limits: WorldLimitsValue): void {
+    this.worldLimits = limits;
+    this.regionOptions = { radius: 0, world: limits.world };
+    this.applyFrameGeometry();
+    this._zoomEnd = clamp(this._zoomEnd, this.minZoom, this.maxZoom);
+    this._zoom = clamp(this._zoom, this.minZoom, this.maxZoom);
     this.refreshBoundary();
     this._needsUpdate = true;
   }
 
   override update(delta: number): boolean {
+    if (this.isFrameGeometryStale()) {
+      this.applyFrameGeometry();
+      this.refreshBoundary();
+    }
+
     this.settleNearEnd();
     this.keepTargetOnGround();
 
-    return super.update(limitFrameDelta(delta));
+    const isUpdated = super.update(limitFrameDelta(delta));
+    const isShifted = this.keepViewInsideWorld();
+
+    if (isShifted && !isUpdated) {
+      this.dispatchEvent({ type: 'update' });
+    }
+
+    return isUpdated || isShifted;
   }
 
   override zoomTo(zoom: number, enableTransition = false): Promise<void> {
@@ -83,6 +117,43 @@ export class FrameLimitedCameraControls extends CameraControlsImpl {
     this.refreshBoundary();
 
     return settled;
+  }
+
+  private applyFrameGeometry(): void {
+    const limits = this.worldLimits;
+    const camera = this._camera;
+
+    if (limits === undefined || !(camera instanceof OrthographicCamera)) {
+      return;
+    }
+
+    const width = camera.right - camera.left;
+    const height = camera.top - camera.bottom;
+
+    if (!(width > 0 && height > 0)) {
+      return;
+    }
+
+    const frame = { insets: limits.insets, viewport: { height, width } };
+    const shift = getFocusShift(frame);
+    const zoomLimits = getZoomLimits({ ...frame, world: limits.world });
+
+    this.footprintPx = getViewFootprintPx(frame);
+    this.minZoom = zoomLimits.min;
+    this.maxZoom = zoomLimits.max;
+    camera.setViewOffset(width, height, -shift.x, -shift.y, width, height);
+  }
+
+  private isFrameGeometryStale(): boolean {
+    const camera = this._camera;
+
+    if (this.worldLimits === undefined || !(camera instanceof OrthographicCamera)) {
+      return false;
+    }
+
+    const { view } = camera;
+
+    return view?.fullWidth !== camera.right - camera.left || view.fullHeight !== camera.top - camera.bottom;
   }
 
   private keepTargetOnGround(): void {
@@ -94,22 +165,48 @@ export class FrameLimitedCameraControls extends CameraControlsImpl {
     shiftPointToGround(this._targetEnd, this._sphericalEnd, this.groundHeight);
   }
 
-  private refreshBoundary(): void {
-    const limits = this.panLimits;
+  private keepViewInsideWorld(): boolean {
+    const options = this.regionOptions;
 
-    if (limits === undefined) {
+    if (options === undefined || this.footprintPx === 0) {
+      return false;
+    }
+
+    this.refreshBoundary();
+
+    options.radius = this.footprintPx / this._zoom;
+
+    const region = getPanRegion(options, this.panRegion);
+    const target = this._target;
+    const shiftX = clamp(target.x, region.minX, region.maxX) - target.x;
+    const shiftZ = clamp(target.z, region.minZ, region.maxZ) - target.z;
+
+    if (Math.abs(shiftX) + Math.abs(shiftZ) <= KEEP_INSIDE_EPSILON_METERS) {
+      return false;
+    }
+
+    target.x += shiftX;
+    target.z += shiftZ;
+    this._camera.position.x += shiftX;
+    this._camera.position.z += shiftZ;
+    this._needsUpdate = true;
+
+    return true;
+  }
+
+  private refreshBoundary(): void {
+    const options = this.regionOptions;
+
+    if (options === undefined || this.footprintPx === 0) {
       return;
     }
 
-    const { bounds } = limits;
-    const scale = getPanScale(this._zoomEnd, limits.fitZoom);
-    const centerX = (bounds.minX + bounds.maxX) / 2;
-    const centerZ = (bounds.minZ + bounds.maxZ) / 2;
-    const halfX = ((bounds.maxX - bounds.minX) / 2) * scale;
-    const halfZ = ((bounds.maxZ - bounds.minZ) / 2) * scale;
+    options.radius = this.footprintPx / this._zoomEnd;
 
-    this._boundary.min.set(centerX - halfX, -Infinity, centerZ - halfZ);
-    this._boundary.max.set(centerX + halfX, Infinity, centerZ + halfZ);
+    const region = getPanRegion(options, this.panRegion);
+
+    this._boundary.min.set(region.minX, -Infinity, region.minZ);
+    this._boundary.max.set(region.maxX, Infinity, region.maxZ);
     this._boundary.clampPoint(this._targetEnd, this._targetEnd);
   }
 

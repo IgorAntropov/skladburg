@@ -24,21 +24,21 @@ import {
   Vector3,
 } from 'three';
 
-import type {
-  SceneBoundsValue,
-  SceneViewBoxValue,
-} from '../world/sceneBounds';
+import type { SceneInsetsValue } from '@/shared/lib/viewport';
+
+import type { SceneWorldValue } from '../world/sceneWorld';
 import type {
   CameraModeEventValue,
   CameraModeValue,
 } from './cameraMode';
 import type {
-  CameraFitValue,
+  CameraViewValue,
   FlyToOptionsValue,
   IIsometricCameraRig,
   ScenePointValue,
 } from './cameraTypes';
 
+import { GROUND_HEIGHT_METERS } from '../world/worldConstants';
 import {
   CAMERA_SMOOTH_TIME_S,
   FOLLOW_FRAME_PRIORITY,
@@ -54,22 +54,21 @@ import {
   nextTurn,
 } from './cameraTurns';
 import {
-  getZoomLimits,
-  isViewAtFit,
+  getHomeView,
+  getWorldClipping,
+} from './cameraWorld';
+import {
+  isViewAtHome,
   stepZoom,
 } from './cameraZoom';
-import {
-  fitViewBoxToViewport,
-  getCameraClipping,
-} from './fitViewBoxToViewport';
 import { FrameLimitedCameraControls } from './FrameLimitedCameraControls';
 
 interface IsometricCameraRigProps {
-  bounds: SceneBoundsValue;
+  focusInsets: SceneInsetsValue;
   isReducedMotion: boolean;
   onJump?: (() => void) | undefined;
   ref?: Ref<IIsometricCameraRig> | undefined;
-  viewBox: SceneViewBoxValue;
+  world: SceneWorldValue;
 }
 
 const { ACTION } = CameraControlsImpl;
@@ -97,11 +96,11 @@ const readControls = (controlsRef: RefObject<CameraControlsImpl | null>): FrameL
 };
 
 export const IsometricCameraRig = ({
-  bounds,
+  focusInsets,
   isReducedMotion,
   onJump,
   ref,
-  viewBox,
+  world,
 }: IsometricCameraRigProps): ReactElement => {
   const camera = useThree(state => state.camera);
   const invalidate = useThree(state => state.invalidate);
@@ -112,7 +111,7 @@ export const IsometricCameraRig = ({
   const modeRef = useRef<CameraModeValue>(INITIAL_CAMERA_MODE);
   const turnRef = useRef(0);
   const followTargetRef = useRef<RefObject<null | Object3D> | undefined>(undefined);
-  const fitRef = useRef<CameraFitValue | undefined>(undefined);
+  const homeRef = useRef<CameraViewValue | undefined>(undefined);
 
   const applyModeEvent = useCallback((event: CameraModeEventValue): void => {
     const nextMode = reduceCameraMode(modeRef.current, event);
@@ -146,9 +145,9 @@ export const IsometricCameraRig = ({
     return {
       flyTo: (target: ScenePointValue, options?: FlyToOptionsValue): void => {
         const controls = readControls(controlsRef);
-        const fit = fitRef.current;
+        const home = homeRef.current;
 
-        if (controls === undefined || fit === undefined) {
+        if (controls === undefined || home === undefined) {
           return;
         }
 
@@ -156,7 +155,7 @@ export const IsometricCameraRig = ({
         applyModeEvent({ kind: 'flyTo' });
 
         if (options?.zoom !== undefined) {
-          void controls.zoomTo(fit.zoom * options.zoom, isTransitionEnabled);
+          void controls.zoomTo(home.zoom * options.zoom, isTransitionEnabled);
         }
 
         void controls.moveTo(target.x, target.y, target.z, isTransitionEnabled);
@@ -171,9 +170,9 @@ export const IsometricCameraRig = ({
       },
       home: (): void => {
         const controls = readControls(controlsRef);
-        const fit = fitRef.current;
+        const homeView = homeRef.current;
 
-        if (controls === undefined || fit === undefined) {
+        if (controls === undefined || homeView === undefined) {
           return;
         }
 
@@ -181,8 +180,8 @@ export const IsometricCameraRig = ({
         console.log('> IsometricCameraRig -> home:', { turn: turnRef.current });
         applyModeEvent({ kind: 'home' });
         void controls.rotateTo(azimuthForTurn(turnRef.current), ISOMETRIC_POLAR_RADIANS, isTransitionEnabled);
-        void controls.zoomTo(fit.zoom, isTransitionEnabled);
-        void controls.moveTo(fit.target.x, fit.target.y, fit.target.z, isTransitionEnabled);
+        void controls.zoomTo(homeView.zoom, isTransitionEnabled);
+        void controls.moveTo(homeView.target.x, homeView.target.y, homeView.target.z, isTransitionEnabled);
         finishCommand();
       },
       rotate: (direction: -1 | 1): void => {
@@ -222,39 +221,38 @@ export const IsometricCameraRig = ({
       return;
     }
 
-    const fit = fitViewBoxToViewport({ viewBox, viewport: { height: viewportHeight, width: viewportWidth } });
-    const clipping = getCameraClipping(viewBox);
-    const limits = getZoomLimits(fit.zoom);
-    const previousFit = fitRef.current;
-    const isHome = previousFit === undefined
-      || isViewAtFit({ fit: previousFit, target: controls.getTarget(currentTarget, true), zoom: controls.zoomEnd });
+    const home = getHomeView({ insets: focusInsets, viewport: { height: viewportHeight, width: viewportWidth }, world });
+    const clipping = getWorldClipping(world);
+    const previousHome = homeRef.current;
+    const isHome = previousHome === undefined
+      || isViewAtHome({ home: previousHome, target: controls.getTarget(currentTarget, true), zoom: controls.zoomEnd });
 
     controlledCamera.near = clipping.near;
     controlledCamera.far = clipping.far;
     controlledCamera.updateProjectionMatrix();
 
-    controls.setGroundHeight(fit.target.y);
-    controls.minZoom = limits.min;
-    controls.maxZoom = limits.max;
-    controls.setPanLimits({ bounds, fitZoom: fit.zoom });
+    controls.setGroundHeight(GROUND_HEIGHT_METERS);
+    controls.setWorldLimits({ insets: focusInsets, world });
 
     void controls.dollyTo(clipping.distance, false);
 
-    if (previousFit === undefined) {
+    if (previousHome === undefined) {
       void controls.rotateTo(azimuthForTurn(turnRef.current), ISOMETRIC_POLAR_RADIANS, false);
     }
 
     if (isHome) {
-      void controls.moveTo(fit.target.x, fit.target.y, fit.target.z, false);
-      void controls.zoomTo(fit.zoom, false);
+      void controls.zoomTo(home.zoom, false);
+      void controls.moveTo(home.target.x, home.target.y, home.target.z, false);
     }
     else {
       void controls.zoomTo(controls.zoomEnd, false);
+      controls.getTarget(currentTarget, true);
+      void controls.moveTo(currentTarget.x, currentTarget.y, currentTarget.z, false);
     }
 
-    fitRef.current = fit;
+    homeRef.current = home;
     invalidate();
-  }, [bounds, camera, invalidate, viewBox, viewportHeight, viewportWidth]);
+  }, [camera, focusInsets, invalidate, viewportHeight, viewportWidth, world]);
 
   useFrame(() => {
     if (modeRef.current !== 'following') {

@@ -7,8 +7,10 @@ import type { HudZonesProps } from '../lib/hudLayoutTypes';
 
 import { hasLists } from '../lib/hasLists';
 import { hasSlot } from '../lib/hasSlot';
+import { HudFreeArea } from './HudFreeArea';
 import {
   HUD_DESKTOP_CENTER_COLUMN_CLASS_NAME,
+  HUD_DESKTOP_FREE_AREA_CLASS_NAME,
   HUD_DESKTOP_INSPECTOR_ZONE_CLASS_NAME,
   HUD_DESKTOP_KPI_ZONE_CLASS_NAME,
   HUD_DESKTOP_LISTS_ZONE_CLASS_NAME,
@@ -23,6 +25,7 @@ import { HudZone } from './HudZone';
 import { ListsZoneContent } from './ListsZoneContent';
 
 export const DesktopHudLayout = ({
+  freeAreaRef,
   inspector,
   kpi,
   listsHeader,
@@ -38,7 +41,6 @@ export const DesktopHudLayout = ({
   const isListsShown = hasLists({ listsHeader, listTabs });
   const isPanelShown = hasSlot(panel);
   const isSceneControlsShown = hasSlot(sceneControls);
-  const isCenterColumnShown = isPanelShown || isSceneControlsShown;
   const isLeftColumnShown = isKpiShown || isTrackerShown;
 
   return (
@@ -61,22 +63,21 @@ export const DesktopHudLayout = ({
           )}
         </div>
       )}
-      {isCenterColumnShown && (
-        <div className={HUD_DESKTOP_CENTER_COLUMN_CLASS_NAME}>
-          {isPanelShown && (
-            <HudZone
-              className={cn(HUD_INTERACTIVE_CLASS_NAME, HUD_DESKTOP_PANEL_ZONE_CLASS_NAME)}
-              label={t('hud.panel.label')}
+      <div className={HUD_DESKTOP_CENTER_COLUMN_CLASS_NAME}>
+        {isPanelShown && (
+          <HudZone
+            className={cn(HUD_INTERACTIVE_CLASS_NAME, HUD_DESKTOP_PANEL_ZONE_CLASS_NAME)}
+            label={t('hud.panel.label')}
 
-            >
-              {panel}
-            </HudZone>
-          )}
-          {isSceneControlsShown && (
-            <div className={HUD_DESKTOP_SCENE_CONTROLS_CLASS_NAME}>{sceneControls}</div>
-          )}
-        </div>
-      )}
+          >
+            {panel}
+          </HudZone>
+        )}
+        <HudFreeArea className={HUD_DESKTOP_FREE_AREA_CLASS_NAME} ref={freeAreaRef} />
+        {isSceneControlsShown && (
+          <div className={HUD_DESKTOP_SCENE_CONTROLS_CLASS_NAME}>{sceneControls}</div>
+        )}
+      </div>
       <div className={cn(HUD_DESKTOP_SIDE_COLUMN_CLASS_NAME, 'ml-auto')}>
         <HudZone
           className={cn(HUD_INTERACTIVE_CLASS_NAME, HUD_DESKTOP_INSPECTOR_ZONE_CLASS_NAME)}

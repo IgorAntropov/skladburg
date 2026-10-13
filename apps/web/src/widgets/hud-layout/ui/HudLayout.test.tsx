@@ -264,6 +264,20 @@ describe('HudLayout', () => {
     });
   });
 
+  describe('with the free area', () => {
+    it('keeps a single free area while the viewport class changes', () => {
+      renderLayout(createProps());
+
+      for (const viewportClass of ['tablet', 'phone', 'desktop'] as const) {
+        act(() => {
+          viewport.setViewportClass(viewportClass);
+        });
+
+        expect(screen.queryAllByTestId('hud-free-area')).toHaveLength(viewportClass === 'phone' ? 0 : 1);
+      }
+    });
+  });
+
   describe('when the viewport class changes', () => {
     it('never mounts a slot twice at once', () => {
       const slotNames = ['inspector', 'kpi', 'lists', 'panel', 'scene', 'tracker'] as const;

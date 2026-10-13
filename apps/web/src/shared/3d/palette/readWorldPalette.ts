@@ -20,12 +20,9 @@ const readWorldColor = (readProperty: (name: string) => string, name: string): R
 export const readWorldPalette = (readProperty: (name: string) => string): WorldPaletteValue => {
   return {
     background: readWorldColor(readProperty, WORLD_PALETTE_KEYS.background),
-    board: readWorldColor(readProperty, WORLD_PALETTE_KEYS.board),
-    boardEdge: readWorldColor(readProperty, WORLD_PALETTE_KEYS.boardEdge),
+    ground: readWorldColor(readProperty, WORLD_PALETTE_KEYS.ground),
     groundDay: readWorldColor(readProperty, WORLD_PALETTE_KEYS.groundDay),
     skyDay: readWorldColor(readProperty, WORLD_PALETTE_KEYS.skyDay),
     sunDay: readWorldColor(readProperty, WORLD_PALETTE_KEYS.sunDay),
-    tile: readWorldColor(readProperty, WORLD_PALETTE_KEYS.tile),
-    tileSeam: readWorldColor(readProperty, WORLD_PALETTE_KEYS.tileSeam),
   };
 };

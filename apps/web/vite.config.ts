@@ -40,6 +40,14 @@ const FORBIDDEN_INITIAL_PACKAGES = [
 export default defineConfig({
   build: {
     rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: 'react', priority: 2, test: /[\\/]node_modules[\\/]react[\\/]/ },
+            { name: 'zustand', priority: 1, test: /[\\/]node_modules[\\/]zustand[\\/]/ },
+          ],
+        },
+      },
       treeshake: {
         manualPureFunctions: ['console.log', 'console.info', 'console.debug'],
       },

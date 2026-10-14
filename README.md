@@ -17,7 +17,7 @@ pnpm install
 pnpm dev
 ```
 
-Приложение откроется на `http://localhost:5173`.
+Приложение откроется на `http://localhost:5173/skladburg/`: так же, как на GitHub Pages, под путём `/skladburg/`. Корень `http://localhost:5173` перенаправляет туда сам.
 
 `pnpm install` также генерирует типы контракта API. При первой установке нужен доступ к GitHub, дальше генерация берётся из кеша turbo.
 
@@ -29,7 +29,7 @@ pnpm dev
 | ------------------------------------ | --------------------------------------------------------------------------------------------- |
 | `pnpm dev`                           | dev-сервер Vite с горячей перезагрузкой                                                       |
 | `pnpm build`                         | проверка типов и production-сборка                                                            |
-| `pnpm preview`                       | локальный просмотр production-сборки                                                          |
+| `pnpm preview`                       | локальный просмотр production-сборки на `http://localhost:4173/skladburg/`                    |
 | `pnpm e2e`                           | сквозные сценарии Playwright в chromium и webkit на production-сборке                         |
 | `pnpm test`                          | все unit-тесты: проверки репозитория, контракт и приложение                                   |
 | `pnpm lint`                          | проверка типов, архитектуры слоёв, `buf lint` и формата `.proto`, ESLint и поиск комментариев |
@@ -46,7 +46,7 @@ pnpm dev
 pnpm --filter @skladburg/web exec playwright install chromium webkit
 ```
 
-Дальше `pnpm e2e` сам собирает приложение, поднимает превью на порту 4174 и прогоняет сценарии в обоих браузерах. HTML-отчёт остаётся в `apps/web/playwright-report`.
+Дальше `pnpm e2e` сам собирает приложение, поднимает превью на `http://localhost:4174/skladburg/` и прогоняет сценарии в обоих браузерах. HTML-отчёт остаётся в `apps/web/playwright-report`.
 
 ## Телефон в локальной сети по HTTPS
 
@@ -82,10 +82,20 @@ DEV_HTTPS_KEY_FILE=/Users/<логин>/.config/skladburg-dev-cert/dev-key.pem
 
 Адреса:
 
-- `https://<имя-мака>.local:5173` — `pnpm dev`, без service worker;
-- `https://<имя-мака>.local:4173` — `pnpm build && pnpm preview`, со service worker: так проверяются установка, офлайн и обновление.
+- `https://<имя-мака>.local:5173/skladburg/` — `pnpm dev`, без service worker;
+- `https://<имя-мака>.local:4173/skladburg/` — `pnpm build && pnpm preview`, со service worker: так проверяются установка, офлайн и обновление.
+
+После смены пути на `/skladburg/` один раз удалите старый service worker с `localhost:4173` и `<имя-мака>.local:4173` (DevTools → Application → Service workers → Unregister) и установленное с превью приложение на телефоне, иначе они продолжат отдавать прежнюю сборку.
 
 Чтобы вернуться на `http://localhost`, достаточно убрать переменные из `apps/web/.env.local`.
+
+## Публикация
+
+Демо публикуется на GitHub Pages по адресу `https://igorantropov.github.io/skladburg/`. Каждый push в `main` запускает GitHub Actions (`.github/workflows/pages.yml`): сначала `pnpm lint`, `pnpm test` и `pnpm build`, затем, если всё зелёное, сборка из `apps/web/dist` уходит на Pages. Запустить публикацию можно и вручную со вкладки Actions.
+
+Один раз в репозитории: Settings → Pages → Build and deployment → Source — GitHub Actions.
+
+Тексты лицензий сторонних пакетов, которые попали в сборку, лежат рядом с приложением: `https://igorantropov.github.io/skladburg/third-party-licenses.txt`. Сборка падает, если лицензия пакета не из разрешённых или у пакета нет текста лицензии. Запасные тексты для пакетов без собственного файла лежат в `apps/web/build-licenses/fallback-texts/`.
 
 ## Структура
 

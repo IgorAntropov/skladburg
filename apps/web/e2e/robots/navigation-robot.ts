@@ -70,16 +70,16 @@ export const createNavigationRobot = (page: Page): NavigationRobotValue => {
       await expect(getSectionLink(section)).toHaveAttribute('aria-current', 'page');
     },
     async openHash(hash: string): Promise<void> {
-      await page.goto(`/${hash}`);
+      await page.goto(`./${hash}`);
     },
     async openObject(route: ObjectRouteValue): Promise<void> {
-      await page.goto(`/${toObjectHash(route)}`);
+      await page.goto(`./${toObjectHash(route)}`);
     },
     async openRoot(): Promise<void> {
-      await page.goto('/');
+      await page.goto('./');
     },
     async openSection(section: SectionValue): Promise<void> {
-      await page.goto(`/${toSectionHash(section)}`);
+      await page.goto(`./${toSectionHash(section)}`);
     },
     async reload(): Promise<void> {
       await page.reload();

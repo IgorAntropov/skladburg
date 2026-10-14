@@ -211,6 +211,7 @@ describe('check-comments CLI', () => {
       ['a file in apps', 'apps/web/index.html', '<!-- x -->\n'],
       ['a file in packages', 'packages/contracts/api.proto', '// x\n'],
       ['a file in scripts', 'scripts/config.json', '{ // x\n}\n'],
+      ['a workflow in .github', '.github/workflows/pages.yml', '# x\n'],
     ])('checks %s', (_name, relativePath, content) => {
       writeRepositoryFile(repositoryDirectory, relativePath, content);
 
@@ -220,7 +221,7 @@ describe('check-comments CLI', () => {
       expect(result.exitCode).toBe(1);
     });
 
-    it('does not check a file in a nested directory outside apps, packages and scripts', () => {
+    it('does not check a file in a nested directory outside the checked directories', () => {
       writeRepositoryFile(repositoryDirectory, 'docs/guide.css', '/* x */\n');
 
       expect(runCheckCommentsCli(repositoryDirectory, [])).toEqual({ exitCode: 0, stderr: '', stdout: '' });

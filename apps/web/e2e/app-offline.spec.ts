@@ -32,4 +32,17 @@ test.describe('offline start', () => {
     await navigation.expectSection('warehouse');
     await warehouse.expectEngineData();
   });
+
+  test('opens a static file as the file itself while the service worker controls the page', async ({ context, page }) => {
+    const navigation = createNavigationRobot(page);
+    const pwa = createPwaRobot(page, context);
+
+    await navigation.openRoot();
+    await navigation.expectSection(FIRST_SECTION);
+    await pwa.waitForPrecache();
+    await pwa.reload();
+    await navigation.expectSection(FIRST_SECTION);
+
+    await pwa.expectLicensesFileOpenedUnderServiceWorker();
+  });
 });

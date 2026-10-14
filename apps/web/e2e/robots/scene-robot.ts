@@ -100,7 +100,7 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
 
   const openNetwork = async (): Promise<void> => {
     await ensureDrawCounter();
-    await page.goto('/#/network');
+    await page.goto('./#/network');
   };
 
   return {

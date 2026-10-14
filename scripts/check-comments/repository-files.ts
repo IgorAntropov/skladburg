@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 export const listRepositoryFiles = (): string[] =>
   execFileSync(
     'git',
-    ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', 'apps', 'packages', 'scripts', ':(glob)*'],
+    ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', 'apps', 'packages', 'scripts', '.github', ':(glob)*'],
     { encoding: 'utf8' },
   )
     .split('\0')

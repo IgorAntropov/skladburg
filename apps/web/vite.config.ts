@@ -7,6 +7,7 @@ import {
 } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+import { APP_BASE_PATH } from './build-base/appBasePath.ts';
 import { bootFallbackPlugin } from './build-boot-fallback/bootFallbackPlugin.ts';
 import { bundleBudgetPlugin } from './build-budget/bundleBudgetPlugin.ts';
 import {
@@ -18,6 +19,8 @@ import {
   getIconSizes,
   isManifestIcon,
 } from './build-icons/appIcons.ts';
+import { ALLOWED_BUNDLE_LICENSES } from './build-licenses/allowedBundleLicenses.ts';
+import { createThirdPartyLicenses } from './build-licenses/createThirdPartyLicenses.ts';
 import { DEFAULT_PROFILE_NAME } from './build-profile/buildProfilePaths.ts';
 import { buildProfilePlugin } from './build-profile/buildProfilePlugin.ts';
 import { loadBuildProfile } from './build-profile/loadBuildProfile.ts';
@@ -35,6 +38,8 @@ const MAX_SCENE_GZIP_KILOBYTES = 300;
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
 const PRECACHE_GLOB_PATTERNS = ['**/*.{js,css,html,woff2,svg,png}'];
+
+const NAVIGATE_FALLBACK_DENYLIST = [/^[^?]*\/[^/?]*\.(?!html(?:\?|$))[^/.?]+(?:\?|$)/];
 
 const FORBIDDEN_PACKAGES = ['stats-gl', 'stats.js'];
 
@@ -63,6 +68,21 @@ const FORBIDDEN_INITIAL_PACKAGES = [
   'zustand',
 ];
 
+const THIRD_PARTY_LICENSES_FILE_NAME = 'third-party-licenses.txt';
+
+const WORKBOX_RESOLVE_CHAIN = ['vite-plugin-pwa', 'workbox-build'];
+
+const EXTRA_LICENSE_PACKAGES = [
+  { name: '@fontsource-variable/manrope', resolveFrom: [] },
+  { name: 'tailwindcss', resolveFrom: [] },
+  { name: 'vite', resolveFrom: [] },
+  { name: 'rolldown', resolveFrom: ['vite'] },
+  { name: 'workbox-core', resolveFrom: WORKBOX_RESOLVE_CHAIN },
+  { name: 'workbox-precaching', resolveFrom: WORKBOX_RESOLVE_CHAIN },
+  { name: 'workbox-routing', resolveFrom: WORKBOX_RESOLVE_CHAIN },
+  { name: 'workbox-strategies', resolveFrom: WORKBOX_RESOLVE_CHAIN },
+];
+
 const APP_NAME_MESSAGE_KEY = 'app.productName';
 
 const START_ERROR_MESSAGE_KEY = 'app.startError.message';
@@ -82,9 +102,17 @@ const profileMessages = await loadProfileMessages({
 
 const appName = profileMessages[APP_NAME_MESSAGE_KEY];
 
+const thirdPartyLicenses = createThirdPartyLicenses({
+  allowedLicenses: ALLOWED_BUNDLE_LICENSES,
+  appRoot: import.meta.dirname,
+  extraPackages: EXTRA_LICENSE_PACKAGES,
+  fileName: THIRD_PARTY_LICENSES_FILE_NAME,
+});
+
 const devHttps = resolveDevHttps(loadEnv('development', import.meta.dirname, DEV_HTTPS_ENV_PREFIX), readFileSync);
 
 export default defineConfig({
+  base: APP_BASE_PATH,
   build: {
     rolldownOptions: {
       output: {
@@ -121,6 +149,7 @@ export default defineConfig({
           src: icon.fileName,
           type: 'image/png',
         })),
+        id: APP_BASE_PATH,
         lang: profile.defaultTenant.defaultLocale,
         name: appName,
         short_name: appName,
@@ -132,6 +161,7 @@ export default defineConfig({
         globPatterns: PRECACHE_GLOB_PATTERNS,
         maximumFileSizeToCacheInBytes: MAX_PRECACHED_FILE_BYTES,
         navigateFallback: 'index.html',
+        navigateFallbackDenylist: NAVIGATE_FALLBACK_DENYLIST,
       },
     }),
     bundleBudgetPlugin({
@@ -140,6 +170,7 @@ export default defineConfig({
       lazyEntryBudgets: LAZY_ENTRY_BUDGETS,
       maxInitialGzipKiloBytes: MAX_INITIAL_GZIP_KILOBYTES,
     }),
+    thirdPartyLicenses.plugin,
   ],
   resolve: {
     tsconfigPaths: true,
@@ -151,5 +182,6 @@ export default defineConfig({
   },
   worker: {
     format: 'es',
+    plugins: () => [thirdPartyLicenses.workerPlugin()],
   },
 });

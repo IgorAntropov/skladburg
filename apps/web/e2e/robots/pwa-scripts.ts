@@ -20,3 +20,5 @@ export const createFindMissingPrecachedAssetsScript = (assetNames: readonly stri
   return expectedNames.filter((name) => !cachedPaths.some((path) => path.endsWith('/assets/' + name)));
 })()
 `;
+
+export const IS_CONTROLLED_BY_SERVICE_WORKER_SCRIPT = 'navigator.serviceWorker.controller !== null';

@@ -34,7 +34,7 @@ export const createPersonaRobot = (page: Page): PersonaRobotValue => {
   return {
     expectCurrentPersona,
     async openAsPersona(hash: string, personaId: string): Promise<void> {
-      await page.goto(`/${hash}?as=${personaId}`);
+      await page.goto(`./${hash}?as=${personaId}`);
     },
     async selectPersona(persona: PersonaValue): Promise<void> {
       await trigger.click();

@@ -39,7 +39,7 @@ export const createBootFallbackRobot = (page: Page): BootFallbackRobotValue => {
       await expect(fallback).toHaveCount(0);
     },
     async expectCharsetWithinEncodingSniffLimit(): Promise<void> {
-      const response = await page.request.get('/');
+      const response = await page.request.get('./');
       const body = await response.body();
       const declarationStart = body.indexOf(CHARSET_DECLARATION);
 
@@ -52,7 +52,7 @@ export const createBootFallbackRobot = (page: Page): BootFallbackRobotValue => {
       await expect(reloadButton).toBeVisible();
     },
     async open(): Promise<void> {
-      await page.goto('/');
+      await page.goto('./');
     },
     async reload(): Promise<void> {
       await reloadButton.click();

@@ -6,6 +6,7 @@ import type {
 import type { PersonaValue } from '../fixtures/demoData.ts';
 
 export interface ProfileMenuLocatorsValue {
+  autoGraphicsLevel: Locator;
   button: Locator;
   getGraphicsOption: (preference: string) => Locator;
   getPersonaItem: (persona: PersonaValue) => Locator;
@@ -14,6 +15,7 @@ export interface ProfileMenuLocatorsValue {
 }
 
 export const createProfileMenuLocators = (page: Page): ProfileMenuLocatorsValue => ({
+  autoGraphicsLevel: page.getByTestId('graphics-menu-option-auto').getByTestId('graphics-menu-auto-level'),
   button: page.getByTestId('profile-button'),
   getGraphicsOption: (preference: string): Locator => page.getByTestId(`graphics-menu-option-${preference}`),
   getPersonaItem: ({ id }: PersonaValue): Locator => page.getByTestId(`profile-menu-persona-${id}`),

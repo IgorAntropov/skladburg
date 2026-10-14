@@ -7,25 +7,39 @@ import { getDefaultGraphicsPreference } from './getDefaultGraphicsPreference';
 
 export interface ResolveSceneModeInputValue {
   autoLevel: QualityLevelValue | undefined;
+  isSoftwareRenderer: () => boolean;
   isWebGlAvailable: () => boolean;
   preference: GraphicsPreferenceValue | undefined;
   viewportClass: ViewportClassValue;
 }
 
 export type SceneModeValue
-  = | { isAuto: boolean; kind: '3d'; level: QualityLevelValue }
+  = | { autoCeiling: QualityLevelValue; isAuto: true; kind: '3d'; level: QualityLevelValue }
+    | { isAuto: false; kind: '3d'; level: QualityLevelValue }
     | { kind: 'off'; reason: SceneOffReasonValue };
 
 export type SceneOffReasonValue = 'noWebGl' | 'phoneDefault' | 'preference';
 
-const AUTO_LEVEL_BY_VIEWPORT: Readonly<Record<ViewportClassValue, QualityLevelValue>> = {
+const AUTO_CEILING_BY_VIEWPORT: Readonly<Record<ViewportClassValue, QualityLevelValue>> = {
   desktop: 'high',
   phone: 'medium',
   tablet: 'medium',
 };
 
+const SOFTWARE_AUTO_CEILING: QualityLevelValue = 'low';
+
+const LEVEL_RANK: Readonly<Record<QualityLevelValue, number>> = {
+  high: 2,
+  low: 0,
+  medium: 1,
+};
+
+const clampToCeiling = (level: QualityLevelValue, ceiling: QualityLevelValue): QualityLevelValue =>
+  LEVEL_RANK[level] > LEVEL_RANK[ceiling] ? ceiling : level;
+
 export const resolveSceneMode = ({
   autoLevel,
+  isSoftwareRenderer,
   isWebGlAvailable,
   preference,
   viewportClass,
@@ -45,7 +59,14 @@ export const resolveSceneMode = ({
   }
 
   if (effectivePreference === 'auto') {
-    return { isAuto: true, kind: '3d', level: autoLevel ?? AUTO_LEVEL_BY_VIEWPORT[viewportClass] };
+    const autoCeiling = isSoftwareRenderer() ? SOFTWARE_AUTO_CEILING : AUTO_CEILING_BY_VIEWPORT[viewportClass];
+
+    return {
+      autoCeiling,
+      isAuto: true,
+      kind: '3d',
+      level: autoLevel === undefined ? autoCeiling : clampToCeiling(autoLevel, autoCeiling),
+    };
   }
 
   return { isAuto: false, kind: '3d', level: effectivePreference };

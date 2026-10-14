@@ -12,14 +12,17 @@ import {
 } from 'react';
 
 import type {
+  AutoQualitySettingsValue,
   IIsometricCameraRig,
   QualityLevelValue,
   SceneContentProps,
   SceneWorldValue,
+  ShadowMapSizeValue,
 } from '@/shared/3d';
 import type { SceneInsetsValue } from '@/shared/lib/viewport';
 
 import {
+  AutoQualityMonitor,
   DayNightRig,
   IsometricCameraRig,
   QUALITY_LEVEL_SETTINGS,
@@ -34,6 +37,7 @@ import type { SceneCameraCommandSubscription } from '../model/subscribeToSceneCa
 import { useSceneCameraCommands } from './useSceneCameraCommands';
 
 interface SceneRootProps {
+  autoQuality: AutoQualitySettingsValue | undefined;
   Content: ComponentType<SceneContentProps>;
   dprCeiling: number;
   focusInsets: SceneInsetsValue;
@@ -41,8 +45,11 @@ interface SceneRootProps {
   isReducedMotion: boolean;
   isStatsShown: boolean;
   level: QualityLevelValue;
+  onAutoLevelChange: (level: QualityLevelValue) => void;
   onCameraJump: () => void;
+  onContextLost: () => void;
   onReady: () => void;
+  shadowMapSize: ShadowMapSizeValue;
   subscribeToCameraCommands: SceneCameraCommandSubscription;
   world: SceneWorldValue;
 }
@@ -54,6 +61,7 @@ const readDocumentProperty = (name: string): string => {
 };
 
 const SceneRoot = ({
+  autoQuality,
   Content,
   dprCeiling,
   focusInsets,
@@ -61,15 +69,18 @@ const SceneRoot = ({
   isReducedMotion,
   isStatsShown,
   level,
+  onAutoLevelChange,
   onCameraJump,
+  onContextLost,
   onReady,
+  shadowMapSize,
   subscribeToCameraCommands,
   world,
 }: SceneRootProps): ReactElement => {
   const rigRef = useRef<IIsometricCameraRig>(null);
   const [palette] = useState(() => readWorldPalette(readDocumentProperty));
 
-  const dpr = useMemo((): readonly [number, number] => {
+  const dpr = useMemo((): [number, number] => {
     const [minDpr, levelMaxDpr] = QUALITY_LEVEL_SETTINGS[level].dpr;
 
     return [minDpr, Math.min(levelMaxDpr, dprCeiling)];
@@ -80,7 +91,7 @@ const SceneRoot = ({
   const isStatsVisible = SceneDevStats !== undefined && isStatsShown;
 
   return (
-    <SceneCanvas dpr={dpr} onReady={onReady}>
+    <SceneCanvas dpr={dpr} onContextLost={onContextLost} onReady={onReady}>
       <IsometricCameraRig
         focusInsets={focusInsets}
         isReducedMotion={isReducedMotion}
@@ -90,10 +101,24 @@ const SceneRoot = ({
       />
       <WorldMaterialsProvider palette={palette}>
         <WorldGeometryProvider>
-          <DayNightRig isNight={isNight} isReducedMotion={isReducedMotion} level={level} world={world} />
+          <DayNightRig
+            isNight={isNight}
+            isReducedMotion={isReducedMotion}
+            level={level}
+            shadowMapSize={shadowMapSize}
+            world={world}
+          />
           <Content level={level} />
         </WorldGeometryProvider>
       </WorldMaterialsProvider>
+      {autoQuality !== undefined && (
+        <AutoQualityMonitor
+          ceiling={autoQuality.ceiling}
+          changeCount={autoQuality.changeCount}
+          level={level}
+          onLevelChange={onAutoLevelChange}
+        />
+      )}
       {isStatsVisible && (
         <Suspense fallback={null}>
           <SceneDevStats />

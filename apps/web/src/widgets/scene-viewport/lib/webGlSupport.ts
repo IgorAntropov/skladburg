@@ -1,3 +1,7 @@
 import { createWebGlProbe } from './createWebGlProbe';
 
-export const isWebGlSupported = createWebGlProbe(() => document.createElement('canvas'));
+const probeWebGlSupport = createWebGlProbe(() => document.createElement('canvas'));
+
+export const isSoftwareRenderer = (): boolean => probeWebGlSupport().isSoftware;
+
+export const isWebGlSupported = (): boolean => probeWebGlSupport().isSupported;

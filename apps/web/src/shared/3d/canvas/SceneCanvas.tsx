@@ -12,7 +12,8 @@ import { WebglContextRecovery } from './WebglContextRecovery';
 
 interface SceneCanvasProps {
   children: ReactNode;
-  dpr: readonly [number, number];
+  dpr: [number, number];
+  onContextLost: () => void;
   onReady: () => void;
 }
 
@@ -24,18 +25,19 @@ const STATIC_SHADOW_MAP: Partial<WebGLShadowMap> = {
 export const SceneCanvas = ({
   children,
   dpr,
+  onContextLost,
   onReady,
 }: SceneCanvasProps): ReactElement => {
   return (
     <Canvas
-      dpr={[dpr[0], dpr[1]]}
+      dpr={dpr}
       flat
       frameloop="demand"
       gl={{ antialias: true }}
       orthographic
       shadows={STATIC_SHADOW_MAP}
     >
-      <WebglContextRecovery />
+      <WebglContextRecovery onContextLost={onContextLost} />
       <SceneReadySignal onReady={onReady} />
       {children}
     </Canvas>

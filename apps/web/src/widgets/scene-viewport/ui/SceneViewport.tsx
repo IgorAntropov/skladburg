@@ -9,6 +9,7 @@ import type { SceneModuleValue } from '../model/sceneViewportTypes';
 
 import { readIsStatsShown } from '../lib/readIsStatsShown';
 import { SCENE_DPR_CEILING } from '../lib/sceneDprCeiling';
+import { SCENE_SHADOW_MAP_SIZE } from '../lib/sceneShadowMapSize';
 import { useSceneMode } from '../model/useSceneMode';
 import { SceneFrame } from './SceneFrame';
 import { SceneLayer } from './SceneLayer';
@@ -39,11 +40,13 @@ export const SceneViewport = ({ label, loadScene }: SceneViewportProps): ReactEl
 
   return (
     <SceneLive
+      autoCeiling={mode.isAuto ? mode.autoCeiling : undefined}
       dprCeiling={SCENE_DPR_CEILING[viewportClass]}
       isStatsShown={isStatsShown}
       label={label}
       level={mode.level}
       loadScene={loadScene}
+      shadowMapSize={SCENE_SHADOW_MAP_SIZE[viewportClass]}
     />
   );
 };

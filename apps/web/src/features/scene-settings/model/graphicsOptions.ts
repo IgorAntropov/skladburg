@@ -8,6 +8,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+import type { QualityLevelValue } from '@/shared/3d';
+
 import type { GraphicsPreferenceValue } from './graphicsPreference';
 
 export type GraphicsLabelKey = 'graphics.auto' | 'graphics.high' | 'graphics.low' | 'graphics.medium' | 'graphics.off';
@@ -25,3 +27,9 @@ export const GRAPHICS_OPTIONS: readonly GraphicsOptionValue[] = [
   { Icon: SignalLow, labelKey: 'graphics.low', value: 'low' },
   { Icon: Ban, labelKey: 'graphics.off', value: 'off' },
 ];
+
+export const GRAPHICS_LEVEL_LABEL_KEYS: Readonly<Record<QualityLevelValue, GraphicsLabelKey>> = {
+  high: 'graphics.high',
+  low: 'graphics.low',
+  medium: 'graphics.medium',
+};

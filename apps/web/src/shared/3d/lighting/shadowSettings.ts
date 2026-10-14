@@ -1,13 +1,15 @@
+export type ShadowMapSizeValue = 2048 | 4096;
+
 export interface ShadowSettingsValue {
   bias: number;
-  mapSize: number;
   normalBias: number;
   radius: number;
 }
 
-export const SHADOW_SETTINGS: ShadowSettingsValue = {
-  bias: -0.0004,
-  mapSize: 2048,
-  normalBias: 0.05,
-  radius: 1,
+const SHADOW_BIAS = -0.0004;
+const SHADOW_NORMAL_BIAS = 0.05;
+
+export const SHADOW_SETTINGS_BY_MAP_SIZE: Readonly<Record<ShadowMapSizeValue, ShadowSettingsValue>> = {
+  2048: { bias: SHADOW_BIAS, normalBias: SHADOW_NORMAL_BIAS, radius: 1 },
+  4096: { bias: SHADOW_BIAS, normalBias: SHADOW_NORMAL_BIAS, radius: 2 },
 };

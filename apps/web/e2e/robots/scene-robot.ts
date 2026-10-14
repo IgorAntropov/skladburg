@@ -24,11 +24,14 @@ import {
   READ_WORLD_SETTLE_MS_SCRIPT,
 } from './scene-draw-counter.ts';
 
+export type AutoGraphicsLevelValue = 'high' | 'low' | 'medium';
+
 export type CameraButtonValue = 'home' | 'rotate-left' | 'rotate-right' | 'zoom-in' | 'zoom-out';
 
 export interface SceneRobotValue {
   chooseGraphicsPreference: (preference: GraphicsPreferenceValue) => Promise<void>;
   countRequestedSceneChunks: () => number;
+  expectAutoGraphicsLevel: (level: AutoGraphicsLevelValue) => Promise<void>;
   expectNoCanvas: () => Promise<void>;
   expectNoDrawCallsFor: (durationMs: number) => Promise<void>;
   expectNoDrawFramesFor: (durationMs: number) => Promise<void>;
@@ -73,7 +76,12 @@ const SCENE_STATE_TIMEOUT_MS = 40_000;
 const SCENE_CHUNK_PATTERN = /\/assets\/(?:NetworkWorldScene|SceneRoot)-[^/]+\.js$/;
 
 export const createSceneRobot = (page: Page): SceneRobotValue => {
-  const { button: profileButton, getGraphicsOption, menu } = createProfileMenuLocators(page);
+  const {
+    autoGraphicsLevel,
+    button: profileButton,
+    getGraphicsOption,
+    menu,
+  } = createProfileMenuLocators(page);
   const sceneViewport = page.getByTestId('scene-viewport');
   const canvas = sceneViewport.locator('canvas');
   const requestedSceneChunks: string[] = [];
@@ -104,6 +112,13 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     },
     countRequestedSceneChunks(): number {
       return requestedSceneChunks.length;
+    },
+    async expectAutoGraphicsLevel(level: AutoGraphicsLevelValue): Promise<void> {
+      await profileButton.click();
+      await expect(menu).toBeVisible();
+      await expect(autoGraphicsLevel).toHaveAttribute('data-auto-level', level);
+      await page.keyboard.press('Escape');
+      await expect(menu).toHaveCount(0);
     },
     async expectNoCanvas(): Promise<void> {
       await expect(canvas).toHaveCount(0);

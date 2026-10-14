@@ -34,6 +34,7 @@ export const catalog = {
   'error.validation_failed': 'Проверьте поля формы',
   'error.version_conflict': 'Пока вы смотрели, данные обновились',
   'graphics.auto': 'Авто',
+  'graphics.autoCurrent': 'Авто, сейчас {level}',
   'graphics.high': 'Высокое',
   'graphics.label': 'Графика',
   'graphics.low': 'Низкое',

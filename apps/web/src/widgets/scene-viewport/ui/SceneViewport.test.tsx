@@ -48,14 +48,27 @@ import { loadSceneRoot } from '../lib/loadSceneRoot';
 import { isWebGlSupported } from '../lib/webGlSupport';
 import { SceneViewport } from './SceneViewport';
 
-const sceneRootControl = vi.hoisted(() => ({ isBroken: false }));
+const sceneRootControl = vi.hoisted(() => ({ isBroken: false, mountCount: 0 }));
 
-vi.mock('../lib/webGlSupport', () => ({ isWebGlSupported: vi.fn(() => true) }));
+vi.mock('../lib/webGlSupport', () => ({
+  isSoftwareRenderer: vi.fn(() => false),
+  isWebGlSupported: vi.fn(() => true),
+}));
 
 vi.mock('../scene/SceneRoot', () => {
-  const SceneRoot = ({ Content, level, onReady }: {
+  const SceneRoot = ({
+    autoQuality,
+    Content,
+    level,
+    onAutoLevelChange,
+    onContextLost,
+    onReady,
+  }: {
+    autoQuality: undefined | { ceiling: QualityLevelValue; changeCount: number };
     Content: ComponentType<SceneContentProps>;
     level: QualityLevelValue;
+    onAutoLevelChange: (level: QualityLevelValue) => void;
+    onContextLost: () => void;
     onReady: () => void;
   }): ReactElement => {
     if (sceneRootControl.isBroken) {
@@ -63,11 +76,21 @@ vi.mock('../scene/SceneRoot', () => {
     }
 
     useEffect(() => {
+      sceneRootControl.mountCount += 1;
+    }, []);
+
+    useEffect(() => {
       onReady();
     }, [onReady]);
 
     return (
-      <div data-testid="scene-root-probe">
+      <div
+        data-auto-ceiling={autoQuality?.ceiling}
+        data-change-count={autoQuality?.changeCount}
+        data-testid="scene-root-probe"
+      >
+        <button data-testid="lose-context" onClick={onContextLost} type="button" />
+        <button data-testid="change-auto-level" onClick={() => { onAutoLevelChange('low'); }} type="button" />
         <Content level={level} />
       </div>
     );
@@ -139,10 +162,16 @@ describe('SceneViewport', () => {
   beforeEach(() => {
     installedViewport = installFakeViewport('desktop');
     memoryLocation = createMemoryLocation('/network');
-    useSceneSettingsStore.setState({ autoLevel: undefined, isSceneUnavailable: false, preference: undefined });
+    useSceneSettingsStore.setState({
+      autoLevel: undefined,
+      autoLevelChangeCount: 0,
+      isSceneUnavailable: false,
+      preference: undefined,
+    });
     vi.mocked(isWebGlSupported).mockReturnValue(true);
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     sceneRootControl.isBroken = false;
+    sceneRootControl.mountCount = 0;
   });
 
   afterEach(() => {
@@ -287,6 +316,76 @@ describe('SceneViewport', () => {
       });
       expect(screen.getByText(NO_WEBGL_MESSAGE)).toBeTruthy();
       expect(screen.queryByRole('button')).toBeNull();
+      expect(useSceneSettingsStore.getState().isSceneUnavailable).toBe(true);
+    });
+  });
+
+  describe('automatic quality', () => {
+    it('hands the monitor the stored count of changes on Auto', async () => {
+      useSceneSettingsStore.setState({ autoLevelChangeCount: 2 });
+
+      renderImportedViewport(loadSceneModule);
+
+      const probe = await screen.findByTestId('scene-root-probe');
+
+      expect(probe.dataset.autoCeiling).toBeDefined();
+      expect(probe.dataset.changeCount).toBe('2');
+    });
+
+    it('has no monitor on a manual level', async () => {
+      useSceneSettingsStore.setState({ preference: 'high' });
+
+      renderImportedViewport(loadSceneModule);
+
+      expect((await screen.findByTestId('scene-root-probe')).dataset.autoCeiling).toBeUndefined();
+    });
+
+    it('stores a measured level and counts the change', async () => {
+      renderImportedViewport(loadSceneModule);
+
+      fireEvent.click(await screen.findByTestId('change-auto-level'));
+
+      expect(useSceneSettingsStore.getState().autoLevel).toBe('low');
+      expect(useSceneSettingsStore.getState().autoLevelChangeCount).toBe(1);
+    });
+  });
+
+  describe('lost WebGL context', () => {
+    it('restarts the scene once on a new canvas', async () => {
+      renderImportedViewport(loadSceneModule);
+      await waitFor(() => {
+        expect(getSceneState()).toBe('ready');
+      });
+
+      expect(sceneRootControl.mountCount).toBe(1);
+
+      fireEvent.click(screen.getByTestId('lose-context'));
+
+      await waitFor(() => {
+        expect(sceneRootControl.mountCount).toBe(2);
+      });
+      await waitFor(() => {
+        expect(getSceneState()).toBe('ready');
+      });
+      expect(useSceneSettingsStore.getState().isSceneUnavailable).toBe(false);
+    });
+
+    it('falls back to the light mode when the context is lost again', async () => {
+      renderImportedViewport(loadSceneModule);
+      await waitFor(() => {
+        expect(getSceneState()).toBe('ready');
+      });
+      fireEvent.click(screen.getByTestId('lose-context'));
+      await waitFor(() => {
+        expect(sceneRootControl.mountCount).toBe(2);
+      });
+
+      fireEvent.click(await screen.findByTestId('lose-context'));
+
+      await waitFor(() => {
+        expect(getSceneState()).toBe('off');
+      });
+      expect(screen.getByText(NO_WEBGL_MESSAGE)).toBeTruthy();
       expect(useSceneSettingsStore.getState().isSceneUnavailable).toBe(true);
     });
   });

@@ -2,10 +2,14 @@ import type { ReactElement } from 'react';
 
 import {
   useEffect,
+  useMemo,
   useReducer,
 } from 'react';
 
-import type { QualityLevelValue } from '@/shared/3d';
+import type {
+  QualityLevelValue,
+  ShadowMapSizeValue,
+} from '@/shared/3d';
 import type { CachedModuleLoader } from '@/shared/lib/module-loader';
 
 import { useSceneSettingsStore } from '@/features/scene-settings';
@@ -30,11 +34,13 @@ import { ScenePlaceholder } from './ScenePlaceholder';
 import { SceneStage } from './SceneStage';
 
 interface SceneLiveProps {
+  autoCeiling: QualityLevelValue | undefined;
   dprCeiling: number;
   isStatsShown: boolean;
   label: string;
   level: QualityLevelValue;
   loadScene: CachedModuleLoader<SceneModuleValue>;
+  shadowMapSize: ShadowMapSizeValue;
 }
 
 const SCENE_STATE_BY_PHASE = {
@@ -45,16 +51,25 @@ const SCENE_STATE_BY_PHASE = {
 } as const satisfies Record<SceneViewportPhaseValue, SceneStateValue>;
 
 export const SceneLive = ({
+  autoCeiling,
   dprCeiling,
   isStatsShown,
   label,
   level,
   loadScene,
+  shadowMapSize,
 }: SceneLiveProps): ReactElement => {
   const { t } = useI18n();
+  const autoLevelChangeCount = useSceneSettingsStore(state => state.autoLevelChangeCount);
   const markSceneUnavailable = useSceneSettingsStore(state => state.markSceneUnavailable);
+  const reportAutoLevel = useSceneSettingsStore(state => state.reportAutoLevel);
   const setCameraReady = useSceneCameraStore(state => state.setCameraReady);
   const [state, dispatch] = useReducer(reduceSceneViewport, INITIAL_SCENE_VIEWPORT_STATE);
+
+  const autoQuality = useMemo(
+    () => autoCeiling === undefined ? undefined : { ceiling: autoCeiling, changeCount: autoLevelChangeCount },
+    [autoCeiling, autoLevelChangeCount],
+  );
 
   const isLoading = state.phase === 'loading';
   const isLoadingPlaceholderShown = useDelayedVisibility(isLoading);
@@ -71,6 +86,16 @@ export const SceneLive = ({
   const handleSceneFailure = (error: unknown): void => {
     console.error('> SceneLive -> handleSceneFailure:', { attempt: state.attempt, error });
     dispatch({ error, kind: 'failed' });
+  };
+
+  const handleAutoLevelChange = (nextLevel: QualityLevelValue): void => {
+    console.log('> SceneLive -> handleAutoLevelChange:', { attempt: state.attempt, nextLevel });
+    reportAutoLevel(nextLevel, 'measured');
+  };
+
+  const handleContextLost = (): void => {
+    console.log('> SceneLive -> handleContextLost:', { attempt: state.attempt });
+    dispatch({ kind: 'contextLost' });
   };
 
   const handleRetry = (): void => {
@@ -101,13 +126,17 @@ export const SceneLive = ({
   return (
     <SceneFrame sceneState={SCENE_STATE_BY_PHASE[state.phase]}>
       {isStageMounted && (
-        <SceneErrorBoundary onError={handleSceneFailure}>
+        <SceneErrorBoundary key={state.attempt} onError={handleSceneFailure}>
           <SceneStage
+            autoQuality={autoQuality}
             dprCeiling={dprCeiling}
             isStatsShown={isStatsShown}
             level={level}
             loadScene={loadScene}
+            onAutoLevelChange={handleAutoLevelChange}
+            onContextLost={handleContextLost}
             onReady={handleSceneReady}
+            shadowMapSize={shadowMapSize}
           />
         </SceneErrorBoundary>
       )}

@@ -7,6 +7,7 @@ import {
 
 export type SceneViewportEventValue
   = | { error: unknown; kind: 'failed' }
+    | { kind: 'contextLost' }
     | { kind: 'ready' }
     | { kind: 'retry' };
 
@@ -14,12 +15,14 @@ export type SceneViewportPhaseValue = 'error' | 'loading' | 'ready' | 'unavailab
 
 export interface SceneViewportStateValue {
   attempt: number;
+  contextLossCount: number;
   phase: SceneViewportPhaseValue;
   recovery: ChunkRecoveryValue | undefined;
 }
 
 export const INITIAL_SCENE_VIEWPORT_STATE: SceneViewportStateValue = {
   attempt: 0,
+  contextLossCount: 0,
   phase: 'loading',
   recovery: undefined,
 };
@@ -36,8 +39,18 @@ export const reduceSceneViewport = (
 
   if (event.kind === 'retry') {
     return state.phase === 'error'
-      ? { attempt: state.attempt + 1, phase: 'loading', recovery: undefined }
+      ? { ...state, attempt: state.attempt + 1, phase: 'loading', recovery: undefined }
       : state;
+  }
+
+  if (event.kind === 'contextLost') {
+    if (isFailureFinal(state.phase)) {
+      return state;
+    }
+
+    return state.contextLossCount === 0
+      ? { attempt: state.attempt + 1, contextLossCount: 1, phase: 'loading', recovery: undefined }
+      : { ...state, contextLossCount: state.contextLossCount + 1, phase: 'unavailable', recovery: undefined };
   }
 
   if (isFailureFinal(state.phase)) {

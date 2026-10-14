@@ -5,7 +5,11 @@ import {
   useRef,
 } from 'react';
 
-import type { QualityLevelValue } from '@/shared/3d';
+import type {
+  AutoQualitySettingsValue,
+  QualityLevelValue,
+  ShadowMapSizeValue,
+} from '@/shared/3d';
 import type { CachedModuleLoader } from '@/shared/lib/module-loader';
 
 import { useSceneInsets } from '@/shared/lib/viewport';
@@ -19,11 +23,15 @@ import { useSceneModules } from '../model/useSceneModules';
 import { SceneLayer } from './SceneLayer';
 
 interface SceneStageProps {
+  autoQuality: AutoQualitySettingsValue | undefined;
   dprCeiling: number;
   isStatsShown: boolean;
   level: QualityLevelValue;
   loadScene: CachedModuleLoader<SceneModuleValue>;
+  onAutoLevelChange: (level: QualityLevelValue) => void;
+  onContextLost: () => void;
   onReady: () => void;
+  shadowMapSize: ShadowMapSizeValue;
 }
 
 const STAGE_LAYER_CLASS_NAME = [
@@ -37,11 +45,15 @@ const JUMP_FADE_DURATION_MS = 150;
 const JUMP_FADE_LAYER_CLASS_NAME = 'absolute inset-0';
 
 export const SceneStage = ({
+  autoQuality,
   dprCeiling,
   isStatsShown,
   level,
   loadScene,
+  onAutoLevelChange,
+  onContextLost,
   onReady,
+  shadowMapSize,
 }: SceneStageProps): null | ReactElement => {
   const modulesState = useSceneModules(loadScene);
   const isReducedMotion = usePrefersReducedMotion();
@@ -73,6 +85,7 @@ export const SceneStage = ({
     <SceneLayer className={STAGE_LAYER_CLASS_NAME}>
       <div className={JUMP_FADE_LAYER_CLASS_NAME} ref={jumpFadeLayerRef}>
         <SceneRoot
+          autoQuality={autoQuality}
           Content={sceneModule.default}
           dprCeiling={dprCeiling}
           focusInsets={focusInsets}
@@ -80,8 +93,11 @@ export const SceneStage = ({
           isReducedMotion={isReducedMotion}
           isStatsShown={isStatsShown}
           level={level}
+          onAutoLevelChange={onAutoLevelChange}
           onCameraJump={handleCameraJump}
+          onContextLost={onContextLost}
           onReady={onReady}
+          shadowMapSize={shadowMapSize}
           subscribeToCameraCommands={subscribeToSceneCameraCommands}
           world={sceneModule.world}
         />

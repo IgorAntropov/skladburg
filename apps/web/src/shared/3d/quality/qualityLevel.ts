@@ -11,3 +11,7 @@ export const QUALITY_LEVEL_SETTINGS: Readonly<Record<QualityLevelValue, QualityL
   low: { decorDensity: 0.3, dpr: [1, 1], hasShadows: false },
   medium: { decorDensity: 0.6, dpr: [1, 1.5], hasShadows: false },
 };
+
+export const QUALITY_LEVELS_ASCENDING: readonly QualityLevelValue[] = ['low', 'medium', 'high'];
+
+export const rankOf = (level: QualityLevelValue): number => QUALITY_LEVELS_ASCENDING.indexOf(level);

@@ -296,7 +296,7 @@ test.describe('scene frame budget', () => {
     await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
   });
 
-  test('does not request the scene chunk without 3D and loads it after switching back to auto', async ({ page }) => {
+  test('does not request the scene chunk without 3D and loads it at the low level after switching back to auto', async ({ page }) => {
     const scene = createSceneRobot(page);
 
     scene.watchSceneChunkRequests();
@@ -310,6 +310,7 @@ test.describe('scene frame budget', () => {
 
     await scene.expectSceneState('ready');
     await scene.expectOneCanvas();
+    await scene.expectAutoGraphicsLevel('low');
 
     expect(scene.countRequestedSceneChunks()).toBeGreaterThan(0);
   });

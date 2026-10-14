@@ -20,6 +20,7 @@ import { Object3D } from 'three';
 
 import type { QualityLevelValue } from '../quality/qualityLevel';
 import type { SceneWorldValue } from '../world/sceneWorld';
+import type { ShadowMapSizeValue } from './shadowSettings';
 
 import { useWorldPalette } from '../materials/useWorldPalette';
 import { QUALITY_LEVEL_SETTINGS } from '../quality/qualityLevel';
@@ -33,14 +34,16 @@ import { createDayNightTween } from './createDayNightTween';
 import { DAY_NIGHT_TRANSITION_MS } from './dayNightKeyframes';
 import {
   markShadowMapStale,
+  releaseShadowMap,
   useShadowMapRefresh,
 } from './shadowMapRefresh';
-import { SHADOW_SETTINGS } from './shadowSettings';
+import { SHADOW_SETTINGS_BY_MAP_SIZE } from './shadowSettings';
 
 interface DayNightRigProps {
   isNight: boolean;
   isReducedMotion: boolean;
   level: QualityLevelValue;
+  shadowMapSize: ShadowMapSizeValue;
   world: SceneWorldValue;
 }
 
@@ -48,6 +51,7 @@ export const DayNightRig = ({
   isNight,
   isReducedMotion,
   level,
+  shadowMapSize,
   world,
 }: DayNightRigProps): ReactElement => {
   const palette = useWorldPalette();
@@ -102,11 +106,24 @@ export const DayNightRig = ({
     }
 
     light.target = shadowTarget;
-    light.shadow.mapSize.set(SHADOW_SETTINGS.mapSize, SHADOW_SETTINGS.mapSize);
-    light.shadow.bias = SHADOW_SETTINGS.bias;
-    light.shadow.normalBias = SHADOW_SETTINGS.normalBias;
-    light.shadow.radius = SHADOW_SETTINGS.radius;
   }, [shadowTarget]);
+
+  useLayoutEffect(() => {
+    const light = lightRef.current;
+
+    if (light === null) {
+      return;
+    }
+
+    const { bias, normalBias, radius } = SHADOW_SETTINGS_BY_MAP_SIZE[shadowMapSize];
+
+    releaseShadowMap(light);
+    light.shadow.mapSize.set(shadowMapSize, shadowMapSize);
+    light.shadow.bias = bias;
+    light.shadow.normalBias = normalBias;
+    light.shadow.radius = radius;
+    refreshShadowMap();
+  }, [refreshShadowMap, shadowMapSize]);
 
   useLayoutEffect(() => {
     setSceneBackground(scene, lighting.background);
@@ -145,8 +162,7 @@ export const DayNightRig = ({
     const light = lightRef.current;
 
     if (!isShadowEnabled && light !== null) {
-      light.shadow.dispose();
-      light.shadow.map = null;
+      releaseShadowMap(light);
     }
 
     refreshShadowMap();

@@ -24,7 +24,12 @@ const rehydrateFrom = async (rawValue: string): Promise<void> => {
 describe('useSceneSettingsStore', () => {
   beforeEach(() => {
     window.localStorage.clear();
-    useSceneSettingsStore.setState({ autoLevel: undefined, isSceneUnavailable: false, preference: undefined });
+    useSceneSettingsStore.setState({
+      autoLevel: undefined,
+      autoLevelChangeCount: 0,
+      isSceneUnavailable: false,
+      preference: undefined,
+    });
     window.localStorage.clear();
   });
 
@@ -32,12 +37,31 @@ describe('useSceneSettingsStore', () => {
     vi.restoreAllMocks();
   });
 
-  it('saves only the preference, never the measured level', () => {
-    useSceneSettingsStore.getState().reportAutoLevel('low');
+  it('saves only the preference, never the measured level or the change count', () => {
+    useSceneSettingsStore.getState().reportAutoLevel('low', 'measured');
     useSceneSettingsStore.getState().setPreference('medium');
 
     expect(readStoredState()).toEqual({ preference: 'medium' });
     expect(useSceneSettingsStore.getState().autoLevel).toBe('low');
+    expect(window.localStorage.getItem(GRAPHICS_STORAGE_KEY)).not.toContain('autoLevelChangeCount');
+  });
+
+  it('starts without a known level and without level changes', () => {
+    expect(useSceneSettingsStore.getState().autoLevel).toBeUndefined();
+    expect(useSceneSettingsStore.getState().autoLevelChangeCount).toBe(0);
+  });
+
+  it('counts a measured level and not the starting one', () => {
+    useSceneSettingsStore.getState().reportAutoLevel('high', 'start');
+
+    expect(useSceneSettingsStore.getState().autoLevel).toBe('high');
+    expect(useSceneSettingsStore.getState().autoLevelChangeCount).toBe(0);
+
+    useSceneSettingsStore.getState().reportAutoLevel('medium', 'measured');
+    useSceneSettingsStore.getState().reportAutoLevel('low', 'measured');
+
+    expect(useSceneSettingsStore.getState().autoLevel).toBe('low');
+    expect(useSceneSettingsStore.getState().autoLevelChangeCount).toBe(2);
   });
 
   it('remembers that the scene is unavailable until the preference is chosen again', () => {

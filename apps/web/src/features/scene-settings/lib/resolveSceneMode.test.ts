@@ -13,96 +13,155 @@ import type { SceneModeValue } from './resolveSceneMode';
 
 import { resolveSceneMode } from './resolveSceneMode';
 
+type ModeCaseBaseValue = Omit<ModeCaseValue, 'expected' | 'title'>;
+
 interface ModeCaseValue {
-  autoLevel?: QualityLevelValue;
+  autoLevel: QualityLevelValue | undefined;
   expected: SceneModeValue;
+  isSoftwareRenderer: boolean;
   isWebGlAvailable: boolean;
   preference: GraphicsPreferenceValue | undefined;
   title: string;
   viewportClass: ViewportClassValue;
 }
 
+const BASE_CASE: ModeCaseBaseValue = {
+  autoLevel: undefined,
+  isSoftwareRenderer: false,
+  isWebGlAvailable: true,
+  preference: undefined,
+  viewportClass: 'desktop',
+};
+
 const MODE_CASES: readonly ModeCaseValue[] = [
   {
-    expected: { isAuto: true, kind: '3d', level: 'high' },
-    isWebGlAvailable: true,
-    preference: undefined,
+    ...BASE_CASE,
+    expected: { autoCeiling: 'high', isAuto: true, kind: '3d', level: 'high' },
     title: 'desktop default is auto at the high level',
-    viewportClass: 'desktop',
   },
   {
-    expected: { isAuto: true, kind: '3d', level: 'medium' },
-    isWebGlAvailable: true,
-    preference: undefined,
+    ...BASE_CASE,
+    expected: { autoCeiling: 'medium', isAuto: true, kind: '3d', level: 'medium' },
     title: 'tablet default is auto at the medium level',
     viewportClass: 'tablet',
   },
   {
+    ...BASE_CASE,
     expected: { kind: 'off', reason: 'phoneDefault' },
-    isWebGlAvailable: true,
-    preference: undefined,
     title: 'phone default is the light mode',
     viewportClass: 'phone',
   },
   {
-    expected: { isAuto: true, kind: '3d', level: 'medium' },
-    isWebGlAvailable: true,
+    ...BASE_CASE,
+    expected: { autoCeiling: 'medium', isAuto: true, kind: '3d', level: 'medium' },
     preference: 'auto',
     title: 'phone with auto chosen by hand is auto at the medium level',
     viewportClass: 'phone',
   },
   {
+    ...BASE_CASE,
     autoLevel: 'low',
-    expected: { isAuto: true, kind: '3d', level: 'low' },
-    isWebGlAvailable: true,
+    expected: { autoCeiling: 'high', isAuto: true, kind: '3d', level: 'low' },
     preference: 'auto',
     title: 'auto follows the measured level',
-    viewportClass: 'desktop',
   },
   {
+    ...BASE_CASE,
+    autoLevel: 'medium',
+    expected: { autoCeiling: 'high', isAuto: true, kind: '3d', level: 'medium' },
+    title: 'auto at the default preference follows the measured level',
+  },
+  {
+    ...BASE_CASE,
+    autoLevel: 'high',
+    expected: { autoCeiling: 'medium', isAuto: true, kind: '3d', level: 'medium' },
+    title: 'the measured level above the device ceiling is clamped to the ceiling',
+    viewportClass: 'tablet',
+  },
+  {
+    ...BASE_CASE,
+    autoLevel: 'medium',
+    expected: { autoCeiling: 'medium', isAuto: true, kind: '3d', level: 'medium' },
+    title: 'the measured level equal to the ceiling stays',
+    viewportClass: 'tablet',
+  },
+  {
+    ...BASE_CASE,
+    expected: { autoCeiling: 'low', isAuto: true, kind: '3d', level: 'low' },
+    isSoftwareRenderer: true,
+    title: 'a software renderer starts auto at the low level on a desktop',
+  },
+  {
+    ...BASE_CASE,
+    expected: { autoCeiling: 'low', isAuto: true, kind: '3d', level: 'low' },
+    isSoftwareRenderer: true,
+    title: 'a software renderer starts auto at the low level on a tablet',
+    viewportClass: 'tablet',
+  },
+  {
+    ...BASE_CASE,
+    autoLevel: 'high',
+    expected: { autoCeiling: 'low', isAuto: true, kind: '3d', level: 'low' },
+    isSoftwareRenderer: true,
+    title: 'the measured level above the software ceiling is clamped to low',
+  },
+  {
+    ...BASE_CASE,
+    expected: { autoCeiling: 'low', isAuto: true, kind: '3d', level: 'low' },
+    isSoftwareRenderer: true,
+    preference: 'auto',
+    title: 'a software renderer on a phone with auto chosen by hand is auto at the low level',
+    viewportClass: 'phone',
+  },
+  {
+    ...BASE_CASE,
     autoLevel: 'low',
     expected: { isAuto: false, kind: '3d', level: 'high' },
-    isWebGlAvailable: true,
     preference: 'high',
     title: 'a fixed level ignores the measured level',
-    viewportClass: 'desktop',
   },
   {
+    ...BASE_CASE,
+    expected: { isAuto: false, kind: '3d', level: 'high' },
+    isSoftwareRenderer: true,
+    preference: 'high',
+    title: 'a software renderer does not touch a fixed level chosen by hand',
+  },
+  {
+    ...BASE_CASE,
     expected: { isAuto: false, kind: '3d', level: 'low' },
-    isWebGlAvailable: true,
     preference: 'low',
     title: 'low on a phone is a fixed low level',
     viewportClass: 'phone',
   },
   {
+    ...BASE_CASE,
     expected: { isAuto: false, kind: '3d', level: 'medium' },
-    isWebGlAvailable: true,
     preference: 'medium',
     title: 'medium on a tablet is a fixed medium level',
     viewportClass: 'tablet',
   },
   {
+    ...BASE_CASE,
     expected: { kind: 'off', reason: 'preference' },
-    isWebGlAvailable: true,
     preference: 'off',
     title: 'off by choice on a desktop',
-    viewportClass: 'desktop',
   },
   {
+    ...BASE_CASE,
     expected: { kind: 'off', reason: 'preference' },
-    isWebGlAvailable: true,
     preference: 'off',
     title: 'off by choice on a phone',
     viewportClass: 'phone',
   },
   {
+    ...BASE_CASE,
     expected: { kind: 'off', reason: 'noWebGl' },
     isWebGlAvailable: false,
-    preference: undefined,
     title: 'no WebGL on a desktop falls back to the light mode',
-    viewportClass: 'desktop',
   },
   {
+    ...BASE_CASE,
     expected: { kind: 'off', reason: 'noWebGl' },
     isWebGlAvailable: false,
     preference: 'high',
@@ -110,13 +169,14 @@ const MODE_CASES: readonly ModeCaseValue[] = [
     viewportClass: 'tablet',
   },
   {
+    ...BASE_CASE,
     expected: { kind: 'off', reason: 'phoneDefault' },
     isWebGlAvailable: false,
-    preference: undefined,
     title: 'the phone default is reported before WebGL is considered',
     viewportClass: 'phone',
   },
   {
+    ...BASE_CASE,
     expected: { kind: 'off', reason: 'noWebGl' },
     isWebGlAvailable: false,
     preference: 'auto',
@@ -124,39 +184,69 @@ const MODE_CASES: readonly ModeCaseValue[] = [
     viewportClass: 'phone',
   },
   {
+    ...BASE_CASE,
     expected: { kind: 'off', reason: 'preference' },
     isWebGlAvailable: false,
     preference: 'off',
     title: 'off by choice stays off by choice without WebGL',
-    viewportClass: 'desktop',
   },
 ];
 
 describe('resolveSceneMode', () => {
-  it.each(MODE_CASES)('$title', ({ autoLevel, expected, isWebGlAvailable, preference, viewportClass }) => {
-    expect(resolveSceneMode({ autoLevel, isWebGlAvailable: () => isWebGlAvailable, preference, viewportClass })).toEqual(expected);
+  it.each(MODE_CASES)('$title', ({ autoLevel, expected, isSoftwareRenderer, isWebGlAvailable, preference, viewportClass }) => {
+    expect(resolveSceneMode({
+      autoLevel,
+      isSoftwareRenderer: () => isSoftwareRenderer,
+      isWebGlAvailable: () => isWebGlAvailable,
+      preference,
+      viewportClass,
+    })).toEqual(expected);
   });
 
-  describe('lazy WebGL probe', () => {
+  describe('lazy probes', () => {
     it.each([
       ['off by choice on a desktop', 'off', 'desktop'],
       ['off by choice on a phone', 'off', 'phone'],
       ['the phone default', undefined, 'phone'],
-    ] as const)('does not run the probe for %s', (_title, preference, viewportClass) => {
-      const probe = vi.fn(() => false);
+    ] as const)('does not run the probes for %s', (_title, preference, viewportClass) => {
+      const isWebGlAvailable = vi.fn(() => false);
+      const isSoftwareRenderer = vi.fn(() => false);
 
-      resolveSceneMode({ autoLevel: undefined, isWebGlAvailable: probe, preference, viewportClass });
+      resolveSceneMode({ autoLevel: undefined, isSoftwareRenderer, isWebGlAvailable, preference, viewportClass });
 
-      expect(probe).not.toHaveBeenCalled();
+      expect(isWebGlAvailable).not.toHaveBeenCalled();
+      expect(isSoftwareRenderer).not.toHaveBeenCalled();
     });
 
-    it('runs the probe once when the scene could be shown and reports no WebGL', () => {
-      const probe = vi.fn(() => false);
+    it('runs the WebGL probe once when the scene could be shown and reports no WebGL without asking about the renderer', () => {
+      const isWebGlAvailable = vi.fn(() => false);
+      const isSoftwareRenderer = vi.fn(() => false);
 
-      const mode = resolveSceneMode({ autoLevel: undefined, isWebGlAvailable: probe, preference: undefined, viewportClass: 'desktop' });
+      const mode = resolveSceneMode({
+        autoLevel: undefined,
+        isSoftwareRenderer,
+        isWebGlAvailable,
+        preference: undefined,
+        viewportClass: 'desktop',
+      });
 
-      expect(probe).toHaveBeenCalledOnce();
+      expect(isWebGlAvailable).toHaveBeenCalledOnce();
+      expect(isSoftwareRenderer).not.toHaveBeenCalled();
       expect(mode).toEqual({ kind: 'off', reason: 'noWebGl' });
+    });
+
+    it('does not ask about the renderer for a fixed level', () => {
+      const isSoftwareRenderer = vi.fn(() => true);
+
+      resolveSceneMode({
+        autoLevel: undefined,
+        isSoftwareRenderer,
+        isWebGlAvailable: () => true,
+        preference: 'high',
+        viewportClass: 'desktop',
+      });
+
+      expect(isSoftwareRenderer).not.toHaveBeenCalled();
     });
   });
 });

@@ -26,6 +26,13 @@ const BUTTON_VARIANT_CLASS_NAMES: Readonly<Record<ButtonVariantValue, string>> =
     'aria-expanded:bg-line aria-expanded:text-on-panel',
     'disabled:text-on-panel-muted',
   ].join(' '),
+  neutral: [
+    'border-transparent bg-transparent text-on-panel',
+    'enabled:not-aria-busy:hover:bg-hover',
+    'enabled:not-aria-busy:active:bg-line',
+    'aria-expanded:bg-line',
+    'disabled:text-on-panel-muted',
+  ].join(' '),
   primary: [
     'border-transparent bg-primary text-on-primary',
     'enabled:not-aria-busy:hover:brightness-90 enabled:not-aria-busy:active:brightness-75',

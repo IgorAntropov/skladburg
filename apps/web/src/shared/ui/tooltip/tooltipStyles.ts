@@ -8,6 +8,8 @@ export const TOOLTIP_CONTENT_CLASS_NAME = [
 
 export const TOOLTIP_LABEL_CLASS_NAME = 'min-w-0 text-pretty wrap-break-word';
 
+export const TOOLTIP_SHORTCUT_GROUP_CLASS_NAME = 'flex shrink-0 items-center gap-0.5';
+
 export const TOOLTIP_SHORTCUT_CLASS_NAME = [
   'shrink-0 rounded-sm border border-line bg-hover px-1.5 font-sans text-xs leading-4 font-semibold text-on-panel',
   'shadow-[inset_0_-1px_0_var(--color-line)]',

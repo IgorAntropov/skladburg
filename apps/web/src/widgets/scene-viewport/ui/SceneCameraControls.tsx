@@ -73,7 +73,7 @@ const SceneCameraButtons = (): ReactElement => {
             icon={<RotateCcw className={ICON_CLASS_NAME} />}
             label={t('scene.camera.rotateLeft')}
             onClick={handleRotateLeftClick}
-            variant="ghost"
+            variant="neutral"
           />
         </Tooltip>
         <Tooltip content={t('scene.camera.rotateRight')} shortcut={SHORTCUTS.rotateRight}>
@@ -82,7 +82,7 @@ const SceneCameraButtons = (): ReactElement => {
             icon={<RotateCw className={ICON_CLASS_NAME} />}
             label={t('scene.camera.rotateRight')}
             onClick={handleRotateRightClick}
-            variant="ghost"
+            variant="neutral"
           />
         </Tooltip>
         <span aria-hidden className={DIVIDER_CLASS_NAME} />
@@ -92,7 +92,7 @@ const SceneCameraButtons = (): ReactElement => {
             icon={<ZoomOut className={ICON_CLASS_NAME} />}
             label={t('scene.camera.zoomOut')}
             onClick={handleZoomOutClick}
-            variant="ghost"
+            variant="neutral"
           />
         </Tooltip>
         <Tooltip content={t('scene.camera.zoomIn')} shortcut={SHORTCUTS.zoomIn}>
@@ -101,7 +101,7 @@ const SceneCameraButtons = (): ReactElement => {
             icon={<ZoomIn className={ICON_CLASS_NAME} />}
             label={t('scene.camera.zoomIn')}
             onClick={handleZoomInClick}
-            variant="ghost"
+            variant="neutral"
           />
         </Tooltip>
         <span aria-hidden className={DIVIDER_CLASS_NAME} />
@@ -111,7 +111,7 @@ const SceneCameraButtons = (): ReactElement => {
             icon={<House className={ICON_CLASS_NAME} />}
             label={t('scene.camera.home')}
             onClick={handleHomeClick}
-            variant="ghost"
+            variant="neutral"
           />
         </Tooltip>
       </TooltipGroup>

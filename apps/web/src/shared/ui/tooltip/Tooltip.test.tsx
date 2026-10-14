@@ -193,6 +193,38 @@ describe('Tooltip', () => {
     expect(readDescription(trigger)).toBe(SHORTCUT);
   });
 
+  it('describes the trigger by the visible key label while keeping the aria shortcut syntax', () => {
+    render(
+      <Tooltip content={FIRST_CONTENT} shortcut="Plus">
+        <button aria-label={FIRST_CONTENT} type="button" />
+      </Tooltip>,
+    );
+    const trigger = screen.getByRole('button', { name: FIRST_CONTENT });
+
+    act(() => {
+      trigger.focus();
+    });
+
+    expect(trigger.getAttribute('aria-keyshortcuts')).toBe('Plus');
+    expect(readDescription(trigger)).toBe('+');
+    expect(document.querySelector('kbd')?.textContent).toBe('+');
+  });
+
+  it('describes a combination by its key labels in the order they are pressed', () => {
+    render(
+      <Tooltip content={FIRST_CONTENT} shortcut="Control+Plus">
+        <button aria-label={FIRST_CONTENT} type="button" />
+      </Tooltip>,
+    );
+    const trigger = screen.getByRole('button', { name: FIRST_CONTENT });
+
+    act(() => {
+      trigger.focus();
+    });
+
+    expect(readDescription(trigger)).toBe('Ctrl +');
+  });
+
   it('does not describe the trigger when there is no shortcut to add', () => {
     render(
       <Tooltip content={FIRST_CONTENT}>

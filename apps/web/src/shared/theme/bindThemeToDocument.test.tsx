@@ -12,6 +12,7 @@ import {
   createFakeThemeTransitions,
   FakeMediaQueryList,
 } from './testing/themeFakes';
+import { THEME_COLOR_BY_THEME } from './themeConstants';
 
 describe('bindThemeToDocument', () => {
   let root: HTMLElement = document.documentElement;
@@ -72,6 +73,72 @@ describe('bindThemeToDocument', () => {
     store.setPreference('dark');
 
     expect(root.dataset.theme).toBe('light');
+  });
+
+  describe('theme-color meta', () => {
+    let meta: HTMLMetaElement = document.createElement('meta');
+
+    beforeEach(() => {
+      meta = document.createElement('meta');
+      meta.name = 'theme-color';
+      meta.content = 'initial';
+      document.head.append(meta);
+    });
+
+    afterEach(() => {
+      meta.remove();
+    });
+
+    it('puts the color of the resolved theme into the meta immediately', () => {
+      const store = createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined });
+      store.setPreference('dark');
+
+      bindThemeToDocument(store, root);
+
+      expect(meta.content).toBe(THEME_COLOR_BY_THEME.dark);
+    });
+
+    it('follows the explicit theme and the system theme', () => {
+      const query = new FakeMediaQueryList(false);
+      const store = createThemePreferenceStore({ colorSchemeQuery: query, storage: undefined, storageEvents: undefined });
+      bindThemeToDocument(store, root);
+
+      store.setPreference('dark');
+
+      expect(meta.content).toBe(THEME_COLOR_BY_THEME.dark);
+
+      store.setPreference('system');
+      query.change(true);
+
+      expect(meta.content).toBe(THEME_COLOR_BY_THEME.dark);
+
+      query.change(false);
+
+      expect(meta.content).toBe(THEME_COLOR_BY_THEME.light);
+    });
+
+    it('changes the color together with the theme inside a view transition', () => {
+      const transitions = createFakeThemeTransitions();
+      const store = createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined });
+      bindThemeToDocument(store, root, transitions);
+      meta.content = 'untouched';
+
+      store.setPreference('dark');
+
+      expect(meta.content).toBe('untouched');
+
+      transitions.finishAll();
+
+      expect(meta.content).toBe(THEME_COLOR_BY_THEME.dark);
+    });
+
+    it('does nothing and does not throw when the page has no meta', () => {
+      meta.remove();
+      const store = createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined });
+
+      expect(() => bindThemeToDocument(store, root)).not.toThrow();
+      expect(root.dataset.theme).toBe('light');
+    });
   });
 
   describe('smooth change', () => {

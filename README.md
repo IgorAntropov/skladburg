@@ -25,17 +25,18 @@ pnpm dev
 
 ## Скрипты
 
-| Команда               | Что делает                                                                                    |
-| --------------------- | --------------------------------------------------------------------------------------------- |
-| `pnpm dev`            | dev-сервер Vite с горячей перезагрузкой                                                       |
-| `pnpm build`          | проверка типов и production-сборка                                                            |
-| `pnpm preview`        | локальный просмотр production-сборки                                                          |
-| `pnpm e2e`            | сквозные сценарии Playwright в chromium и webkit на production-сборке                         |
-| `pnpm test`           | все unit-тесты: проверки репозитория, контракт и приложение                                   |
-| `pnpm lint`           | проверка типов, архитектуры слоёв, `buf lint` и формата `.proto`, ESLint и поиск комментариев |
-| `pnpm lint:fix`       | автоисправление ESLint и форматирование `.proto` (`buf format`)                               |
-| `pnpm typecheck`      | проверка типов по всему монорепозиторию                                                       |
-| `pnpm proto:generate` | генерация типов и образа контракта из `.proto`                                                |
+| Команда                              | Что делает                                                                                    |
+| ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `pnpm dev`                           | dev-сервер Vite с горячей перезагрузкой                                                       |
+| `pnpm build`                         | проверка типов и production-сборка                                                            |
+| `pnpm preview`                       | локальный просмотр production-сборки                                                          |
+| `pnpm e2e`                           | сквозные сценарии Playwright в chromium и webkit на production-сборке                         |
+| `pnpm test`                          | все unit-тесты: проверки репозитория, контракт и приложение                                   |
+| `pnpm lint`                          | проверка типов, архитектуры слоёв, `buf lint` и формата `.proto`, ESLint и поиск комментариев |
+| `pnpm lint:fix`                      | автоисправление ESLint и форматирование `.proto` (`buf format`)                               |
+| `pnpm typecheck`                     | проверка типов по всему монорепозиторию                                                       |
+| `pnpm proto:generate`                | генерация типов и образа контракта из `.proto`                                                |
+| `pnpm --filter @skladburg/web icons` | перерисовка PNG-иконок приложения из SVG-мастеров `apps/web/build-icons/sources`              |
 
 ## Сквозные тесты
 
@@ -46,6 +47,45 @@ pnpm --filter @skladburg/web exec playwright install chromium webkit
 ```
 
 Дальше `pnpm e2e` сам собирает приложение, поднимает превью на порту 4174 и прогоняет сценарии в обоих браузерах. HTML-отчёт остаётся в `apps/web/playwright-report`.
+
+## Телефон в локальной сети по HTTPS
+
+Камера и service worker работают только по HTTPS, а `localhost` Мака телефон не видит. Чтобы открыть дев-сервер или превью на iPhone и iPad, нужен доверенный сертификат. Его выпускает mkcert, в проект ничего не ставится. Без переменных ниже всё остаётся как было: `http://localhost`.
+
+На Маке, один раз:
+
+```bash
+brew install mkcert
+mkcert -install
+scutil --get LocalHostName
+ipconfig getifaddr en0
+mkdir -p ~/.config/skladburg-dev-cert
+mkcert -cert-file ~/.config/skladburg-dev-cert/dev.pem -key-file ~/.config/skladburg-dev-cert/dev-key.pem <имя-мака>.local <IP-мака> localhost
+```
+
+`scutil` печатает имя Мака, `ipconfig` — его IP в сети (`en0` — Wi-Fi; если сеть по кабелю, интерфейс другой). Для Firefox перед `mkcert -install` нужен ещё `brew install nss`. Если IP Мака сменится, сертификат выпускается заново.
+
+Файл `apps/web/.env.local` (в git он не попадает):
+
+```
+DEV_HTTPS_CERT_FILE=/Users/<логин>/.config/skladburg-dev-cert/dev.pem
+DEV_HTTPS_KEY_FILE=/Users/<логин>/.config/skladburg-dev-cert/dev-key.pem
+```
+
+Нужны обе переменные: если задана одна или файл не читается, сервер не стартует и называет переменную. Корневые `pnpm dev` и `pnpm preview` идут через Turborepo и не передают неизвестные переменные окружения, поэтому для них значения берутся только из `apps/web/.env.local`. Переменные окружения работают лишь при запуске напрямую, например `pnpm --filter @skladburg/web dev`: там они перекрывают файл. При заданных переменных дев-сервер и превью работают по HTTPS и доступны из сети.
+
+На iPhone и iPad, один раз:
+
+1. Отправить корневой сертификат `$(mkcert -CAROOT)/rootCA.pem` на устройство через AirDrop.
+2. Установить профиль: Настройки → Основные → VPN и управление устройством.
+3. Включить полное доверие: Настройки → Основные → Об этом устройстве → Доверие сертификатам.
+
+Адреса:
+
+- `https://<имя-мака>.local:5173` — `pnpm dev`, без service worker;
+- `https://<имя-мака>.local:4173` — `pnpm build && pnpm preview`, со service worker: так проверяются установка, офлайн и обновление.
+
+Чтобы вернуться на `http://localhost`, достаточно убрать переменные из `apps/web/.env.local`.
 
 ## Структура
 

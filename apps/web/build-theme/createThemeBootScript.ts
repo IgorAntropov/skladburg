@@ -4,7 +4,12 @@ const escapeForInlineScript = (json: string): string => json.replaceAll('<', '\\
 
 const toLiteral = (value: string): string => escapeForInlineScript(JSON.stringify(value));
 
-export const createThemeBootScript = ({ darkQuery, defaultPreference, storageKey }: ThemeBootScriptOptionsValue): string => {
+export const createThemeBootScript = ({
+  darkQuery,
+  defaultPreference,
+  storageKey,
+  themeColors,
+}: ThemeBootScriptOptionsValue): string => {
   return [
     '(function(){',
     `var p=${toLiteral(defaultPreference)};`,
@@ -20,7 +25,12 @@ export const createThemeBootScript = ({ darkQuery, defaultPreference, storageKey
     '}',
     'var r=document.documentElement;',
     'r.dataset.theme=t;',
-    'r.style.colorScheme=t',
+    'r.style.colorScheme=t;',
+    `var c=${escapeForInlineScript(JSON.stringify(themeColors))};`,
+    'try{',
+    'var m=document.querySelector(\'meta[name="theme-color"]\');',
+    'if(m&&c[t]){m.content=c[t]}',
+    '}catch(e){}',
     '})()',
   ].join('');
 };

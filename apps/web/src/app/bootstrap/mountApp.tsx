@@ -18,6 +18,11 @@ import {
 } from '@/shared/api';
 
 import { App } from '../App';
+import { scheduleWhenIdle } from '../lib/scheduleWhenIdle';
+import {
+  createAppUpdateStore,
+  registerAppServiceWorker,
+} from '../pwa';
 import { removeSearchParam } from './removeSearchParam';
 
 const PERSONA_PARAM = 'as';
@@ -101,9 +106,26 @@ export const mountApp = async ({
       step: 'stopReturnToDefaultPersona',
     });
 
+    const reloadPage = (): void => {
+      console.log('> mountApp -> reloadPage:', {});
+      locationSource.reload();
+    };
+
+    const appUpdate = createAppUpdateStore({
+      isServiceWorkerSupported: 'serviceWorker' in navigator,
+      reloadPage,
+      visibility: document,
+    });
+
+    releaseSteps.push({
+      release: appUpdate.release,
+      step: 'releaseAppUpdate',
+    });
+
     root.render(
       <StrictMode>
         <App
+          appUpdate={appUpdate}
           localizer={localizer}
           location={locationSource}
           queryClient={queryClient}
@@ -112,6 +134,13 @@ export const mountApp = async ({
         />
       </StrictMode>,
     );
+
+    releaseSteps.push({
+      release: scheduleWhenIdle(() => {
+        void registerAppServiceWorker(appUpdate);
+      }),
+      step: 'cancelServiceWorkerRegistration',
+    });
   }
   catch (error) {
     release();

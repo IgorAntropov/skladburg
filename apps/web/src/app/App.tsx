@@ -17,8 +17,10 @@ import {
   LiveRegionProvider,
 } from '@/shared/ui';
 
+import type { IAppUpdateSource } from './pwa';
 import type { SectionLoadersValue } from './routing/sectionPages';
 
+import { AppUpdateProvider } from './pwa';
 import { DEFAULT_SECTION_LOADERS } from './routing/sectionPages';
 import { ActingContextBoundary } from './shell/ActingContextBoundary';
 import { AppShell } from './shell/AppShell';
@@ -26,6 +28,7 @@ import { TenantSettingsGate } from './shell/TenantSettingsGate';
 import './styles/index.css';
 
 interface AppProps {
+  appUpdate?: IAppUpdateSource | undefined;
   localizer: ILocalizer;
   location: ILocationSource;
   queryClient: QueryClient;
@@ -35,6 +38,7 @@ interface AppProps {
 }
 
 export const App = ({
+  appUpdate,
   localizer,
   location,
   queryClient,
@@ -50,11 +54,13 @@ export const App = ({
             <QueryClientProvider client={queryClient}>
               <LiveRegionProvider>
                 <FocusHandoffProvider>
-                  <ActingContextBoundary>
-                    <TenantSettingsGate localizer={localizer}>
-                      <AppShell sectionLoaders={sectionLoaders} />
-                    </TenantSettingsGate>
-                  </ActingContextBoundary>
+                  <AppUpdateProvider source={appUpdate}>
+                    <ActingContextBoundary>
+                      <TenantSettingsGate localizer={localizer}>
+                        <AppShell sectionLoaders={sectionLoaders} />
+                      </TenantSettingsGate>
+                    </ActingContextBoundary>
+                  </AppUpdateProvider>
                 </FocusHandoffProvider>
               </LiveRegionProvider>
             </QueryClientProvider>

@@ -18,6 +18,7 @@ import {
 
 export interface NavigationRobotValue {
   clickNotFoundAction: () => Promise<void>;
+  clickSection: (section: SectionValue) => Promise<void>;
   expectAddress: (hash: string) => Promise<void>;
   expectAvailableSections: (sections: readonly SectionValue[]) => Promise<void>;
   expectNotFound: () => Promise<void>;
@@ -40,6 +41,9 @@ export const createNavigationRobot = (page: Page): NavigationRobotValue => {
   return {
     async clickNotFoundAction(): Promise<void> {
       await notFoundAction.click();
+    },
+    async clickSection(section: SectionValue): Promise<void> {
+      await getSectionLink(section).click();
     },
     async expectAddress(hash: string): Promise<void> {
       await expect.poll(() => new URL(page.url()).hash).toBe(hash);

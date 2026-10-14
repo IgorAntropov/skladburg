@@ -1,6 +1,6 @@
 import type { Plugin } from 'vite';
 
-import type { LoadBuildProfileOptionsValue } from './loadBuildProfile.ts';
+import type { BuildProfileValue } from './buildProfileTypes.ts';
 
 import { applyProfileToHtml } from './applyProfileToHtml.ts';
 import {
@@ -8,7 +8,11 @@ import {
   VIRTUAL_MODULE_ID,
 } from './buildProfilePaths.ts';
 import { createProfileModuleSource } from './createProfileModuleSource.ts';
-import { loadBuildProfile } from './loadBuildProfile.ts';
+
+export interface BuildProfilePluginOptionsValue {
+  appName: string;
+  profile: BuildProfileValue;
+}
 
 export type BuildProfilePluginValue = Omit<Plugin, 'load' | 'resolveId' | 'transformIndexHtml'> & {
   load: (id: string) => string | undefined;
@@ -16,8 +20,7 @@ export type BuildProfilePluginValue = Omit<Plugin, 'load' | 'resolveId' | 'trans
   transformIndexHtml: { handler: (html: string) => string; order: 'pre' };
 };
 
-export const buildProfilePlugin = (options: LoadBuildProfileOptionsValue): BuildProfilePluginValue => {
-  const profile = loadBuildProfile(options);
+export const buildProfilePlugin = ({ appName, profile }: BuildProfilePluginOptionsValue): BuildProfilePluginValue => {
   const moduleSource = createProfileModuleSource(profile);
 
   return {
@@ -25,7 +28,7 @@ export const buildProfilePlugin = (options: LoadBuildProfileOptionsValue): Build
     name: 'skladburg:build-profile',
     resolveId: id => (id === VIRTUAL_MODULE_ID ? RESOLVED_VIRTUAL_MODULE_ID : undefined),
     transformIndexHtml: {
-      handler: html => applyProfileToHtml(html, profile),
+      handler: html => applyProfileToHtml(html, profile, appName),
       order: 'pre',
     },
   };

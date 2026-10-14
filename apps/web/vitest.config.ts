@@ -17,7 +17,14 @@ export default mergeConfig(
           extends: true,
           test: {
             environment: 'node',
-            include: ['src/**/*.test.ts', 'build-profile/**/*.test.ts', 'build-budget/**/*.test.ts', 'build-theme/**/*.test.ts'],
+            include: [
+              'src/**/*.test.ts',
+              'build-profile/**/*.test.ts',
+              'build-budget/**/*.test.ts',
+              'build-theme/**/*.test.ts',
+              'build-icons/**/*.test.ts',
+              'build-dev-https/**/*.test.ts',
+            ],
             name: 'node',
           },
         },

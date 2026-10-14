@@ -14,6 +14,7 @@ import {
 
 export interface TempAppRootOptionsValue {
   catalogs?: readonly string[];
+  catalogSources?: Readonly<Record<string, string>>;
   profiles?: Readonly<Record<string, unknown>>;
 }
 
@@ -22,7 +23,11 @@ export interface TempAppRootValue {
   remove: () => void;
 }
 
-export const createTempAppRoot = ({ catalogs = [], profiles = {} }: TempAppRootOptionsValue = {}): TempAppRootValue => {
+export const createTempAppRoot = ({
+  catalogs = [],
+  catalogSources = {},
+  profiles = {},
+}: TempAppRootOptionsValue = {}): TempAppRootValue => {
   const appRoot = mkdtempSync(join(tmpdir(), 'build-profile-'));
 
   mkdirSync(join(appRoot, PROFILES_DIRECTORY), { recursive: true });
@@ -36,6 +41,10 @@ export const createTempAppRoot = ({ catalogs = [], profiles = {} }: TempAppRootO
 
   for (const locale of catalogs) {
     writeFileSync(join(appRoot, CATALOGS_DIRECTORY, `${locale}.ts`), 'export const catalog = {};\n');
+  }
+
+  for (const [locale, source] of Object.entries(catalogSources)) {
+    writeFileSync(join(appRoot, CATALOGS_DIRECTORY, `${locale}.ts`), source);
   }
 
   return {

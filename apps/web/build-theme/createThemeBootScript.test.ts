@@ -8,9 +8,14 @@ import {
 import {
   DARK_COLOR_SCHEME_QUERY,
   DEFAULT_THEME_PREFERENCE,
+  THEME_COLOR_BY_THEME,
   THEME_STORAGE_KEY,
 } from '../src/shared/theme/themeConstants.ts';
 import { createThemeBootScript } from './createThemeBootScript.ts';
+
+interface FakeMetaValue {
+  content: string;
+}
 
 interface FakeRootValue {
   dataset: Record<string, string | undefined>;
@@ -19,6 +24,8 @@ interface FakeRootValue {
 
 interface RunOptionsValue {
   hasMatchMedia?: boolean;
+  hasMeta?: boolean;
+  hasQuerySelector?: boolean;
   isDarkSystem?: boolean;
   isMatchMediaBroken?: boolean;
   isStorageBroken?: boolean;
@@ -29,14 +36,39 @@ const script = createThemeBootScript({
   darkQuery: DARK_COLOR_SCHEME_QUERY,
   defaultPreference: DEFAULT_THEME_PREFERENCE,
   storageKey: THEME_STORAGE_KEY,
+  themeColors: THEME_COLOR_BY_THEME,
 });
 
-const runScript = (options: RunOptionsValue = {}): { queries: string[]; root: FakeRootValue; storageKeys: string[] } => {
-  const { hasMatchMedia = true, isDarkSystem = false, isMatchMediaBroken = false, isStorageBroken = false, stored = null } = options;
+const INITIAL_META_CONTENT = 'initial';
+
+const runScript = (
+  options: RunOptionsValue = {},
+): { meta: FakeMetaValue; metaSelectors: string[]; queries: string[]; root: FakeRootValue; storageKeys: string[] } => {
+  const {
+    hasMatchMedia = true,
+    hasMeta = true,
+    hasQuerySelector = true,
+    isDarkSystem = false,
+    isMatchMediaBroken = false,
+    isStorageBroken = false,
+    stored = null,
+  } = options;
   const root: FakeRootValue = { dataset: {}, style: { colorScheme: undefined } };
+  const meta: FakeMetaValue = { content: INITIAL_META_CONTENT };
+  const metaSelectors: string[] = [];
   const queries: string[] = [];
   const storageKeys: string[] = [];
-  const sandbox: Record<string, unknown> = { document: { documentElement: root } };
+  const fakeDocument: Record<string, unknown> = { documentElement: root };
+
+  if (hasQuerySelector) {
+    fakeDocument.querySelector = (selector: string): FakeMetaValue | null => {
+      metaSelectors.push(selector);
+
+      return hasMeta ? meta : null;
+    };
+  }
+
+  const sandbox: Record<string, unknown> = { document: fakeDocument };
 
   if (isStorageBroken) {
     Object.defineProperty(sandbox, 'localStorage', {
@@ -69,7 +101,7 @@ const runScript = (options: RunOptionsValue = {}): { queries: string[]; root: Fa
 
   runInNewContext(script, sandbox);
 
-  return { queries, root, storageKeys };
+  return { meta, metaSelectors, queries, root, storageKeys };
 };
 
 describe('createThemeBootScript', () => {
@@ -148,6 +180,7 @@ describe('createThemeBootScript', () => {
       darkQuery: DARK_COLOR_SCHEME_QUERY,
       defaultPreference: 'system',
       storageKey: THEME_STORAGE_KEY,
+      themeColors: THEME_COLOR_BY_THEME,
     });
     const root: FakeRootValue = { dataset: {}, style: { colorScheme: undefined } };
 
@@ -165,9 +198,47 @@ describe('createThemeBootScript', () => {
       darkQuery: '</script><b>',
       defaultPreference: 'light',
       storageKey: '</script>',
+      themeColors: { dark: '</script>', light: '</script>' },
     });
 
     expect(hostileScript).not.toContain('</script');
     expect(hostileScript).not.toContain('<');
+  });
+
+  describe('theme-color meta', () => {
+    it.each([
+      { stored: 'light' },
+      { stored: 'dark' },
+    ])('sets the color of the stored $stored theme', ({ stored }) => {
+      const { meta, metaSelectors } = runScript({ stored });
+
+      expect(meta.content).toBe(THEME_COLOR_BY_THEME[stored === 'dark' ? 'dark' : 'light']);
+      expect(metaSelectors).toEqual(['meta[name="theme-color"]']);
+    });
+
+    it('sets the color of the resolved system theme', () => {
+      const { meta } = runScript({ isDarkSystem: true, stored: 'system' });
+
+      expect(meta.content).toBe(THEME_COLOR_BY_THEME.dark);
+    });
+
+    it('sets the color of the default theme when nothing is stored', () => {
+      const { meta } = runScript({ stored: null });
+
+      expect(meta.content).toBe(THEME_COLOR_BY_THEME.light);
+    });
+
+    it('still sets the theme without throwing when the meta is missing', () => {
+      const { root } = runScript({ hasMeta: false, stored: 'dark' });
+
+      expect(root.dataset.theme).toBe('dark');
+    });
+
+    it('still sets the theme without throwing when the document cannot query elements', () => {
+      const { root } = runScript({ hasQuerySelector: false, stored: 'dark' });
+
+      expect(root.dataset.theme).toBe('dark');
+      expect(root.style.colorScheme).toBe('dark');
+    });
   });
 });

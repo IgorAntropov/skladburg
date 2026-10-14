@@ -6,6 +6,7 @@ import {
 const PREVIEW_PORT = '4174';
 const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}/`;
 const SCENE_SPECS = /(?:scene-budget|scene-world-edge)\.spec\.ts$/;
+const OFFLINE_SPEC = /app-offline\.spec\.ts$/;
 
 export default defineConfig({
   expect: {
@@ -21,6 +22,7 @@ export default defineConfig({
     },
     {
       name: 'chromium-scene',
+      testIgnore: OFFLINE_SPEC,
       testMatch: SCENE_SPECS,
       use: {
         ...devices['Desktop Chrome'],
@@ -29,7 +31,7 @@ export default defineConfig({
     },
     {
       name: 'webkit',
-      testIgnore: [/accessibility\.spec\.ts$/, SCENE_SPECS],
+      testIgnore: [/accessibility\.spec\.ts$/, OFFLINE_SPEC, SCENE_SPECS],
       use: { ...devices['Desktop Safari'] },
     },
   ],
@@ -39,10 +41,15 @@ export default defineConfig({
   timeout: 30_000,
   use: {
     baseURL: PREVIEW_URL,
+    serviceWorkers: 'block',
     trace: 'retain-on-failure',
   },
   webServer: {
     command: `pnpm exec vite preview --port ${PREVIEW_PORT} --strictPort`,
+    env: {
+      DEV_HTTPS_CERT_FILE: '',
+      DEV_HTTPS_KEY_FILE: '',
+    },
     reuseExistingServer: false,
     timeout: 60_000,
     url: PREVIEW_URL,

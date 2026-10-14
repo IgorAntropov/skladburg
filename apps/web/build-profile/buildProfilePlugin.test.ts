@@ -12,15 +12,20 @@ import {
   createTempAppRoot,
   createValidProfile,
 } from './createTempAppRoot.ts';
+import { loadBuildProfile } from './loadBuildProfile.ts';
 
 const cleanups: TempAppRootValue[] = [];
 
-const prepare = (...args: Parameters<typeof createTempAppRoot>): string => {
-  const tempAppRoot = createTempAppRoot(...args);
+const APP_NAME = 'Тридок';
+
+const createPlugin = (): ReturnType<typeof buildProfilePlugin> => {
+  const tempAppRoot = createTempAppRoot({ catalogs: ['ru', 'en'], profiles: { sample: createValidProfile() } });
 
   cleanups.push(tempAppRoot);
 
-  return tempAppRoot.appRoot;
+  const profile = loadBuildProfile({ appRoot: tempAppRoot.appRoot, profileName: 'sample' });
+
+  return buildProfilePlugin({ appName: APP_NAME, profile });
 };
 
 describe('buildProfilePlugin', () => {
@@ -31,34 +36,27 @@ describe('buildProfilePlugin', () => {
   });
 
   it('resolves only the virtual module', () => {
-    const appRoot = prepare({ catalogs: ['ru', 'en'], profiles: { sample: createValidProfile() } });
-    const plugin = buildProfilePlugin({ appRoot, profileName: 'sample' });
+    const plugin = createPlugin();
 
     expect(plugin.resolveId('virtual:build-profile')).toBe('\0virtual:build-profile');
     expect(plugin.resolveId('react')).toBeUndefined();
   });
 
   it('loads the source of the virtual module', () => {
-    const appRoot = prepare({ catalogs: ['ru', 'en'], profiles: { sample: createValidProfile() } });
-    const plugin = buildProfilePlugin({ appRoot, profileName: 'sample' });
+    const plugin = createPlugin();
 
     expect(plugin.load('\0virtual:build-profile')).toContain('export const catalogLoaders');
     expect(plugin.load('/src/main.tsx')).toBeUndefined();
   });
 
   it('substitutes the profile into index.html before other transforms', () => {
-    const appRoot = prepare({ catalogs: ['ru', 'en'], profiles: { sample: createValidProfile() } });
-    const plugin = buildProfilePlugin({ appRoot, profileName: 'sample' });
+    const plugin = createPlugin();
 
-    const html = plugin.transformIndexHtml.handler('<html lang="%PROFILE_LANG%"><title>%PROFILE_TITLE%</title></html>');
+    const html = plugin.transformIndexHtml.handler(
+      '<html lang="%PROFILE_LANG%"><title>%PROFILE_TITLE%</title><meta content="%PROFILE_APP_NAME%"></html>',
+    );
 
     expect(plugin.transformIndexHtml.order).toBe('pre');
-    expect(html).toBe('<html lang="ru"><title>Северный склад</title></html>');
-  });
-
-  it('fails fast when the profile is invalid', () => {
-    const appRoot = prepare();
-
-    expect(() => buildProfilePlugin({ appRoot, profileName: 'missing' })).toThrow(/not found/);
+    expect(html).toBe('<html lang="ru"><title>Северный склад</title><meta content="Тридок"></html>');
   });
 });

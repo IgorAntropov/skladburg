@@ -1,13 +1,15 @@
 import { useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 
+import { useShadowMapRefresh } from '../lighting/shadowMapRefresh';
+
 export const WebglContextRecovery = (): null => {
   const canvas = useThree(state => state.gl.domElement);
-  const invalidate = useThree(state => state.invalidate);
+  const refreshShadowMap = useShadowMapRefresh();
 
   useEffect(() => {
     const handleContextRestored = (): void => {
-      invalidate();
+      refreshShadowMap();
     };
 
     canvas.addEventListener('webglcontextrestored', handleContextRestored);
@@ -15,7 +17,7 @@ export const WebglContextRecovery = (): null => {
     return () => {
       canvas.removeEventListener('webglcontextrestored', handleContextRestored);
     };
-  }, [canvas, invalidate]);
+  }, [canvas, refreshShadowMap]);
 
   return null;
 };

@@ -1,3 +1,4 @@
+import type { ColorSchemeValue } from './fixtures/themePreference.ts';
 import type { SceneRobotValue } from './robots/scene-robot.ts';
 
 import {
@@ -16,6 +17,14 @@ interface RotationMeasurementValue {
   settleMs: number;
 }
 
+interface ThemeSwitchMeasurementValue {
+  frames: number;
+  longTaskCount: number;
+  longTaskMaxMs: number;
+  themeChangeDelayMs: number;
+  worldSettleMs: number;
+}
+
 const REST_PERIOD_MS = 2000;
 const SCENE_TEST_TIMEOUT_MS = 60_000;
 const RESIZED_VIEWPORT = { height: 700, width: 1100 } as const;
@@ -24,8 +33,12 @@ const MAX_ROTATION_ANIMATION_MS = 1500;
 const MAX_REDUCED_MOTION_FRAMES = 3;
 const MIN_REDUCED_MOTION_FRAMES = 1;
 const MAX_LONG_TASK_COUNT = 0;
+const MIN_THEME_TRANSITION_FRAMES = 10;
+const MIN_THEME_TRANSITION_MS = 2000;
+const MAX_THEME_TRANSITION_MS = 5000;
+const MAX_THEME_APPLY_MS = 1000;
 
-const openReadyBoard = async (scene: SceneRobotValue): Promise<void> => {
+const openReadyWorld = async (scene: SceneRobotValue): Promise<void> => {
   await scene.openNetwork();
   await scene.expectSceneState('ready');
   await scene.waitForCameraControls();
@@ -61,6 +74,59 @@ const measureRotation = async (
   return { animationMs, drawCallsPerFrame, frames, longTaskCount, longTaskMaxMs, settleMs };
 };
 
+const openReadyWorldInColorScheme = async (
+  scene: SceneRobotValue,
+  colorScheme: ColorSchemeValue,
+): Promise<void> => {
+  await scene.openNetworkInColorScheme(colorScheme);
+  await scene.expectSceneState('ready');
+  await scene.expectThemeAttribute(colorScheme);
+  await scene.waitForCameraControls();
+  await scene.waitForIdle();
+};
+
+const measureThemeSwitch = async (
+  scene: SceneRobotValue,
+  colorScheme: ColorSchemeValue,
+  minFrames: number,
+): Promise<ThemeSwitchMeasurementValue> => {
+  const framesBefore = await scene.readDrawFrames();
+
+  await scene.switchColorScheme(colorScheme);
+  await scene.expectThemeAttribute(colorScheme);
+  await scene.waitForDrawFramesToExceed(
+    framesBefore + minFrames - 1,
+    `theme switch drew fewer than ${String(minFrames)} frames`,
+  );
+  await scene.waitForIdle();
+
+  const frames = (await scene.readDrawFrames()) - framesBefore;
+  const themeChangeDelayMs = await scene.readThemeChangeDelayMs();
+  const worldSettleMs = await scene.readWorldSettleMs();
+  const longTaskDurations = await scene.readTransitionLongTaskDurations();
+  const longTaskCount = longTaskDurations.length;
+  const longTaskMaxMs = Math.max(0, ...longTaskDurations);
+
+  await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
+
+  return { frames, longTaskCount, longTaskMaxMs, themeChangeDelayMs, worldSettleMs };
+};
+
+const annotateThemeSwitch = (
+  type: string,
+  { frames, longTaskCount, longTaskMaxMs, themeChangeDelayMs, worldSettleMs }: ThemeSwitchMeasurementValue,
+): void => {
+  const description = [
+    `frames=${String(frames)}`,
+    `themeChangeDelayMs=${String(Math.round(themeChangeDelayMs))}`,
+    `worldSettleMs=${String(Math.round(worldSettleMs))}`,
+    `longTaskCount=${String(longTaskCount)}`,
+    `longTaskMaxMs=${String(Math.round(longTaskMaxMs))}`,
+  ].join(' ');
+
+  test.info().annotations.push({ description, type });
+};
+
 const annotateRotation = (
   type: string,
   { animationMs, drawCallsPerFrame, frames, longTaskCount, longTaskMaxMs, settleMs }: RotationMeasurementValue,
@@ -76,6 +142,7 @@ const annotateRotation = (
 
   test.info().annotations.push({ description, type });
 };
+
 test.describe.configure({ timeout: SCENE_TEST_TIMEOUT_MS });
 
 test.describe('camera motion', () => {
@@ -85,10 +152,10 @@ test.describe('camera motion', () => {
     viewport: DESKTOP_VIEWPORT,
   });
 
-  test('turns the board with the button over many frames and then goes quiet', async ({ page }) => {
+  test('turns the world with the button over many frames and then goes quiet', async ({ page }) => {
     const scene = createSceneRobot(page);
 
-    await openReadyBoard(scene);
+    await openReadyWorld(scene);
 
     const rotation = await measureRotation(
       scene,
@@ -103,10 +170,10 @@ test.describe('camera motion', () => {
     expect(rotation.longTaskCount).toBe(MAX_LONG_TASK_COUNT);
   });
 
-  test('turns the board with the E key like the button does', async ({ page }) => {
+  test('turns the world with the E key like the button does', async ({ page }) => {
     const scene = createSceneRobot(page);
 
-    await openReadyBoard(scene);
+    await openReadyWorld(scene);
 
     const rotation = await measureRotation(
       scene,
@@ -121,6 +188,39 @@ test.describe('camera motion', () => {
   });
 });
 
+test.describe('day and night', () => {
+  test.use({
+    initialGraphicsPreference: 'low',
+    reducedMotion: 'no-preference',
+    viewport: DESKTOP_VIEWPORT,
+  });
+
+  const switches: readonly { from: ColorSchemeValue; title: string; to: ColorSchemeValue }[] = [
+    { from: 'light', title: 'the world sinks into night over many frames when the theme turns dark', to: 'dark' },
+    { from: 'dark', title: 'the world wakes up over many frames when the theme turns light', to: 'light' },
+  ];
+
+  for (const { from, title, to } of switches) {
+    test(title, async ({ page }) => {
+      const scene = createSceneRobot(page);
+
+      await openReadyWorldInColorScheme(scene, from);
+
+      const transition = await measureThemeSwitch(scene, to, MIN_THEME_TRANSITION_FRAMES);
+
+      annotateThemeSwitch(`theme-${from}-to-${to}`, transition);
+
+      expect(transition.themeChangeDelayMs).toBeGreaterThanOrEqual(0);
+      expect(transition.themeChangeDelayMs).toBeLessThan(MAX_THEME_APPLY_MS);
+      expect(transition.themeChangeDelayMs).toBeLessThan(transition.worldSettleMs);
+      expect(transition.frames).toBeGreaterThanOrEqual(MIN_THEME_TRANSITION_FRAMES);
+      expect(transition.worldSettleMs).toBeGreaterThanOrEqual(MIN_THEME_TRANSITION_MS);
+      expect(transition.worldSettleMs).toBeLessThanOrEqual(MAX_THEME_TRANSITION_MS);
+      expect(transition.longTaskCount).toBe(MAX_LONG_TASK_COUNT);
+    });
+  }
+});
+
 test.describe('scene frame budget', () => {
   test.use({
     initialGraphicsPreference: 'low',
@@ -128,7 +228,7 @@ test.describe('scene frame budget', () => {
     viewport: DESKTOP_VIEWPORT,
   });
 
-  test('draws no frames while the board is at rest', async ({ page }) => {
+  test('draws no frames while the world is at rest', async ({ page }) => {
     const scene = createSceneRobot(page);
 
     await scene.openNetwork();
@@ -158,10 +258,10 @@ test.describe('scene frame budget', () => {
     await scene.expectNoDrawCallsFor(REST_PERIOD_MS);
   });
 
-  test('jumps the board to the new angle in a couple of frames and goes quiet', async ({ page }) => {
+  test('jumps the world to the new angle in a couple of frames and goes quiet', async ({ page }) => {
     const scene = createSceneRobot(page);
 
-    await openReadyBoard(scene);
+    await openReadyWorld(scene);
 
     const rotation = await measureRotation(
       scene,
@@ -172,6 +272,28 @@ test.describe('scene frame budget', () => {
     annotateRotation('rotation-reduced-motion', rotation);
 
     expect(rotation.frames).toBeLessThanOrEqual(MAX_REDUCED_MOTION_FRAMES);
+  });
+
+  test('changes the world to night in a couple of frames and goes quiet when the theme turns dark', async ({ page }) => {
+    const scene = createSceneRobot(page);
+
+    await openReadyWorldInColorScheme(scene, 'light');
+
+    const framesBefore = await scene.readDrawFrames();
+
+    await scene.switchColorScheme('dark');
+    await scene.expectThemeAttribute('dark');
+    await scene.waitForDrawFramesToExceed(framesBefore, 'theme switch drew no frames');
+    await scene.waitForIdle();
+
+    const frames = (await scene.readDrawFrames()) - framesBefore;
+
+    test.info().annotations.push({ description: `frames=${String(frames)}`, type: 'theme-reduced-motion' });
+
+    expect(frames).toBeGreaterThanOrEqual(MIN_REDUCED_MOTION_FRAMES);
+    expect(frames).toBeLessThanOrEqual(MAX_REDUCED_MOTION_FRAMES);
+
+    await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
   });
 
   test('does not request the scene chunk without 3D and loads it after switching back to auto', async ({ page }) => {

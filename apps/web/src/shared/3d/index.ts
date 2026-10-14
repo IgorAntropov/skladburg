@@ -5,7 +5,7 @@ export type {
 export { IsometricCameraRig } from './camera/IsometricCameraRig';
 export { SceneCanvas } from './canvas/SceneCanvas';
 export { WorldGeometryProvider } from './geometry/WorldGeometryProvider';
-export { DayLight } from './lighting/DayLight';
+export { DayNightRig } from './lighting/DayNightRig';
 export { useWorldMaterial } from './materials/useWorldMaterial';
 export { WorldMaterialsProvider } from './materials/WorldMaterialsProvider';
 export { readWorldPalette } from './palette/readWorldPalette';

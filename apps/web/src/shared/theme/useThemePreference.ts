@@ -6,6 +6,7 @@ import {
 
 import type {
   IThemePreferenceStore,
+  ResolvedThemeValue,
   ThemePreferenceHandleValue,
 } from './themeTypes';
 
@@ -30,4 +31,10 @@ export const useThemePreference = (): ThemePreferenceHandleValue => {
     (): ThemePreferenceHandleValue => ({ preference, resolvedTheme, setPreference: store.setPreference }),
     [preference, resolvedTheme, store.setPreference],
   );
+};
+
+export const useResolvedTheme = (): ResolvedThemeValue => {
+  const store = useThemePreferenceStore();
+
+  return useSyncExternalStore(store.subscribe, store.getResolvedTheme);
 };

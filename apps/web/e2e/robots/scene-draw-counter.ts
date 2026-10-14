@@ -1,6 +1,18 @@
 export const DRAW_COUNTER_INIT_SCRIPT = `
 (() => {
-  const counter = { count: 0, frames: 0, inputAt: 0, isInFrame: false, lastAt: 0, longTasks: [], markAt: 0, prevFrameAt: 0, simMs: 0 };
+  const counter = {
+    count: 0,
+    firstFrameAt: 0,
+    frames: 0,
+    inputAt: 0,
+    isInFrame: false,
+    lastAt: 0,
+    longTasks: [],
+    markAt: 0,
+    prevFrameAt: 0,
+    simMs: 0,
+    themeChangedAt: 0,
+  };
   const maxFrameStepMs = 1000 / 30;
   const methodNames = [
     'drawArrays',
@@ -29,6 +41,11 @@ export const DRAW_COUNTER_INIT_SCRIPT = `
             counter.frames += 1;
             counter.simMs += Math.min(counter.lastAt - counter.prevFrameAt, maxFrameStepMs);
             counter.prevFrameAt = counter.lastAt;
+
+            if (counter.markAt > 0 && counter.firstFrameAt === 0) {
+              counter.firstFrameAt = counter.lastAt;
+            }
+
             queueMicrotask(() => {
               counter.isInFrame = false;
             });
@@ -93,6 +110,46 @@ export const MARK_MOTION_START_SCRIPT = `
 })()
 `;
 
+export const MARK_THEME_SWITCH_SCRIPT = `
+(() => {
+  const counter = window.__drawCounter;
+  const root = document.documentElement;
+
+  counter.markAt = performance.now();
+  counter.simMs = 0;
+  counter.firstFrameAt = 0;
+  counter.themeChangedAt = 0;
+
+  const observer = new MutationObserver(() => {
+    counter.themeChangedAt = performance.now();
+    observer.disconnect();
+  });
+
+  observer.observe(root, { attributeFilter: ['data-theme'], attributes: true });
+})()
+`;
+
+export const READ_THEME_CHANGE_DELAY_SCRIPT = `
+(() => {
+  const counter = window.__drawCounter;
+
+  return counter.themeChangedAt === 0 ? -1 : counter.themeChangedAt - counter.markAt;
+})()
+`;
+
+export const READ_WORLD_SETTLE_MS_SCRIPT = 'window.__drawCounter.lastAt - window.__drawCounter.markAt';
+
+export const READ_TRANSITION_LONG_TASK_DURATIONS_SCRIPT = `
+(() => {
+  const counter = window.__drawCounter;
+  const startAt = counter.firstFrameAt > 0 ? counter.firstFrameAt : counter.markAt;
+
+  return counter.longTasks
+    .filter((task) => task.startTime >= startAt && task.duration > 50)
+    .map((task) => task.duration);
+})()
+`;
+
 export const READ_ANIMATION_MS_SCRIPT = 'window.__drawCounter.simMs';
 
 export const READ_SETTLE_OFFSET_SCRIPT = 'window.__drawCounter.lastAt - window.__drawCounter.inputAt';
@@ -103,13 +160,29 @@ window.__drawCounter.longTasks
   .map((task) => task.duration)
 `;
 
-export const createWaitForIdleScript = (idleWindowMs: number): string => `
+export const createWaitForIdleScript = (idleWindowMs: number, timeoutMs: number): string => `
 new Promise((resolve) => {
+  const startedAt = performance.now();
+
+  const describe = (isIdle) => {
+    const counter = window.__drawCounter;
+
+    return {
+      frames: counter.frames,
+      isIdle,
+      msSinceLastDraw: Math.round(performance.now() - counter.lastAt),
+      pendingFrames: counter.countPendingFrames(),
+    };
+  };
+
   const check = () => {
     const counter = window.__drawCounter;
 
     if (performance.now() - counter.lastAt >= ${String(idleWindowMs)} && counter.countPendingFrames() === 0) {
-      resolve();
+      resolve(describe(true));
+    }
+    else if (performance.now() - startedAt >= ${String(timeoutMs)}) {
+      resolve(describe(false));
     }
     else {
       setTimeout(check, 100);

@@ -48,7 +48,16 @@ const { darkOverrideNames, tokens } = readThemeTokens(themeCss);
 
 const WORLD_TOKEN_PREFIX = '--world-';
 
-const WORLD_LIGHT_TOKEN_NAMES: readonly string[] = ['sun-day', 'sky-day', 'ground-day'];
+const WORLD_LIGHT_TOKEN_NAMES: readonly string[] = [
+  'sun-day',
+  'sky-day',
+  'ground-day',
+  'sun-sunset',
+  'sky-sunset',
+  'moon',
+  'sky-night',
+  'ground-night',
+];
 
 const WORLD_TERRAIN_TOKEN_NAMES: readonly string[] = [
   'background',
@@ -62,6 +71,7 @@ const WORLD_TERRAIN_TOKEN_NAMES: readonly string[] = [
   'tree-crown-dark',
   'tree-trunk',
   'rock',
+  'background-night',
 ];
 
 const WORLD_TOKEN_DECLARATION_PATTERN = /--world-([\w-]+)\s*:\s*([^;}]*)[;}]/g;

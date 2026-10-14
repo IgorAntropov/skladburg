@@ -9,6 +9,7 @@ import type { QualityLevelValue } from '@/shared/3d';
 import type { CachedModuleLoader } from '@/shared/lib/module-loader';
 
 import { useSceneInsets } from '@/shared/lib/viewport';
+import { useResolvedTheme } from '@/shared/theme';
 
 import type { SceneModuleValue } from '../model/sceneViewportTypes';
 
@@ -44,6 +45,7 @@ export const SceneStage = ({
 }: SceneStageProps): null | ReactElement => {
   const modulesState = useSceneModules(loadScene);
   const isReducedMotion = usePrefersReducedMotion();
+  const resolvedTheme = useResolvedTheme();
   const focusInsets = useSceneInsets();
   const jumpFadeLayerRef = useRef<HTMLDivElement>(null);
 
@@ -63,6 +65,7 @@ export const SceneStage = ({
     return null;
   }
 
+  const isNight = resolvedTheme === 'dark';
   const { rootModule, sceneModule } = modulesState;
   const SceneRoot = rootModule.default;
 
@@ -73,6 +76,7 @@ export const SceneStage = ({
           Content={sceneModule.default}
           dprCeiling={dprCeiling}
           focusInsets={focusInsets}
+          isNight={isNight}
           isReducedMotion={isReducedMotion}
           isStatsShown={isStatsShown}
           level={level}

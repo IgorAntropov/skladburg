@@ -119,6 +119,12 @@
   --world-sun-day: #fff0d9;
   --world-sky-day: #eaf1ff;
   --world-ground-day: #8a8272;
+  --world-sun-sunset: #ffc48f;
+  --world-sky-sunset: #e2c4cc;
+  --world-moon: #a9bff4;
+  --world-sky-night: #5b78d2;
+  --world-ground-night: #8296cc;
+  --world-background-night: #3c5264;
 }
 
 @utility shadow-panel {

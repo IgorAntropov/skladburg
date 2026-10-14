@@ -13,4 +13,7 @@ export type {
   ThemePreferenceHandleValue,
   ThemePreferenceValue,
 } from './themeTypes';
-export { useThemePreference } from './useThemePreference';
+export {
+  useResolvedTheme,
+  useThemePreference,
+} from './useThemePreference';

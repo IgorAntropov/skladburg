@@ -37,6 +37,10 @@ import { createCachedModuleLoader } from '@/shared/lib/module-loader';
 import { installFakeViewport } from '@/shared/lib/viewport/index.testing';
 import { RoutingProvider } from '@/shared/routing';
 import { createMemoryLocation } from '@/shared/routing/index.testing';
+import {
+  createThemePreferenceStore,
+  ThemePreferenceProvider,
+} from '@/shared/theme';
 
 import type { SceneModuleValue } from '../model/sceneViewportTypes';
 
@@ -113,11 +117,15 @@ const createFailingThenLoadingScene = (failureCount: number): Mock<() => Promise
 let installedViewport: IFakeViewport | undefined;
 let memoryLocation: IMemoryLocation;
 
+const themeStore = createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined });
+
 const renderViewport = (loadScene: CachedModuleLoader<SceneModuleValue>): void => {
   render(withTestLocalizer(
-    <RoutingProvider location={memoryLocation}>
-      <SceneViewport label={LABEL} loadScene={loadScene} />
-    </RoutingProvider>,
+    <ThemePreferenceProvider store={themeStore}>
+      <RoutingProvider location={memoryLocation}>
+        <SceneViewport label={LABEL} loadScene={loadScene} />
+      </RoutingProvider>
+    </ThemePreferenceProvider>,
   ));
 };
 

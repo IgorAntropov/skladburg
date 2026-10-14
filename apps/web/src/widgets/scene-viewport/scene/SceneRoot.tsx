@@ -20,7 +20,7 @@ import type {
 import type { SceneInsetsValue } from '@/shared/lib/viewport';
 
 import {
-  DayLight,
+  DayNightRig,
   IsometricCameraRig,
   QUALITY_LEVEL_SETTINGS,
   readWorldPalette,
@@ -37,6 +37,7 @@ interface SceneRootProps {
   Content: ComponentType<SceneContentProps>;
   dprCeiling: number;
   focusInsets: SceneInsetsValue;
+  isNight: boolean;
   isReducedMotion: boolean;
   isStatsShown: boolean;
   level: QualityLevelValue;
@@ -56,6 +57,7 @@ const SceneRoot = ({
   Content,
   dprCeiling,
   focusInsets,
+  isNight,
   isReducedMotion,
   isStatsShown,
   level,
@@ -78,7 +80,7 @@ const SceneRoot = ({
   const isStatsVisible = SceneDevStats !== undefined && isStatsShown;
 
   return (
-    <SceneCanvas background={palette.background} dpr={dpr} onReady={onReady}>
+    <SceneCanvas dpr={dpr} onReady={onReady}>
       <IsometricCameraRig
         focusInsets={focusInsets}
         isReducedMotion={isReducedMotion}
@@ -88,7 +90,7 @@ const SceneRoot = ({
       />
       <WorldMaterialsProvider palette={palette}>
         <WorldGeometryProvider>
-          <DayLight />
+          <DayNightRig isNight={isNight} isReducedMotion={isReducedMotion} level={level} world={world} />
           <Content level={level} />
         </WorldGeometryProvider>
       </WorldMaterialsProvider>

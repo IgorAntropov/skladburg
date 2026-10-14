@@ -38,7 +38,7 @@ export const WorldTerrain = ({ level, terrain }: WorldTerrainProps): ReactElemen
 
   return (
     <>
-      <mesh frustumCulled={false} geometry={groundGeometry} material={groundMaterials} raycast={skipRaycast} />
+      <mesh frustumCulled={false} geometry={groundGeometry} material={groundMaterials} raycast={skipRaycast} receiveShadow />
       {terrain.decor.map(decor => (
         <TerrainDecorLayer decor={decor} density={decorDensity} key={decor.kind} />
       ))}

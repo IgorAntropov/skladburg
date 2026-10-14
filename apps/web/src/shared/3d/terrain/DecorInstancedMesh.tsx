@@ -35,7 +35,7 @@ export const DecorInstancedMesh = ({ count, decor, part }: DecorInstancedMeshPro
   const tintArgs = useMemo((): [Float32Array, number] => [decor.tints, TINT_ITEM_SIZE], [decor.tints]);
 
   return (
-    <instancedMesh args={meshArgs} count={count} frustumCulled={false} raycast={skipRaycast}>
+    <instancedMesh args={meshArgs} castShadow count={count} frustumCulled={false} raycast={skipRaycast}>
       <instancedBufferAttribute args={matrixArgs} attach="instanceMatrix" />
       <instancedBufferAttribute args={tintArgs} attach="instanceColor" />
     </instancedMesh>

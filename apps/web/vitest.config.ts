@@ -24,6 +24,7 @@ export default mergeConfig(
               'build-theme/**/*.test.ts',
               'build-icons/**/*.test.ts',
               'build-dev-https/**/*.test.ts',
+              'build-boot-fallback/**/*.test.ts',
             ],
             name: 'node',
           },

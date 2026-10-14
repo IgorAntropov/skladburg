@@ -35,6 +35,7 @@ import { BOOT_SKELETON_TIMING } from '../shell/bootSkeletonTiming';
 import { ShellSkeleton } from '../shell/ShellSkeleton';
 import { StartErrorScreen } from '../shell/StartErrorScreen';
 import '../styles/index.css';
+import { disarmBootFallback } from './disarmBootFallback';
 import { readColorSchemeQuery } from './readColorSchemeQuery';
 import { readDeviceTimeZone } from './readDeviceTimeZone';
 
@@ -74,6 +75,8 @@ const createStartErrorLocalizer = (userTimeZone: string): Promise<ILocalizer> =>
 };
 
 export const startApp = async (rootElement: HTMLElement): Promise<void> => {
+  disarmBootFallback(document);
+
   const themeStore = createThemePreferenceStore({
     colorSchemeQuery: readColorSchemeQuery(window),
     storage: getDeviceStorage(window),

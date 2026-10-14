@@ -7,6 +7,7 @@ import {
 } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+import { bootFallbackPlugin } from './build-boot-fallback/bootFallbackPlugin.ts';
 import { bundleBudgetPlugin } from './build-budget/bundleBudgetPlugin.ts';
 import {
   DEV_HTTPS_ENV_PREFIX,
@@ -64,6 +65,10 @@ const FORBIDDEN_INITIAL_PACKAGES = [
 
 const APP_NAME_MESSAGE_KEY = 'app.productName';
 
+const START_ERROR_MESSAGE_KEY = 'app.startError.message';
+
+const RELOAD_MESSAGE_KEY = 'routing.chunkError.reload';
+
 const profile = loadBuildProfile({
   appRoot: import.meta.dirname,
   profileName: process.env.BUILD_PROFILE ?? DEFAULT_PROFILE_NAME,
@@ -71,7 +76,7 @@ const profile = loadBuildProfile({
 
 const profileMessages = await loadProfileMessages({
   appRoot: import.meta.dirname,
-  keys: [APP_NAME_MESSAGE_KEY],
+  keys: [APP_NAME_MESSAGE_KEY, START_ERROR_MESSAGE_KEY, RELOAD_MESSAGE_KEY],
   profile,
 });
 
@@ -98,6 +103,9 @@ export default defineConfig({
   plugins: [
     buildProfilePlugin({ appName, profile }),
     themeBootScriptPlugin(),
+    bootFallbackPlugin({
+      messages: { message: profileMessages[START_ERROR_MESSAGE_KEY], reload: profileMessages[RELOAD_MESSAGE_KEY] },
+    }),
     react(),
     tailwindcss(),
     VitePWA({

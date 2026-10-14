@@ -12,6 +12,10 @@ import {
 import type { AppSectionValue } from '@/shared/routing';
 
 import {
+  InstallAppMenuItem,
+  useIsInstallAppAvailable,
+} from '@/features/install-app';
+import {
   useIsDemoResetAvailable,
   useIsDemoResetPending,
 } from '@/features/reset-demo';
@@ -35,6 +39,7 @@ import { ProfileButton } from '../ProfileButton';
 import { ProfileMenuHeader } from './ProfileMenuHeader';
 import { ProfileSections } from './ProfileSections';
 
+export { ProfileInstallInstructionsLayer } from './ProfileInstallInstructionsLayer';
 export { ProfileResetConfirmLayer } from './ProfileResetConfirmLayer';
 
 const MENU_ITEM_SELECTOR = '[role^="menuitem"]';
@@ -56,6 +61,7 @@ export interface ProfileMenuProps {
   currentSection: AppSectionValue | undefined;
   isFirstItemFocused: boolean;
   isOpen: boolean;
+  onInstallInstructionsRequest: () => void;
   onOpenChange: (isOpen: boolean) => void;
   onResetRequest: () => void;
   sections: readonly AppSectionValue[];
@@ -76,6 +82,7 @@ const focusFirstMenuItem = (root: HTMLElement): void => {
 const ProfileMenuItems = ({
   currentSection,
   isFirstItemFocused,
+  onInstallInstructionsRequest,
   onResetRequest,
   sections,
 }: ProfileMenuItemsProps): ReactElement => {
@@ -83,12 +90,14 @@ const ProfileMenuItems = ({
   const demoControl = useDemoControl();
   const viewportClass = useViewportClass();
   const isDemoResetAvailable = useIsDemoResetAvailable();
+  const isInstallAppAvailable = useIsInstallAppAvailable();
   const rootRef = useRef<HTMLDivElement>(null);
 
   const isDemoActive = demoControl !== undefined;
   const isSectionsShown = viewportClass === 'phone' && sections.length > 0;
   const isScrollPartShown = isSectionsShown || isDemoActive;
   const isSectionsSeparatorShown = isSectionsShown && isDemoActive;
+  const isServicePartShown = isInstallAppAvailable || isDemoResetAvailable;
 
   const handleResetSelect = (): void => {
     console.log('> ProfileMenu -> handleResetSelect:', {});
@@ -123,13 +132,16 @@ const ProfileMenuItems = ({
         <DropdownMenuSeparator />
         <DropdownMenuLabel>{t('graphics.label')}</DropdownMenuLabel>
         <GraphicsMenuRadioGroup />
-        {isDemoResetAvailable && (
+        {isServicePartShown && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={handleResetSelect} testId="profile-menu-reset">
-              <RotateCcw aria-hidden className="size-4 shrink-0 text-on-panel-muted" />
-              {t('demo.reset.menuItem')}
-            </DropdownMenuItem>
+            <InstallAppMenuItem onInstructionsRequest={onInstallInstructionsRequest} />
+            {isDemoResetAvailable && (
+              <DropdownMenuItem onSelect={handleResetSelect} testId="profile-menu-reset">
+                <RotateCcw aria-hidden className="size-4 shrink-0 text-on-panel-muted" />
+                {t('demo.reset.menuItem')}
+              </DropdownMenuItem>
+            )}
           </>
         )}
       </div>

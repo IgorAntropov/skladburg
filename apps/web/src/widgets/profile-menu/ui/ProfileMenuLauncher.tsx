@@ -24,6 +24,7 @@ import {
   useFocusHandoff,
 } from '@/shared/ui';
 
+import type { ProfileInstallInstructionsLayerProps } from './menu/ProfileInstallInstructionsLayer';
 import type { ProfileMenuProps } from './menu/ProfileMenu';
 import type { ProfileResetConfirmLayerProps } from './menu/ProfileResetConfirmLayer';
 
@@ -36,13 +37,20 @@ export interface ProfileMenuLauncherProps {
   sections: readonly AppSectionValue[];
 }
 
+type ProfileInstallInstructionsLayerComponent = ComponentType<ProfileInstallInstructionsLayerProps>;
 type ProfileMenuComponent = ComponentType<ProfileMenuProps>;
 type ProfileMenuLaunchStateValue
   = | { kind: 'error'; recovery: ChunkRecoveryValue }
     | { kind: 'idle' }
     | { kind: 'loading' }
-    | { kind: 'ready'; ProfileMenu: ProfileMenuComponent; ProfileResetConfirmLayer: ProfileResetConfirmLayerComponent };
+    | {
+      kind: 'ready';
+      ProfileInstallInstructionsLayer: ProfileInstallInstructionsLayerComponent;
+      ProfileMenu: ProfileMenuComponent;
+      ProfileResetConfirmLayer: ProfileResetConfirmLayerComponent;
+    };
 type ProfileMenuModuleValue = Awaited<ReturnType<typeof loadProfileMenu>>;
+type ProfilePlateValue = 'install' | 'reset';
 
 type ProfileResetConfirmLayerComponent = ComponentType<ProfileResetConfirmLayerProps>;
 
@@ -67,8 +75,8 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
   const [launchState, setLaunchState] = useState<ProfileMenuLaunchStateValue>(IDLE_STATE);
   const [isOpen, setIsOpen] = useState(false);
   const [isOpenedByLaunch, setIsOpenedByLaunch] = useState(false);
-  const [isResetRequested, setIsResetRequested] = useState(false);
-  const [isResetConfirmShown, setIsResetConfirmShown] = useState(false);
+  const [requestedPlate, setRequestedPlate] = useState<ProfilePlateValue | undefined>(undefined);
+  const [shownPlate, setShownPlate] = useState<ProfilePlateValue | undefined>(undefined);
 
   const isLoading = launchState.kind === 'loading';
   const isLoadFailed = launchState.kind === 'error';
@@ -86,6 +94,7 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
   const showLoadedMenu = (loadedModule: ProfileMenuModuleValue): void => {
     setLaunchState({
       kind: 'ready',
+      ProfileInstallInstructionsLayer: loadedModule.ProfileInstallInstructionsLayer,
       ProfileMenu: loadedModule.ProfileMenu,
       ProfileResetConfirmLayer: loadedModule.ProfileResetConfirmLayer,
     });
@@ -120,7 +129,7 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
     setIsOpen(nextIsOpen);
     if (nextIsOpen) {
       cancelFocus();
-      setIsResetConfirmShown(false);
+      setShownPlate(undefined);
     }
     else {
       setIsOpenedByLaunch(false);
@@ -129,33 +138,42 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
 
   const handleResetRequest = (): void => {
     console.log('> ProfileMenuLauncher -> handleResetRequest:', {});
-    setIsResetRequested(true);
+    setRequestedPlate('reset');
   };
 
-  const handleResetConfirmClose = (): void => {
-    console.log('> ProfileMenuLauncher -> handleResetConfirmClose:', {});
-    setIsResetConfirmShown(false);
+  const handleInstallInstructionsRequest = (): void => {
+    console.log('> ProfileMenuLauncher -> handleInstallInstructionsRequest:', {});
+    setRequestedPlate('install');
+  };
+
+  const handlePlateClose = (): void => {
+    console.log('> ProfileMenuLauncher -> handlePlateClose:', { shownPlate });
+    setShownPlate(undefined);
     requestFocus();
     buttonRef.current?.focus();
   };
 
   useEffect(() => {
-    if (!isResetRequested || isOpen) {
+    if (requestedPlate === undefined || isOpen) {
       return undefined;
     }
 
     const timerId = window.setTimeout(() => {
-      setIsResetRequested(false);
-      setIsResetConfirmShown(true);
+      setRequestedPlate(undefined);
+      setShownPlate(requestedPlate);
     }, 0);
 
     return () => {
       window.clearTimeout(timerId);
     };
-  }, [isOpen, isResetRequested]);
+  }, [isOpen, requestedPlate]);
 
   if (launchState.kind === 'ready') {
-    const { ProfileMenu, ProfileResetConfirmLayer } = launchState;
+    const {
+      ProfileInstallInstructionsLayer,
+      ProfileMenu,
+      ProfileResetConfirmLayer,
+    } = launchState;
 
     return (
       <div className={LAUNCHER_CLASS_NAME}>
@@ -164,11 +182,13 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
           currentSection={currentSection}
           isFirstItemFocused={isOpenedByLaunch}
           isOpen={isOpen}
+          onInstallInstructionsRequest={handleInstallInstructionsRequest}
           onOpenChange={handleOpenChange}
           onResetRequest={handleResetRequest}
           sections={sections}
         />
-        <ProfileResetConfirmLayer isShown={isResetConfirmShown} onClose={handleResetConfirmClose} />
+        <ProfileResetConfirmLayer isShown={shownPlate === 'reset'} onClose={handlePlateClose} />
+        <ProfileInstallInstructionsLayer isShown={shownPlate === 'install'} onClose={handlePlateClose} />
       </div>
     );
   }

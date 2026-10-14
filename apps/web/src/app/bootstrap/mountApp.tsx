@@ -3,6 +3,7 @@ import type { Root } from 'react-dom/client';
 import { StrictMode } from 'react';
 import { defaultTenant } from 'virtual:build-profile';
 
+import type { IInstallPromptSource } from '@/features/install-app';
 import type { ILocalizer } from '@/shared/i18n';
 import type { ILocationSource } from '@/shared/routing';
 import type { IThemePreferenceStore } from '@/shared/theme';
@@ -28,6 +29,7 @@ import { removeSearchParam } from './removeSearchParam';
 const PERSONA_PARAM = 'as';
 
 export interface MountAppOptionsValue {
+  installPromptSource: IInstallPromptSource;
   localizer: ILocalizer;
   locationSource: ILocationSource;
   root: Root;
@@ -49,6 +51,7 @@ const runReleaseStep = ({ release, step }: ReleaseStepValue): void => {
 };
 
 export const mountApp = async ({
+  installPromptSource,
   localizer,
   locationSource,
   root,
@@ -126,6 +129,7 @@ export const mountApp = async ({
       <StrictMode>
         <App
           appUpdate={appUpdate}
+          installPromptSource={installPromptSource}
           localizer={localizer}
           location={locationSource}
           queryClient={queryClient}

@@ -10,6 +10,7 @@ import {
 import type { ILocalizer } from '@/shared/i18n';
 import type { ChunkRecoveryValue } from '@/shared/lib/module-loader';
 
+import { createInstallPromptSource } from '@/features/install-app';
 import {
   createLocalizer,
   LocalizerProvider,
@@ -77,6 +78,7 @@ const createStartErrorLocalizer = (userTimeZone: string): Promise<ILocalizer> =>
 export const startApp = async (rootElement: HTMLElement): Promise<void> => {
   disarmBootFallback(document);
 
+  const installPromptSource = createInstallPromptSource(window);
   const themeStore = createThemePreferenceStore({
     colorSchemeQuery: readColorSchemeQuery(window),
     storage: getDeviceStorage(window),
@@ -165,6 +167,7 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
       }
 
       releaseApp = await outcome.parts.mountApp({
+        installPromptSource,
         localizer: outcome.parts.appLocalizer,
         locationSource,
         root,

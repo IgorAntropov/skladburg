@@ -11,6 +11,7 @@ import type {
 
 import { catalog } from '../catalogs/ru';
 import { createSnapshot } from './createSnapshot';
+import { formatOffset } from './formatZonedDateTime';
 
 const VLADIVOSTOK_INSTANT = Date.UTC(2026, 9, 12, 6);
 
@@ -107,6 +108,21 @@ describe('formatDateTime', () => {
     expect(withPlace).toBe('Владивосток, UTC+10: 16:00');
     expect(snapshot.formatDateTime(VLADIVOSTOK_INSTANT, { timeZone: 'Asia/Vladivostok' })).toBe('UTC+10: 16:00');
     expect(snapshot.formatDateTime(VLADIVOSTOK_INSTANT, { timeZone: 'Europe/Moscow' })).toBe('09:00');
+  });
+});
+
+describe('formatOffset', () => {
+  it.each([
+    { expected: 'UTC', rawOffset: 'GMT' },
+    { expected: 'UTC', rawOffset: 'GMT+00:00' },
+    { expected: 'UTC', rawOffset: 'GMT-00:00' },
+    { expected: 'UTC', rawOffset: 'GMT+0' },
+    { expected: 'UTC+3', rawOffset: 'GMT+03:00' },
+    { expected: 'UTC-3', rawOffset: 'GMT-3' },
+    { expected: 'UTC+5:30', rawOffset: 'GMT+05:30' },
+    { expected: 'UTC+0:30', rawOffset: 'GMT+00:30' },
+  ])('writes $rawOffset as $expected', ({ expected, rawOffset }) => {
+    expect(formatOffset(rawOffset)).toBe(expected);
   });
 });
 

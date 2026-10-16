@@ -19,15 +19,16 @@ const OFFSET_PATTERN = /^GMT(?:([+-])(\d{1,2})(?::(\d{2}))?)?$/u;
 const DEFAULT_TIME_FORMAT: DateTimeFormatPartsValue = { hour: '2-digit', minute: '2-digit' };
 const DEFAULT_DATE_FORMAT: DateTimeFormatPartsValue = { dateStyle: 'long' };
 
-const formatOffset = (rawOffset: string): string => {
+export const formatOffset = (rawOffset: string): string => {
   const match = OFFSET_PATTERN.exec(rawOffset);
-  const [, sign, hours, minutes] = match ?? [];
+  const [, sign, hours = '0', minutes = '00'] = match ?? [];
+  const isZeroOffset = Number(hours) === 0 && Number(minutes) === 0;
 
-  if (sign === undefined || hours === undefined) {
+  if (sign === undefined || isZeroOffset) {
     return 'UTC';
   }
 
-  const minutesPart = minutes === undefined || minutes === '00' ? '' : `:${minutes}`;
+  const minutesPart = minutes === '00' ? '' : `:${minutes}`;
 
   return `UTC${sign}${String(Number(hours))}${minutesPart}`;
 };

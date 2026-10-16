@@ -24,6 +24,7 @@ import { TenantSettingsProvider } from '@/shared/tenant';
 import { useBootSkeletonTiming } from './bootSkeletonTiming';
 import { ShellSkeleton } from './ShellSkeleton';
 import { StartErrorScreen } from './StartErrorScreen';
+import { usePrefetchShellQueries } from './usePrefetchShellQueries';
 
 interface TenantSettingsGateProps {
   children: ReactNode;
@@ -31,6 +32,8 @@ interface TenantSettingsGateProps {
 }
 
 export const TenantSettingsGate = ({ children, localizer }: TenantSettingsGateProps): ReactElement => {
+  usePrefetchShellQueries();
+
   const { data, isError, refetch } = useOrganizationSettingsQuery();
   const { address } = useAddress();
   const skeletonTiming = useBootSkeletonTiming();

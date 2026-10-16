@@ -88,6 +88,38 @@ describe('formatMarkdownReport', () => {
     expect(formatMarkdownReport(mixed, 'now')).toContain('Worker под троттлингом: нет');
   });
 
+  it('says the worker check is not applicable when no cold run loaded the core over the worker network', () => {
+    const absent = createReport([
+      createProfile('mobile-fast-4g', [
+        createRun({ isWorkerThrottled: null, workerThrottlingNote: 'no-network-load' }),
+        createRun({ isWorkerThrottled: null, workerThrottlingNote: 'no-network-load' }),
+      ]),
+    ]);
+    const partial = createReport([
+      createProfile('mobile-fast-4g', [createRun(), createRun({ isWorkerThrottled: null, workerThrottlingNote: 'no-network-load' })]),
+    ]);
+    const violated = createReport([
+      createProfile('mobile-fast-4g', [
+        createRun({ isWorkerThrottled: null, workerThrottlingNote: 'no-network-load' }),
+        createRun({ isWorkerThrottled: false }),
+      ]),
+    ]);
+
+    expect(formatMarkdownReport(absent, 'now')).toContain(
+      'Worker под троттлингом: неприменимо: Worker берёт ядро из кеша (подсказка в документе).',
+    );
+    expect(formatMarkdownReport(partial, 'now')).toContain('Worker под троттлингом: частично');
+    expect(formatMarkdownReport(violated, 'now')).toContain('Worker под троттлингом: нет');
+    expect(formatMedianTable(absent)).toContain('| неприменимо | да |');
+  });
+
+  it('keeps an old report readable: a run without the note and a boolean verdict reads as before', () => {
+    const oldRun = createRun({ isWorkerThrottled: false });
+
+    expect(oldRun).not.toHaveProperty('workerThrottlingNote');
+    expect(formatMarkdownReport(createReport([createProfile('mobile-fast-4g', [oldRun])]), 'now')).toContain('Worker под троттлингом: нет');
+  });
+
   it('adds the waterfall and the worker log of the main profile', () => {
     const report = createReport([createProfile('mobile-fast-4g', [createRun()])]);
     const markdown = formatMarkdownReport(report, 'now');
@@ -105,14 +137,44 @@ describe('formatMarkdownReport', () => {
     expect(formatMarkdownReport(report, 'now')).toContain(`- холодный старт: demo-zt3dE9Y4.js — в 2 из 3 прогонов (${duplicate})`);
   });
 
-  it('says whether the service worker was throttled, failed to be, or never appeared', () => {
-    const applied = createReport([createProfile('mobile-fast-4g', [createRun(), createRun({ isServiceWorkerThrottled: null })])]);
-    const refused = createReport([createProfile('mobile-fast-4g', [createRun(), createRun({ isServiceWorkerThrottled: false })])]);
+  it('says whether the service worker was throttled, was not, was not confirmed in time, or never appeared', () => {
+    const applied = createReport([createProfile('mobile-fast-4g', [createRun(), createRun()])]);
+    const refused = createReport([createProfile('mobile-fast-4g', [createRun({ isServiceWorkerThrottled: false })])]);
+    const unfinished = createReport([
+      createProfile('mobile-fast-4g', [createRun({ isServiceWorkerThrottled: null, serviceWorkerThrottlingNote: 'not-finished' })]),
+    ]);
     const absent = createReport([createProfile('mobile-fast-4g', [createRun({ isServiceWorkerThrottled: null })])]);
 
     expect(formatMarkdownReport(applied, 'now')).toContain('Service worker под троттлингом: да');
     expect(formatMarkdownReport(refused, 'now')).toContain('Service worker под троттлингом: нет');
+    expect(formatMarkdownReport(unfinished, 'now')).toContain('Service worker под троттлингом: не определено');
     expect(formatMarkdownReport(absent, 'now')).toContain('Service worker под троттлингом: неприменимо');
+  });
+
+  it('names the runs where the service worker was not confirmed as throttled and why', () => {
+    const report = createReport([
+      createProfile('mobile-fast-4g', [
+        createRun(),
+        createRun({ isServiceWorkerThrottled: null, serviceWorkerThrottlingNote: 'not-finished' }),
+        createRun({ isServiceWorkerThrottled: false, serviceWorkerThrottlingNote: 'loaded-before-emulation' }),
+        createRun({ isServiceWorkerThrottled: false, serviceWorkerThrottlingNote: 'refused' }),
+        createRun({ isServiceWorkerThrottled: null, serviceWorkerThrottlingNote: 'absent' }),
+      ]),
+    ]);
+    const markdown = formatMarkdownReport(report, 'now');
+
+    expect(markdown).toContain('Service worker под троттлингом: частично');
+    expect(markdown).toContain('- холодный прогон №2: подготовка эмуляции не завершилась к снимку');
+    expect(markdown).toContain('- холодный прогон №3: первые загрузки service worker прошли до эмуляции');
+    expect(markdown).toContain('- холодный прогон №4: браузер отказал в эмуляции сети на цели service worker');
+    expect(markdown).toContain('- холодный прогон №5: service worker не появился');
+    expect(markdown).not.toContain('холодный прогон №1');
+  });
+
+  it('keeps a report without notes readable: an old false means a refusal', () => {
+    const report = createReport([createProfile('mobile-fast-4g', [createRun(), createRun({ isServiceWorkerThrottled: false })])]);
+
+    expect(formatMarkdownReport(report, 'now')).toContain('- холодный прогон №2: браузер отказал в эмуляции сети на цели service worker');
   });
 
   it('sums up the service worker traffic of the main profile in one line, not file by file', () => {

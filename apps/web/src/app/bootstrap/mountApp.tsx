@@ -18,12 +18,16 @@ import {
   syncQueriesWithRealtime,
 } from '@/shared/api';
 
+import type { SectionLoadersValue } from '../routing/sectionPages';
+
 import { App } from '../App';
 import { scheduleWhenIdle } from '../lib/scheduleWhenIdle';
 import {
   createAppUpdateStore,
   registerAppServiceWorker,
 } from '../pwa';
+import { prewarmStartSection } from '../routing/prewarmStartSection';
+import { DEFAULT_SECTION_LOADERS } from '../routing/sectionPages';
 import { removeSearchParam } from './removeSearchParam';
 
 const PERSONA_PARAM = 'as';
@@ -33,6 +37,7 @@ export interface MountAppOptionsValue {
   localizer: ILocalizer;
   locationSource: ILocationSource;
   root: Root;
+  sectionLoaders?: SectionLoadersValue | undefined;
   themeStore: IThemePreferenceStore;
 }
 
@@ -55,6 +60,7 @@ export const mountApp = async ({
   localizer,
   locationSource,
   root,
+  sectionLoaders = DEFAULT_SECTION_LOADERS,
   themeStore,
 }: MountAppOptionsValue): Promise<() => void> => {
   const tabStorage = getTabStorage(window);
@@ -68,6 +74,9 @@ export const mountApp = async ({
 
   try {
     const addressSnapshot = locationSource.read();
+
+    prewarmStartSection({ loaders: sectionLoaders, path: addressSnapshot.path });
+
     const runtime = await createApiRuntime({
       defaultOrganizationId: defaultTenant.tenantId,
       preferredContext: readPersistedActingContext(tabStorage),
@@ -134,6 +143,7 @@ export const mountApp = async ({
           location={locationSource}
           queryClient={queryClient}
           runtime={runtime}
+          sectionLoaders={sectionLoaders}
           themeStore={themeStore}
         />
       </StrictMode>,

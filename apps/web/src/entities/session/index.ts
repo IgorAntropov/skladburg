@@ -1,4 +1,6 @@
 export { sessionKeys } from './api/sessionKeys';
+export type { CreateSessionQueryOptionsValue } from './api/sessionQueryOptions';
+export { createSessionQueryOptions } from './api/sessionQueryOptions';
 export { useProfileSummary } from './api/useProfileSummary';
 export { useSessionQuery } from './api/useSessionQuery';
 export { resolveAvailableSections } from './lib/resolveAvailableSections';

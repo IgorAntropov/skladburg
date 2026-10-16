@@ -1,13 +1,23 @@
+import type { ConnectRouter } from '@connectrpc/connect';
 import type { GetOrganizationSettingsResponse } from '@skladburg/contracts/organization/v1/organization';
 import type { QueryClient } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 import type { MockInstance } from 'vitest';
 
 import { create } from '@bufbuild/protobuf';
+import { timestampFromMs } from '@bufbuild/protobuf/wkt';
 import {
   Code,
   ConnectError,
 } from '@connectrpc/connect';
+import {
+  AccessService,
+  GetSessionResponseSchema,
+} from '@skladburg/contracts/access/v1/access';
+import {
+  ClockService,
+  GetWorldClockResponseSchema,
+} from '@skladburg/contracts/clock/v1/clock';
 import {
   ErrorCode,
   ErrorDetailSchema,
@@ -19,7 +29,10 @@ import {
   OrganizationService,
   OrganizationSettingsSchema,
 } from '@skladburg/contracts/organization/v1/organization';
-import { QueryClientProvider } from '@tanstack/react-query';
+import {
+  QueryClientProvider,
+  useQuery,
+} from '@tanstack/react-query';
 import {
   act,
   cleanup,
@@ -38,12 +51,15 @@ import {
   vi,
 } from 'vitest';
 
+import type { ApiRuntimeValue } from '@/shared/api';
 import type { ILocalizer } from '@/shared/i18n';
 
 import { organizationKeys } from '@/entities/organization';
+import { useSessionQuery } from '@/entities/session';
 import {
   ApiRuntimeProvider,
   createQueryClient,
+  useApiClient,
 } from '@/shared/api';
 import {
   createTestRuntime,
@@ -57,6 +73,7 @@ import {
 import { RoutingProvider } from '@/shared/routing';
 import { createMemoryLocation } from '@/shared/routing/index.testing';
 import { useTenantSettings } from '@/shared/tenant';
+import { createWorldClockQueryOptions } from '@/widgets/top-bar';
 
 import { TenantSettingsGate } from './TenantSettingsGate';
 
@@ -66,6 +83,9 @@ const FIRST_BRAND = 'Северный склад';
 const SECOND_BRAND = 'Южный склад';
 const FIRST_PLACEHOLDER = 'Склад «Север» скоро откроется';
 const SECOND_PLACEHOLDER = 'Склад «Юг» скоро откроется';
+const CLOCK_PENDING_TEXT = 'no clock';
+const CLOCK_READY_TEXT = 'clock';
+const OTHER_USER_ID = 'f1000003-0000-4000-8000-000000000000';
 
 type ApplyTenantSpy = MockInstance<ILocalizer['applyTenant']>;
 
@@ -79,11 +99,14 @@ interface RenderedGateValue {
   applyOriginal: ILocalizer['applyTenant'];
   applyTenant: ApplyTenantSpy;
   queryClient: QueryClient;
+  runtime: ApiRuntimeValue;
 }
 
 interface RenderGateOptionsValue {
+  children?: ReactElement;
   isStrict?: boolean;
   prepare?: (gate: RenderedGateValue) => void;
+  routes?: (router: ConnectRouter) => void;
 }
 
 interface SettingsFixtureValue {
@@ -162,10 +185,13 @@ const renderGate = async (
   const applyTenant = vi.spyOn(localizer, 'applyTenant');
   const queryClient = createQueryClient({ networkMode: 'always' });
   const runtime = createTestRuntime({
-    routes: router => router.service(OrganizationService, { getOrganizationSettings: handler }),
+    routes: (router) => {
+      router.service(OrganizationService, { getOrganizationSettings: handler });
+      options.routes?.(router);
+    },
   });
 
-  options.prepare?.({ applyOriginal, applyTenant, queryClient });
+  options.prepare?.({ applyOriginal, applyTenant, queryClient, runtime });
 
   const tree = (
     <RoutingProvider location={createMemoryLocation(WAREHOUSE_PATH)}>
@@ -173,7 +199,7 @@ const renderGate = async (
         <ApiRuntimeProvider runtime={runtime}>
           <QueryClientProvider client={queryClient}>
             <TenantSettingsGate localizer={localizer}>
-              <Probe />
+              {options.children ?? <Probe />}
             </TenantSettingsGate>
           </QueryClientProvider>
         </ApiRuntimeProvider>
@@ -183,7 +209,41 @@ const renderGate = async (
 
   render(options.isStrict === true ? <StrictMode>{tree}</StrictMode> : tree);
 
-  return { applyOriginal, applyTenant, queryClient };
+  return { applyOriginal, applyTenant, queryClient, runtime };
+};
+
+const ShellProbe = (): ReactElement => {
+  const client = useApiClient();
+  const session = useSessionQuery();
+  const worldClock = useQuery(createWorldClockQueryOptions(client));
+
+  return (
+    <p>
+      {session.data?.actingOrganizationId}
+      {' | '}
+      {worldClock.data === undefined ? CLOCK_PENDING_TEXT : CLOCK_READY_TEXT}
+    </p>
+  );
+};
+
+interface ShellRoutesValue {
+  getSession: ReturnType<typeof vi.fn>;
+  getWorldClock: ReturnType<typeof vi.fn>;
+  routes: (router: ConnectRouter) => void;
+}
+
+const createShellRoutes = (): ShellRoutesValue => {
+  const getSession = vi.fn(() => create(GetSessionResponseSchema, { actingOrganizationId: TEST_ORGANIZATION_ID }));
+  const getWorldClock = vi.fn(() => create(GetWorldClockResponseSchema, { timeScale: 1, worldTime: timestampFromMs(Date.now()) }));
+
+  return {
+    getSession,
+    getWorldClock,
+    routes: (router) => {
+      router.service(AccessService, { getSession });
+      router.service(ClockService, { getWorldClock });
+    },
+  };
 };
 
 const getProbeText = (brandName: string, placeholder: string): string => `${brandName} | ${placeholder}`;
@@ -430,5 +490,76 @@ describe('TenantSettingsGate', () => {
     expect(await screen.findByText(getProbeText(FIRST_BRAND, FIRST_PLACEHOLDER))).toBeDefined();
     expect(applyTenant).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('requests the session and the world clock while the settings are still loading and hands them to the children', async () => {
+    const response = createDeferred();
+    const shell = createShellRoutes();
+    await renderGate(async () => {
+      await response.promise;
+
+      return createSettingsResponse({ brandName: FIRST_BRAND });
+    }, { children: <ShellProbe />, routes: shell.routes });
+
+    await waitFor(() => {
+      expect(shell.getSession).toHaveBeenCalledTimes(1);
+      expect(shell.getWorldClock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(screen.getByRole('main', { busy: true })).toBeDefined();
+
+    response.resolve();
+
+    expect(await screen.findByText(`${TEST_ORGANIZATION_ID} | clock`)).toBeDefined();
+    expect(shell.getSession).toHaveBeenCalledTimes(1);
+    expect(shell.getWorldClock).toHaveBeenCalledTimes(1);
+  });
+
+  it('requests each shell query once under StrictMode', async () => {
+    const shell = createShellRoutes();
+    await renderGate(() => createSettingsResponse({ brandName: FIRST_BRAND }), {
+      children: <ShellProbe />,
+      isStrict: true,
+      routes: shell.routes,
+    });
+
+    expect(await screen.findByText(`${TEST_ORGANIZATION_ID} | clock`)).toBeDefined();
+    expect(shell.getSession).toHaveBeenCalledTimes(1);
+    expect(shell.getWorldClock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not request the session while the acting user is unknown but still requests the world clock', async () => {
+    const shell = createShellRoutes();
+    await renderGate(() => createSettingsResponse({ brandName: FIRST_BRAND }), {
+      children: <ShellProbe />,
+      prepare: ({ runtime }) => {
+        runtime.actingContext.set({ organizationId: TEST_ORGANIZATION_ID, userId: undefined });
+      },
+      routes: shell.routes,
+    });
+
+    expect(await screen.findByText('| clock')).toBeDefined();
+    expect(shell.getSession).not.toHaveBeenCalled();
+    expect(shell.getWorldClock).toHaveBeenCalledTimes(1);
+  });
+
+  it('requests the session again when the acting user changes', async () => {
+    const shell = createShellRoutes();
+    const { runtime } = await renderGate(() => createSettingsResponse({ brandName: FIRST_BRAND }), {
+      children: <ShellProbe />,
+      routes: shell.routes,
+    });
+
+    await screen.findByText(`${TEST_ORGANIZATION_ID} | clock`);
+
+    act(() => {
+      runtime.actingContext.set({ organizationId: TEST_ORGANIZATION_ID, userId: OTHER_USER_ID });
+    });
+
+    await waitFor(() => {
+      expect(shell.getSession).toHaveBeenCalledTimes(2);
+    });
+
+    expect(shell.getWorldClock).toHaveBeenCalledTimes(1);
   });
 });

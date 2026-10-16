@@ -28,7 +28,7 @@ import { readPerfEnv } from './readPerfEnv.ts';
 import { writeReportFiles } from './writeReportFiles.ts';
 
 const SERVICE_WORKER_READY_TIMEOUT_MS = 60_000;
-const BUILT_INDEX_PATH = resolve('dist', 'index.html');
+const BUILT_INDEX_PATH = resolve(import.meta.dirname, '..', 'dist', 'index.html');
 const LOCALE = 'ru-RU';
 const TIME_ZONE = 'Europe/Moscow';
 

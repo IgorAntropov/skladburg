@@ -8,6 +8,7 @@ import type { OpenRequestValue } from './createRequestRecorder.ts';
 import type {
   PerfProfileValue,
   RequestValue,
+  ServiceWorkerThrottlingValue,
 } from './perfTypes.ts';
 import type { IServiceWorkerWatch } from './watchServiceWorker.ts';
 import type { IWorkerChannel } from './workerChannel.ts';
@@ -21,7 +22,7 @@ export interface IEmulation {
   collectOpenRequests: (timeOriginMs: number) => OpenRequestValue[];
   collectRequests: (timeOriginMs: number) => RequestValue[];
   detach: () => Promise<void>;
-  readServiceWorkerThrottling: () => boolean | null;
+  readServiceWorkerThrottling: () => Promise<ServiceWorkerThrottlingValue>;
 }
 
 const prepareWorker = async (channel: IWorkerChannel): Promise<void> => {
@@ -103,8 +104,8 @@ export const startEmulation = async (
       });
       await serviceWorkerWatch?.detach();
     },
-    readServiceWorkerThrottling(): boolean | null {
-      return serviceWorkerWatch?.readThrottling() ?? null;
+    async readServiceWorkerThrottling(): Promise<ServiceWorkerThrottlingValue> {
+      return await serviceWorkerWatch?.readThrottling() ?? { isThrottled: null, note: 'absent' };
     },
   };
 };

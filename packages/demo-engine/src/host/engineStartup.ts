@@ -33,9 +33,35 @@ const openStorageOrMemory = async (openStorage: () => Promise<OpenedEngineStorag
   }
 };
 
+interface LoadedCoreAndStorageValue {
+  core: CoreModuleValue;
+  opened: OpenedEngineStorageValue;
+}
+
+const loadCoreAndOpenStorage = async (options: EngineStartupOptionsValue): Promise<LoadedCoreAndStorageValue> => {
+  const corePromise = options.loadCore();
+  const openedPromise = openStorageOrMemory(options.openStorage);
+
+  let core: CoreModuleValue;
+
+  try {
+    core = await corePromise;
+  }
+  catch (error) {
+    const opened = await openedPromise;
+
+    if (opened.kind === 'indexed-db') {
+      opened.storage.close();
+    }
+
+    throw error;
+  }
+
+  return { core, opened: await openedPromise };
+};
+
 export const startEngine = async (options: EngineStartupOptionsValue): Promise<StartedEngineValue> => {
-  const { createEngine } = await options.loadCore();
-  const opened = await openStorageOrMemory(options.openStorage);
+  const { core: { createEngine }, opened } = await loadCoreAndOpenStorage(options);
 
   const create = (storage: OpenedEngineStorageValue['storage']): Promise<IDemoEngine> => createEngine({
     epoch: options.generateId(),

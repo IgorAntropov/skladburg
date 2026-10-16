@@ -5,6 +5,7 @@ import type {
   ProfileReportValue,
   RequestValue,
   RunValue,
+  ServiceWorkerThrottlingNoteValue,
 } from './perfTypes.ts';
 
 import { buildWaterfall } from './buildWaterfall.ts';
@@ -42,12 +43,21 @@ const METRIC_ROWS: readonly MetricRowValue[] = [
   { label: 'Service worker: запросов до готовности', name: 'serviceWorkerRequestsBeforeReady' },
 ];
 
-type ServiceWorkerThrottlingValue = 'absent' | 'applied' | 'not-applied';
+type ServiceWorkerVerdictValue = 'absent' | 'applied' | 'not-applied' | 'partial' | 'unfinished';
 
-const SERVICE_WORKER_THROTTLING_LABELS: Record<ServiceWorkerThrottlingValue, string> = {
+const SERVICE_WORKER_VERDICT_LABELS: Record<ServiceWorkerVerdictValue, string> = {
   'absent': 'неприменимо',
   'applied': 'да',
   'not-applied': 'нет',
+  'partial': 'частично',
+  'unfinished': 'не определено',
+};
+
+const SERVICE_WORKER_NOTE_TEXTS: Record<ServiceWorkerThrottlingNoteValue, string> = {
+  'absent': 'service worker не появился',
+  'loaded-before-emulation': 'первые загрузки service worker прошли до эмуляции',
+  'not-finished': 'подготовка эмуляции не завершилась к снимку',
+  'refused': 'браузер отказал в эмуляции сети на цели service worker',
 };
 
 const formatNumber = (value: null | number, isBytes = false): string => {
@@ -78,23 +88,79 @@ const formatSpread = (profile: ProfileReportValue): string[] => {
   return [`Разброс первого экрана (макс − мин) / медиана: холодный ${formatPercent(coldSpread)}, тёплый ${formatPercent(warmSpread)}.`];
 };
 
-const isProfileWorkerThrottled = (profile: ProfileReportValue): boolean => (
-  profile.cold.length > 0 && profile.cold.every(run => run.isWorkerThrottled)
-);
+type WorkerVerdictValue = 'absent' | 'applied' | 'not-applied' | 'partial';
 
-const readServiceWorkerThrottling = (profile: ProfileReportValue): ServiceWorkerThrottlingValue => {
-  const states = profile.cold.map(run => run.isServiceWorkerThrottled).filter((state): state is boolean => state !== null);
+const WORKER_VERDICT_LABELS: Record<WorkerVerdictValue, string> = {
+  'absent': 'неприменимо',
+  'applied': 'да',
+  'not-applied': 'нет',
+  'partial': 'частично',
+};
 
-  if (states.length === 0) {
+const readWorkerVerdict = (profile: ProfileReportValue): WorkerVerdictValue => {
+  const throttledCount = profile.cold.filter(run => run.isWorkerThrottled === true).length;
+  const unknownCount = profile.cold.filter(run => run.isWorkerThrottled === null).length;
+
+  if (profile.cold.length === 0 || throttledCount + unknownCount < profile.cold.length) {
+    return 'not-applied';
+  }
+
+  if (throttledCount === 0) {
     return 'absent';
   }
 
-  return states.every(Boolean) ? 'applied' : 'not-applied';
+  return unknownCount > 0 ? 'partial' : 'applied';
+};
+
+const readServiceWorkerNote = (run: RunValue): ServiceWorkerThrottlingNoteValue => {
+  if (run.serviceWorkerThrottlingNote !== undefined) {
+    return run.serviceWorkerThrottlingNote;
+  }
+
+  return run.isServiceWorkerThrottled === false ? 'refused' : 'absent';
+};
+
+const readServiceWorkerVerdict = (profile: ProfileReportValue): ServiceWorkerVerdictValue => {
+  const throttledCount = profile.cold.filter(run => run.isServiceWorkerThrottled === true).length;
+  const unthrottledCount = profile.cold.filter(run => run.isServiceWorkerThrottled === false).length;
+
+  if (unthrottledCount > 0) {
+    return throttledCount > 0 ? 'partial' : 'not-applied';
+  }
+
+  if (throttledCount > 0) {
+    return 'applied';
+  }
+
+  return profile.cold.some(run => run.serviceWorkerThrottlingNote === 'not-finished') ? 'unfinished' : 'absent';
+};
+
+const formatServiceWorkerExceptions = (profile: ProfileReportValue, verdict: ServiceWorkerVerdictValue): string[] => {
+  const exceptions = profile.cold
+    .map((run, index) => ({ index, run }))
+    .filter(({ run }) => run.isServiceWorkerThrottled !== true);
+
+  if (verdict === 'absent' || exceptions.length === 0) {
+    return [];
+  }
+
+  return [
+    '',
+    ...exceptions.map(({ index, run }) => (
+      `- холодный прогон №${String(index + 1)}: ${SERVICE_WORKER_NOTE_TEXTS[readServiceWorkerNote(run)]}`
+    )),
+  ];
 };
 
 const formatWorkerThrottling = (profile: ProfileReportValue): string[] => {
-  const verdict = isProfileWorkerThrottled(profile) ? 'да' : 'нет';
-  const lines = [`Worker под троттлингом: ${verdict} (сеть, по времени загрузки ядра движка в холодных прогонах).`];
+  const verdict = readWorkerVerdict(profile);
+  const details: Record<WorkerVerdictValue, string> = {
+    'absent': ': Worker берёт ядро из кеша (подсказка в документе).',
+    'applied': ' (сеть, по времени загрузки ядра движка в холодных прогонах).',
+    'not-applied': ' (сеть, по времени загрузки ядра движка в холодных прогонах).',
+    'partial': ' (сеть, по времени загрузки ядра; в части прогонов Worker брал ядро из кеша).',
+  };
+  const lines = [`Worker под троттлингом: ${WORKER_VERDICT_LABELS[verdict]}${details[verdict]}`];
 
   if (profile.cpuRate > 1) {
     lines.push(
@@ -108,15 +174,18 @@ const formatWorkerThrottling = (profile: ProfileReportValue): string[] => {
 };
 
 const formatServiceWorkerThrottling = (profile: ProfileReportValue): string[] => {
-  const throttling = readServiceWorkerThrottling(profile);
-  const details: Record<ServiceWorkerThrottlingValue, string> = {
+  const verdict = readServiceWorkerVerdict(profile);
+  const details: Record<ServiceWorkerVerdictValue, string> = {
     'absent': 'service worker не появился до конца холодных прогонов',
     'applied': 'сеть, эмуляция задана на цели service worker',
-    'not-applied': 'браузер не принял эмуляцию сети на цели service worker, его загрузки идут без замедления',
+    'not-applied': 'сеть замедлена не была: отказ браузера или первые загрузки прошли до эмуляции, причины ниже',
+    'partial': 'сеть, но не во всех холодных прогонах; исключения ниже',
+    'unfinished': 'подготовка эмуляции не завершилась к снимку ни в одном прогоне со service worker',
   };
 
   return [
-    `Service worker под троттлингом: ${SERVICE_WORKER_THROTTLING_LABELS[throttling]} (${details[throttling]}).`,
+    `Service worker под троттлингом: ${SERVICE_WORKER_VERDICT_LABELS[verdict]} (${details[verdict]}).`,
+    ...formatServiceWorkerExceptions(profile, verdict),
     '',
     'Эмуляция CDP задаётся на цель, а не на общий канал: загрузки service worker идут под своей эмуляцией и не отнимают '
     + 'полосу у страницы и Worker (проверено отдельным опытом: две параллельные загрузки не замедляют друг друга). '
@@ -307,8 +376,8 @@ export const formatMedianTable = (report: PerfReportValue): string => {
     formatNumber(profile.summary.cold.bytesBeforeReady.median, true),
     formatNumber(profile.summary.cold.requestsBeforeReady.median),
     formatNumber(profile.summary.cold.serviceWorkerBytesBeforeReady.median, true),
-    isProfileWorkerThrottled(profile) ? 'да' : 'нет',
-    SERVICE_WORKER_THROTTLING_LABELS[readServiceWorkerThrottling(profile)],
+    WORKER_VERDICT_LABELS[readWorkerVerdict(profile)],
+    SERVICE_WORKER_VERDICT_LABELS[readServiceWorkerVerdict(profile)],
   ]);
 
   return formatTable(

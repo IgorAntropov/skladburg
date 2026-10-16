@@ -10,6 +10,7 @@ import {
 import type { CreateEngineOptionsValue } from '../core/engine/index';
 import type { IEngineStorage } from '../core/ports/index';
 import type { CoreModuleValue } from './hostTypes';
+import type { OpenedEngineStorageValue } from './storage/index';
 
 import { createEngine } from '../core/engine/createEngine';
 import { createFakeRealTime } from '../core/engine/testing/engineHarness';
@@ -207,5 +208,89 @@ describe('startEngine', () => {
       realTime: createFakeRealTime(),
       storageHealthMonitor: createHealthMonitor(),
     })).rejects.toThrow('The chunk is missing');
+  });
+
+  it('starts loading the core and opening the storage at the same time', async () => {
+    const storage = createFakeIndexedDbStorage();
+    const events: string[] = [];
+    let resolveCore: (core: CoreModuleValue) => void = () => undefined;
+
+    const starting = startEngine({
+      generateId: createIdGenerator(),
+      loadCore: () => {
+        events.push('core-requested');
+
+        return new Promise<CoreModuleValue>((resolve) => {
+          resolveCore = resolve;
+        });
+      },
+      openStorage: () => {
+        events.push('storage-requested');
+
+        return Promise.resolve({ kind: 'indexed-db', storage });
+      },
+      realTime: createFakeRealTime(),
+      storageHealthMonitor: createHealthMonitor(),
+    });
+    await Promise.resolve();
+
+    expect(events).toEqual(['core-requested', 'storage-requested']);
+
+    resolveCore({ createEngine });
+    const started = await starting;
+
+    expect(started.storage).toBe('indexed-db');
+  });
+
+  it('closes the opened database and rethrows the core error when the core fails', async () => {
+    const storage = createFakeIndexedDbStorage();
+
+    await expect(startEngine({
+      generateId: createIdGenerator(),
+      loadCore: () => Promise.reject(new Error('The chunk is missing')),
+      openStorage: () => Promise.resolve({ kind: 'indexed-db', storage }),
+      realTime: createFakeRealTime(),
+      storageHealthMonitor: createHealthMonitor(),
+    })).rejects.toThrow('The chunk is missing');
+
+    expect(storage.closeCount()).toBe(1);
+    expect(storage.clearCount()).toBe(0);
+  });
+
+  it('waits for a slow database to open before it closes it and rethrows the core error', async () => {
+    const storage = createFakeIndexedDbStorage();
+    let resolveStorage: (opened: OpenedEngineStorageValue) => void = () => undefined;
+
+    const starting = startEngine({
+      generateId: createIdGenerator(),
+      loadCore: () => Promise.reject(new Error('The chunk is missing')),
+      openStorage: () => new Promise<OpenedEngineStorageValue>((resolve) => {
+        resolveStorage = resolve;
+      }),
+      realTime: createFakeRealTime(),
+      storageHealthMonitor: createHealthMonitor(),
+    });
+    const outcome = starting.then(() => 'started', (error: unknown) => error);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(storage.closeCount()).toBe(0);
+
+    resolveStorage({ kind: 'indexed-db', storage });
+
+    expect(await outcome).toEqual(new Error('The chunk is missing'));
+    expect(storage.closeCount()).toBe(1);
+  });
+
+  it('rethrows the core error and logs the storage error when both the core and the storage fail', async () => {
+    await expect(startEngine({
+      generateId: createIdGenerator(),
+      loadCore: () => Promise.reject(new Error('The chunk is missing')),
+      openStorage: () => Promise.reject(new Error('IndexedDB is not available')),
+      realTime: createFakeRealTime(),
+      storageHealthMonitor: createHealthMonitor(),
+    })).rejects.toThrow('The chunk is missing');
+
+    expect(console.log).toHaveBeenCalledWith('> EngineHost -> openStorageOrMemory:', { error: new Error('IndexedDB is not available') });
   });
 });

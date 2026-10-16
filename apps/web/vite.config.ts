@@ -7,6 +7,8 @@ import {
 } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+import type { CriticalPreloadEntryValue } from './build-preload/criticalPreloadTypes.ts';
+
 import { APP_BASE_PATH } from './build-base/appBasePath.ts';
 import { bootFallbackPlugin } from './build-boot-fallback/bootFallbackPlugin.ts';
 import { bundleBudgetPlugin } from './build-budget/bundleBudgetPlugin.ts';
@@ -21,6 +23,7 @@ import {
 } from './build-icons/appIcons.ts';
 import { ALLOWED_BUNDLE_LICENSES } from './build-licenses/allowedBundleLicenses.ts';
 import { createThirdPartyLicenses } from './build-licenses/createThirdPartyLicenses.ts';
+import { createCriticalPreload } from './build-preload/createCriticalPreload.ts';
 import { DEFAULT_PROFILE_NAME } from './build-profile/buildProfilePaths.ts';
 import { buildProfilePlugin } from './build-profile/buildProfilePlugin.ts';
 import { loadBuildProfile } from './build-profile/loadBuildProfile.ts';
@@ -35,6 +38,8 @@ const MAX_INITIAL_GZIP_KILOBYTES = 90;
 
 const MAX_SCENE_GZIP_KILOBYTES = 300;
 
+const MAX_STARTUP_GZIP_KILOBYTES = 120;
+
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
 const PRECACHE_GLOB_PATTERNS = ['**/*.{js,css,html,woff2,svg,png}'];
@@ -43,12 +48,36 @@ const NAVIGATE_FALLBACK_DENYLIST = [/^[^?]*\/[^/?]*\.(?!html(?:\?|$))[^/.?]+(?:\
 
 const FORBIDDEN_PACKAGES = ['stats-gl', 'stats.js'];
 
+const CRITICAL_PATH_ENTRIES: readonly CriticalPreloadEntryValue[] = [
+  { entry: 'src/app/bootstrap/mountApp.tsx', isRequired: true },
+  { entry: 'src/shared/api/transport/demo/index.ts', isDemoOnly: true, isRequired: true },
+];
+
+const PREWARMED_SECTION_ENTRY = 'src/pages/network/index.ts';
+
+const ENGINE_WORKER_ENTRIES = ['packages/demo-engine/src/host/worker.ts'];
+
+const isDemoTransport = loadEnv('production', import.meta.dirname, 'VITE_').VITE_API_TRANSPORT !== 'connect';
+
+const STARTUP_BUDGET_ENTRIES = [
+  ...CRITICAL_PATH_ENTRIES
+    .filter(({ isDemoOnly }) => isDemoTransport || isDemoOnly !== true)
+    .map(({ entry }) => entry),
+  PREWARMED_SECTION_ENTRY,
+];
+
 const LAZY_ENTRY_BUDGETS = [
   {
     entries: ['src/widgets/scene-viewport/scene/SceneRoot.tsx', 'src/pages/network/scene/NetworkWorldScene.tsx'],
     isRequired: true,
     maxGzipKiloBytes: MAX_SCENE_GZIP_KILOBYTES,
     name: 'scene',
+  },
+  {
+    entries: STARTUP_BUDGET_ENTRIES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_STARTUP_GZIP_KILOBYTES,
+    name: 'startup',
   },
 ];
 
@@ -107,6 +136,12 @@ const thirdPartyLicenses = createThirdPartyLicenses({
   appRoot: import.meta.dirname,
   extraPackages: EXTRA_LICENSE_PACKAGES,
   fileName: THIRD_PARTY_LICENSES_FILE_NAME,
+});
+
+const criticalPreload = createCriticalPreload({
+  entries: CRITICAL_PATH_ENTRIES,
+  isDemoTransport,
+  workerEntries: ENGINE_WORKER_ENTRIES,
 });
 
 const previewCacheControl = process.env.PERF_PREVIEW_CACHE_CONTROL;
@@ -173,6 +208,7 @@ export default defineConfig({
       maxInitialGzipKiloBytes: MAX_INITIAL_GZIP_KILOBYTES,
     }),
     thirdPartyLicenses.plugin,
+    criticalPreload.plugin,
   ],
   preview: previewCacheControl === undefined || previewCacheControl === ''
     ? {}
@@ -187,6 +223,6 @@ export default defineConfig({
   },
   worker: {
     format: 'es',
-    plugins: () => [thirdPartyLicenses.workerPlugin()],
+    plugins: () => [thirdPartyLicenses.workerPlugin(), criticalPreload.workerPlugin()],
   },
 });

@@ -82,6 +82,27 @@ describe('buildRunValue', () => {
     expect(run.requests).toHaveLength(3);
   });
 
+  it('carries the reason why the service worker was not confirmed as throttled only when there is one', () => {
+    const withNote = buildRunValue({
+      isServiceWorkerThrottled: null,
+      network: NETWORK,
+      openRequests: [],
+      requests: [],
+      serviceWorkerThrottlingNote: 'not-finished',
+      snapshot: createSnapshot(),
+    });
+    const withoutNote = buildRunValue({
+      isServiceWorkerThrottled: true,
+      network: NETWORK,
+      openRequests: [],
+      requests: [],
+      snapshot: createSnapshot(),
+    });
+
+    expect(withNote).toMatchObject({ isServiceWorkerThrottled: null, serviceWorkerThrottlingNote: 'not-finished' });
+    expect(withoutNote).not.toHaveProperty('serviceWorkerThrottlingNote');
+  });
+
   it('reports a file both the page and the service worker downloaded as a repeat, not as a duplicate', () => {
     const url = 'https://host/skladburg/assets/index-Ka_enA0r.js';
     const run = buildRunValue({
@@ -169,6 +190,35 @@ describe('buildRunValue', () => {
     });
 
     expect(run.isWorkerThrottled).toBe(false);
+  });
+
+  it('marks the worker check as not applicable when the core did not come over the worker network, and only then', () => {
+    const preloadedByPage = buildRunValue({
+      isServiceWorkerThrottled: null,
+      network: NETWORK,
+      openRequests: [],
+      requests: [createRequest({ url: 'https://host/skladburg/assets/engine-BYddzchM.js' })],
+      snapshot: createSnapshot(),
+    });
+    const loadedByWorker = buildRunValue({
+      isServiceWorkerThrottled: null,
+      network: NETWORK,
+      openRequests: [],
+      requests: [
+        createRequest({
+          bytes: 500_000,
+          endAt: 1700,
+          startAt: 1000,
+          target: 'worker',
+          url: 'https://host/skladburg/assets/engine-BYddzchM.js',
+        }),
+      ],
+      snapshot: createSnapshot(),
+    });
+
+    expect(preloadedByPage).toMatchObject({ isWorkerThrottled: null, workerThrottlingNote: 'no-network-load' });
+    expect(loadedByWorker.isWorkerThrottled).toBe(true);
+    expect(loadedByWorker).not.toHaveProperty('workerThrottlingNote');
   });
 
   it('leaves the counts at zero when the first screen was never reached', () => {

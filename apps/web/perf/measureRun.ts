@@ -86,11 +86,14 @@ export const measureRun = async ({ baseUrl, context, profile, runLabel }: Measur
 
   const snapshot = await page.evaluate<ProbeSnapshotValue>(READ_PROBE_SNAPSHOT_SCRIPT);
   const requests = emulation.collectRequests(snapshot.timeOrigin);
+  const openRequests = emulation.collectOpenRequests(snapshot.timeOrigin);
+  const serviceWorkerThrottling = await emulation.readServiceWorkerThrottling();
   const run = buildRunValue({
-    isServiceWorkerThrottled: emulation.readServiceWorkerThrottling(),
+    isServiceWorkerThrottled: serviceWorkerThrottling.isThrottled,
     network: profile.network,
-    openRequests: emulation.collectOpenRequests(snapshot.timeOrigin),
+    openRequests,
     requests,
+    serviceWorkerThrottlingNote: serviceWorkerThrottling.note,
     snapshot,
   });
 

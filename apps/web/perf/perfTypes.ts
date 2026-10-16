@@ -80,13 +80,22 @@ export interface RunMetricsValue {
 export interface RunValue extends RunMetricsValue {
   duplicates: string[];
   isServiceWorkerThrottled: boolean | null;
-  isWorkerThrottled: boolean;
+  isWorkerThrottled: boolean | null;
   requests: RequestValue[];
   serviceWorkerRepeats: string[];
+  serviceWorkerThrottlingNote?: ServiceWorkerThrottlingNoteValue;
   workerMessages: WorkerMessageValue[];
+  workerThrottlingNote?: WorkerThrottlingNoteValue;
 }
 
 export type SeriesSummaryValue = Record<MetricNameValue, MetricSummaryValue>;
+
+export type ServiceWorkerThrottlingNoteValue = 'absent' | 'loaded-before-emulation' | 'not-finished' | 'refused';
+
+export interface ServiceWorkerThrottlingValue {
+  isThrottled: boolean | null;
+  note?: ServiceWorkerThrottlingNoteValue;
+}
 
 export interface TargetValue {
   baseUrl: string;
@@ -103,4 +112,11 @@ export interface WorkerMessageValue {
   requestId?: string;
   type: string;
   url?: string;
+}
+
+export type WorkerThrottlingNoteValue = 'no-network-load';
+
+export interface WorkerThrottlingValue {
+  isThrottled: boolean | null;
+  note?: WorkerThrottlingNoteValue;
 }

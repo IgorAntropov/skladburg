@@ -6,17 +6,20 @@ import type {
 import type {
   NetworkConditionsValue,
   RequestValue,
+  ServiceWorkerThrottlingValue,
 } from './perfTypes.ts';
 import type { IWorkerChannel } from './workerChannel.ts';
 
+import { createPreparationTracker } from './createPreparationTracker.ts';
 import { createRequestRecorder } from './createRequestRecorder.ts';
+import { judgeServiceWorkerThrottling } from './judgeServiceWorkerThrottling.ts';
 import { routeNetworkEvent } from './routeNetworkEvent.ts';
 import { createWorkerChannel } from './workerChannel.ts';
 
 export interface IServiceWorkerWatch {
   collectRequests: (timeOriginMs: number) => RequestValue[];
   detach: () => Promise<void>;
-  readThrottling: () => boolean | null;
+  readThrottling: () => Promise<ServiceWorkerThrottlingValue>;
 }
 
 export interface WatchServiceWorkerInputValue {
@@ -24,6 +27,8 @@ export interface WatchServiceWorkerInputValue {
   contextId: string | undefined;
   network: NetworkConditionsValue;
 }
+
+const PREPARATION_TIMEOUT_MS = 1000;
 
 const prepareServiceWorker = async (channel: IWorkerChannel, network: NetworkConditionsValue): Promise<void> => {
   await channel.send('Network.enable');
@@ -43,19 +48,16 @@ export const watchServiceWorker = async ({
   const session: CDPSession = await browser.newBrowserCDPSession();
   const recorder = createRequestRecorder('service-worker');
   const channelsBySessionId = new Map<string, IWorkerChannel>();
-  const knownTargetIds = new Set<string>();
-  let attachedCount = 0;
-  let appliedCount = 0;
+  const tracker = createPreparationTracker();
 
   session.on('Target.receivedMessageFromTarget', ({ message, sessionId }) => {
     channelsBySessionId.get(sessionId)?.handleIncoming(message);
   });
 
-  session.on('Target.attachedToTarget', ({ sessionId }) => {
+  session.on('Target.attachedToTarget', ({ sessionId, targetInfo }) => {
     const channel = createWorkerChannel(session, sessionId);
 
     channelsBySessionId.set(sessionId, channel);
-    attachedCount += 1;
 
     channel.onEvent((method, params) => {
       routeNetworkEvent(recorder, method, params);
@@ -63,10 +65,11 @@ export const watchServiceWorker = async ({
 
     prepareServiceWorker(channel, network)
       .then(() => {
-        appliedCount += 1;
+        tracker.settle(targetInfo.targetId, 'applied');
       })
       .catch((error: unknown) => {
         console.log('> watchServiceWorker -> prepareServiceWorker:', { error: String(error) });
+        tracker.settle(targetInfo.targetId, 'refused');
       });
   });
 
@@ -74,10 +77,10 @@ export const watchServiceWorker = async ({
     const isOwnServiceWorker = targetInfo.type === 'service_worker'
       && (contextId === undefined || targetInfo.browserContextId === contextId);
 
-    if (isOwnServiceWorker && !knownTargetIds.has(targetInfo.targetId)) {
-      knownTargetIds.add(targetInfo.targetId);
+    if (isOwnServiceWorker && tracker.begin(targetInfo.targetId)) {
       session.send('Target.attachToTarget', { flatten: false, targetId: targetInfo.targetId }).catch((error: unknown) => {
         console.log('> watchServiceWorker -> attachToTarget:', { error: String(error) });
+        tracker.settle(targetInfo.targetId, 'refused');
       });
     }
   });
@@ -93,8 +96,10 @@ export const watchServiceWorker = async ({
         console.log('> watchServiceWorker -> detach:', { error: String(error) });
       });
     },
-    readThrottling(): boolean | null {
-      return attachedCount === 0 ? null : appliedCount === attachedCount;
+    async readThrottling(): Promise<ServiceWorkerThrottlingValue> {
+      await tracker.waitForSettled(PREPARATION_TIMEOUT_MS);
+
+      return judgeServiceWorkerThrottling({ network, outcomes: tracker.outcomes(), requests: recorder.toRequests(0) });
     },
   };
 };

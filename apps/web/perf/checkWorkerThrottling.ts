@@ -10,7 +10,7 @@ export type ThrottlingVerdictValue = 'unverifiable' | 'verified' | 'violated';
 export const ENGINE_CORE_URL_PATTERN = /\/engine-[\w-]+\.js$/;
 
 const MILLISECONDS_PER_SECOND = 1000;
-const TOLERANCE = 0.8;
+export const THROTTLING_TOLERANCE = 0.8;
 
 export const checkWorkerThrottling = (
   requests: readonly RequestValue[],
@@ -26,7 +26,7 @@ export const checkWorkerThrottling = (
   }
 
   const transferMs = coreRequest.bytes / network.downloadBytesPerSecond * MILLISECONDS_PER_SECOND;
-  const minimumDurationMs = (network.latencyMs + transferMs) * TOLERANCE;
+  const minimumDurationMs = (network.latencyMs + transferMs) * THROTTLING_TOLERANCE;
 
   return coreRequest.endAt - coreRequest.startAt >= minimumDurationMs ? 'verified' : 'violated';
 };

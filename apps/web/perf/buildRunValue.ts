@@ -4,13 +4,14 @@ import type {
   NetworkConditionsValue,
   RequestValue,
   RunValue,
+  ServiceWorkerThrottlingNoteValue,
   WorkerMessageValue,
 } from './perfTypes.ts';
 import type { LongTaskValue } from './summarizeLongTasks.ts';
 
-import { checkWorkerThrottling } from './checkWorkerThrottling.ts';
 import { findDuplicates } from './findDuplicates.ts';
 import { findServiceWorkerRepeats } from './findServiceWorkerRepeats.ts';
+import { judgeWorkerThrottling } from './judgeWorkerThrottling.ts';
 import { mergeResourceTimings } from './mergeResourceTimings.ts';
 import { summarizeLongTasks } from './summarizeLongTasks.ts';
 
@@ -19,6 +20,7 @@ export interface BuildRunInputValue {
   network: NetworkConditionsValue;
   openRequests: OpenRequestValue[];
   requests: RequestValue[];
+  serviceWorkerThrottlingNote?: ServiceWorkerThrottlingNoteValue | undefined;
   snapshot: ProbeSnapshotValue;
 }
 
@@ -58,6 +60,7 @@ export const buildRunValue = ({
   network,
   openRequests,
   requests: networkRequests,
+  serviceWorkerThrottlingNote,
   snapshot,
 }: BuildRunInputValue): RunValue => {
   const serviceWorkerRequests = networkRequests.filter(request => request.target === 'service-worker');
@@ -71,6 +74,7 @@ export const buildRunValue = ({
   const longTasks = summarizeLongTasks(snapshot.longTasks, readyAt);
   const pageTotals = sumBeforeReady(pageRequests, readyAt);
   const serviceWorkerTotals = sumBeforeReady(serviceWorkerRequests, readyAt);
+  const workerThrottling = judgeWorkerThrottling(requests, network);
 
   return {
     bytesBeforeReady: pageTotals.bytesFinished,
@@ -79,7 +83,7 @@ export const buildRunValue = ({
     fcp: snapshot.fcp,
     firstScreenReady: readyAt,
     isServiceWorkerThrottled,
-    isWorkerThrottled: checkWorkerThrottling(requests, network) === 'verified',
+    isWorkerThrottled: workerThrottling.isThrottled,
     lcp: snapshot.lcp,
     longTaskCount: longTasks.count,
     longTaskExcessMs: longTasks.excessMs,
@@ -89,9 +93,11 @@ export const buildRunValue = ({
     serviceWorkerBytesBeforeReady: serviceWorkerTotals.bytesFinished,
     serviceWorkerRepeats: findServiceWorkerRepeats(requests),
     serviceWorkerRequestsBeforeReady: serviceWorkerTotals.requestsStarted,
+    ...(serviceWorkerThrottlingNote === undefined ? {} : { serviceWorkerThrottlingNote }),
     skeletonShown: snapshot.skeletonShownAt,
     ttfb: snapshot.ttfb,
     workerCreated: snapshot.workerCreatedAt,
     workerMessages: snapshot.workerMessages,
+    ...(workerThrottling.note === undefined ? {} : { workerThrottlingNote: workerThrottling.note }),
   };
 };

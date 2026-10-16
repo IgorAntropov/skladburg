@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite",
     "e2e": "playwright test",
+    "perf": "playwright test --config playwright.perf.config.ts",
     "icons": "node build-icons/generateAppIcons.ts",
     "build": "tsc -b && vite build",
     "preview": "vite preview",

@@ -109,6 +109,8 @@ const thirdPartyLicenses = createThirdPartyLicenses({
   fileName: THIRD_PARTY_LICENSES_FILE_NAME,
 });
 
+const previewCacheControl = process.env.PERF_PREVIEW_CACHE_CONTROL;
+
 const devHttps = resolveDevHttps(loadEnv('development', import.meta.dirname, DEV_HTTPS_ENV_PREFIX), readFileSync);
 
 export default defineConfig({
@@ -172,6 +174,9 @@ export default defineConfig({
     }),
     thirdPartyLicenses.plugin,
   ],
+  preview: previewCacheControl === undefined || previewCacheControl === ''
+    ? {}
+    : { headers: { 'Cache-Control': previewCacheControl } },
   resolve: {
     tsconfigPaths: true,
   },

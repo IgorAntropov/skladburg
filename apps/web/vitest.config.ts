@@ -26,6 +26,7 @@ export default mergeConfig(
               'build-dev-https/**/*.test.ts',
               'build-boot-fallback/**/*.test.ts',
               'build-licenses/**/*.test.ts',
+              'perf/**/*.test.ts',
             ],
             name: 'node',
           },

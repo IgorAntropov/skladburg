@@ -1,55 +1,62 @@
 import type {
-  CriticalPreloadBundleValue,
-  CriticalPreloadHtmlContextValue,
   CriticalPreloadOptionsValue,
   CriticalPreloadValue,
-  PreloadChunkValue,
   PreloadFileValue,
 } from './criticalPreloadTypes.ts';
+import type { BundleChunksValue } from './readBundleChunks.ts';
 
-import { gzipSizeInBytes } from '../build-budget/gzipSizeInBytes.ts';
-import { collectEngineWorkerFiles } from './collectEngineWorkerFiles.ts';
+import { collectEngineWorkerBundle } from './collectEngineWorkerBundle.ts';
 import { collectImportClosure } from './collectImportClosure.ts';
+import { createDeferredPreloadScript } from './createDeferredPreloadScript.ts';
 import { createPreloadReport } from './createPreloadReport.ts';
 import {
+  createInlineScriptTag,
   createPreloadTags,
   toPreloadHref,
 } from './createPreloadTags.ts';
+import { assertKnownHintPointKeys } from './hintPointKeys.ts';
+import { markHighFetchPriority } from './markHighFetchPriority.ts';
 import { planCriticalPreload } from './planCriticalPreload.ts';
+import { readBundleChunks } from './readBundleChunks.ts';
 import { readLinkedHrefs } from './readLinkedHrefs.ts';
-
-interface BundleChunksValue {
-  chunks: PreloadChunkValue[];
-  gzipBytesByFileName: Map<string, number>;
-}
-
-const readBundleChunks = (bundle: CriticalPreloadBundleValue): BundleChunksValue => {
-  const chunks: PreloadChunkValue[] = [];
-  const gzipBytesByFileName = new Map<string, number>();
-
-  for (const output of Object.values(bundle)) {
-    if (output.type === 'chunk') {
-      chunks.push(output);
-      gzipBytesByFileName.set(output.fileName, gzipSizeInBytes(output.code));
-    }
-  }
-
-  return { chunks, gzipBytesByFileName };
-};
+import { readStylesheetHref } from './readStylesheetHref.ts';
+import {
+  readPreloadTriggerKey,
+  resolveDeferredTriggerSelectors,
+} from './resolveDeferredTrigger.ts';
 
 const findInitialRootFileNames = (
-  chunks: readonly PreloadChunkValue[],
-  htmlChunk: CriticalPreloadHtmlContextValue['chunk'],
+  chunks: BundleChunksValue['chunks'],
+  htmlChunk: undefined | { fileName: string },
 ): string[] =>
   htmlChunk === undefined ? chunks.filter(chunk => chunk.isEntry).map(chunk => chunk.fileName) : [htmlChunk.fileName];
 
-export const createCriticalPreload = ({
-  entries,
-  isDemoTransport,
-  workerEntries,
-}: CriticalPreloadOptionsValue): CriticalPreloadValue => {
+export const createCriticalPreload = (options: CriticalPreloadOptionsValue): CriticalPreloadValue => {
+  const {
+    deferredEntries,
+    deferredTrigger,
+    entries,
+    isDemoTransport,
+    unhintedEntries,
+    workerDynamicEntries,
+    workerEntries,
+  } = options;
+  const preloadTriggerKey = readPreloadTriggerKey(deferredTrigger);
+  const knownKeysInput = { entries, workerDynamicEntries, workerEntries };
+
+  assertKnownHintPointKeys('deferredEntries', deferredEntries, knownKeysInput);
+  assertKnownHintPointKeys('unhintedEntries', unhintedEntries, knownKeysInput);
+
+  if (preloadTriggerKey !== undefined) {
+    assertKnownHintPointKeys('deferredTrigger', [preloadTriggerKey], knownKeysInput);
+
+    if (deferredEntries.includes(preloadTriggerKey) || unhintedEntries.includes(preloadTriggerKey)) {
+      throw new Error(`Critical preload: deferredTrigger names ${preloadTriggerKey} which the page does not hint`);
+    }
+  }
+
   let base = '/';
-  let engineWorkerFiles: readonly PreloadFileValue[] = [];
+  let workerBundle: BundleChunksValue | undefined;
 
   const plugin: CriticalPreloadValue['plugin'] = {
     apply: 'build',
@@ -60,7 +67,7 @@ export const createCriticalPreload = ({
     transformIndexHtml: {
       handler(html, context) {
         if (context.bundle === undefined) {
-          return [];
+          return { html, tags: [] };
         }
 
         const { chunks, gzipBytesByFileName } = readBundleChunks(context.bundle);
@@ -72,26 +79,69 @@ export const createCriticalPreload = ({
         ]);
         const plan = planCriticalPreload({
           chunks,
+          deferredEntries,
           entries,
           isDemoTransport,
           skippedFileNames,
+          unhintedEntries,
+          workerChunks: workerBundle?.chunks ?? [],
+          workerDynamicEntries,
           workerEntries,
-          workerFileNames: engineWorkerFiles.map(file => file.fileName),
         });
-        const workerGzipBytesByFileName = new Map(engineWorkerFiles.map(file => [file.fileName, file.gzipBytes]));
+        const entryHref = context.chunk === undefined ? undefined : toPreloadHref(base, context.chunk.fileName);
+        const prioritized = entryHref === undefined ? undefined : markHighFetchPriority(html, entryHref);
+
+        if (entryHref !== undefined && prioritized?.hasEntryScript !== true) {
+          throw new Error(`Critical preload: the page has no entry script with the address ${entryHref}`);
+        }
+
+        if (entryHref === undefined && plan.deferredFileNames.length > 0) {
+          throw new Error('Critical preload: the page has no entry script to defer the hints after');
+        }
+
+        const gzipBytesOf = (fileName: string): number =>
+          gzipBytesByFileName.get(fileName) ?? workerBundle?.gzipBytesByFileName.get(fileName) ?? 0;
+        const toFile = (fileName: string): PreloadFileValue => ({ fileName, gzipBytes: gzipBytesOf(fileName) });
+        const toHref = (fileName: string): string => toPreloadHref(base, fileName);
+        const triggerSelectors = entryHref === undefined || plan.deferredFileNames.length === 0
+          ? []
+          : resolveDeferredTriggerSelectors({
+              entryHref,
+              pageHrefs: new Set([
+                ...linkedHrefs,
+                ...plan.mainThreadFileNames.map(toHref),
+                ...plan.workerFileNames.map(toHref),
+              ]),
+              rootHrefs: (plan.rootFileNamesByKey[preloadTriggerKey ?? ''] ?? []).map(toHref),
+              stylesheetHref: readStylesheetHref(html),
+              trigger: deferredTrigger,
+            });
+        const deferredScript = triggerSelectors.length === 0
+          ? undefined
+          : createDeferredPreloadScript({
+              hrefs: plan.deferredFileNames.map(toHref),
+              triggerSelectors,
+            });
 
         console.log(
           '> createCriticalPreload -> transformIndexHtml:',
-          createPreloadReport(
-            plan.mainThreadFileNames.map(fileName => ({ fileName, gzipBytes: gzipBytesByFileName.get(fileName) ?? 0 })),
-            plan.workerFileNames.map(fileName => ({ fileName, gzipBytes: workerGzipBytesByFileName.get(fileName) ?? 0 })),
-          ),
+          createPreloadReport({
+            deferredFiles: plan.deferredFileNames.map(toFile),
+            deferredTriggers: triggerSelectors,
+            inlineScriptBytes: deferredScript === undefined ? 0 : Buffer.byteLength(deferredScript),
+            mainThreadFiles: plan.mainThreadFileNames.map(toFile),
+            workerFiles: plan.workerFileNames.map(toFile),
+          }),
         );
 
-        return [
-          ...createPreloadTags({ base, fileNames: plan.mainThreadFileNames, isLowPriority: false }),
-          ...createPreloadTags({ base, fileNames: plan.workerFileNames, isLowPriority: true }),
-        ];
+        return {
+          html: prioritized?.html ?? html,
+          tags: [
+            ...createPreloadTags({ base, fileNames: plan.mainThreadFileNames, isLowPriority: false }),
+            ...createPreloadTags({ base, fileNames: plan.workerFileNames, isLowPriority: true }),
+            ...deferredScript === undefined ? [] : [createInlineScriptTag(deferredScript)],
+          ],
+        };
       },
       order: 'post',
     },
@@ -99,10 +149,10 @@ export const createCriticalPreload = ({
 
   const workerPlugin = (): ReturnType<CriticalPreloadValue['workerPlugin']> => ({
     generateBundle(_options, bundle) {
-      const files = collectEngineWorkerFiles(bundle, workerEntries);
+      const collected = collectEngineWorkerBundle(bundle, workerEntries);
 
-      if (files.length > 0) {
-        engineWorkerFiles = files;
+      if (collected !== undefined) {
+        workerBundle = collected;
       }
     },
     name: 'skladburg:critical-preload-worker',

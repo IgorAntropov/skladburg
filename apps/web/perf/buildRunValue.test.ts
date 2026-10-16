@@ -16,6 +16,7 @@ const NETWORK: NetworkConditionsValue = { downloadBytesPerSecond: 1_000_000, lat
 
 const createSnapshot = (overrides: Partial<ProbeSnapshotValue> = {}): ProbeSnapshotValue => ({
   engineReadyAt: 1800,
+  entryScriptUrl: null,
   fcp: 600,
   firstScreenReadyAt: 2400,
   lcp: 900,
@@ -231,5 +232,79 @@ describe('buildRunValue', () => {
     });
 
     expect(run).toMatchObject({ bytesBeforeReady: 0, firstScreenReady: null, longTaskCount: 0, requestsBeforeReady: 0 });
+  });
+
+  it('measures the skeleton and the first screen from the start of the entry script request', () => {
+    const entryUrl = 'https://host/skladburg/assets/index-Ka_enA0r.js';
+    const run = buildRunValue({
+      isServiceWorkerThrottled: null,
+      network: NETWORK,
+      openRequests: [],
+      requests: [
+        createRequest({ endAt: 600, startAt: 0, url: 'https://host/skladburg/' }),
+        createRequest({ bytes: 80_000, endAt: 1100, startAt: 500, url: entryUrl }),
+        createRequest({ bytes: 30_000, endAt: 900, startAt: 520, url: 'https://host/skladburg/assets/mountApp-B.js' }),
+      ],
+      snapshot: createSnapshot({ entryScriptUrl: entryUrl, firstScreenReadyAt: 1800, skeletonShownAt: 900 }),
+    });
+
+    expect(run).toMatchObject({ entryStart: 500, firstScreenFromEntry: 1300, skeletonFromEntry: 400 });
+    expect(run.entrySharingBytes).toBe(30_000);
+    expect(run.entrySharingMs).toBeCloseTo(30_000 / NETWORK.downloadBytesPerSecond * 1000);
+  });
+
+  it('leaves the entry metrics empty when the entry script was never requested', () => {
+    const run = buildRunValue({
+      isServiceWorkerThrottled: null,
+      network: NETWORK,
+      openRequests: [],
+      requests: [createRequest({ url: 'https://host/skladburg/assets/mountApp-B.js' })],
+      snapshot: createSnapshot(),
+    });
+
+    expect(run).toMatchObject({
+      entrySharingBytes: null,
+      entrySharingMs: null,
+      entryStart: null,
+      firstScreenFromEntry: null,
+      skeletonFromEntry: null,
+    });
+  });
+
+  it('lists the revalidation of a file the page already loaded without counting it as a request, bytes or duplicate', () => {
+    const url = 'https://host/skladburg/assets/worker-XkuRDHIr.js';
+    const run = buildRunValue({
+      isServiceWorkerThrottled: null,
+      network: NETWORK,
+      openRequests: [{ startAt: 1500, url }],
+      requests: [createRequest({ bytes: 32_000, endAt: 1100, startAt: 600, url })],
+      snapshot: createSnapshot({
+        resources: [
+          { encodedBodySize: 31_900, endAt: 1100, startAt: 602, transferSize: 32_200, url },
+          { encodedBodySize: 31_900, endAt: 1900, startAt: 1505, transferSize: 300, url },
+        ],
+      }),
+    });
+
+    expect(run.revalidatedBeforeReady).toEqual([url]);
+    expect(run.requests.filter(request => request.isRevalidated === true)).toMatchObject([{ bytes: 300, startAt: 1500 }]);
+    expect(run.requestsBeforeReady).toBe(1);
+    expect(run.bytesBeforeReady).toBe(32_000);
+    expect(run.duplicates).toEqual([]);
+  });
+
+  it('does not list a revalidation that started after the first screen', () => {
+    const url = 'https://host/skladburg/assets/worker-XkuRDHIr.js';
+    const run = buildRunValue({
+      isServiceWorkerThrottled: null,
+      network: NETWORK,
+      openRequests: [{ startAt: 2600, url }],
+      requests: [],
+      snapshot: createSnapshot({
+        resources: [{ encodedBodySize: 31_900, endAt: 2900, startAt: 2605, transferSize: 300, url }],
+      }),
+    });
+
+    expect(run.revalidatedBeforeReady).toEqual([]);
   });
 });

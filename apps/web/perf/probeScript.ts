@@ -203,8 +203,11 @@ export const createProbeScript = (options: ProbeOptionsValue): string => `
         ? state.messages
         : state.messages.filter((message) => message.workerId === state.engineWorkerId);
 
+      const entryScript = document.querySelector('script[type="module"][src]');
+
       return {
         engineReadyAt: state.engineReadyAt,
+        entryScriptUrl: entryScript ? entryScript.src : null,
         fcp: state.fcp,
         firstScreenReadyAt: state.readyAt,
         lcp: state.lcp,

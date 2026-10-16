@@ -6,7 +6,7 @@ import {
 
 import type { CriticalPreloadBundleValue } from './criticalPreloadTypes.ts';
 
-import { collectEngineWorkerFiles } from './collectEngineWorkerFiles.ts';
+import { collectEngineWorkerBundle } from './collectEngineWorkerBundle.ts';
 
 const WORKER_ENTRY = 'packages/demo-engine/src/host/worker.ts';
 
@@ -31,19 +31,19 @@ const createWorkerBundle = (entryModuleId: string): CriticalPreloadBundleValue =
   },
 });
 
-describe('collectEngineWorkerFiles', () => {
-  it('lists the entry of the engine worker first and then its other chunks', () => {
-    const files = collectEngineWorkerFiles(
+describe('collectEngineWorkerBundle', () => {
+  it('reads every chunk of the bundle of the engine worker with its size', () => {
+    const workerBundle = collectEngineWorkerBundle(
       createWorkerBundle('/repo/packages/demo-engine/src/host/worker.ts?worker_file&type=module'),
       [WORKER_ENTRY],
     );
 
-    expect(files.map(file => file.fileName)).toEqual(['assets/worker-a.js', 'assets/engine-b.js']);
-    expect(files.every(file => file.gzipBytes > 0)).toBe(true);
+    expect(workerBundle?.chunks.map(chunk => chunk.fileName).toSorted()).toEqual(['assets/engine-b.js', 'assets/worker-a.js']);
+    expect([...workerBundle?.gzipBytesByFileName.values() ?? []].every(bytes => bytes > 0)).toBe(true);
   });
 
   it('finds nothing in the bundle of another worker', () => {
-    expect(collectEngineWorkerFiles(createWorkerBundle('/repo/apps/web/src/terrain.worker.ts'), [WORKER_ENTRY])).toEqual([]);
+    expect(collectEngineWorkerBundle(createWorkerBundle('/repo/apps/web/src/terrain.worker.ts'), [WORKER_ENTRY])).toBeUndefined();
   });
 
   it('skips assets of the bundle', () => {
@@ -52,9 +52,6 @@ describe('collectEngineWorkerFiles', () => {
       'assets/font.woff2': { type: 'asset' },
     };
 
-    expect(collectEngineWorkerFiles(bundle, [WORKER_ENTRY]).map(file => file.fileName)).toEqual([
-      'assets/worker-a.js',
-      'assets/engine-b.js',
-    ]);
+    expect(collectEngineWorkerBundle(bundle, [WORKER_ENTRY])?.chunks).toHaveLength(2);
   });
 });

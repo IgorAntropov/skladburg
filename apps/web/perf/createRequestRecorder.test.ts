@@ -79,4 +79,23 @@ describe('createRequestRecorder', () => {
       'https://host/late.js',
     ]);
   });
+
+  it('reports the protocol of the first answered request and ignores empty ones', () => {
+    const recorder = createRequestRecorder('page');
+
+    recorder.start({ requestId: '1', timestamp: 1, url: 'https://host/', wallTime: WALL_SECONDS });
+    recorder.start({ requestId: '2', timestamp: 2, url: 'https://host/a.js', wallTime: WALL_SECONDS + 1 });
+    recorder.respond({ isFromCache: false, protocol: '', requestId: '1' });
+    recorder.respond({ isFromCache: false, protocol: 'h2', requestId: '2' });
+
+    expect(recorder.readFirstProtocol()).toBe('h2');
+  });
+
+  it('reports no protocol before any answer', () => {
+    const recorder = createRequestRecorder('page');
+
+    recorder.start({ requestId: '1', timestamp: 1, url: 'https://host/', wallTime: WALL_SECONDS });
+
+    expect(recorder.readFirstProtocol()).toBeUndefined();
+  });
 });

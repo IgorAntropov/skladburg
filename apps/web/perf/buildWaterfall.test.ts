@@ -78,4 +78,19 @@ describe('buildWaterfall', () => {
     expect(findRow(rows, 'font')?.url).toContain('cyrillic');
     expect(findRow(rows, 'font (second)')?.url).toContain('latin');
   });
+
+  it('shows a revalidation as its own row and keeps the full download in the key file row', () => {
+    const rows = buildWaterfall([
+      createRequest('worker-XkuRDHIr.js', 100, { bytes: 32_000 }),
+      createRequest('worker-XkuRDHIr.js', 900, { bytes: 300, isRevalidated: true }),
+    ]);
+
+    expect(findRow(rows, 'worker wrapper')?.bytes).toBe(32_000);
+    expect(findRow(rows, 'worker script')).toBeUndefined();
+    expect(rows.filter(row => row.label === 'revalidation (304)').map(row => row.request?.startAt)).toEqual([900]);
+  });
+
+  it('adds no revalidation rows when there were none', () => {
+    expect(buildWaterfall([createRequest('index-Ka_enA0r.js', 10)]).some(row => row.label === 'revalidation (304)')).toBe(false);
+  });
 });

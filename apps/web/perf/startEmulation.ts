@@ -22,6 +22,7 @@ export interface IEmulation {
   collectOpenRequests: (timeOriginMs: number) => OpenRequestValue[];
   collectRequests: (timeOriginMs: number) => RequestValue[];
   detach: () => Promise<void>;
+  readDocumentProtocol: () => string | undefined;
   readServiceWorkerThrottling: () => Promise<ServiceWorkerThrottlingValue>;
 }
 
@@ -103,6 +104,9 @@ export const startEmulation = async (
         console.log('> startEmulation -> detach:', { error: String(error) });
       });
       await serviceWorkerWatch?.detach();
+    },
+    readDocumentProtocol(): string | undefined {
+      return pageRecorder.readFirstProtocol();
     },
     async readServiceWorkerThrottling(): Promise<ServiceWorkerThrottlingValue> {
       return await serviceWorkerWatch?.readThrottling() ?? { isThrottled: null, note: 'absent' };

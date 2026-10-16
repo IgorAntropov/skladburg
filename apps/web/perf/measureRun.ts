@@ -25,6 +25,7 @@ const SETTLE_MS = 1500;
 const POLLING_INTERVAL_MS = 100;
 
 export interface MeasuredRunValue {
+  documentProtocol: string | undefined;
   page: Page;
   run: RunValue;
 }
@@ -87,6 +88,7 @@ export const measureRun = async ({ baseUrl, context, profile, runLabel }: Measur
   const snapshot = await page.evaluate<ProbeSnapshotValue>(READ_PROBE_SNAPSHOT_SCRIPT);
   const requests = emulation.collectRequests(snapshot.timeOrigin);
   const openRequests = emulation.collectOpenRequests(snapshot.timeOrigin);
+  const documentProtocol = emulation.readDocumentProtocol();
   const serviceWorkerThrottling = await emulation.readServiceWorkerThrottling();
   const run = buildRunValue({
     isServiceWorkerThrottled: serviceWorkerThrottling.isThrottled,
@@ -99,5 +101,5 @@ export const measureRun = async ({ baseUrl, context, profile, runLabel }: Measur
 
   await emulation.detach();
 
-  return { page, run };
+  return { documentProtocol, page, run };
 };

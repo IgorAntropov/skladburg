@@ -18,16 +18,25 @@ export interface CriticalPreloadHtmlContextValue {
   chunk?: undefined | { fileName: string };
 }
 
+export interface CriticalPreloadHtmlResultValue {
+  html: string;
+  tags: HtmlTagDescriptor[];
+}
+
 export interface CriticalPreloadOptionsValue {
+  deferredEntries: readonly string[];
+  deferredTrigger: DeferredTriggerValue;
   entries: readonly CriticalPreloadEntryValue[];
   isDemoTransport: boolean;
+  unhintedEntries: readonly string[];
+  workerDynamicEntries: readonly string[];
   workerEntries: readonly string[];
 }
 
 export type CriticalPreloadPluginValue = Omit<Plugin, 'configResolved' | 'transformIndexHtml'> & {
   configResolved: (config: { base: string }) => void;
   transformIndexHtml: {
-    handler: (html: string, context: CriticalPreloadHtmlContextValue) => HtmlTagDescriptor[];
+    handler: (html: string, context: CriticalPreloadHtmlContextValue) => CriticalPreloadHtmlResultValue;
     order: 'post';
   };
 };
@@ -40,6 +49,8 @@ export interface CriticalPreloadValue {
 export type CriticalPreloadWorkerPluginValue = Omit<Plugin, 'generateBundle'> & {
   generateBundle: (options: unknown, bundle: CriticalPreloadBundleValue) => void;
 };
+
+export type DeferredTriggerValue = 'entry' | 'stylesheet-or-entry' | { preloadOf: string };
 
 export interface PreloadChunkValue {
   fileName: string;

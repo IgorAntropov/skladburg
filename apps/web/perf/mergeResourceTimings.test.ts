@@ -77,3 +77,80 @@ describe('mergeResourceTimings', () => {
     expect(merged).toMatchObject([{ endAt: 700, startAt: 120 }]);
   });
 });
+
+describe('mergeResourceTimings revalidation', () => {
+  const WORKER_URL = 'https://host/worker.js';
+
+  it('adds the second request for a known URL when it starts at another time, and marks it as a 304', () => {
+    const merged = mergeResourceTimings(
+      [{ ...createRequest(WORKER_URL, 660), bytes: 32_000, endAt: 1100 }],
+      [{ startAt: 1400, url: WORKER_URL }],
+      [
+        { encodedBodySize: 31_900, endAt: 1100, startAt: 662, transferSize: 32_200, url: WORKER_URL },
+        { encodedBodySize: 31_900, endAt: 1700, startAt: 1405, transferSize: 300, url: WORKER_URL },
+      ],
+    );
+
+    expect(merged).toHaveLength(2);
+    expect(merged[0]).toMatchObject({ bytes: 32_000, startAt: 660 });
+    expect(merged[0]?.isRevalidated).toBeUndefined();
+    expect(merged[1]).toEqual({
+      bytes: 300,
+      endAt: 1700,
+      fromCache: false,
+      isRevalidated: true,
+      startAt: 1400,
+      target: 'page',
+      url: WORKER_URL,
+    });
+  });
+
+  it('marks a network-log request as revalidated when its timing entry shows a conditional answer', () => {
+    const merged = mergeResourceTimings(
+      [{ ...createRequest('https://host/a.js', 100), bytes: 310 }],
+      [],
+      [{ encodedBodySize: 40_000, endAt: 300, startAt: 105, transferSize: 310, url: 'https://host/a.js' }],
+    );
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({ bytes: 310, isRevalidated: true });
+  });
+
+  it('pairs two entries with two requests of one URL by nearest start, not by order of arrival', () => {
+    const merged = mergeResourceTimings(
+      [createRequest(WORKER_URL, 900), createRequest(WORKER_URL, 100)],
+      [],
+      [
+        { encodedBodySize: 5000, endAt: 400, startAt: 104, transferSize: 5300, url: WORKER_URL },
+        { encodedBodySize: 5000, endAt: 1200, startAt: 903, transferSize: 300, url: WORKER_URL },
+      ],
+    );
+
+    expect(merged).toHaveLength(2);
+    expect(merged.map(request => request.isRevalidated)).toEqual([undefined, true]);
+  });
+
+  it('does not call a full download or a cache hit a revalidation', () => {
+    const merged = mergeResourceTimings(
+      [],
+      [],
+      [
+        { encodedBodySize: 5000, endAt: 400, startAt: 100, transferSize: 5300, url: 'https://host/full.js' },
+        { encodedBodySize: 5000, endAt: 400, startAt: 100, transferSize: 0, url: 'https://host/cached.js' },
+      ],
+    );
+
+    expect(merged.map(request => request.isRevalidated)).toEqual([undefined, undefined]);
+  });
+
+  it('treats a far-away entry of a known URL as another request instead of dropping it', () => {
+    const merged = mergeResourceTimings(
+      [createRequest('https://host/a.js', 100)],
+      [],
+      [{ encodedBodySize: 4000, endAt: 3300, startAt: 3000, transferSize: 300, url: 'https://host/a.js' }],
+    );
+
+    expect(merged).toHaveLength(2);
+    expect(merged[1]).toMatchObject({ isRevalidated: true, startAt: 3000 });
+  });
+});

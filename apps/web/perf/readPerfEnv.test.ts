@@ -11,6 +11,8 @@ describe('readPerfEnv', () => {
     expect(readPerfEnv({})).toEqual({
       baseUrl: undefined,
       coldRunCount: 7,
+      pagesSkeletonBaselineMs: undefined,
+      previewProtocol: 'h2',
       profileNames: undefined,
       reportFile: undefined,
       warmRunCount: 5,
@@ -44,5 +46,16 @@ describe('readPerfEnv', () => {
   it('ends the base address with a slash exactly once', () => {
     expect(readPerfEnv({ PERF_BASE_URL: 'https://example.test/app' }).baseUrl).toBe('https://example.test/app/');
     expect(readPerfEnv({ PERF_BASE_URL: 'https://example.test/app/' }).baseUrl).toBe('https://example.test/app/');
+  });
+
+  it('reads the preview protocol and the Pages skeleton baseline', () => {
+    expect(readPerfEnv({ PERF_PAGES_SKELETON_BASELINE_MS: '972', PERF_PREVIEW_PROTOCOL: 'h1' })).toMatchObject({
+      pagesSkeletonBaselineMs: 972,
+      previewProtocol: 'h1',
+    });
+  });
+
+  it.each(['0', '-5', 'fast'])('rejects PERF_PAGES_SKELETON_BASELINE_MS "%s"', (value) => {
+    expect(() => readPerfEnv({ PERF_PAGES_SKELETON_BASELINE_MS: value })).toThrow(/PERF_PAGES_SKELETON_BASELINE_MS/);
   });
 });

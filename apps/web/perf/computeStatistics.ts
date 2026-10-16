@@ -9,10 +9,15 @@ export const METRIC_NAMES: readonly MetricNameValue[] = [
   'ttfb',
   'fcp',
   'skeletonShown',
+  'entryStart',
+  'skeletonFromEntry',
   'lcp',
   'workerCreated',
   'engineReady',
   'firstScreenReady',
+  'firstScreenFromEntry',
+  'entrySharingBytes',
+  'entrySharingMs',
   'sceneFirstFrame',
   'longTaskCount',
   'longTaskExcessMs',
@@ -55,7 +60,7 @@ export const summarizeMetric = (values: readonly (null | number)[]): MetricSumma
 };
 
 export const summarizeSeries = (runs: readonly RunValue[]): SeriesSummaryValue => {
-  const entries = METRIC_NAMES.map(name => [name, summarizeMetric(runs.map(run => run[name]))] as const);
+  const entries = METRIC_NAMES.map(name => [name, summarizeMetric(runs.map(run => run[name] ?? null))] as const);
 
   return Object.fromEntries(entries) as SeriesSummaryValue;
 };

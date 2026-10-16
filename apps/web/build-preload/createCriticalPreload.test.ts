@@ -13,6 +13,7 @@ import type { TempWorkspaceValue } from '../build-licenses/createTempWorkspace.t
 import type {
   CriticalPreloadBundleValue,
   CriticalPreloadEntryValue,
+  CriticalPreloadHtmlResultValue,
   CriticalPreloadOptionsValue,
 } from './criticalPreloadTypes.ts';
 
@@ -22,6 +23,8 @@ import { createCriticalPreload } from './createCriticalPreload.ts';
 const BASE = '/app/';
 
 const WORKER_ENTRY = 'demo-engine/src/host/worker.ts';
+
+const ENGINE_ENTRY = 'demo-engine/src/core/engine/index.ts';
 
 const MOUNT_ENTRY: CriticalPreloadEntryValue = { entry: 'src/mountApp.ts', isRequired: true };
 
@@ -34,6 +37,8 @@ const HTML = [
   '<link rel="stylesheet" crossorigin href="/app/assets/index.css">',
   '</head><body></body></html>',
 ].join('\n');
+
+const INDEX_CONTEXT = { chunk: { fileName: 'assets/index.js' } };
 
 const createChunkOutput = (
   fileName: string,
@@ -71,7 +76,14 @@ const createBundle = (): CriticalPreloadBundleValue => ({
 });
 
 const createWorkerBundle = (): CriticalPreloadBundleValue => ({
-  'assets/engine.js': createChunkOutput('assets/engine.js', { isDynamicEntry: true }),
+  'assets/engine.js': createChunkOutput('assets/engine.js', {
+    isDynamicEntry: true,
+    moduleIds: ['/repo/demo-engine/src/core/engine/index.ts'],
+  }),
+  'assets/validator.js': createChunkOutput('assets/validator.js', {
+    isDynamicEntry: true,
+    moduleIds: ['/repo/demo-engine/src/core/validator/index.ts'],
+  }),
   'assets/worker.js': createChunkOutput('assets/worker.js', {
     isEntry: true,
     moduleIds: ['/repo/demo-engine/src/host/worker.ts?worker_file&type=module'],
@@ -80,8 +92,12 @@ const createWorkerBundle = (): CriticalPreloadBundleValue => ({
 
 const createPreload = (overrides: Partial<CriticalPreloadOptionsValue> = {}): ReturnType<typeof createCriticalPreload> =>
   createCriticalPreload({
+    deferredEntries: [],
+    deferredTrigger: 'stylesheet-or-entry',
     entries: [MOUNT_ENTRY, DEMO_ENTRY],
     isDemoTransport: true,
+    unhintedEntries: [],
+    workerDynamicEntries: [ENGINE_ENTRY],
     workerEntries: [WORKER_ENTRY],
     ...overrides,
   });
@@ -95,6 +111,12 @@ const prepare = (overrides: Partial<CriticalPreloadOptionsValue> = {}): ReturnTy
   return preload;
 };
 
+const transform = (overrides: Partial<CriticalPreloadOptionsValue> = {}, html = HTML): CriticalPreloadHtmlResultValue => {
+  vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+  return prepare(overrides).plugin.transformIndexHtml.handler(html, { bundle: createBundle(), ...INDEX_CONTEXT });
+};
+
 const readHref = (tag: HtmlTagDescriptor): string => {
   const href = tag.attrs?.href;
 
@@ -102,7 +124,26 @@ const readHref = (tag: HtmlTagDescriptor): string => {
 };
 
 const describeTags = (tags: readonly HtmlTagDescriptor[]): string[] =>
-  tags.map(tag => `${readHref(tag)}${tag.attrs?.fetchpriority === 'low' ? ' low' : ''}`);
+  tags.map(tag => tag.tag === 'script' ? 'inline script' : `${readHref(tag)}${tag.attrs?.fetchpriority === 'low' ? ' low' : ''}`);
+
+const readInlineScript = (tags: readonly HtmlTagDescriptor[]): string => {
+  const children = tags.find(tag => tag.tag === 'script')?.children;
+
+  return typeof children === 'string' ? children : '';
+};
+
+const DEFERRED_V3 = [WORKER_ENTRY, ENGINE_ENTRY];
+
+const TRIGGER_LIST_PATTERN = /s=(\[(?:"(?:[^"\\]|\\.)*",?)*\])/;
+
+const readStringList = (script: string, pattern: RegExp): string[] => {
+  const list: unknown = JSON.parse(pattern.exec(script)?.[1] ?? '[]');
+
+  return Array.isArray(list) ? list.map(String) : [];
+};
+
+const readTriggerSelectors = (tags: readonly HtmlTagDescriptor[]): string[] =>
+  readStringList(readInlineScript(tags), TRIGGER_LIST_PATTERN);
 
 describe('createCriticalPreload plugin', () => {
   afterEach(() => {
@@ -110,14 +151,7 @@ describe('createCriticalPreload plugin', () => {
   });
 
   it('puts the main thread links before the worker links with the worker links at low priority', () => {
-    vi.spyOn(console, 'log').mockImplementation(() => undefined);
-
-    const tags = prepare().plugin.transformIndexHtml.handler(HTML, {
-      bundle: createBundle(),
-      chunk: { fileName: 'assets/index.js' },
-    });
-
-    expect(describeTags(tags)).toEqual([
+    expect(describeTags(transform().tags)).toEqual([
       '/app/assets/mount.js',
       '/app/assets/errors.js',
       '/app/assets/demo.js',
@@ -128,27 +162,139 @@ describe('createCriticalPreload plugin', () => {
     ]);
   });
 
-  it('makes module preload links in the cross origin mode of the module scripts of the page', () => {
-    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  it('keeps the script of the worker and the engine out of the page when they are deferred and then adds the inline script', () => {
+    expect(describeTags(transform({ deferredEntries: DEFERRED_V3 }).tags)).toEqual([
+      '/app/assets/mount.js',
+      '/app/assets/errors.js',
+      '/app/assets/demo.js',
+      '/app/assets/constants.js',
+      '/app/assets/worker-wrapper.js',
+      'inline script',
+    ]);
+  });
 
-    const tags = prepare().plugin.transformIndexHtml.handler(HTML, {
-      bundle: createBundle(),
-      chunk: { fileName: 'assets/index.js' },
+  it('lists the deferred files in the inline script with the base of the build', () => {
+    const script = readInlineScript(transform({ deferredEntries: DEFERRED_V3 }).tags);
+
+    expect(script).toContain('["/app/assets/worker.js","/app/assets/engine.js"]');
+  });
+
+  it('waits for the stylesheet and then the entry script with the stylesheet trigger', () => {
+    const { tags } = transform({ deferredEntries: DEFERRED_V3 });
+
+    expect(readTriggerSelectors(tags)).toEqual(['link[href="/app/assets/index.css"]', 'script[src="/app/assets/index.js"]']);
+  });
+
+  it('waits for the entry script only with the stylesheet trigger when the page has no stylesheet', () => {
+    const html = HTML.replace('<link rel="stylesheet" crossorigin href="/app/assets/index.css">', '');
+    const { tags } = transform({ deferredEntries: DEFERRED_V3 }, html);
+
+    expect(readTriggerSelectors(tags)).toEqual(['script[src="/app/assets/index.js"]']);
+  });
+
+  it('waits for the entry script only with the entry trigger', () => {
+    const { tags } = transform({ deferredEntries: DEFERRED_V3, deferredTrigger: 'entry' });
+
+    expect(readTriggerSelectors(tags)).toEqual(['script[src="/app/assets/index.js"]']);
+  });
+
+  it('waits for the module preload of the point and then the entry script with the preload trigger', () => {
+    const { tags } = transform({ deferredEntries: DEFERRED_V3, deferredTrigger: { preloadOf: MOUNT_ENTRY.entry } });
+
+    expect(readTriggerSelectors(tags)).toEqual(['link[href="/app/assets/mount.js"]', 'script[src="/app/assets/index.js"]']);
+  });
+
+  it('waits for the module preload of the worker wrapper with the preload trigger', () => {
+    const { tags } = transform({
+      deferredEntries: DEFERRED_V3,
+      deferredTrigger: { preloadOf: `${WORKER_ENTRY}?worker` },
     });
 
-    expect(tags.every(tag => tag.tag === 'link' && tag.injectTo === 'head')).toBe(true);
-    expect(tags.every(tag => tag.attrs?.rel === 'modulepreload' && tag.attrs.crossorigin === true)).toBe(true);
+    expect(readTriggerSelectors(tags)[0]).toBe('link[href="/app/assets/worker-wrapper.js"]');
+  });
+
+  it('waits for the module preload that is already in the page with the preload trigger', () => {
+    const html = HTML.replace('</head>', '<link rel="modulepreload" crossorigin href="/app/assets/mount.js"></head>');
+    const { tags } = transform({ deferredEntries: DEFERRED_V3, deferredTrigger: { preloadOf: MOUNT_ENTRY.entry } }, html);
+
+    expect(describeTags(tags)).not.toContain('/app/assets/mount.js');
+    expect(readTriggerSelectors(tags)[0]).toBe('link[href="/app/assets/mount.js"]');
+  });
+
+  it('logs the selectors of the trigger', () => {
+    const reports: unknown[] = [];
+
+    vi.spyOn(console, 'log').mockImplementation((_label: unknown, report: unknown) => {
+      reports.push(report);
+    });
+
+    prepare({ deferredEntries: DEFERRED_V3 }).plugin.transformIndexHtml.handler(HTML, {
+      bundle: createBundle(),
+      ...INDEX_CONTEXT,
+    });
+
+    expect(reports[0]).toMatchObject({
+      deferredTriggers: ['link[href="/app/assets/index.css"]', 'script[src="/app/assets/index.js"]'],
+    });
+  });
+
+  it('defers only the engine and leaves the script of the worker on the page at low priority', () => {
+    expect(describeTags(transform({ deferredEntries: [ENGINE_ENTRY] }).tags).slice(-2)).toEqual([
+      '/app/assets/worker.js low',
+      'inline script',
+    ]);
+  });
+
+  it('hints neither on the page nor later the entries it is told not to hint', () => {
+    const { tags } = transform({ deferredEntries: [ENGINE_ENTRY], unhintedEntries: [WORKER_ENTRY] });
+
+    expect(describeTags(tags)).not.toContain('/app/assets/worker.js low');
+    expect(readInlineScript(tags)).not.toContain('worker.js');
+    expect(readInlineScript(tags)).toContain('/app/assets/engine.js');
+  });
+
+  it('defers the main thread entries of the variant with the page hinting only the first one', () => {
+    const { tags } = transform({ deferredEntries: [DEMO_ENTRY.entry, `${WORKER_ENTRY}?worker`, WORKER_ENTRY, ENGINE_ENTRY] });
+
+    expect(describeTags(tags)).toEqual(['/app/assets/mount.js', '/app/assets/errors.js', 'inline script']);
+    expect(readInlineScript(tags)).toContain(
+      '["/app/assets/demo.js","/app/assets/constants.js","/app/assets/worker-wrapper.js","/app/assets/worker.js","/app/assets/engine.js"]',
+    );
+  });
+
+  it('puts no lazy chunk of the worker outside the listed points into the page or the inline script', () => {
+    const { html, tags } = transform({ deferredEntries: DEFERRED_V3 });
+
+    expect(html).not.toContain('validator.js');
+    expect(describeTags(tags).join()).not.toContain('validator.js');
+    expect(readInlineScript(tags)).not.toContain('validator.js');
+  });
+
+  it('marks the entry script and the stylesheet with the high fetch priority', () => {
+    const { html } = transform();
+
+    expect(html).toContain('<script fetchpriority="high" type="module" crossorigin src="/app/assets/index.js"></script>');
+    expect(html).toContain('<link fetchpriority="high" rel="stylesheet" crossorigin href="/app/assets/index.css">');
+    expect(html.match(/fetchpriority="high"/g)).toHaveLength(2);
+  });
+
+  it('makes module preload links in the cross origin mode of the module scripts of the page', () => {
+    const links = transform({ deferredEntries: DEFERRED_V3 }).tags.filter(tag => tag.tag === 'link');
+
+    expect(links.every(tag => tag.injectTo === 'head')).toBe(true);
+    expect(links.every(tag => tag.attrs?.rel === 'modulepreload' && tag.attrs.crossorigin === true)).toBe(true);
+  });
+
+  it('puts the inline script after every link and into the head', () => {
+    const { tags } = transform({ deferredEntries: DEFERRED_V3 });
+
+    expect(tags.at(-1)).toMatchObject({ injectTo: 'head', tag: 'script' });
+    expect(tags.slice(0, -1).every(tag => tag.tag === 'link')).toBe(true);
   });
 
   it('does not repeat the chunks of the initial graph and the links already in the page', () => {
-    vi.spyOn(console, 'log').mockImplementation(() => undefined);
-
     const html = HTML.replace('</head>', '<link rel="modulepreload" crossorigin href="/app/assets/errors.js"></head>');
-    const tags = prepare().plugin.transformIndexHtml.handler(html, {
-      bundle: createBundle(),
-      chunk: { fileName: 'assets/index.js' },
-    });
-    const hrefs = describeTags(tags);
+    const hrefs = describeTags(transform({}, html).tags);
 
     expect(hrefs).not.toContain('/app/assets/react.js');
     expect(hrefs).not.toContain('/app/assets/index.js');
@@ -156,39 +302,32 @@ describe('createCriticalPreload plugin', () => {
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
-  it('puts the links under the base of the build', () => {
+  it('puts the links and the inline script under the base of the build', () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    const preload = createPreload();
+    const preload = createPreload({ deferredEntries: DEFERRED_V3 });
+    const html = HTML.replaceAll('/app/', '/skladburg/');
 
     preload.plugin.configResolved({ base: '/skladburg' });
     preload.workerPlugin().generateBundle({}, createWorkerBundle());
 
-    const tags = preload.plugin.transformIndexHtml.handler(HTML, {
-      bundle: createBundle(),
-      chunk: { fileName: 'assets/index.js' },
-    });
+    const { tags } = preload.plugin.transformIndexHtml.handler(html, { bundle: createBundle(), ...INDEX_CONTEXT });
 
     expect(describeTags(tags)[0]).toBe('/skladburg/assets/mount.js');
+    expect(readInlineScript(tags)).toContain('["/skladburg/assets/worker.js","/skladburg/assets/engine.js"]');
   });
 
-  it('hints only the main entry without the demo transport', () => {
-    vi.spyOn(console, 'log').mockImplementation(() => undefined);
-
-    const tags = prepare({ isDemoTransport: false }).plugin.transformIndexHtml.handler(HTML, {
-      bundle: createBundle(),
-      chunk: { fileName: 'assets/index.js' },
-    });
+  it('hints only the main entry without the demo transport and adds no inline script', () => {
+    const { html, tags } = transform({ deferredEntries: DEFERRED_V3, isDemoTransport: false });
 
     expect(describeTags(tags)).toEqual(['/app/assets/mount.js', '/app/assets/errors.js']);
+    expect(html).toContain('fetchpriority="high" type="module"');
   });
 
   it('fails when the bundle has no required entry', () => {
     const bundle = Object.fromEntries(Object.entries(createBundle()).filter(([fileName]) => fileName !== 'assets/mount.js'));
 
-    expect(() => prepare().plugin.transformIndexHtml.handler(HTML, { bundle, chunk: { fileName: 'assets/index.js' } })).toThrow(
-      'src/mountApp.ts',
-    );
+    expect(() => prepare().plugin.transformIndexHtml.handler(HTML, { bundle, ...INDEX_CONTEXT })).toThrow('src/mountApp.ts');
   });
 
   it('fails when the engine worker was not built before the page', () => {
@@ -196,29 +335,102 @@ describe('createCriticalPreload plugin', () => {
 
     preload.plugin.configResolved({ base: BASE });
 
-    expect(() =>
-      preload.plugin.transformIndexHtml.handler(HTML, { bundle: createBundle(), chunk: { fileName: 'assets/index.js' } }),
-    ).toThrow('the worker bundle of demo-engine/src/host/worker.ts');
+    expect(() => preload.plugin.transformIndexHtml.handler(HTML, { bundle: createBundle(), ...INDEX_CONTEXT })).toThrow(
+      'the worker bundle of demo-engine/src/host/worker.ts',
+    );
+  });
+
+  it('fails when a dynamic point of the worker is missing from the worker bundle', () => {
+    const preload = createPreload({ workerDynamicEntries: [ENGINE_ENTRY, 'demo-engine/src/core/missing.ts'] });
+
+    preload.plugin.configResolved({ base: BASE });
+    preload.workerPlugin().generateBundle({}, createWorkerBundle());
+
+    expect(() => preload.plugin.transformIndexHtml.handler(HTML, { bundle: createBundle(), ...INDEX_CONTEXT })).toThrow(
+      'demo-engine/src/core/missing.ts in the worker bundle',
+    );
+  });
+
+  it('fails when the page has no script with the address of the entry', () => {
+    const html = HTML.replace('<script type="module" crossorigin src="/app/assets/index.js"></script>', '');
+
+    expect(() => transform({}, html)).toThrow('the page has no entry script with the address /app/assets/index.js');
+  });
+
+  it('fails when a deferred list names an entry the plugin does not know', () => {
+    expect(() => createPreload({ deferredEntries: ['src/missing.ts'] })).toThrow(
+      'Critical preload: deferredEntries names entries the plugin does not know: src/missing.ts',
+    );
+  });
+
+  it('fails when a list of unhinted entries names an entry the plugin does not know', () => {
+    expect(() => createPreload({ unhintedEntries: ['src/missing.ts'] })).toThrow('unhintedEntries');
+  });
+
+  it('fails when the preload trigger names an entry the plugin does not know', () => {
+    expect(() => createPreload({ deferredTrigger: { preloadOf: 'src/missing.ts' } })).toThrow(
+      'Critical preload: deferredTrigger names entries the plugin does not know: src/missing.ts',
+    );
+  });
+
+  it('fails when the preload trigger names a point that is deferred or not hinted', () => {
+    expect(() => createPreload({ deferredEntries: DEFERRED_V3, deferredTrigger: { preloadOf: ENGINE_ENTRY } })).toThrow(
+      'deferredTrigger names demo-engine/src/core/engine/index.ts which the page does not hint',
+    );
+    expect(() => createPreload({ deferredTrigger: { preloadOf: DEMO_ENTRY.entry }, unhintedEntries: [DEMO_ENTRY.entry] })).toThrow(
+      'which the page does not hint',
+    );
+  });
+
+  it('fails when the point of the preload trigger has no module preload link on the page', () => {
+    const bundle = Object.fromEntries(Object.entries(createBundle()).filter(([fileName]) => fileName !== 'assets/mount.js'));
+    const preload = prepare({
+      deferredEntries: DEFERRED_V3,
+      deferredTrigger: { preloadOf: MOUNT_ENTRY.entry },
+      entries: [{ ...MOUNT_ENTRY, isRequired: false }, DEMO_ENTRY],
+    });
+
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    expect(() => preload.plugin.transformIndexHtml.handler(HTML, { bundle, ...INDEX_CONTEXT })).toThrow(
+      'deferredTrigger names src/mountApp.ts which has no module preload link on the page',
+    );
+  });
+
+  it('does not check the preload trigger without the demo transport where there is no inline script', () => {
+    const { tags } = transform({
+      deferredEntries: DEFERRED_V3,
+      deferredTrigger: { preloadOf: DEMO_ENTRY.entry },
+      isDemoTransport: false,
+    });
+
+    expect(tags.some(tag => tag.tag === 'script')).toBe(false);
   });
 
   it('adds no links when the page has no bundle', () => {
-    expect(prepare().plugin.transformIndexHtml.handler(HTML, {})).toEqual([]);
+    expect(prepare().plugin.transformIndexHtml.handler(HTML, {})).toEqual({ html: HTML, tags: [] });
   });
 
-  it('logs the size of the main thread links and of the worker links', () => {
+  it('logs the size of the main thread links, of the worker links, of the deferred links and of the inline script', () => {
     const reports: unknown[] = [];
 
     vi.spyOn(console, 'log').mockImplementation((_label: unknown, report: unknown) => {
       reports.push(report);
     });
 
-    prepare().plugin.transformIndexHtml.handler(HTML, { bundle: createBundle(), chunk: { fileName: 'assets/index.js' } });
+    const { tags } = prepare({ deferredEntries: [ENGINE_ENTRY] }).plugin.transformIndexHtml.handler(HTML, {
+      bundle: createBundle(),
+      ...INDEX_CONTEXT,
+    });
 
     expect(reports).toHaveLength(1);
     expect(reports[0]).toMatchObject({
+      deferred: { files: [expect.stringContaining('assets/engine.js') as unknown] },
+      inlineScriptBytes: Buffer.byteLength(readInlineScript(tags)),
       mainThread: { files: expect.arrayContaining([expect.stringContaining('assets/mount.js')]) as unknown },
-      worker: { files: [expect.stringContaining('assets/worker.js') as unknown, expect.stringContaining('assets/engine.js') as unknown] },
+      worker: { files: [expect.stringContaining('assets/worker.js') as unknown] },
     });
+    expect(Buffer.byteLength(readInlineScript(tags))).toBeGreaterThan(0);
   });
 
   it('keeps the entry of the worker recorded by the plugin of the worker bundle only', () => {
@@ -234,7 +446,7 @@ describe('createCriticalPreload plugin', () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
     const hrefs = describeTags(
-      preload.plugin.transformIndexHtml.handler(HTML, { bundle: createBundle(), chunk: { fileName: 'assets/index.js' } }),
+      preload.plugin.transformIndexHtml.handler(HTML, { bundle: createBundle(), ...INDEX_CONTEXT }).tags,
     );
 
     expect(hrefs).toContain('/app/assets/worker.js low');
@@ -257,7 +469,16 @@ const createWorkspace = (): TempWorkspaceValue => {
       '',
     ].join('\n'),
   );
-  workspace.writeFile('main.ts', 'document.title = "main";\nimport("./src/mountApp.ts").then(module => module.mountApp());\n');
+  workspace.writeFile('style.css', 'body { margin: 0; }\n');
+  workspace.writeFile(
+    'main.ts',
+    [
+      'import "./style.css";',
+      'document.title = "main";',
+      'import("./src/mountApp.ts").then(module => module.mountApp());',
+      '',
+    ].join('\n'),
+  );
   workspace.writeFile(
     'src/mountApp.ts',
     [
@@ -278,14 +499,24 @@ const createWorkspace = (): TempWorkspaceValue => {
       '',
     ].join('\n'),
   );
-  workspace.writeFile('demo-engine/src/host/worker.ts', 'import("./core.ts").then(core => core.start());\n');
+  workspace.writeFile(
+    'demo-engine/src/host/worker.ts',
+    [
+      'import("./core.ts").then(core => core.start());',
+      'self.addEventListener("message", () => import("./extra.ts").then(extra => extra.run()));',
+      '',
+    ].join('\n'),
+  );
   workspace.writeFile('demo-engine/src/host/core.ts', 'export const start = () => self.postMessage(Math.random());\n');
+  workspace.writeFile('demo-engine/src/host/extra.ts', 'export const run = () => self.postMessage("extra" + Math.random());\n');
 
   return workspace;
 };
 
+const CORE_ENTRY = 'demo-engine/src/host/core.ts';
+
 const buildHtml = async (workspace: TempWorkspaceValue, options: Partial<CriticalPreloadOptionsValue> = {}): Promise<string> => {
-  const preload = createPreload(options);
+  const preload = createPreload({ workerDynamicEntries: [CORE_ENTRY], ...options });
   const result = await build({
     base: BASE,
     build: { rolldownOptions: { input: 'index.html' }, write: false },
@@ -305,11 +536,18 @@ const buildHtml = async (workspace: TempWorkspaceValue, options: Partial<Critica
   return html.source;
 };
 
+const readChunkName = (href: string): string => /\/app\/assets\/([a-zA-Z]+)-/.exec(href)?.[1] ?? '?';
+
 const readPreloads = (html: string): string[] =>
   [...html.matchAll(/<link\b[^>]*>/g)]
     .map(match => match[0])
     .filter(tag => tag.includes('rel="modulepreload"'))
-    .map(tag => `${/href="\/app\/assets\/([a-zA-Z]+)-/.exec(tag)?.[1] ?? '?'}${tag.includes('fetchpriority="low"') ? ' low' : ''}`);
+    .map(tag => `${readChunkName(/href="([^"]*)"/.exec(tag)?.[1] ?? '')}${tag.includes('fetchpriority="low"') ? ' low' : ''}`);
+
+const readDeferredHrefs = (html: string): string[] =>
+  readStringList(html, /var d=0,u=(\[[^\]]*\])/).map(readChunkName);
+
+const readTriggerSelectorsOfPage = (html: string): string[] => readStringList(html, TRIGGER_LIST_PATTERN);
 
 describe('createCriticalPreload in a build', () => {
   afterEach(() => {
@@ -320,20 +558,83 @@ describe('createCriticalPreload in a build', () => {
     vi.restoreAllMocks();
   });
 
-  it('builds the worker before the page and hints both graphs', async () => {
+  it('builds the worker before the page and hints the startup path of both graphs but not a lazy chunk of the worker', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    const preloads = readPreloads(await buildHtml(createWorkspace()));
+    const html = await buildHtml(createWorkspace());
 
-    expect(preloads).toEqual(['mountApp', 'demo', 'worker', 'worker low', 'core low']);
+    expect(readPreloads(html)).toEqual(['mountApp', 'demo', 'worker', 'worker low', 'core low']);
+    expect(html).not.toContain('extra-');
   });
 
-  it('hints only the main entry of the build without the demo transport', async () => {
+  it('moves the script of the worker and its dynamic point behind the entry script', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    const preloads = readPreloads(await buildHtml(createWorkspace(), { entries: [MOUNT_ENTRY], isDemoTransport: false }));
+    const html = await buildHtml(createWorkspace(), { deferredEntries: ['demo-engine/src/host/worker.ts', CORE_ENTRY] });
 
-    expect(preloads).toEqual(['mountApp']);
+    expect(readPreloads(html)).toEqual(['mountApp', 'demo', 'worker']);
+    expect(readDeferredHrefs(html)).toEqual(['worker', 'core']);
+    expect(html).not.toContain('extra-');
+    expect(html.lastIndexOf('<script>')).toBeGreaterThan(html.lastIndexOf('<link'));
+    expect(html.indexOf('<script>')).toBeLessThan(html.indexOf('</head>'));
+  });
+
+  it('waits for the stylesheet of the build and then the entry script with the stylesheet trigger', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    const html = await buildHtml(createWorkspace(), { deferredEntries: ['demo-engine/src/host/worker.ts', CORE_ENTRY] });
+
+    const [stylesheetSelector, entrySelector] = readTriggerSelectorsOfPage(html);
+
+    expect(stylesheetSelector).toMatch(/^link\[href="\/app\/assets\/index-[^"]+\.css"\]$/);
+    expect(entrySelector).toMatch(/^script\[src="\/app\/assets\/index-[^"]+\.js"\]$/);
+  });
+
+  it('waits for the module preload of the point of the build with the preload trigger', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    const html = await buildHtml(createWorkspace(), {
+      deferredEntries: ['demo-engine/src/host/worker.ts', CORE_ENTRY],
+      deferredTrigger: { preloadOf: MOUNT_ENTRY.entry },
+    });
+
+    const [preloadSelector, entrySelector] = readTriggerSelectorsOfPage(html);
+
+    expect(preloadSelector).toMatch(/^link\[href="\/app\/assets\/mountApp-[^"]+\.js"\]$/);
+    expect(entrySelector).toMatch(/^script\[src="\/app\/assets\/index-[^"]+\.js"\]$/);
+  });
+
+  it('marks the entry script of the build with the high fetch priority', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    const html = await buildHtml(createWorkspace());
+
+    expect(html).toMatch(/<script fetchpriority="high" type="module" crossorigin src="\/app\/assets\/index-[^"]+\.js"><\/script>/);
+  });
+
+  it('hints only the main entry of the build without the demo transport and adds no inline script', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    const html = await buildHtml(createWorkspace(), {
+      deferredEntries: ['demo-engine/src/host/worker.ts', CORE_ENTRY],
+      entries: [MOUNT_ENTRY],
+      isDemoTransport: false,
+    });
+
+    expect(readPreloads(html)).toEqual(['mountApp']);
+    expect(html).not.toContain('<script>');
+  });
+
+  it('fails the build when the point of the preload trigger has no module preload link on the page', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await expect(
+      buildHtml(createWorkspace(), {
+        deferredEntries: ['demo-engine/src/host/worker.ts', CORE_ENTRY],
+        deferredTrigger: { preloadOf: 'src/missing.ts' },
+        entries: [MOUNT_ENTRY, { entry: 'src/missing.ts', isRequired: false }],
+      }),
+    ).rejects.toThrow('deferredTrigger names src/missing.ts which has no module preload link on the page');
   });
 
   it('fails the build when a required entry is missing', async () => {
@@ -342,5 +643,13 @@ describe('createCriticalPreload in a build', () => {
     await expect(
       buildHtml(createWorkspace(), { entries: [MOUNT_ENTRY, { entry: 'src/missing.ts', isRequired: true }] }),
     ).rejects.toThrow('Critical preload: the bundle has no required entry: src/missing.ts');
+  });
+
+  it('fails the build when a dynamic point of the worker is missing', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await expect(
+      buildHtml(createWorkspace(), { workerDynamicEntries: ['demo-engine/src/host/missing.ts'] }),
+    ).rejects.toThrow('demo-engine/src/host/missing.ts in the worker bundle');
   });
 });

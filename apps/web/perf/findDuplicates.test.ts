@@ -56,4 +56,13 @@ describe('findDuplicates', () => {
 
     expect(duplicates).toEqual(['https://host/b.js', 'https://host/z.js']);
   });
+
+  it('does not count a conditional revalidation of a file as a second download', () => {
+    const duplicates = findDuplicates([
+      createRequest({ bytes: 32_000, url: 'https://host/worker.js' }),
+      createRequest({ bytes: 300, isRevalidated: true, startAt: 900, url: 'https://host/worker.js' }),
+    ]);
+
+    expect(duplicates).toEqual([]);
+  });
 });

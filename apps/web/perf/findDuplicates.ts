@@ -1,6 +1,8 @@
 import type { RequestValue } from './perfTypes.ts';
 
-export const isDownloadedFromNetwork = (request: RequestValue): boolean => !request.fromCache && request.bytes > 0;
+export const isDownloadedFromNetwork = (request: RequestValue): boolean => (
+  !request.fromCache && request.isRevalidated !== true && request.bytes > 0
+);
 
 export const findDuplicates = (requests: readonly RequestValue[]): string[] => {
   const downloadCounts = new Map<string, number>();

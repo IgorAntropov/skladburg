@@ -58,4 +58,18 @@ describe('routeNetworkEvent', () => {
 
     expect(recorder.toRequests(TIME_ORIGIN_MS)).toEqual([]);
   });
+
+  it('passes the protocol of the answer to the recorder', () => {
+    const recorder = createRequestRecorder('page');
+
+    routeNetworkEvent(recorder, 'Network.requestWillBeSent', {
+      request: { url: 'https://host/skladburg/' },
+      requestId: '1',
+      timestamp: 1,
+      wallTime: WALL_SECONDS,
+    });
+    routeNetworkEvent(recorder, 'Network.responseReceived', { requestId: '1', response: { protocol: 'h2' } });
+
+    expect(recorder.readFirstProtocol()).toBe('h2');
+  });
 });

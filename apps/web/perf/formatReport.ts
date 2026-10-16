@@ -30,10 +30,15 @@ const METRIC_ROWS: readonly MetricRowValue[] = [
   { label: 'TTFB, мс', name: 'ttfb' },
   { label: 'FCP, мс', name: 'fcp' },
   { label: 'Скелетон оболочки, мс', name: 'skeletonShown' },
+  { label: 'Старт запроса входного скрипта, мс', name: 'entryStart' },
+  { label: 'Скелетон от старта входного скрипта, мс', name: 'skeletonFromEntry' },
   { label: 'LCP, мс', name: 'lcp' },
   { label: 'Worker создан, мс', name: 'workerCreated' },
   { label: 'Движок готов, мс', name: 'engineReady' },
   { label: 'Первый экран готов, мс', name: 'firstScreenReady' },
+  { label: 'Первый экран от старта входного скрипта, мс', name: 'firstScreenFromEntry' },
+  { isBytes: true, label: 'Дележ канала с входным скриптом: КБ параллельно (оценка)', name: 'entrySharingBytes' },
+  { label: 'Дележ канала с входным скриптом: задержка, мс (оценка)', name: 'entrySharingMs' },
   { label: 'Первый кадр сцены, мс', name: 'sceneFirstFrame' },
   { label: 'Долгих задач до готовности', name: 'longTaskCount' },
   { label: 'Сумма сверх 50 мс, мс', name: 'longTaskExcessMs' },
@@ -197,6 +202,32 @@ const formatServiceWorkerThrottling = (profile: ProfileReportValue): string[] =>
   ];
 };
 
+const formatEntrySharing = (profile: ProfileReportValue, pagesSkeletonBaselineMs: number | undefined): string[] => {
+  const bytes = profile.summary.cold.entrySharingBytes.median;
+  const delayMs = profile.summary.cold.entrySharingMs.median;
+
+  if (bytes === null || delayMs === null) {
+    return ['Дележ канала с входным скриптом: нет данных, входной скрипт не запрашивался или отчёт снят прежней версией инструмента.'];
+  }
+
+  const lines = [
+    `Дележ канала с входным скриптом: ${formatNumber(bytes, true)} КБ параллельно, оценка задержки ≈ ${formatNumber(delayMs)} мс `
+    + '(медиана по холодным прогонам; сумма min(размер запроса, размер входного скрипта) по запросам страницы и Worker, '
+    + 'у которых первый байт (старт плюс задержка профиля) мог прийти до конца входного скрипта, без самого скрипта, '
+    + 'CSS и документа, делённая на полосу приёма профиля).',
+  ];
+
+  if (pagesSkeletonBaselineMs !== undefined && profile.name === MAIN_PROFILE_NAME) {
+    lines.push(
+      '',
+      `Прогноз скелетона Pages ≈ база + ${formatNumber(delayMs)} мс = ${formatNumber(pagesSkeletonBaselineMs + delayMs)} мс `
+      + `(база ${formatNumber(pagesSkeletonBaselineMs)} мс — скелетон «до» на Pages без подсказок).`,
+    );
+  }
+
+  return lines;
+};
+
 const formatProfileTable = (profile: ProfileReportValue): string[] => formatTable(
   ['Метрика', 'Холодный: медиана', 'мин', 'макс', 'Тёплый: медиана', 'мин', 'макс'],
   METRIC_ROWS.map(({ isBytes = false, label, name }) => [
@@ -294,7 +325,7 @@ const pickMainProfile = (report: PerfReportValue): ProfileReportValue | undefine
   report.profiles.find(profile => profile.name === MAIN_PROFILE_NAME) ?? report.profiles[0]
 );
 
-const formatProfileSection = (profile: ProfileReportValue): string[] => [
+const formatProfileSection = (profile: ProfileReportValue, pagesSkeletonBaselineMs: number | undefined): string[] => [
   `## Профиль ${profile.name}`,
   '',
   `Сеть: задержка ${String(profile.network.latencyMs)} мс, приём ${String(Math.round(profile.network.downloadBytesPerSecond))} Б/с, `
@@ -310,9 +341,22 @@ const formatProfileSection = (profile: ProfileReportValue): string[] => [
   '',
   ...formatSpread(profile),
   '',
+  ...formatEntrySharing(profile, pagesSkeletonBaselineMs),
+  '',
   '### Дубли',
   '',
+  'Полные тела, скачанные из сети больше одного раза. Перепроверка (304) — не дубль.',
+  '',
   ...formatFileCounts(profile, run => run.duplicates, 'дублей нет'),
+  '',
+  '### Перепроверки (304) до готовности',
+  '',
+  'Условные запросы, на которые сервер ответил «не изменялось»: тело берётся из кеша, но круг до сервера пройден. '
+  + 'Например, на превью Chromium перепроверяет верхний скрипт выделенного Worker, хотя он свежий в кеше; '
+  + 'на Pages такой перепроверки нет, причина не найдена. '
+  + 'В запросы и байты до готовности они не входят.',
+  '',
+  ...formatFileCounts(profile, run => run.revalidatedBeforeReady ?? [], 'перепроверок нет'),
   '',
   '### Повторные загрузки service worker',
   '',
@@ -322,6 +366,14 @@ const formatProfileSection = (profile: ProfileReportValue): string[] => [
   ...formatFileCounts(profile, run => run.serviceWorkerRepeats, 'повторов нет'),
   '',
 ];
+
+const formatMedianRunRevalidations = (run: RunValue): string => {
+  const files = run.revalidatedBeforeReady ?? [];
+
+  return files.length === 0
+    ? 'Перепроверки (304) до готовности: нет.'
+    : `Перепроверки (304) до готовности: ${String(files.length)} (${files.map(readLastSegment).join(', ')}).`;
+};
 
 const formatMainProfileSection = (profile: ProfileReportValue): string[] => {
   const medianRun = findMedianRun(profile.cold);
@@ -334,6 +386,8 @@ const formatMainProfileSection = (profile: ProfileReportValue): string[] => {
     `## Водопад ключевых файлов (${profile.name}, холодный старт, медианный прогон)`,
     '',
     ...formatWaterfall(medianRun),
+    '',
+    formatMedianRunRevalidations(medianRun),
     '',
     formatServiceWorkerSummary(medianRun),
     '',
@@ -348,23 +402,28 @@ export const formatMarkdownReport = (report: PerfReportValue, generatedAt: strin
   const mainProfile = pickMainProfile(report);
   const commit = report.target.commit === undefined ? '' : `, сборка ${report.target.commit}`;
   const buildTime = report.target.buildTime === undefined ? '' : `, собрана ${report.target.buildTime}`;
+  const protocol = report.target.protocol === undefined ? '' : `, протокол документа ${report.target.protocol}`;
 
   return [
     '# Замер первого экрана',
     '',
-    `Адрес: ${report.target.baseUrl}${commit}${buildTime}. Снято: ${generatedAt}.`,
+    `Адрес: ${report.target.baseUrl}${protocol}${commit}${buildTime}. Снято: ${generatedAt}.`,
     '',
     'Время — от начала навигации. «Готов» — по маркерам DOM: скелетон оболочки сменён, страница раздела на месте, '
     + 'скелетон HUD исчез, кнопка профиля без aria-busy, часы с цифрами, aria-busy вне зоны сцены нет. '
     + 'Байты — по сети (страница и Worker); запросов — начатых до готовности, байт — завершённых до готовности. '
     + 'Загрузки service worker считаются отдельно и в эти цифры не входят.',
     '',
-    ...report.profiles.flatMap(formatProfileSection),
+    ...report.profiles.flatMap(profile => formatProfileSection(profile, report.target.pagesSkeletonBaselineMs)),
     ...(mainProfile === undefined ? [] : formatMainProfileSection(mainProfile)),
   ].join('\n');
 };
 
 export const formatJsonReport = (report: PerfReportValue): string => `${JSON.stringify(report, null, 2)}\n`;
+
+const countRevalidatedRuns = (profile: ProfileReportValue): number => (
+  profile.cold.filter(run => (run.revalidatedBeforeReady ?? []).length > 0).length
+);
 
 export const formatMedianTable = (report: PerfReportValue): string => {
   const rows = report.profiles.map(profile => [
@@ -378,6 +437,10 @@ export const formatMedianTable = (report: PerfReportValue): string => {
     formatNumber(profile.summary.cold.serviceWorkerBytesBeforeReady.median, true),
     WORKER_VERDICT_LABELS[readWorkerVerdict(profile)],
     SERVICE_WORKER_VERDICT_LABELS[readServiceWorkerVerdict(profile)],
+    formatNumber(profile.summary.cold.skeletonFromEntry.median),
+    formatNumber(profile.summary.cold.firstScreenFromEntry.median),
+    formatNumber(profile.summary.cold.entrySharingMs.median),
+    String(countRevalidatedRuns(profile)),
   ]);
 
   return formatTable(
@@ -392,6 +455,10 @@ export const formatMedianTable = (report: PerfReportValue): string => {
       'SW, КБ',
       'Worker троттлен',
       'SW троттлен',
+      'Скелетон от входа хол., мс',
+      'Готов от входа хол., мс',
+      'Дележ хол., мс',
+      'Прогонов с 304',
     ],
     rows,
   ).join('\n');

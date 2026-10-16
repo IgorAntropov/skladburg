@@ -55,6 +55,7 @@ export interface RequestValue {
   bytes: number;
   endAt: number;
   fromCache: boolean;
+  isRevalidated?: boolean;
   startAt: number;
   target: RequestTargetValue;
   url: string;
@@ -63,7 +64,11 @@ export interface RequestValue {
 export interface RunMetricsValue {
   bytesBeforeReady: number;
   engineReady: null | number;
+  entrySharingBytes?: null | number;
+  entrySharingMs?: null | number;
+  entryStart?: null | number;
   fcp: null | number;
+  firstScreenFromEntry?: null | number;
   firstScreenReady: null | number;
   lcp: null | number;
   longTaskCount: number;
@@ -72,6 +77,7 @@ export interface RunMetricsValue {
   sceneFirstFrame: null | number;
   serviceWorkerBytesBeforeReady: number;
   serviceWorkerRequestsBeforeReady: number;
+  skeletonFromEntry?: null | number;
   skeletonShown: null | number;
   ttfb: null | number;
   workerCreated: null | number;
@@ -82,6 +88,7 @@ export interface RunValue extends RunMetricsValue {
   isServiceWorkerThrottled: boolean | null;
   isWorkerThrottled: boolean | null;
   requests: RequestValue[];
+  revalidatedBeforeReady?: string[];
   serviceWorkerRepeats: string[];
   serviceWorkerThrottlingNote?: ServiceWorkerThrottlingNoteValue;
   workerMessages: WorkerMessageValue[];
@@ -101,6 +108,8 @@ export interface TargetValue {
   baseUrl: string;
   buildTime?: string;
   commit?: string;
+  pagesSkeletonBaselineMs?: number;
+  protocol?: string;
 }
 
 export type WorkerMessageDirectionValue = 'from-worker' | 'to-worker';

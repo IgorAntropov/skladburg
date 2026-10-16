@@ -39,10 +39,20 @@ const findFirstRequests = (requests: readonly RequestValue[], pattern: RegExp): 
   return [...firstByUrl.values()].sort((first, second) => first.startAt - second.startAt);
 };
 
-export const buildWaterfall = (requests: readonly RequestValue[]): WaterfallRowValue[] => (
-  KEY_FILE_RULES.map(rule => ({
-    label: rule.label,
-    request: findFirstRequests(requests, rule.pattern)[rule.ordinal ?? 0],
-  }))
-);
+const REVALIDATION_LABEL = 'revalidation (304)';
+
+export const buildWaterfall = (requests: readonly RequestValue[]): WaterfallRowValue[] => {
+  const fullRequests = requests.filter(request => request.isRevalidated !== true);
+  const revalidations = requests
+    .filter(request => request.isRevalidated === true)
+    .sort((first, second) => first.startAt - second.startAt);
+
+  return [
+    ...KEY_FILE_RULES.map(rule => ({
+      label: rule.label,
+      request: findFirstRequests(fullRequests, rule.pattern)[rule.ordinal ?? 0],
+    })),
+    ...revalidations.map(request => ({ label: REVALIDATION_LABEL, request })),
+  ];
+};
 

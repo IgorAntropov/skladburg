@@ -248,4 +248,59 @@ describe('formatMedianTable', () => {
 
     expect(formatMedianTable(report)).toContain('| mobile-fast-4g | 600 | 2400 | 900 | 3 | 100.0 | 14 | 50.0 | да | да |');
   });
+
+  it('states the document protocol in the header when it is known', () => {
+    const profiles = [createProfile('mobile-fast-4g', [createRun()])];
+
+    const withProtocol = { ...createReport(profiles), target: { baseUrl: 'https://localhost:4175/skladburg/', protocol: 'h2' } };
+
+    expect(formatMarkdownReport(withProtocol, 'now')).toContain('Адрес: https://localhost:4175/skladburg/, протокол документа h2.');
+    expect(formatMarkdownReport(createReport(profiles), 'now')).not.toContain('протокол документа');
+  });
+
+  it('shows the channel sharing estimate and forecasts the Pages skeleton only for the main profile with a baseline', () => {
+    const run = createRun({ entrySharingBytes: 180_000, entrySharingMs: 175 });
+    const profiles = [createProfile('mobile-fast-4g', [run]), createProfile('mobile-slow-4g', [run])];
+    const withBaseline = formatMarkdownReport(
+      { ...createReport(profiles), target: { baseUrl: 'https://host/', pagesSkeletonBaselineMs: 972 } },
+      'now',
+    );
+    const withoutBaseline = formatMarkdownReport(createReport(profiles), 'now');
+
+    expect(withBaseline).toContain('Дележ канала с входным скриптом: 175.8 КБ параллельно, оценка задержки ≈ 175 мс');
+    expect(withBaseline.match(/Прогноз скелетона Pages/g)).toHaveLength(1);
+    expect(withBaseline).toContain('Прогноз скелетона Pages ≈ база + 175 мс = 1147 мс');
+    expect(withoutBaseline).toContain('Дележ канала с входным скриптом: 175.8 КБ');
+    expect(withoutBaseline).not.toContain('Прогноз скелетона Pages');
+  });
+
+  it('says there is no sharing data when no run found the entry script', () => {
+    const report = createReport([createProfile('mobile-fast-4g', [createRun({ entrySharingBytes: null, entrySharingMs: null })])]);
+
+    expect(formatMarkdownReport(report, 'now')).toContain('Дележ канала с входным скриптом: нет данных');
+  });
+
+  it('lists revalidations before the first screen per profile and for the median run, and keeps them out of duplicates', () => {
+    const url = 'https://host/skladburg/assets/worker-XkuRDHIr.js';
+    const report = createReport([
+      createProfile('mobile-fast-4g', [
+        createRun({ revalidatedBeforeReady: [url] }),
+        createRun({ revalidatedBeforeReady: [url] }),
+        createRun({ revalidatedBeforeReady: [] }),
+      ]),
+    ]);
+    const markdown = formatMarkdownReport(report, 'now');
+
+    expect(markdown).toContain(`- холодный старт: worker-XkuRDHIr.js — в 2 из 3 прогонов (${url})`);
+    expect(markdown).toContain('Перепроверки (304) до готовности: 1 (worker-XkuRDHIr.js).');
+    expect(markdown).toContain('- холодный старт: дублей нет');
+  });
+
+  it('puts the metrics from the entry script into the table and the console summary', () => {
+    const run = createRun({ entryStart: 560, firstScreenFromEntry: 1040, skeletonFromEntry: 590 });
+    const report = createReport([createProfile('mobile-fast-4g', [run])]);
+
+    expect(formatMarkdownReport(report, 'now')).toContain('| Скелетон от старта входного скрипта, мс | 590 | 590 | 590 | — | — | — |');
+    expect(formatMedianTable(report)).toMatch(/\| 590 \| 1040 \| — \| 0 \|$/m);
+  });
 });

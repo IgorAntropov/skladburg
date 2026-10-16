@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import type { PerfPreviewProtocolValue } from './perfPreview.ts';
 import type {
   PerfProfileValue,
   PerfReportValue,
@@ -20,11 +21,13 @@ import { summarizeSeries } from './computeStatistics.ts';
 import { formatMedianTable } from './formatReport.ts';
 import { measureRun } from './measureRun.ts';
 import {
+  assertDocumentProtocol,
+  createPreviewUrl,
   PERF_PREVIEW_CACHE_CONTROL,
-  PERF_PREVIEW_URL,
 } from './perfPreview.ts';
 import { selectPerfProfiles } from './perfProfiles.ts';
 import { readPerfEnv } from './readPerfEnv.ts';
+import { requestPreviewHeaders } from './requestPreviewHeaders.ts';
 import { writeReportFiles } from './writeReportFiles.ts';
 
 const SERVICE_WORKER_READY_TIMEOUT_MS = 60_000;
@@ -40,6 +43,11 @@ Promise.race([
   }),
 ])
 `;
+
+interface ProfileMeasurementValue {
+  protocol: string | undefined;
+  report: ProfileReportValue;
+}
 
 interface SeriesInputValue {
   baseUrl: string;
@@ -67,7 +75,14 @@ const readBuildTime = (): string | undefined => {
   }
 };
 
-const createTarget = (baseUrl: string, isLocalPreview: boolean): TargetValue => {
+interface CreateTargetInputValue {
+  baseUrl: string;
+  isLocalPreview: boolean;
+  pagesSkeletonBaselineMs: number | undefined;
+  protocol: string | undefined;
+}
+
+const createTarget = ({ baseUrl, isLocalPreview, pagesSkeletonBaselineMs, protocol }: CreateTargetInputValue): TargetValue => {
   const commit = isLocalPreview ? readCommit() : undefined;
   const buildTime = isLocalPreview ? readBuildTime() : undefined;
 
@@ -75,6 +90,8 @@ const createTarget = (baseUrl: string, isLocalPreview: boolean): TargetValue => 
     baseUrl,
     ...(buildTime === undefined ? {} : { buildTime }),
     ...(commit === undefined ? {} : { commit }),
+    ...(pagesSkeletonBaselineMs === undefined ? {} : { pagesSkeletonBaselineMs }),
+    ...(protocol === undefined ? {} : { protocol }),
   };
 };
 
@@ -109,20 +126,31 @@ const measureWarmRuns = async (
   return warm;
 };
 
-const discardWarmUpRun = async ({ baseUrl, browser, profile }: SeriesInputValue): Promise<void> => {
+const discardWarmUpRun = async (
+  { baseUrl, browser, profile }: SeriesInputValue,
+): Promise<string | undefined> => {
   const context = await createProfileContext(browser, profile);
-  const { page } = await measureRun({ baseUrl, context, profile, runLabel: 'warm-up' });
+  const { documentProtocol, page } = await measureRun({ baseUrl, context, profile, runLabel: 'warm-up' });
 
   await page.close();
   await context.close();
+
+  return documentProtocol;
 };
 
-const measureProfile = async (input: SeriesInputValue): Promise<ProfileReportValue> => {
+const measureProfile = async (
+  input: SeriesInputValue,
+  previewProtocol: PerfPreviewProtocolValue | undefined,
+): Promise<ProfileMeasurementValue> => {
   const { baseUrl, browser, coldRunCount, profile } = input;
   const cold: RunValue[] = [];
   let warm: RunValue[] = [];
 
-  await discardWarmUpRun(input);
+  const protocol = await discardWarmUpRun(input);
+
+  if (previewProtocol !== undefined) {
+    assertDocumentProtocol(previewProtocol, protocol);
+  }
 
   for (let index = 0; index < coldRunCount; index += 1) {
     const context = await createProfileContext(browser, profile);
@@ -146,24 +174,25 @@ const measureProfile = async (input: SeriesInputValue): Promise<ProfileReportVal
   }
 
   return {
-    cold,
-    cpuRate: profile.cpuRate,
-    name: profile.name,
-    network: profile.network,
-    summary: { cold: summarizeSeries(cold), warm: summarizeSeries(warm) },
-    viewport: profile.viewport,
-    warm,
+    protocol,
+    report: {
+      cold,
+      cpuRate: profile.cpuRate,
+      name: profile.name,
+      network: profile.network,
+      summary: { cold: summarizeSeries(cold), warm: summarizeSeries(warm) },
+      viewport: profile.viewport,
+      warm,
+    },
   };
 };
 
-const warmUpServer = async (baseUrl: string, isLocalPreview: boolean): Promise<void> => {
-  const response = await fetch(baseUrl);
+const warmUpServer = async (baseUrl: string, isLocalPreview: boolean, isInsecureTlsAllowed: boolean): Promise<void> => {
+  const { cacheControl, status } = await requestPreviewHeaders(baseUrl, isInsecureTlsAllowed);
 
-  if (!response.ok) {
-    throw new Error(`The address ${baseUrl} answered ${String(response.status)}`);
+  if (status < 200 || status >= 300) {
+    throw new Error(`The address ${baseUrl} answered ${String(status)}`);
   }
-
-  const cacheControl = response.headers.get('cache-control');
 
   if (isLocalPreview && cacheControl !== PERF_PREVIEW_CACHE_CONTROL) {
     throw new Error(`The preview must answer Cache-Control "${PERF_PREVIEW_CACHE_CONTROL}", got "${String(cacheControl)}"`);
@@ -172,25 +201,35 @@ const warmUpServer = async (baseUrl: string, isLocalPreview: boolean): Promise<v
 
 test('measures the first screen on every profile', async ({ browser }) => {
   const env = readPerfEnv(process.env);
-  const baseUrl = env.baseUrl ?? PERF_PREVIEW_URL;
+  const baseUrl = env.baseUrl ?? createPreviewUrl(env.previewProtocol);
   const isLocalPreview = env.baseUrl === undefined;
+  const isInsecureTlsAllowed = isLocalPreview && env.previewProtocol === 'h2';
   const profiles = selectPerfProfiles(env.profileNames);
-  const report: PerfReportValue = {
-    profiles: [],
-    target: createTarget(baseUrl, isLocalPreview),
-  };
+  const profileReports: ProfileReportValue[] = [];
+  let protocol: string | undefined;
 
-  await warmUpServer(baseUrl, isLocalPreview);
+  await warmUpServer(baseUrl, isLocalPreview, isInsecureTlsAllowed);
 
   for (const profile of profiles) {
-    report.profiles.push(await measureProfile({
-      baseUrl,
-      browser,
-      coldRunCount: env.coldRunCount,
-      profile,
-      warmRunCount: env.warmRunCount,
-    }));
+    const measurement = await measureProfile(
+      {
+        baseUrl,
+        browser,
+        coldRunCount: env.coldRunCount,
+        profile,
+        warmRunCount: env.warmRunCount,
+      },
+      isLocalPreview ? env.previewProtocol : undefined,
+    );
+
+    profileReports.push(measurement.report);
+    protocol ??= measurement.protocol;
   }
+
+  const report: PerfReportValue = {
+    profiles: profileReports,
+    target: createTarget({ baseUrl, isLocalPreview, pagesSkeletonBaselineMs: env.pagesSkeletonBaselineMs, protocol }),
+  };
 
   console.log(`\n${formatMedianTable(report)}\n`);
 

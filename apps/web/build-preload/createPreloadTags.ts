@@ -23,3 +23,9 @@ export const createPreloadTags = ({ base, fileNames, isLowPriority }: PreloadTag
     injectTo: 'head',
     tag: 'link',
   }));
+
+export const createInlineScriptTag = (script: string): HtmlTagDescriptor => ({
+  children: script,
+  injectTo: 'head',
+  tag: 'script',
+});

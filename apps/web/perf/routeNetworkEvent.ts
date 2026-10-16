@@ -19,7 +19,7 @@ interface RequestWillBeSentParamsValue {
 
 interface ResponseReceivedParamsValue {
   requestId: string;
-  response: { fromDiskCache?: boolean; fromPrefetchCache?: boolean; fromServiceWorker?: boolean };
+  response: { fromDiskCache?: boolean; fromPrefetchCache?: boolean; fromServiceWorker?: boolean; protocol?: string };
 }
 
 export const routeNetworkEvent = (recorder: IRequestRecorder, method: string, params: unknown): void => {
@@ -50,7 +50,7 @@ export const routeNetworkEvent = (recorder: IRequestRecorder, method: string, pa
         || response.fromServiceWorker === true
         || response.fromPrefetchCache === true;
 
-      recorder.respond({ isFromCache, requestId });
+      recorder.respond({ isFromCache, protocol: response.protocol, requestId });
       break;
     }
     default:

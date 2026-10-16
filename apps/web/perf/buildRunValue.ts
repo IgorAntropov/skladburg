@@ -1,4 +1,5 @@
 import type { OpenRequestValue } from './createRequestRecorder.ts';
+import type { EstimateEntrySharingInputValue } from './estimateEntrySharing.ts';
 import type { ResourceTimingValue } from './mergeResourceTimings.ts';
 import type {
   NetworkConditionsValue,
@@ -9,7 +10,12 @@ import type {
 } from './perfTypes.ts';
 import type { LongTaskValue } from './summarizeLongTasks.ts';
 
+import { estimateEntrySharing } from './estimateEntrySharing.ts';
 import { findDuplicates } from './findDuplicates.ts';
+import {
+  findEntryRequest,
+  measureFromEntry,
+} from './findEntryRequest.ts';
 import { findServiceWorkerRepeats } from './findServiceWorkerRepeats.ts';
 import { judgeWorkerThrottling } from './judgeWorkerThrottling.ts';
 import { mergeResourceTimings } from './mergeResourceTimings.ts';
@@ -26,6 +32,7 @@ export interface BuildRunInputValue {
 
 export interface ProbeSnapshotValue {
   engineReadyAt: null | number;
+  entryScriptUrl: null | string;
   fcp: null | number;
   firstScreenReadyAt: null | number;
   lcp: null | number;
@@ -49,9 +56,49 @@ const sumBeforeReady = (requests: readonly RequestValue[], readyAt: null | numbe
     return { bytesFinished: 0, requestsStarted: 0 };
   }
 
+  const fetched = requests.filter(request => request.isRevalidated !== true);
+
   return {
-    bytesFinished: requests.filter(request => request.endAt <= readyAt).reduce((total, request) => total + request.bytes, 0),
-    requestsStarted: requests.filter(request => request.startAt <= readyAt).length,
+    bytesFinished: fetched.filter(request => request.endAt <= readyAt).reduce((total, request) => total + request.bytes, 0),
+    requestsStarted: fetched.filter(request => request.startAt <= readyAt).length,
+  };
+};
+
+const listRevalidatedBeforeReady = (requests: readonly RequestValue[], readyAt: null | number): string[] => {
+  if (readyAt === null) {
+    return [];
+  }
+
+  return requests.filter(request => request.isRevalidated === true && request.startAt <= readyAt).map(request => request.url);
+};
+
+interface EntryMetricsValue {
+  entrySharingBytes: null | number;
+  entrySharingMs: null | number;
+  entryStart: null | number;
+  firstScreenFromEntry: null | number;
+  skeletonFromEntry: null | number;
+}
+
+const toSharingInput = (network: NetworkConditionsValue): Pick<EstimateEntrySharingInputValue, 'downloadBytesPerSecond' | 'latencyMs'> => ({
+  downloadBytesPerSecond: network.downloadBytesPerSecond,
+  latencyMs: network.latencyMs,
+});
+
+const buildEntryMetrics = (
+  pageRequests: readonly RequestValue[],
+  snapshot: ProbeSnapshotValue,
+  network: NetworkConditionsValue,
+): EntryMetricsValue => {
+  const entry = findEntryRequest(pageRequests, snapshot.entryScriptUrl);
+  const sharing = entry === undefined ? undefined : estimateEntrySharing({ ...toSharingInput(network), entry, requests: pageRequests });
+
+  return {
+    entrySharingBytes: sharing?.bytes ?? null,
+    entrySharingMs: sharing?.delayMs ?? null,
+    entryStart: entry?.startAt ?? null,
+    firstScreenFromEntry: measureFromEntry(snapshot.firstScreenReadyAt, entry),
+    skeletonFromEntry: measureFromEntry(snapshot.skeletonShownAt, entry),
   };
 };
 
@@ -79,6 +126,7 @@ export const buildRunValue = ({
   return {
     bytesBeforeReady: pageTotals.bytesFinished,
     duplicates: findDuplicates(pageRequests),
+    ...buildEntryMetrics(pageRequests, snapshot, network),
     engineReady: snapshot.engineReadyAt,
     fcp: snapshot.fcp,
     firstScreenReady: readyAt,
@@ -89,6 +137,7 @@ export const buildRunValue = ({
     longTaskExcessMs: longTasks.excessMs,
     requests,
     requestsBeforeReady: pageTotals.requestsStarted,
+    revalidatedBeforeReady: listRevalidatedBeforeReady(pageRequests, readyAt),
     sceneFirstFrame: snapshot.sceneFirstFrameAt,
     serviceWorkerBytesBeforeReady: serviceWorkerTotals.bytesFinished,
     serviceWorkerRepeats: findServiceWorkerRepeats(requests),

@@ -1,8 +1,14 @@
+import type { PerfPreviewProtocolValue } from './perfPreview.ts';
+
+import { readPreviewProtocol } from './perfPreview.ts';
+
 export type PerfEnvSourceValue = Readonly<Record<string, string | undefined>>;
 
 export interface PerfEnvValue {
   baseUrl: string | undefined;
   coldRunCount: number;
+  pagesSkeletonBaselineMs: number | undefined;
+  previewProtocol: PerfPreviewProtocolValue;
   profileNames: string[] | undefined;
   reportFile: string | undefined;
   warmRunCount: number;
@@ -33,6 +39,22 @@ const readRunCount = (value: string | undefined): number => {
   return count;
 };
 
+const readBaselineMs = (value: string | undefined): number | undefined => {
+  const text = readNonBlank(value);
+
+  if (text === undefined) {
+    return undefined;
+  }
+
+  const baselineMs = Number(text);
+
+  if (!Number.isFinite(baselineMs) || baselineMs <= 0) {
+    throw new Error(`PERF_PAGES_SKELETON_BASELINE_MS must be a positive number of milliseconds, got "${text}"`);
+  }
+
+  return baselineMs;
+};
+
 const readProfileNames = (value: string | undefined): string[] | undefined => {
   const text = readNonBlank(value);
 
@@ -52,6 +74,8 @@ export const readPerfEnv = (env: PerfEnvSourceValue): PerfEnvValue => {
   return {
     baseUrl: baseUrl === undefined ? undefined : withTrailingSlash(baseUrl),
     coldRunCount,
+    pagesSkeletonBaselineMs: readBaselineMs(env.PERF_PAGES_SKELETON_BASELINE_MS),
+    previewProtocol: readPreviewProtocol(env),
     profileNames: readProfileNames(env.PERF_PROFILES),
     reportFile: readNonBlank(env.PERF_REPORT_FILE),
     warmRunCount: Math.min(MAX_WARM_RUN_COUNT, coldRunCount),

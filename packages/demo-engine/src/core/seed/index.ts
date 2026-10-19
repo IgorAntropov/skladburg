@@ -1,9 +1,4 @@
-export {
-  ADMIN_PRESET_KEY,
-  listSeedAdminPermissions,
-  STOREKEEPER_PERMISSIONS,
-  STOREKEEPER_PRESET_KEY,
-} from './seedAccess';
+export { createSeedRoleId } from './seedAccess';
 export {
   SeedBoardNodeId,
   SeedCityId,

@@ -144,7 +144,7 @@ describe('engine host as the only tab', () => {
 
     expect(customer?.group).toBe(DemoPersonaGroup.FRESH);
     expect(customer?.userDisplayName).toBe('Анна Смирнова');
-    expect(customer?.roleName).toBe('Администратор');
+    expect(customer?.roleName).toBe('Директор');
   });
 });
 

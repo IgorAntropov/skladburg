@@ -12,22 +12,31 @@ import type {
   MethodAccess,
   PermissionRequirement,
 } from '@skladburg/contracts/common/v1/method_options';
+import type { Money } from '@skladburg/contracts/common/v1/money';
 
-import { reflect } from '@bufbuild/protobuf/reflect';
+import { isMessage } from '@bufbuild/protobuf';
+import {
+  isReflectMessage,
+  reflect,
+} from '@bufbuild/protobuf/reflect';
 import { MethodOptions_IdempotencyLevel } from '@bufbuild/protobuf/wkt';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
+import { MoneySchema } from '@skladburg/contracts/common/v1/money';
 import { getMethodAccess } from '@skladburg/contracts/runtime';
 
 import type { IDomainErrors } from '../errors/index';
 import type { IStateReader } from '../state/index';
 import type { IRequestValidator } from '../validation/index';
+import type { PermissionGrantValue } from './permissionGrants';
 import type {
   EffectivePermissionValue,
   PermissionScopeValue,
 } from './permissionScope';
 
 import { readActingContext } from '../context/index';
-import { resolveEffectivePermissions } from './effectivePermissions';
+import { compareIds } from '../state/index';
+import { summarizePermissionGrants } from './effectivePermissions';
+import { resolvePermissionGrants } from './permissionGrants';
 import { isWarehouseInScope } from './permissionScope';
 
 export interface CallerValue {
@@ -72,12 +81,14 @@ interface AuthorizationValue {
 }
 
 interface OrganizationContextValue {
+  grants: readonly PermissionGrantValue[];
   membership: Membership;
   organizationId: string;
   permissions: readonly EffectivePermissionValue[];
 }
 
 interface ScopeCheckValue {
+  grants: readonly PermissionGrantValue[];
   organizationId: string;
   requirement: PermissionRequirement;
   scope: PermissionScopeValue;
@@ -103,7 +114,9 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
       throw errors.membershipRequired();
     }
 
-    return { membership, organizationId, permissions: resolveEffectivePermissions(reader, membership) };
+    const grants = resolvePermissionGrants(reader, membership);
+
+    return { grants, membership, organizationId, permissions: summarizePermissionGrants(grants) };
   };
 
   const findPermissionScope = (permissions: readonly EffectivePermissionValue[], permissionName: string): PermissionScopeValue => {
@@ -148,17 +161,39 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
       throw errors.permissionDenied(requirement.value.name);
     }
 
-    return { organization, scopeCheck: { organizationId, requirement: requirement.value, scope } };
+    return { organization, scopeCheck: { grants: organization.grants, organizationId, requirement: requirement.value, scope } };
   };
 
-  const readScopeFieldValue = (schema: DescMessage, request: MessageShape<DescMessage>, field: DescField): string => {
-    const value = reflect(schema, request).get(field);
+  const findField = (method: DescMethodUnary, fieldName: string): DescField => {
+    const field = method.input.fields.find(candidate => candidate.name === fieldName);
+
+    if (field === undefined) {
+      throw errors.internal();
+    }
+
+    return field;
+  };
+
+  const readScopeFieldValue = (method: DescMethodUnary, request: MessageShape<DescMessage>, scopeField: string): string => {
+    const value = reflect(method.input, request).get(findField(method, scopeField));
 
     if (typeof value !== 'string') {
       throw errors.internal();
     }
 
     return value;
+  };
+
+  const readLimitFieldValue = (method: DescMethodUnary, request: MessageShape<DescMessage>, limitField: string): Money => {
+    const message = reflect(method.input, request);
+    const field = findField(method, limitField);
+    const value = message.isSet(field) ? message.get(field) : undefined;
+
+    if (!isReflectMessage(value) || !isMessage(value.message, MoneySchema)) {
+      throw errors.internal();
+    }
+
+    return value.message;
   };
 
   const enforceWarehouseScope = (reader: IStateReader, check: ScopeCheckValue, warehouseId: string): void => {
@@ -181,23 +216,74 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
     }
   };
 
-  const enforceScopeField = (
+  const pickReportedLimit = (limits: readonly Money[], requested: Money): Money | undefined => {
+    const sameCurrency = limits.filter(limit => limit.currencyCode === requested.currencyCode);
+    const candidates = sameCurrency.length > 0 ? sameCurrency : limits;
+
+    return candidates.reduce<Money | undefined>((largest, candidate) => {
+      if (largest === undefined || candidate.amountMinor > largest.amountMinor) {
+        return candidate;
+      }
+
+      const isTie = candidate.amountMinor === largest.amountMinor;
+
+      return isTie && compareIds(candidate.currencyCode, largest.currencyCode) < 0 ? candidate : largest;
+    }, undefined);
+  };
+
+  const enforceLimit = (
+    method: DescMethodUnary,
+    request: MessageShape<DescMessage>,
+    check: ScopeCheckValue,
+    warehouseId: string,
+  ): void => {
+    const { limitField, name } = check.requirement;
+
+    if (limitField === '') {
+      return;
+    }
+
+    const requested = readLimitFieldValue(method, request, limitField);
+    const covering = check.grants.filter(grant =>
+      grant.permission === name && (grant.isOrganizationWide || (warehouseId !== '' && grant.warehouseIds.includes(warehouseId))));
+    const limits = covering.flatMap(grant => grant.amountLimit === undefined ? [] : [grant.amountLimit]);
+
+    if (limits.length < covering.length) {
+      return;
+    }
+
+    const isWithinLimit = limits.some(limit => limit.currencyCode === requested.currencyCode && requested.amountMinor <= limit.amountMinor);
+
+    if (isWithinLimit) {
+      return;
+    }
+
+    const reported = pickReportedLimit(limits, requested);
+
+    if (reported === undefined) {
+      throw errors.internal();
+    }
+
+    throw errors.limitExceeded(name, reported, requested);
+  };
+
+  const enforceScopeAndLimit = (
     reader: IStateReader,
     method: DescMethodUnary,
     request: MessageShape<DescMessage>,
     check: ScopeCheckValue,
+    isScopeFiltered: boolean,
   ): void => {
-    if (check.requirement.scopeField === '') {
-      return;
+    const { scopeField } = check.requirement;
+    const warehouseId = scopeField === '' ? '' : readScopeFieldValue(method, request, scopeField);
+
+    if (scopeField !== '') {
+      enforceWarehouseScope(reader, check, warehouseId);
     }
 
-    const field = method.input.fields.find(candidate => candidate.name === check.requirement.scopeField);
-
-    if (field === undefined) {
-      throw errors.internal();
+    if (!isScopeFiltered) {
+      enforceLimit(method, request, check, warehouseId);
     }
-
-    enforceWarehouseScope(reader, check, readScopeFieldValue(method.input, request, field));
   };
 
   const runGuard = (
@@ -220,7 +306,7 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
     validator.validate(method.input, request);
 
     if (scopeCheck !== undefined) {
-      enforceScopeField(reader, method, request, scopeCheck);
+      enforceScopeAndLimit(reader, method, request, scopeCheck, isScopeFiltered);
     }
 
     return {

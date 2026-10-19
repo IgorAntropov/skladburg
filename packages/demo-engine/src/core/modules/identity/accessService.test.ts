@@ -1,20 +1,27 @@
 import { Code } from '@connectrpc/connect';
 import { PermissionAction } from '@skladburg/contracts/access/v1/access';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
+import { ProfileKind } from '@skladburg/contracts/organization/v1/organization';
+import {
+  getPermissionName,
+  getPermissionTraits,
+  listPermissionCodes,
+} from '@skladburg/contracts/runtime';
 import {
   describe,
   expect,
   it,
 } from 'vitest';
 
+import { RolePresetKey } from '../../access/index';
 import {
+  createSeedRoleId,
   SeedMembershipId,
   SeedOrganizationId,
   SeedRoleId,
   SeedUserId,
   SeedWarehouseId,
 } from '../../seed/index';
-import { listSeedAdminPermissions } from '../../seed/index';
 import { INVALID_PAGE_TOKEN_RULE_ID } from '../pagination';
 import {
   addTestMember,
@@ -25,6 +32,25 @@ import {
 } from '../testing/moduleHarness';
 
 const UNKNOWN_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+
+const MONEY_ACTION_SUFFIXES: readonly string[] = ['_fund', '_release'];
+
+const listDirectorPermissionNames = (profile: ProfileKind): string[] =>
+  listPermissionCodes()
+    .filter(code => getPermissionTraits(code).profiles.includes(profile))
+    .map(code => getPermissionName(code))
+    .filter(name => !MONEY_ACTION_SUFFIXES.some(suffix => name.endsWith(suffix)))
+    .sort();
+
+const STOREKEEPER_PERMISSION_NAMES: readonly string[] = [
+  'inventory_edit',
+  'inventory_view',
+  'sensor_view',
+  'task_edit',
+  'task_view',
+  'warehouse_view',
+  'yard_view',
+];
 
 describe('AccessService.getSession', () => {
   it('returns the user, memberships, own organizations and effective permissions of the acting organization', async () => {
@@ -37,7 +63,7 @@ describe('AccessService.getSession', () => {
     expect(response.organizations.map(organization => organization.id)).toEqual([SeedOrganizationId.CUSTOMER_1]);
     expect(response.organizations[0]?.inn).not.toBe('');
     expect(response.actingOrganizationId).toBe(SeedOrganizationId.CUSTOMER_1);
-    expect(response.permissions.map(permission => permission.permission)).toEqual(listSeedAdminPermissions());
+    expect(response.permissions.map(permission => permission.permission)).toEqual(listDirectorPermissionNames(ProfileKind.CUSTOMER));
     expect(response.permissions.every(permission => permission.isOrganizationWide && permission.warehouseIds.length === 0)).toBe(true);
   });
 
@@ -46,10 +72,12 @@ describe('AccessService.getSession', () => {
 
     const response = await access.getSession({}, callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1));
 
-    expect(response.permissions).toHaveLength(1);
-    expect(response.permissions[0]?.permission).toBe('warehouse_view');
-    expect(response.permissions[0]?.isOrganizationWide).toBe(false);
-    expect(response.permissions[0]?.warehouseIds).toEqual([SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1]);
+    expect(response.permissions.map(permission => permission.permission)).toEqual(STOREKEEPER_PERMISSION_NAMES);
+    expect(response.permissions.every(permission => !permission.isOrganizationWide)).toBe(true);
+    expect(response.permissions.every(permission => permission.warehouseIds.length === 1)).toBe(true);
+    expect(response.permissions.map(permission => permission.warehouseIds[0])).toEqual(
+      STOREKEEPER_PERMISSION_NAMES.map(() => SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1),
+    );
   });
 
   it('works without an acting organization and returns no permissions', async () => {
@@ -104,17 +132,26 @@ describe('AccessService.getSession', () => {
 });
 
 describe('AccessService.listPermissions', () => {
-  it('returns the catalog of permissions declared by the contract with feature and action', async () => {
+  it('returns every permission of the contract catalog with feature, action, traits and profiles', async () => {
     const { access } = createModuleHarness();
 
-    const response = await access.listPermissions({}, callAs(SeedUserId.ADMIN_1));
+    const response = await access.listPermissions({ page: { pageSize: 200 } }, callAs(SeedUserId.ADMIN_1));
+    const codes = listPermissionCodes();
     const warehouseView = response.permissions.find(permission => permission.name === 'warehouse_view');
+    const dealApprove = response.permissions.find(permission => permission.name === 'deal_approve');
+    const marketplaceView = response.permissions.find(permission => permission.name === 'marketplace_view');
 
-    expect(response.permissions.map(permission => permission.name)).toEqual(listSeedAdminPermissions());
+    expect(codes).toHaveLength(59);
+    expect(response.permissions.map(permission => permission.name)).toEqual(codes.map(getPermissionName));
+    expect(response.permissions.every(permission => permission.profiles.length > 0)).toBe(true);
+    expect(response.permissions.map(permission => permission.profiles)).toEqual(codes.map(code => getPermissionTraits(code).profiles));
     expect(warehouseView?.feature).toBe('warehouse');
     expect(warehouseView?.action).toBe(PermissionAction.VIEW);
-    expect(warehouseView?.isScopeApplicable).toBe(false);
+    expect(warehouseView?.isScopeApplicable).toBe(true);
     expect(warehouseView?.isLimitApplicable).toBe(false);
+    expect(warehouseView?.profiles).toEqual([ProfileKind.CUSTOMER, ProfileKind.SUPPLIER]);
+    expect(dealApprove?.isLimitApplicable).toBe(true);
+    expect(marketplaceView?.profiles).toEqual([ProfileKind.CUSTOMER]);
     expect(response.page?.nextPageToken).toBe('');
   });
 
@@ -182,7 +219,13 @@ describe('AccessService.listRoles', () => {
 
     const response = await access.listRoles({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
-    expect(response.roles.map(role => role.id).sort()).toEqual([SeedRoleId.ADMIN_CUSTOMER_1, SeedRoleId.STOREKEEPER_CUSTOMER_1].sort());
+    expect(response.roles.map(role => role.id).sort()).toEqual([
+      createSeedRoleId(SeedOrganizationId.CUSTOMER_1, RolePresetKey.ACCOUNTANT),
+      createSeedRoleId(SeedOrganizationId.CUSTOMER_1, RolePresetKey.ADMIN),
+      createSeedRoleId(SeedOrganizationId.CUSTOMER_1, RolePresetKey.BUYER),
+      SeedRoleId.DIRECTOR_CUSTOMER_1,
+      SeedRoleId.STOREKEEPER_CUSTOMER_1,
+    ].sort());
     expect(response.roles.every(role => role.tenantId === SeedOrganizationId.CUSTOMER_1)).toBe(true);
   });
 
@@ -191,22 +234,55 @@ describe('AccessService.listRoles', () => {
 
     const response = await access.listRoles({}, callAs(SeedUserId.ADMIN_5, SeedOrganizationId.CUSTOMER_2));
 
-    expect(response.roles.map(role => role.id)).toContain(SeedRoleId.ADMIN_CUSTOMER_2);
-    expect(response.roles.map(role => role.id)).not.toContain(SeedRoleId.ADMIN_CUSTOMER_1);
+    expect(response.roles.map(role => role.id)).toContain(SeedRoleId.DIRECTOR_CUSTOMER_2);
+    expect(response.roles.map(role => role.id)).not.toContain(SeedRoleId.DIRECTOR_CUSTOMER_1);
     expect(response.roles.every(role => role.tenantId === SeedOrganizationId.CUSTOMER_2)).toBe(true);
   });
 
   it('pages through the roles', async () => {
     const { access } = createModuleHarness();
     const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
-    const first = await access.listRoles({ page: { pageSize: 1 } }, options);
-    const second = await access.listRoles({ page: { pageSize: 1, pageToken: first.page?.nextPageToken } }, options);
+    const first = await access.listRoles({ page: { pageSize: 2 } }, options);
+    const second = await access.listRoles({ page: { pageSize: 2, pageToken: first.page?.nextPageToken } }, options);
+    const third = await access.listRoles({ page: { pageSize: 2, pageToken: second.page?.nextPageToken } }, options);
+    const ids = [...first.roles, ...second.roles, ...third.roles].map(role => role.id);
 
-    expect(first.roles).toHaveLength(1);
+    expect(first.roles).toHaveLength(2);
     expect(first.page?.nextPageToken).not.toBe('');
-    expect(second.roles).toHaveLength(1);
-    expect(second.page?.nextPageToken).toBe('');
-    expect(second.roles[0]?.id).not.toBe(first.roles[0]?.id);
+    expect(second.roles).toHaveLength(2);
+    expect(second.page?.nextPageToken).not.toBe('');
+    expect(third.roles).toHaveLength(1);
+    expect(third.page?.nextPageToken).toBe('');
+    expect(new Set(ids).size).toBe(5);
+  });
+
+  it('rejects a role with member_view on a part of the warehouses with permission_denied naming it', async () => {
+    const harness = createModuleHarness();
+    const userId = await addTestMember(harness, {
+      organizationId: SeedOrganizationId.CUSTOMER_1,
+      permissions: ['member_view'],
+      warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1],
+    });
+
+    const error = await captureError(harness.access.listRoles({}, callAs(userId, SeedOrganizationId.CUSTOMER_1)));
+    const detail = readErrorDetail(error);
+
+    expect(error.code).toBe(Code.PermissionDenied);
+    expect(detail.code).toBe(ErrorCode.PERMISSION_DENIED);
+    expect(detail.params.case === 'permissionDenied' ? detail.params.value.permission : undefined).toBe('member_view');
+  });
+
+  it('lets a role with member_view on the whole organization read the roles', async () => {
+    const harness = createModuleHarness();
+    const userId = await addTestMember(harness, {
+      organizationId: SeedOrganizationId.CUSTOMER_1,
+      permissions: ['member_view'],
+      warehouseIds: [],
+    });
+
+    const response = await harness.access.listRoles({}, callAs(userId, SeedOrganizationId.CUSTOMER_1));
+
+    expect(response.roles.length).toBeGreaterThan(0);
   });
 
   it('rejects a user without the member_view permission with permission_denied naming it', async () => {

@@ -1,18 +1,18 @@
-import {
-  AccessService,
-  type Membership,
-} from '@skladburg/contracts/access/v1/access';
-import {
-  OrganizationService,
-  ProfileKind,
-} from '@skladburg/contracts/organization/v1/organization';
-import { listPermissionNames } from '@skladburg/contracts/runtime';
+import type { Membership } from '@skladburg/contracts/access/v1/access';
+
+import { ProfileKind } from '@skladburg/contracts/organization/v1/organization';
+import { getPermissionName } from '@skladburg/contracts/runtime';
 import {
   describe,
   expect,
   it,
 } from 'vitest';
 
+import {
+  listPermissionsForProfiles,
+  listPresetsForProfiles,
+  RolePresetKey,
+} from '../access/index';
 import { ENGINE_COLLECTION_NAMES } from '../ports/index';
 import {
   createEngineState,
@@ -21,10 +21,7 @@ import {
   ENGINE_SCHEMA_VERSION,
   type IStateReader,
 } from '../state/index';
-import {
-  ADMIN_PRESET_KEY,
-  STOREKEEPER_PRESET_KEY,
-} from './seedAccess';
+import { createSeedRoleId } from './seedAccess';
 import {
   SeedOrganizationId,
   SeedPersonaId,
@@ -217,23 +214,84 @@ describe('seed contents', () => {
     }
   });
 
-  it('gives every organization an administrator with the full permission catalog', () => {
+  it('gives every organization the roles of all presets offered to its profiles', () => {
     const reader = createSeedReader();
-    const catalog = listPermissionNames([AccessService, OrganizationService]);
+    const organizations = reader.list('organizations');
 
-    for (const organization of reader.list('organizations')) {
+    for (const organization of organizations) {
+      const profiles = organization.profiles.map(profile => profile.kind);
+      const presetKeys = listPresetsForProfiles(profiles).map(preset => preset.key);
       const roles = reader.listBy('roles', 'tenantId', organization.id);
-      const adminRole = roles.find(role => role.presetKey === ADMIN_PRESET_KEY);
-      const adminMemberships = reader
-        .listBy('memberships', 'organizationId', organization.id)
-        .filter((membership: Membership) => membership.roleAssignments.some(assignment => assignment.roleId === adminRole?.id));
 
-      expect(adminRole?.permissions, organization.name).toEqual(catalog);
-      expect(adminMemberships, organization.name).toHaveLength(1);
-      expect(adminMemberships[0]?.roleAssignments[0]?.warehouseIds).toEqual([]);
+      expect(roles.map(role => role.presetKey).sort(), organization.name).toEqual([...presetKeys].sort());
     }
 
-    expect(catalog).toContain('warehouse_create');
+    expect(reader.list('roles')).toHaveLength(44);
+  });
+
+  it('counts the role presets by the profiles of each organization', () => {
+    const reader = createSeedReader();
+    const countOf = (organizationId: string): number => reader.listBy('roles', 'tenantId', organizationId).length;
+
+    expect(countOf(SeedOrganizationId.CUSTOMER_1)).toBe(5);
+    expect(countOf(SeedOrganizationId.CUSTOMER_2)).toBe(5);
+    expect(countOf(SeedOrganizationId.SUPPLIER_1)).toBe(5);
+    expect(countOf(SeedOrganizationId.SUPPLIER_5)).toBe(5);
+    expect(countOf(SeedOrganizationId.CARRIER_1)).toBe(4);
+    expect(countOf(SeedOrganizationId.CARRIER_2)).toBe(4);
+    expect(countOf(SeedOrganizationId.SUPPLIER_4)).toBe(6);
+  });
+
+  it('gives every role a distinct stable identifier built from the organization and the preset', () => {
+    const { organizations, roles } = createSeedRecords();
+    const idsByOrganizationAndPreset = new Map<string, string>(organizations.flatMap(organization =>
+      Object.values(RolePresetKey).map((presetKey): [string, string] => [
+        `${organization.id}:${presetKey}`,
+        createSeedRoleId(organization.id, presetKey),
+      ])));
+
+    expect(new Set(roles.map(role => role.id)).size).toBe(roles.length);
+    expect(new Set(idsByOrganizationAndPreset.values()).size).toBe(idsByOrganizationAndPreset.size);
+
+    for (const role of roles) {
+      expect(role.id, role.name).toMatch(UUID_PATTERN);
+      expect(role.id, role.name).toBe(idsByOrganizationAndPreset.get(`${role.tenantId}:${role.presetKey}`));
+    }
+  });
+
+  it('keeps the named role identifiers equal to the organization and preset rule', () => {
+    expect(SeedRoleId.DIRECTOR_CUSTOMER_1).toBe(createSeedRoleId(SeedOrganizationId.CUSTOMER_1, RolePresetKey.DIRECTOR));
+    expect(SeedRoleId.DIRECTOR_SUPPLIER_1).toBe(createSeedRoleId(SeedOrganizationId.SUPPLIER_1, RolePresetKey.DIRECTOR));
+    expect(SeedRoleId.DIRECTOR_SUPPLIER_2).toBe(createSeedRoleId(SeedOrganizationId.SUPPLIER_2, RolePresetKey.DIRECTOR));
+    expect(SeedRoleId.DIRECTOR_CARRIER_1).toBe(createSeedRoleId(SeedOrganizationId.CARRIER_1, RolePresetKey.DIRECTOR));
+    expect(SeedRoleId.DIRECTOR_CUSTOMER_2).toBe(createSeedRoleId(SeedOrganizationId.CUSTOMER_2, RolePresetKey.DIRECTOR));
+    expect(SeedRoleId.DIRECTOR_SUPPLIER_3).toBe(createSeedRoleId(SeedOrganizationId.SUPPLIER_3, RolePresetKey.DIRECTOR));
+    expect(SeedRoleId.DIRECTOR_SUPPLIER_4).toBe(createSeedRoleId(SeedOrganizationId.SUPPLIER_4, RolePresetKey.DIRECTOR));
+    expect(SeedRoleId.DIRECTOR_CARRIER_2).toBe(createSeedRoleId(SeedOrganizationId.CARRIER_2, RolePresetKey.DIRECTOR));
+    expect(SeedRoleId.DIRECTOR_SUPPLIER_5).toBe(createSeedRoleId(SeedOrganizationId.SUPPLIER_5, RolePresetKey.DIRECTOR));
+    expect(SeedRoleId.STOREKEEPER_CUSTOMER_1).toBe(createSeedRoleId(SeedOrganizationId.CUSTOMER_1, RolePresetKey.STOREKEEPER));
+    expect(SeedRoleId.STOREKEEPER_CUSTOMER_2).toBe(createSeedRoleId(SeedOrganizationId.CUSTOMER_2, RolePresetKey.STOREKEEPER));
+  });
+
+  it('gives every organization one director with the permissions of its profiles except funding and release', () => {
+    const reader = createSeedReader();
+
+    for (const organization of reader.list('organizations')) {
+      const profiles = organization.profiles.map(profile => profile.kind);
+      const expected = listPermissionsForProfiles(profiles)
+        .map(code => getPermissionName(code))
+        .filter(name => !name.endsWith('_fund') && !name.endsWith('_release'));
+      const directorRole = reader.listBy('roles', 'tenantId', organization.id).find(role => role.presetKey === RolePresetKey.DIRECTOR);
+      const directorMemberships = reader
+        .listBy('memberships', 'organizationId', organization.id)
+        .filter((membership: Membership) => membership.roleAssignments.some(assignment => assignment.roleId === directorRole?.id));
+
+      expect([...(directorRole?.permissions ?? [])].sort(), organization.name).toEqual([...expected].sort());
+      expect(directorRole?.permissions, organization.name).toContain('member_manage');
+      expect(directorMemberships, organization.name).toHaveLength(1);
+      expect(directorMemberships[0]?.roleAssignments).toHaveLength(1);
+      expect(directorMemberships[0]?.roleAssignments[0]?.warehouseIds).toEqual([]);
+    }
   });
 
   it('gives each customer a storekeeper scoped to one warehouse of that customer', () => {
@@ -246,7 +304,16 @@ describe('seed contents', () => {
       const role = reader.get('roles', roleId);
       const membership = reader.listBy('memberships', 'userId', userId)[0];
 
-      expect(role).toMatchObject({ permissions: ['warehouse_view'], presetKey: STOREKEEPER_PRESET_KEY, tenantId: organizationId });
+      expect(role).toMatchObject({ name: 'Кладовщик', presetKey: RolePresetKey.STOREKEEPER, tenantId: organizationId });
+      expect(role?.permissions).toEqual([
+        'inventory_edit',
+        'inventory_view',
+        'sensor_view',
+        'task_edit',
+        'task_view',
+        'warehouse_view',
+        'yard_view',
+      ]);
       expect(membership?.organizationId).toBe(organizationId);
       expect(membership?.roleAssignments).toHaveLength(1);
       expect(membership?.roleAssignments[0]?.roleId).toBe(roleId);

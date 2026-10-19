@@ -162,13 +162,13 @@ describe('createEngine startup', () => {
     const { engine } = await createTestEngine();
 
     expect(engine.listPersonas().map(persona => [persona.group, persona.userDisplayName, persona.roleName])).toEqual([
-      ['fresh', 'Анна Смирнова', 'Администратор'],
-      ['fresh', 'Сергей Кузнецов', 'Администратор'],
-      ['fresh', 'Дмитрий Васильев', 'Администратор'],
+      ['fresh', 'Анна Смирнова', 'Директор'],
+      ['fresh', 'Сергей Кузнецов', 'Директор'],
+      ['fresh', 'Дмитрий Васильев', 'Директор'],
       ['fresh', 'Иван Соколов', 'Кладовщик'],
-      ['construction', 'Елена Морозова', 'Администратор'],
-      ['construction', 'Андрей Новиков', 'Администратор'],
-      ['construction', 'Павел Волков', 'Администратор'],
+      ['construction', 'Елена Морозова', 'Директор'],
+      ['construction', 'Андрей Новиков', 'Директор'],
+      ['construction', 'Павел Волков', 'Директор'],
       ['construction', 'Мария Лебедева', 'Кладовщик'],
     ]);
   });
@@ -186,10 +186,10 @@ describe('createEngine startup', () => {
     const seeded = createSeedSnapshot();
     const reader = createEngineState(seeded).read;
     const membership = reader.listBy('memberships', 'userId', SeedUserId.ADMIN_1)[0];
-    const adminRole = reader.get('roles', SeedRoleId.ADMIN_CUSTOMER_1);
+    const directorRole = reader.get('roles', SeedRoleId.DIRECTOR_CUSTOMER_1);
     const storekeeperRole = reader.get('roles', SeedRoleId.STOREKEEPER_CUSTOMER_1);
 
-    if (membership === undefined || adminRole === undefined || storekeeperRole === undefined) {
+    if (membership === undefined || directorRole === undefined || storekeeperRole === undefined) {
       throw new Error('Expected the seed membership and roles');
     }
 
@@ -198,8 +198,8 @@ describe('createEngine startup', () => {
       organizationId: membership.organizationId,
       roleAssignments: [
         storekeeperRole.id,
-        adminRole.id,
-        adminRole.id,
+        directorRole.id,
+        directorRole.id,
         '00000000-0000-4000-8000-000000000000',
       ].map(roleId => create(RoleAssignmentSchema, { roleId, warehouseIds: [] })),
       userId: membership.userId,
@@ -210,7 +210,7 @@ describe('createEngine startup', () => {
     };
     const { engine } = await createTestEngine({ storage: createSpyStorage({ ...seeded, collections }) });
 
-    expect(engine.listPersonas().find(persona => persona.id === SeedPersonaId.FRESH_CUSTOMER)?.roleName).toBe('Администратор, Кладовщик');
+    expect(engine.listPersonas().find(persona => persona.id === SeedPersonaId.FRESH_CUSTOMER)?.roleName).toBe('Директор, Кладовщик');
   });
 
   it('leaves the role name empty for a user without a membership in the persona organization', async () => {
@@ -426,7 +426,7 @@ describe('createEngine startup', () => {
     expect(first?.id).toBe(SeedPersonaId.FRESH_CUSTOMER);
     expect(first?.userDisplayName).toBe('Анна Смирнова');
     expect(first?.group).toBe('fresh');
-    expect(first?.roleName).toBe('Администратор');
+    expect(first?.roleName).toBe('Директор');
   });
 
   it('does not reseed a stored snapshot whose schema and seed versions are both current', async () => {

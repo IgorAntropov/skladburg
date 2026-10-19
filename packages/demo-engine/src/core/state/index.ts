@@ -19,6 +19,7 @@ export {
   isCurrentSnapshot,
 } from './schemaVersion';
 export type { IStateReader } from './stateReader';
+export { compareIds } from './table';
 export {
   TABLE_DEFINITIONS,
   type TableIndexesValue,

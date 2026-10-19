@@ -8,4 +8,10 @@ export {
 } from './channels';
 export { getErrorTraits } from './errorTraits';
 export { getMethodAccess } from './methodAccess';
-export { listPermissionNames } from './permissionNames';
+export { getPermissionTraits } from './permissionCatalog';
+export {
+  findPermissionCode,
+  getPermissionName,
+  type KnownPermissionCode,
+  listPermissionCodes,
+} from './permissionCodeNames';

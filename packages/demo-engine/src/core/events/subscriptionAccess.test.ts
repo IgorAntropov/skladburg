@@ -5,7 +5,8 @@ import {
 } from '@skladburg/contracts/common/v1/error';
 import {
   ACTING_ORGANIZATION_HEADER,
-  listPermissionNames,
+  getPermissionName,
+  listPermissionCodes,
   organizationChannel,
   userChannel,
   warehouseChannel,
@@ -18,7 +19,6 @@ import {
 
 import type { TestRuntimeValue } from '../modules/testing/testRuntime';
 
-import { ENGINE_SERVICES } from '../access/index';
 import { createDomainErrors } from '../errors/index';
 import { addTestMember } from '../modules/testing/moduleHarness';
 import { createTestRuntime } from '../modules/testing/testRuntime';
@@ -72,8 +72,8 @@ const readPermission = (detail: ErrorDetail | undefined): undefined | { permissi
     : undefined;
 
 describe('warehouse channel permission', () => {
-  it('is a permission of the engine catalog', () => {
-    expect(listPermissionNames(ENGINE_SERVICES)).toContain(WAREHOUSE_CHANNEL_PERMISSION);
+  it('is a permission of the contract catalog', () => {
+    expect(listPermissionCodes().map(getPermissionName)).toContain(WAREHOUSE_CHANNEL_PERMISSION);
   });
 });
 

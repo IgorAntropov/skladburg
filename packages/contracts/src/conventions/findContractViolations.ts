@@ -1,5 +1,6 @@
 import type {
   DescEnum,
+  DescEnumValue,
   DescField,
   DescFile,
   DescMessage,
@@ -16,13 +17,19 @@ import { MethodOptions_IdempotencyLevel } from '@bufbuild/protobuf/wkt';
 import { field as fieldRules } from '@bufbuild/protovalidate/gen/buf/validate/validate_pb.js';
 
 import {
+  permission_traits as permissionTraits,
+  type PermissionTraits,
+} from '../gen/access/v1/permission_pb';
+import {
   ErrorCategory,
   error_traits as errorTraits,
 } from '../gen/common/v1/error_pb';
 import {
   access,
   MethodAccessSchema,
+  type PermissionRequirement,
 } from '../gen/common/v1/method_options_pb';
+import { ProfileKind } from '../gen/organization/v1/organization_pb';
 import { collectViolations } from '../validation/collectViolations';
 import {
   ContractRule,
@@ -38,10 +45,15 @@ const MONEY_TYPE_NAME = 'common.v1.Money';
 const PAGE_REQUEST_TYPE_NAME = 'common.v1.PageRequest';
 const PAGE_RESPONSE_TYPE_NAME = 'common.v1.PageResponse';
 const ERROR_CODE_TYPE_NAME = 'common.v1.ErrorCode';
+const PERMISSION_CODE_TYPE_NAME = 'access.v1.PermissionCode';
+const PERMISSION_CODE_PREFIX = 'PERMISSION_CODE_';
+const PERMISSION_FEATURE_PATTERN = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
 const ERROR_DETAIL_TYPE_NAME = 'common.v1.ErrorDetail';
 const ERROR_PARAMS_ONEOF_NAME = 'params';
 const IDEMPOTENCY_KEY_FIELD_NAME = 'idempotency_key';
 const PAGE_FIELD_NAME = 'page';
+
+type PermissionCatalogValue = ReadonlyMap<string, PermissionTraits | undefined>;
 
 const isContractFile = (file: DescFile): boolean => !EXTERNAL_PACKAGES.includes(file.proto.package);
 
@@ -57,6 +69,8 @@ const isStringField = (field: DescField | undefined): boolean =>
 
 const isMessageField = (field: DescField | undefined, typeName: string): boolean =>
   field?.fieldKind === 'message' && field.message.typeName === typeName;
+
+const isRequiredField = (field: DescField): boolean => hasOption(field, fieldRules) && getOption(field, fieldRules).required;
 
 const hasUuidRule = (field: DescField): boolean => {
   if (!hasOption(field, fieldRules)) {
@@ -88,7 +102,58 @@ const findPackageViolations = (file: DescFile): ContractViolationValue[] => {
     : [];
 };
 
-const findAccessViolations = (method: DescMethod): ContractViolationValue[] => {
+const findPermissionViolations = (
+  method: DescMethod,
+  requirement: PermissionRequirement,
+  catalog: PermissionCatalogValue,
+): ContractViolationValue[] => {
+  const element = getMethodElement(method);
+  const { limitField, name, scopeField } = requirement;
+  const action = name.slice(name.lastIndexOf('_') + 1);
+  const violations: ContractViolationValue[] = [];
+
+  if (!listPermissionActions().includes(action)) {
+    violations.push(createViolation(element, ContractRule.PERMISSION_ACTION_UNKNOWN));
+  }
+
+  const limitFieldDescriptor = findField(method.input, limitField);
+
+  if (scopeField !== '' && !isStringField(findField(method.input, scopeField))) {
+    violations.push(createViolation(element, ContractRule.SCOPE_FIELD_INVALID));
+  }
+
+  if (limitField !== '' && !isMessageField(limitFieldDescriptor, MONEY_TYPE_NAME)) {
+    violations.push(createViolation(element, ContractRule.LIMIT_FIELD_INVALID));
+  }
+
+  if (limitFieldDescriptor && isMessageField(limitFieldDescriptor, MONEY_TYPE_NAME) && !isRequiredField(limitFieldDescriptor)) {
+    violations.push(createViolation(element, ContractRule.LIMIT_FIELD_NOT_REQUIRED));
+  }
+
+  if (limitField !== '' && isSideEffectFree(method)) {
+    violations.push(createViolation(element, ContractRule.LIMIT_FIELD_ON_QUERY));
+  }
+
+  if (!catalog.has(name)) {
+    violations.push(createViolation(element, ContractRule.PERMISSION_NOT_IN_CATALOG));
+
+    return violations;
+  }
+
+  const traits = catalog.get(name);
+
+  if (traits && scopeField !== '' && !traits.isScopeApplicable) {
+    violations.push(createViolation(element, ContractRule.SCOPE_NOT_APPLICABLE));
+  }
+
+  if (traits && limitField !== '' && !traits.isLimitApplicable) {
+    violations.push(createViolation(element, ContractRule.LIMIT_NOT_APPLICABLE));
+  }
+
+  return violations;
+};
+
+const findAccessViolations = (method: DescMethod, catalog: PermissionCatalogValue): ContractViolationValue[] => {
   const element = getMethodElement(method);
 
   if (!hasOption(method, access)) {
@@ -103,25 +168,14 @@ const findAccessViolations = (method: DescMethod): ContractViolationValue[] => {
   }
 
   if (methodAccess.requirement.case !== 'permission') {
+    if (!isSideEffectFree(method)) {
+      violations.push(createViolation(element, ContractRule.COMMAND_PERMISSION_MISSING));
+    }
+
     return violations;
   }
 
-  const { limitField, name, scopeField } = methodAccess.requirement.value;
-  const action = name.slice(name.lastIndexOf('_') + 1);
-
-  if (!listPermissionActions().includes(action)) {
-    violations.push(createViolation(element, ContractRule.PERMISSION_ACTION_UNKNOWN));
-  }
-
-  if (scopeField !== '' && !isStringField(findField(method.input, scopeField))) {
-    violations.push(createViolation(element, ContractRule.SCOPE_FIELD_INVALID));
-  }
-
-  if (limitField !== '' && !isMessageField(findField(method.input, limitField), MONEY_TYPE_NAME)) {
-    violations.push(createViolation(element, ContractRule.LIMIT_FIELD_INVALID));
-  }
-
-  return violations;
+  return [...violations, ...findPermissionViolations(method, methodAccess.requirement.value, catalog)];
 };
 
 const findIdempotencyViolations = (method: DescMethod): ContractViolationValue[] => {
@@ -161,8 +215,8 @@ const findPaginationViolations = (method: DescMethod): ContractViolationValue[] 
     : [createViolation(getMethodElement(method), ContractRule.PAGINATION_MISSING)];
 };
 
-const findMethodViolations = (method: DescMethod): ContractViolationValue[] => [
-  ...findAccessViolations(method),
+const findMethodViolations = (method: DescMethod, catalog: PermissionCatalogValue): ContractViolationValue[] => [
+  ...findAccessViolations(method, catalog),
   ...findIdempotencyViolations(method),
   ...findPaginationViolations(method),
 ];
@@ -224,12 +278,55 @@ const findErrorViolations = (registry: FileRegistry): ContractViolationValue[] =
   ];
 };
 
+const getPermissionCodeName = (value: DescEnumValue): string =>
+  value.name.startsWith(PERMISSION_CODE_PREFIX) ? value.name.slice(PERMISSION_CODE_PREFIX.length).toLowerCase() : '';
+
+const createPermissionCatalog = (permissionCode: DescEnum): PermissionCatalogValue =>
+  new Map(
+    permissionCode.values
+      .filter(value => value.number !== 0)
+      .map(value => [
+        getPermissionCodeName(value),
+        hasOption(value, permissionTraits) ? getOption(value, permissionTraits) : undefined,
+      ]),
+  );
+
+const isPermissionNameParsable = (name: string): boolean => {
+  const separatorIndex = name.lastIndexOf('_');
+
+  return separatorIndex > 0
+    && PERMISSION_FEATURE_PATTERN.test(name.slice(0, separatorIndex))
+    && listPermissionActions().includes(name.slice(separatorIndex + 1));
+};
+
+const findPermissionCatalogViolations = (permissionCode: DescEnum): ContractViolationValue[] =>
+  permissionCode.values
+    .filter(value => value.number !== 0)
+    .flatMap((value) => {
+      const element = `${permissionCode.typeName}.${value.name}`;
+      const traits = hasOption(value, permissionTraits) ? getOption(value, permissionTraits) : undefined;
+      const hasProfiles = traits !== undefined
+        && traits.profiles.length > 0
+        && traits.profiles.every(profile => profile !== ProfileKind.UNSPECIFIED);
+
+      return [
+        ...(hasProfiles ? [] : [createViolation(element, ContractRule.PERMISSION_TRAITS_MISSING)]),
+        ...(isPermissionNameParsable(getPermissionCodeName(value))
+          ? []
+          : [createViolation(element, ContractRule.PERMISSION_CODE_INVALID)]),
+      ];
+    });
+
 export const findContractViolations = (registry: FileRegistry): ContractViolationValue[] => {
   const contractFiles = [...registry.files].filter(isContractFile);
+  const permissionCode = requireEnum(registry, PERMISSION_CODE_TYPE_NAME);
+  const catalog = createPermissionCatalog(permissionCode);
 
   return [
     ...contractFiles.flatMap(findPackageViolations),
-    ...contractFiles.flatMap(file => file.services.flatMap(service => service.methods.flatMap(findMethodViolations))),
+    ...contractFiles.flatMap(file =>
+      file.services.flatMap(service => service.methods.flatMap(method => findMethodViolations(method, catalog)))),
     ...findErrorViolations(registry),
+    ...findPermissionCatalogViolations(permissionCode),
   ];
 };

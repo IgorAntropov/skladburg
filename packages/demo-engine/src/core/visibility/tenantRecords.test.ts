@@ -4,7 +4,9 @@ import {
   it,
 } from 'vitest';
 
+import { RolePresetKey } from '../access/index';
 import {
+  createSeedRoleId,
   createSeedSnapshot,
   SeedOrganizationId,
   SeedRoleId,
@@ -56,7 +58,13 @@ describe('listVisibleRoles', () => {
   it('returns the roles of the tenant only', () => {
     const roles = listVisibleRoles(read, SeedOrganizationId.CUSTOMER_1);
 
-    expect(roles.map(role => role.id).sort()).toEqual([SeedRoleId.ADMIN_CUSTOMER_1, SeedRoleId.STOREKEEPER_CUSTOMER_1].sort());
+    expect(roles.map(role => role.id).sort()).toEqual([
+      createSeedRoleId(SeedOrganizationId.CUSTOMER_1, RolePresetKey.ACCOUNTANT),
+      createSeedRoleId(SeedOrganizationId.CUSTOMER_1, RolePresetKey.ADMIN),
+      createSeedRoleId(SeedOrganizationId.CUSTOMER_1, RolePresetKey.BUYER),
+      SeedRoleId.DIRECTOR_CUSTOMER_1,
+      SeedRoleId.STOREKEEPER_CUSTOMER_1,
+    ].sort());
     expect(roles.every(role => role.tenantId === SeedOrganizationId.CUSTOMER_1)).toBe(true);
   });
 

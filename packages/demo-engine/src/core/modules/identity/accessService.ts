@@ -13,7 +13,6 @@ import {
 import type { EffectivePermissionValue } from '../../access/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
-import { ENGINE_SERVICES } from '../../access/index';
 import {
   getVisibleOrganization,
   listVisibleRoles,
@@ -30,7 +29,7 @@ const toEffectivePermission = (effective: EffectivePermissionValue): EffectivePe
 
 export const createAccessService = (runtime: IModuleRuntime): ServiceImpl<typeof AccessService> => {
   const { errors, guard, read } = runtime;
-  const permissionCatalog = buildPermissionCatalog(ENGINE_SERVICES);
+  const permissionCatalog = buildPermissionCatalog();
 
   return {
     getSession: (request, context) => {

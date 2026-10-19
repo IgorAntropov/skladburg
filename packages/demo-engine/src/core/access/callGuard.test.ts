@@ -6,14 +6,24 @@ import type {
 
 import { create } from '@bufbuild/protobuf';
 import { ConnectError } from '@connectrpc/connect';
-import { AccessService } from '@skladburg/contracts/access/v1/access';
+import {
+  AccessService,
+  MembershipSchema,
+  RoleSchema,
+  UserSchema,
+} from '@skladburg/contracts/access/v1/access';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import {
   ErrorCode,
   type ErrorDetail,
   ErrorDetailSchema,
+  type LimitExceededParams,
 } from '@skladburg/contracts/common/v1/error';
 import { MethodAccessSchema } from '@skladburg/contracts/common/v1/method_options';
+import {
+  type Money,
+  MoneySchema,
+} from '@skladburg/contracts/common/v1/money';
 import {
   CreateWarehouseRequestSchema,
   GetOrganizationSettingsRequestSchema,
@@ -42,11 +52,25 @@ import {
   SeedWarehouseId,
 } from '../seed/index';
 import { createEngineState } from '../state/index';
+import {
+  createLiveMeta,
+  TEST_WORLD_TIME_MS,
+} from '../state/testRecords';
 import { createRequestValidator } from '../validation/index';
 import { createCallGuard } from './callGuard';
 import { createProbeMethod } from './testingProbeMethod';
 
 const UNKNOWN_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+
+const STOREKEEPER_PERMISSION_NAMES: readonly string[] = [
+  'inventory_edit',
+  'inventory_view',
+  'sensor_view',
+  'task_edit',
+  'task_view',
+  'warehouse_view',
+  'yard_view',
+];
 
 const errors = createDomainErrors(createSeededRandom(5));
 const guard = createCallGuard({ errors, validator: createRequestValidator(errors, getContractRegistry()) });
@@ -111,11 +135,11 @@ describe('createCallGuard: session', () => {
 
     expect(caller.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
     expect(caller.membership?.userId).toBe(SeedUserId.STOREKEEPER_1);
-    expect(caller.permissions).toEqual([{
+    expect(caller.permissions).toEqual(STOREKEEPER_PERMISSION_NAMES.map(permission => ({
       isOrganizationWide: false,
-      permission: 'warehouse_view',
+      permission,
       warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1],
-    }]);
+    })));
   });
 
   it('answers session_required without a user', () => {
@@ -409,6 +433,235 @@ describe('createCallGuard: scope field', () => {
   it('keeps the effective permissions of the caller', () => {
     const caller = guard.guardCall(read, probe, probeRequest(SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1), storekeeper);
 
-    expect(caller.permissions.map(permission => permission.permission)).toEqual(['warehouse_view']);
+    expect(caller.permissions.map(permission => permission.permission)).toEqual(STOREKEEPER_PERMISSION_NAMES);
+  });
+});
+
+describe('createCallGuard: limit', () => {
+  const state = createEngineState(createSeedSnapshot());
+  const limitedProbe = createProbeMethod(create(MethodAccessSchema, {
+    requirement: { case: 'permission', value: { limitField: 'amount', name: 'deal_approve' } },
+  }));
+  const scopedLimitedProbe = createProbeMethod(create(MethodAccessSchema, {
+    requirement: { case: 'permission', value: { limitField: 'amount', name: 'deal_approve', scopeField: 'address' } },
+  }));
+
+  interface AssignmentValue {
+    amountLimit?: Money;
+    warehouseIds: string[];
+  }
+
+  const money = (amountMinor: bigint, currencyCode = 'RUB'): Money => create(MoneySchema, { amountMinor, currencyCode });
+
+  let memberCounter = 0;
+
+  const addMember = (assignments: AssignmentValue[]): Headers => {
+    memberCounter += 1;
+    const suffix = String(memberCounter).padStart(4, '0');
+    const userId = `a0000000-0000-4000-8000-00000000${suffix}`;
+    const roleId = `b0000000-0000-4000-8000-00000000${suffix}`;
+
+    state.transact(TEST_WORLD_TIME_MS, (transaction) => {
+      transaction.put('users', create(UserSchema, { displayName: 'Тестовый пользователь', id: userId }));
+      transaction.put('roles', create(RoleSchema, {
+        id: roleId,
+        name: 'Тестовая роль',
+        permissions: ['deal_approve'],
+        tenantId: SeedOrganizationId.CUSTOMER_1,
+      }));
+      transaction.put('memberships', create(MembershipSchema, {
+        id: `c0000000-0000-4000-8000-00000000${suffix}`,
+        organizationId: SeedOrganizationId.CUSTOMER_1,
+        roleAssignments: assignments.map(assignment => ({ ...assignment, roleId })),
+        userId,
+      }));
+    }, createLiveMeta).apply();
+
+    return headersOf(userId, SeedOrganizationId.CUSTOMER_1);
+  };
+
+  const requestOf = (method: DescMethodUnary, amount: Money | undefined, warehouseId = ''): MessageShape<DescMessage> =>
+    create(method.input, {
+      address: warehouseId,
+      amount,
+      boardNodeId: SeedBoardNodeId.KAZAN,
+      capabilities: [WarehouseCapability.RAMP],
+      cityId: SeedCityId.KAZAN,
+      idempotencyKey: '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153',
+      name: 'Склад 9',
+      timeZone: 'Europe/Moscow',
+    });
+
+  const limitParams = (error: ConnectError): LimitExceededParams | undefined => {
+    const detail = detailOf(error);
+
+    return detail.params.case === 'limitExceeded' ? detail.params.value : undefined;
+  };
+
+  const guardLimited = (headers: Headers, amount: Money | undefined, method = limitedProbe, warehouseId = ''): ConnectError =>
+    catchError(() => guard.guardCall(state.read, method, requestOf(method, amount, warehouseId), headers));
+
+  const passes = (headers: Headers, amount: Money, method = limitedProbe, warehouseId = ''): void => {
+    expect(() => guard.guardCall(state.read, method, requestOf(method, amount, warehouseId), headers)).not.toThrow();
+  };
+
+  it('lets an amount below the limit through', () => {
+    passes(addMember([{ amountLimit: money(100000n), warehouseIds: [] }]), money(99999n));
+  });
+
+  it('lets an amount equal to the limit through', () => {
+    passes(addMember([{ amountLimit: money(100000n), warehouseIds: [] }]), money(100000n));
+  });
+
+  it('answers limit_exceeded naming the permission, the limit and the requested amount', () => {
+    const headers = addMember([{ amountLimit: money(100000n), warehouseIds: [] }]);
+
+    const error = guardLimited(headers, money(100001n));
+    const params = limitParams(error);
+
+    expect(detailOf(error).code).toBe(ErrorCode.LIMIT_EXCEEDED);
+    expect(params?.permission).toBe('deal_approve');
+    expect(params?.limit).toMatchObject({ amountMinor: 100000n, currencyCode: 'RUB' });
+    expect(params?.requested).toMatchObject({ amountMinor: 100001n, currencyCode: 'RUB' });
+  });
+
+  it('lets any amount through an assignment without a limit', () => {
+    passes(addMember([{ warehouseIds: [] }]), money(9000000000n));
+  });
+
+  it('lets an amount through when one of two assignments has no limit', () => {
+    passes(addMember([{ amountLimit: money(100n), warehouseIds: [] }, { warehouseIds: [] }]), money(5000000n));
+  });
+
+  it('takes the largest limit of two limited assignments', () => {
+    const headers = addMember([
+      { amountLimit: money(100n), warehouseIds: [] },
+      { amountLimit: money(5000n), warehouseIds: [] },
+    ]);
+
+    passes(headers, money(5000n));
+
+    const params = limitParams(guardLimited(headers, money(5001n)));
+
+    expect(params?.limit?.amountMinor).toBe(5000n);
+  });
+
+  it('refuses an amount in a currency other than the one of the limit', () => {
+    const headers = addMember([{ amountLimit: money(100000n, 'RUB'), warehouseIds: [] }]);
+
+    const params = limitParams(guardLimited(headers, money(1n, 'USD')));
+
+    expect(params?.permission).toBe('deal_approve');
+    expect(params?.limit).toMatchObject({ amountMinor: 100000n, currencyCode: 'RUB' });
+    expect(params?.requested).toMatchObject({ amountMinor: 1n, currencyCode: 'USD' });
+  });
+
+  it('reports the largest limit of the currency of the request', () => {
+    const headers = addMember([
+      { amountLimit: money(900000n, 'RUB'), warehouseIds: [] },
+      { amountLimit: money(300n, 'USD'), warehouseIds: [] },
+      { amountLimit: money(200n, 'USD'), warehouseIds: [] },
+    ]);
+
+    const params = limitParams(guardLimited(headers, money(301n, 'USD')));
+
+    expect(params?.limit).toMatchObject({ amountMinor: 300n, currencyCode: 'USD' });
+  });
+
+  it('lets an unlimited assignment pass a request in any currency', () => {
+    passes(addMember([{ amountLimit: money(100n, 'RUB'), warehouseIds: [] }, { warehouseIds: [] }]), money(1000n, 'USD'));
+  });
+
+  it('answers internal when the amount field is not set', () => {
+    const headers = addMember([{ amountLimit: money(100000n), warehouseIds: [] }]);
+
+    expect(detailOf(guardLimited(headers, undefined)).code).toBe(ErrorCode.INTERNAL);
+  });
+
+  it('answers internal when the limit field does not exist in the request', () => {
+    const missing = createProbeMethod(create(MethodAccessSchema, {
+      requirement: { case: 'permission', value: { limitField: 'total', name: 'deal_approve' } },
+    }));
+    const headers = addMember([{ warehouseIds: [] }]);
+
+    expect(detailOf(guardLimited(headers, money(1n), missing)).code).toBe(ErrorCode.INTERNAL);
+  });
+
+  it('answers internal when the limit field is not a Money message', () => {
+    const notMoney = createProbeMethod(create(MethodAccessSchema, {
+      requirement: { case: 'permission', value: { limitField: 'name', name: 'deal_approve' } },
+    }));
+    const headers = addMember([{ warehouseIds: [] }]);
+
+    expect(detailOf(guardLimited(headers, money(1n), notMoney)).code).toBe(ErrorCode.INTERNAL);
+  });
+
+  it('checks the permission before the limit', () => {
+    const headers = headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1);
+    const error = catchError(() => guard.guardCall(read, limitedProbe, requestOf(limitedProbe, money(1n)), headers));
+
+    expect(detailOf(error).code).toBe(ErrorCode.PERMISSION_DENIED);
+  });
+
+  it('validates the body before the limit', () => {
+    const headers = addMember([{ amountLimit: money(1n), warehouseIds: [] }]);
+    const invalid = create(limitedProbe.input, { amount: money(100n), name: '' });
+
+    const error = catchError(() => guard.guardCall(state.read, limitedProbe, invalid, headers));
+
+    expect(detailOf(error).code).toBe(ErrorCode.VALIDATION_FAILED);
+  });
+
+  it('checks the area before the limit', () => {
+    const headers = addMember([{ amountLimit: money(1n), warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1] }]);
+
+    const error = guardLimited(headers, money(100n), scopedLimitedProbe, SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2);
+
+    expect(detailOf(error).code).toBe(ErrorCode.PERMISSION_DENIED);
+    expect(warehouseIdOf(detailOf(error))).toBe(SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2);
+  });
+
+  it('applies the limit of the assignment that covers the warehouse of the request', () => {
+    const headers = addMember([
+      { amountLimit: money(1000n), warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1] },
+      { amountLimit: money(9000n), warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2] },
+    ]);
+
+    passes(headers, money(1000n), scopedLimitedProbe, SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1);
+
+    const params = limitParams(guardLimited(headers, money(1001n), scopedLimitedProbe, SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1));
+
+    expect(params?.limit?.amountMinor).toBe(1000n);
+    passes(headers, money(9000n), scopedLimitedProbe, SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2);
+  });
+
+  it('lets an unlimited assignment on one warehouse not lift the limit of another warehouse', () => {
+    const headers = addMember([
+      { amountLimit: money(1000n), warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1] },
+      { warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2] },
+    ]);
+
+    passes(headers, money(50000n), scopedLimitedProbe, SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2);
+
+    const error = guardLimited(headers, money(50000n), scopedLimitedProbe, SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1);
+
+    expect(detailOf(error).code).toBe(ErrorCode.LIMIT_EXCEEDED);
+  });
+
+  it('applies an organization-wide limit to a request without a warehouse and to any warehouse', () => {
+    const headers = addMember([{ amountLimit: money(1000n), warehouseIds: [] }]);
+
+    passes(headers, money(1000n), scopedLimitedProbe, SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3);
+    passes(headers, money(1000n), scopedLimitedProbe, '');
+    expect(detailOf(guardLimited(headers, money(1001n), scopedLimitedProbe, '')).code).toBe(ErrorCode.LIMIT_EXCEEDED);
+  });
+
+  it('does not apply a limit tied to a warehouse to a request without a warehouse of an organization-wide role', () => {
+    const headers = addMember([
+      { amountLimit: money(10n), warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1] },
+      { amountLimit: money(7000n), warehouseIds: [] },
+    ]);
+
+    passes(headers, money(7000n), scopedLimitedProbe, '');
   });
 });

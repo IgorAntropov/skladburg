@@ -362,7 +362,7 @@ const formatPersonaOption = (name: string, role: string, organizationName: strin
 };
 
 const STOREKEEPER_OPTION = formatPersonaOption('Иван Соколов', 'Кладовщик', BRAND_NAME);
-const CARRIER_OPTION = formatPersonaOption('Дмитрий Васильев', 'Администратор', 'Перевозчик 1');
+const CARRIER_OPTION = formatPersonaOption('Дмитрий Васильев', 'Директор', 'Перевозчик 1');
 
 const choosePersona = async (optionName: string): Promise<void> => {
   const menu = await openProfileMenu();

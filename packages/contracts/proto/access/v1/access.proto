@@ -27,6 +27,7 @@ message Permission {
   PermissionAction action = 3;
   bool is_scope_applicable = 4;
   bool is_limit_applicable = 5;
+  repeated organization.v1.ProfileKind profiles = 6;
 }
 
 message User {

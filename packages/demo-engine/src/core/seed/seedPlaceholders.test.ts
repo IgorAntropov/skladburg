@@ -9,7 +9,7 @@ import { createSeedRecords } from './seedSnapshot';
 const ORGANIZATION_NAME_PATTERN = /^(Заказчик|Поставщик|Перевозчик) \d+$/;
 const LEGAL_NAME_PATTERN = /^ООО «(Заказчик|Поставщик|Перевозчик) \d+»$/;
 const USER_NAME_PATTERN = /^[А-ЯЁ][а-яё]+ [А-ЯЁ][а-яё]+$/;
-const ROLE_NAME_PATTERN = /^(Администратор|Кладовщик)$/;
+const ROLE_NAME_PATTERN = /^(Директор|Администратор|Бухгалтер|Закупщик|Менеджер продаж|Кладовщик|Диспетчер)$/;
 const WAREHOUSE_NAME_PATTERN = /^(Склад|Площадка) \d+$/;
 
 const INN_WEIGHTS: readonly number[] = [2, 4, 10, 3, 5, 9, 4, 6, 8];

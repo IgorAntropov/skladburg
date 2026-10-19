@@ -1,11 +1,15 @@
 import type { ConnectError } from '@connectrpc/connect';
 
+import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import {
   type ErrorDetail,
   ErrorDetailSchema,
 } from '@skladburg/contracts/common/v1/error';
-import { parseChannel } from '@skladburg/contracts/runtime';
+import {
+  getPermissionName,
+  parseChannel,
+} from '@skladburg/contracts/runtime';
 
 import type { IDomainErrors } from '../errors/index';
 import type { IStateReader } from '../state/index';
@@ -16,7 +20,7 @@ import {
 } from '../access/index';
 import { readActingContext } from '../context/index';
 
-export const WAREHOUSE_CHANNEL_PERMISSION = 'warehouse_view';
+export const WAREHOUSE_CHANNEL_PERMISSION = getPermissionName(PermissionCode.WAREHOUSE_VIEW);
 
 export interface EngineChannelPositionValue {
   epoch: string;

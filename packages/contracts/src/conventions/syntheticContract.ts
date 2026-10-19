@@ -38,7 +38,7 @@ import {
 } from '../gen/common/v1/method_options_pb';
 import { loadContractRegistry } from './loadContractRegistry';
 
-const BASE_PACKAGES: readonly string[] = ['buf.validate', 'common.v1', 'google.protobuf'];
+const BASE_PACKAGES: readonly string[] = ['access.v1', 'buf.validate', 'common.v1', 'google.protobuf', 'organization.v1'];
 const SYNTHETIC_DEPENDENCIES: string[] = [
   'buf/validate/validate.proto',
   'common/v1/method_options.proto',
@@ -91,6 +91,21 @@ export const createMessageField = (name: string, number: number, typeName: strin
     type: FieldDescriptorProto_Type.MESSAGE,
     typeName: `.${typeName}`,
   });
+
+export const createRequiredMessageField = (name: string, number: number, typeName: string): FieldDescriptorProto => {
+  const options = create(FieldOptionsSchema);
+
+  setExtension(options, fieldRules, create(FieldRulesSchema, { required: true }));
+
+  return create(FieldDescriptorProtoSchema, {
+    label: FieldDescriptorProto_Label.OPTIONAL,
+    name,
+    number,
+    options,
+    type: FieldDescriptorProto_Type.MESSAGE,
+    typeName: `.${typeName}`,
+  });
+};
 
 export const createUuidField = (name: string, number: number): FieldDescriptorProto => {
   const options = create(FieldOptionsSchema);

@@ -1,0 +1,373 @@
+syntax = "proto3";
+
+package access.v1;
+
+import "google/protobuf/descriptor.proto";
+import "organization/v1/organization.proto";
+
+message PermissionTraits {
+  repeated organization.v1.ProfileKind profiles = 1;
+  bool is_scope_applicable = 2;
+  bool is_limit_applicable = 3;
+}
+
+extend google.protobuf.EnumValueOptions {
+  PermissionTraits permission_traits = 50003;
+}
+
+enum PermissionCode {
+  PERMISSION_CODE_UNSPECIFIED = 0;
+  PERMISSION_CODE_ORGANIZATION_EDIT = 1 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_ORGANIZATION_MANAGE = 2 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_MEMBER_VIEW = 3 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_MEMBER_MANAGE = 4 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_NETWORK_VIEW = 5 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_WAREHOUSE_VIEW = 6 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_WAREHOUSE_CREATE = 7 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+  }];
+  PERMISSION_CODE_WAREHOUSE_EDIT = 8 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_LAYOUT_EDIT = 9 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_INVENTORY_VIEW = 10 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_INVENTORY_EDIT = 11 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_INVENTORY_EXPORT = 12 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_TASK_VIEW = 13 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_TASK_CREATE = 14 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_TASK_EDIT = 15 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_YARD_VIEW = 16 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_YARD_MANAGE = 17 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_STAFF_VIEW = 18 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_STAFF_MANAGE = 19 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_SENSOR_VIEW = 20 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_SENSOR_MANAGE = 21 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_CATALOG_VIEW = 22 [(permission_traits) = {
+    profiles: [PROFILE_KIND_SUPPLIER]
+  }];
+  PERMISSION_CODE_CATALOG_EDIT = 23 [(permission_traits) = {
+    profiles: [PROFILE_KIND_SUPPLIER]
+  }];
+  PERMISSION_CODE_PRICE_LIST_VIEW = 24 [(permission_traits) = {
+    profiles: [PROFILE_KIND_SUPPLIER]
+  }];
+  PERMISSION_CODE_PRICE_LIST_EDIT = 25 [(permission_traits) = {
+    profiles: [PROFILE_KIND_SUPPLIER]
+  }];
+  PERMISSION_CODE_PROMOTION_VIEW = 26 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+  }];
+  PERMISSION_CODE_PROMOTION_EDIT = 27 [(permission_traits) = {
+    profiles: [PROFILE_KIND_SUPPLIER]
+  }];
+  PERMISSION_CODE_MARKETPLACE_VIEW = 28 [(permission_traits) = {
+    profiles: [PROFILE_KIND_CUSTOMER]
+  }];
+  PERMISSION_CODE_DEAL_VIEW = 29 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_DEAL_CREATE = 30 [(permission_traits) = {
+    profiles: [PROFILE_KIND_CUSTOMER]
+  }];
+  PERMISSION_CODE_DEAL_EDIT = 31 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+  }];
+  PERMISSION_CODE_DEAL_APPROVE = 32 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_limit_applicable: true
+  }];
+  PERMISSION_CODE_CONTRACT_VIEW = 33 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_CONTRACT_EDIT = 34 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_CONTRACT_SIGN = 35 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_DOCUMENT_VIEW = 36 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_DOCUMENT_SIGN = 37 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_DOCUMENT_EXPORT = 38 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_PAYMENT_VIEW = 39 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_PAYMENT_FUND = 40 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_limit_applicable: true
+  }];
+  PERMISSION_CODE_PAYMENT_RELEASE = 41 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_limit_applicable: true
+  }];
+  PERMISSION_CODE_CLAIM_VIEW = 42 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_CLAIM_CREATE = 43 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+  }];
+  PERMISSION_CODE_CLAIM_APPROVE = 44 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_TRANSPORT_REQUEST_VIEW = 45 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_TRANSPORT_REQUEST_CREATE = 46 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+  }];
+  PERMISSION_CODE_TRANSPORT_OFFER_CREATE = 47 [(permission_traits) = {
+    profiles: [PROFILE_KIND_CARRIER]
+  }];
+  PERMISSION_CODE_TRANSPORT_OFFER_APPROVE = 48 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_limit_applicable: true
+  }];
+  PERMISSION_CODE_FLEET_VIEW = 49 [(permission_traits) = {
+    profiles: [PROFILE_KIND_CARRIER]
+  }];
+  PERMISSION_CODE_FLEET_EDIT = 50 [(permission_traits) = {
+    profiles: [PROFILE_KIND_CARRIER]
+  }];
+  PERMISSION_CODE_TRIP_VIEW = 51 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_TRIP_EDIT = 52 [(permission_traits) = {
+    profiles: [PROFILE_KIND_CARRIER]
+  }];
+  PERMISSION_CODE_AUTO_ORDER_VIEW = 53 [(permission_traits) = {
+    profiles: [PROFILE_KIND_CUSTOMER]
+  }];
+  PERMISSION_CODE_AUTO_ORDER_APPROVE = 54 [(permission_traits) = {
+    profiles: [PROFILE_KIND_CUSTOMER]
+    is_limit_applicable: true
+  }];
+  PERMISSION_CODE_AUTO_ORDER_MANAGE = 55 [(permission_traits) = {
+    profiles: [PROFILE_KIND_CUSTOMER]
+  }];
+  PERMISSION_CODE_ANALYTICS_VIEW = 56 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_ANALYTICS_EXPORT = 57 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_REVIEW_CREATE = 58 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_NOTIFICATION_MANAGE = 59 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+}

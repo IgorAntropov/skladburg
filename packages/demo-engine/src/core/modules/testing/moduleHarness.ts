@@ -1,6 +1,8 @@
+import type { DescMethodUnary } from '@bufbuild/protobuf';
 import type {
   CallOptions,
   Client,
+  Transport,
 } from '@connectrpc/connect';
 
 import { create } from '@bufbuild/protobuf';
@@ -15,6 +17,7 @@ import {
   RoleSchema,
   UserSchema,
 } from '@skladburg/contracts/access/v1/access';
+import { ClockService } from '@skladburg/contracts/clock/v1/clock';
 import {
   ErrorCode,
   type ErrorDetail,
@@ -26,6 +29,7 @@ import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
 import type { TestRuntimeValue } from './testRuntime';
 
 import { DEMO_USER_HEADER } from '../../protocol';
+import { createClockService } from '../clock/index';
 import { createAccessService } from '../identity/index';
 import { createOrganizationService } from '../organizationService';
 import { createTestRuntime } from './testRuntime';
@@ -33,6 +37,7 @@ import { createTestRuntime } from './testRuntime';
 export interface ModuleHarnessValue extends TestRuntimeValue {
   access: Client<typeof AccessService>;
   organization: Client<typeof OrganizationService>;
+  transport: Transport;
 }
 
 export const callAs = (userId: string | undefined, organizationId?: string): CallOptions => {
@@ -66,10 +71,36 @@ export const readErrorDetail = (error: ConnectError): ErrorDetail => {
   return detail ?? create(ErrorDetailSchema, { code: ErrorCode.UNSPECIFIED });
 };
 
+export interface CallOutcomeValue {
+  code: ErrorCode | undefined;
+  permission: string | undefined;
+}
+
+export const callForOutcome = async (
+  transport: Transport,
+  method: DescMethodUnary,
+  options: CallOptions,
+): Promise<CallOutcomeValue> => {
+  try {
+    await transport.unary(method, undefined, undefined, options.headers, create(method.input));
+  }
+  catch (error) {
+    const detail = readErrorDetail(ConnectError.from(error));
+
+    return {
+      code: detail.code,
+      permission: detail.params.case === 'permissionDenied' ? detail.params.value.permission : undefined,
+    };
+  }
+
+  return { code: undefined, permission: undefined };
+};
+
 export const createModuleHarness = (): ModuleHarnessValue => {
   const testRuntime = createTestRuntime();
   const transport = createRouterTransport(({ service }) => {
     service(AccessService, createAccessService(testRuntime.runtime));
+    service(ClockService, createClockService(testRuntime.runtime, () => testRuntime.clock.getSnapshot()));
     service(OrganizationService, createOrganizationService(testRuntime.runtime));
   });
 
@@ -77,6 +108,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     ...testRuntime,
     access: createClient(AccessService, transport),
     organization: createClient(OrganizationService, transport),
+    transport,
   };
 };
 

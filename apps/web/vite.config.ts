@@ -7,10 +7,7 @@ import {
 } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-import type {
-  CriticalPreloadEntryValue,
-  DeferredTriggerValue,
-} from './build-preload/criticalPreloadTypes.ts';
+import type { CriticalPreloadEntryValue } from './build-preload/criticalPreloadTypes.ts';
 
 import { APP_BASE_PATH } from './build-base/appBasePath.ts';
 import { bootFallbackPlugin } from './build-boot-fallback/bootFallbackPlugin.ts';
@@ -63,10 +60,6 @@ const ENGINE_WORKER_ENTRIES = ['packages/demo-engine/src/host/worker.ts'];
 const ENGINE_WORKER_DYNAMIC_ENTRIES = ['packages/demo-engine/src/core/engine/index.ts'];
 
 const DEFERRED_PRELOAD_ENTRIES = [...ENGINE_WORKER_ENTRIES, ...ENGINE_WORKER_DYNAMIC_ENTRIES];
-
-const DEFERRED_PRELOAD_TRIGGER: DeferredTriggerValue = 'stylesheet-or-entry';
-
-const UNHINTED_PRELOAD_ENTRIES: readonly string[] = [];
 
 const isDemoTransport = loadEnv('production', import.meta.dirname, 'VITE_').VITE_API_TRANSPORT !== 'connect';
 
@@ -151,10 +144,8 @@ const thirdPartyLicenses = createThirdPartyLicenses({
 
 const criticalPreload = createCriticalPreload({
   deferredEntries: DEFERRED_PRELOAD_ENTRIES,
-  deferredTrigger: DEFERRED_PRELOAD_TRIGGER,
   entries: CRITICAL_PATH_ENTRIES,
   isDemoTransport,
-  unhintedEntries: UNHINTED_PRELOAD_ENTRIES,
   workerDynamicEntries: ENGINE_WORKER_DYNAMIC_ENTRIES,
   workerEntries: ENGINE_WORKER_ENTRIES,
 });

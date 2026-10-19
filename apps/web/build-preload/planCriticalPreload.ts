@@ -13,7 +13,6 @@ export interface CriticalPreloadPlanInputValue {
   entries: readonly CriticalPreloadEntryValue[];
   isDemoTransport: boolean;
   skippedFileNames: ReadonlySet<string>;
-  unhintedEntries: readonly string[];
   workerChunks: readonly PreloadChunkValue[];
   workerDynamicEntries: readonly string[];
   workerEntries: readonly string[];
@@ -22,7 +21,6 @@ export interface CriticalPreloadPlanInputValue {
 export interface CriticalPreloadPlanValue {
   deferredFileNames: string[];
   mainThreadFileNames: string[];
-  rootFileNamesByKey: Record<string, string[]>;
   workerFileNames: string[];
 }
 
@@ -49,7 +47,6 @@ export const planCriticalPreload = ({
   entries,
   isDemoTransport,
   skippedFileNames,
-  unhintedEntries,
   workerChunks,
   workerDynamicEntries,
   workerEntries,
@@ -108,12 +105,10 @@ export const planCriticalPreload = ({
     throw new Error(`Critical preload: the bundle has no required entry: ${missing.join(', ')}`);
   }
 
-  const unhintedKeys = new Set(unhintedEntries);
-  const hintedPoints = points.filter(point => !unhintedKeys.has(point.key));
   const deferredKeys = isDemoTransport ? deferredEntries : [];
   const deferredKeySet = new Set(deferredKeys);
-  const deferredPoints = deferredKeys.flatMap(key => hintedPoints.filter(point => point.key === key));
-  const indexPoints = hintedPoints.filter(point => !deferredKeySet.has(point.key));
+  const deferredPoints = deferredKeys.flatMap(key => points.filter(point => point.key === key));
+  const indexPoints = points.filter(point => !deferredKeySet.has(point.key));
   const allChunks = [...chunks, ...workerChunks];
   const claimedFileNames = new Set(skippedFileNames);
 
@@ -138,7 +133,6 @@ export const planCriticalPreload = ({
   return {
     deferredFileNames,
     mainThreadFileNames,
-    rootFileNamesByKey: Object.fromEntries(points.map(point => [point.key, point.rootFileNames])),
     workerFileNames,
   };
 };

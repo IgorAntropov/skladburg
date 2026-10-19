@@ -49,8 +49,6 @@ const ENTRY_SRC = '/skladburg/assets/index-BtccsYqy.js';
 
 const STYLESHEET_HREF = '/skladburg/assets/index-Cx81Lk2m.css';
 
-const MOUNT_PRELOAD_HREF = '/skladburg/assets/mountApp-Dq3Zr7aa.js';
-
 const HREFS = ['/skladburg/assets/worker-XkuRDHIr.js', '/skladburg/assets/engine-BgAsrCdG.js'];
 
 const MAX_SCRIPT_BYTES = 600;
@@ -61,11 +59,8 @@ const ENTRY_SELECTOR = createEntryScriptSelector(ENTRY_SRC);
 
 const STYLESHEET_SELECTOR = createLinkSelector(STYLESHEET_HREF);
 
-const MOUNT_PRELOAD_SELECTOR = createLinkSelector(MOUNT_PRELOAD_HREF);
-
 const PAGE: PageElementValue[] = [
   { address: STYLESHEET_HREF, tag: 'link' },
-  { address: MOUNT_PRELOAD_HREF, tag: 'link' },
   { address: ENTRY_SRC, tag: 'script' },
 ];
 
@@ -224,30 +219,6 @@ describe('createDeferredPreloadScript', () => {
     expect(result.appended).toEqual(EXPECTED_LINKS);
   });
 
-  it('inserts the links when the module preload of the point loads before the entry script', () => {
-    const result = runScript(createScript([MOUNT_PRELOAD_SELECTOR, ENTRY_SELECTOR]));
-
-    result.dispatch(MOUNT_PRELOAD_HREF, 'load');
-
-    expect(result.appended).toEqual(EXPECTED_LINKS);
-
-    result.dispatch(ENTRY_SRC, 'load');
-
-    expect(result.appended).toHaveLength(HREFS.length);
-  });
-
-  it('inserts the links when the entry script loads and the module preload of the point fails', () => {
-    const result = runScript(createScript([MOUNT_PRELOAD_SELECTOR, ENTRY_SELECTOR]));
-
-    result.dispatch(MOUNT_PRELOAD_HREF, 'error');
-
-    expect(result.appended).toEqual([]);
-
-    result.dispatch(ENTRY_SRC, 'load');
-
-    expect(result.appended).toEqual(EXPECTED_LINKS);
-  });
-
   it('keeps the normal fetch priority of the links', () => {
     const result = runScript(createStylesheetOrEntryScript());
 
@@ -308,7 +279,6 @@ describe('createDeferredPreloadScript', () => {
   it.each([
     ['the entry script', [ENTRY_SELECTOR]],
     ['the stylesheet or the entry script', [STYLESHEET_SELECTOR, ENTRY_SELECTOR]],
-    ['the module preload of the point or the entry script', [MOUNT_PRELOAD_SELECTOR, ENTRY_SELECTOR]],
   ])('holds the size of the script waiting for %s under the limit', (_name, selectors) => {
     expect(Buffer.byteLength(createScript(selectors))).toBeLessThanOrEqual(MAX_SCRIPT_BYTES);
   });

@@ -25,10 +25,8 @@ export interface CriticalPreloadHtmlResultValue {
 
 export interface CriticalPreloadOptionsValue {
   deferredEntries: readonly string[];
-  deferredTrigger: DeferredTriggerValue;
   entries: readonly CriticalPreloadEntryValue[];
   isDemoTransport: boolean;
-  unhintedEntries: readonly string[];
   workerDynamicEntries: readonly string[];
   workerEntries: readonly string[];
 }
@@ -49,8 +47,6 @@ export interface CriticalPreloadValue {
 export type CriticalPreloadWorkerPluginValue = Omit<Plugin, 'generateBundle'> & {
   generateBundle: (options: unknown, bundle: CriticalPreloadBundleValue) => void;
 };
-
-export type DeferredTriggerValue = 'entry' | 'stylesheet-or-entry' | { preloadOf: string };
 
 export interface PreloadChunkValue {
   fileName: string;

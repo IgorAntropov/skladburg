@@ -20,10 +20,7 @@ import { planCriticalPreload } from './planCriticalPreload.ts';
 import { readBundleChunks } from './readBundleChunks.ts';
 import { readLinkedHrefs } from './readLinkedHrefs.ts';
 import { readStylesheetHref } from './readStylesheetHref.ts';
-import {
-  readPreloadTriggerKey,
-  resolveDeferredTriggerSelectors,
-} from './resolveDeferredTrigger.ts';
+import { resolveDeferredTriggerSelectors } from './resolveDeferredTrigger.ts';
 
 const findInitialRootFileNames = (
   chunks: BundleChunksValue['chunks'],
@@ -34,26 +31,13 @@ const findInitialRootFileNames = (
 export const createCriticalPreload = (options: CriticalPreloadOptionsValue): CriticalPreloadValue => {
   const {
     deferredEntries,
-    deferredTrigger,
     entries,
     isDemoTransport,
-    unhintedEntries,
     workerDynamicEntries,
     workerEntries,
   } = options;
-  const preloadTriggerKey = readPreloadTriggerKey(deferredTrigger);
-  const knownKeysInput = { entries, workerDynamicEntries, workerEntries };
 
-  assertKnownHintPointKeys('deferredEntries', deferredEntries, knownKeysInput);
-  assertKnownHintPointKeys('unhintedEntries', unhintedEntries, knownKeysInput);
-
-  if (preloadTriggerKey !== undefined) {
-    assertKnownHintPointKeys('deferredTrigger', [preloadTriggerKey], knownKeysInput);
-
-    if (deferredEntries.includes(preloadTriggerKey) || unhintedEntries.includes(preloadTriggerKey)) {
-      throw new Error(`Critical preload: deferredTrigger names ${preloadTriggerKey} which the page does not hint`);
-    }
-  }
+  assertKnownHintPointKeys('deferredEntries', deferredEntries, { entries, workerDynamicEntries, workerEntries });
 
   let base = '/';
   let workerBundle: BundleChunksValue | undefined;
@@ -83,7 +67,6 @@ export const createCriticalPreload = (options: CriticalPreloadOptionsValue): Cri
           entries,
           isDemoTransport,
           skippedFileNames,
-          unhintedEntries,
           workerChunks: workerBundle?.chunks ?? [],
           workerDynamicEntries,
           workerEntries,
@@ -105,17 +88,7 @@ export const createCriticalPreload = (options: CriticalPreloadOptionsValue): Cri
         const toHref = (fileName: string): string => toPreloadHref(base, fileName);
         const triggerSelectors = entryHref === undefined || plan.deferredFileNames.length === 0
           ? []
-          : resolveDeferredTriggerSelectors({
-              entryHref,
-              pageHrefs: new Set([
-                ...linkedHrefs,
-                ...plan.mainThreadFileNames.map(toHref),
-                ...plan.workerFileNames.map(toHref),
-              ]),
-              rootHrefs: (plan.rootFileNamesByKey[preloadTriggerKey ?? ''] ?? []).map(toHref),
-              stylesheetHref: readStylesheetHref(html),
-              trigger: deferredTrigger,
-            });
+          : resolveDeferredTriggerSelectors({ entryHref, stylesheetHref: readStylesheetHref(html) });
         const deferredScript = triggerSelectors.length === 0
           ? undefined
           : createDeferredPreloadScript({

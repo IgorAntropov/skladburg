@@ -82,7 +82,6 @@ const plan = (overrides: Partial<CriticalPreloadPlanInputValue> = {}): ReturnTyp
     entries: [MOUNT_ENTRY, DEMO_ENTRY],
     isDemoTransport: true,
     skippedFileNames: new Set(),
-    unhintedEntries: [],
     workerChunks: WORKER_CHUNKS,
     workerDynamicEntries: [ENGINE_ENTRY],
     workerEntries: [WORKER_ENTRY],
@@ -157,14 +156,6 @@ describe('planCriticalPreload', () => {
     ]);
   });
 
-  it('does not hint at all the entries that are listed as unhinted', () => {
-    const result = plan({ deferredEntries: [ENGINE_ENTRY], unhintedEntries: [WORKER_ENTRY] });
-
-    expect(result.workerFileNames).toEqual([]);
-    expect(result.deferredFileNames).toEqual(['engine.js', 'engine-shared.js']);
-    expect(result.mainThreadFileNames).toContain('wrapper.js');
-  });
-
   it('puts a file shared by the page and a deferred entry on the page only', () => {
     const chunks = CHUNKS.map(chunk => chunk.fileName === 'mount.js' ? { ...chunk, imports: ['errors.js', 'constants.js'] } : chunk);
     const result = plan({ chunks, deferredEntries: [DEMO_ENTRY.entry] });
@@ -193,18 +184,7 @@ describe('planCriticalPreload', () => {
     expect(plan({ deferredEntries: [WORKER_ENTRY, ENGINE_ENTRY], isDemoTransport: false })).toEqual({
       deferredFileNames: [],
       mainThreadFileNames: ['mount.js', 'errors.js'],
-      rootFileNamesByKey: { [MOUNT_ENTRY.entry]: ['mount.js'] },
       workerFileNames: [],
-    });
-  });
-
-  it('names the root file of every point it knows of', () => {
-    expect(plan().rootFileNamesByKey).toEqual({
-      [DEMO_ENTRY.entry]: ['demo.js'],
-      [ENGINE_ENTRY]: ['engine.js'],
-      [MOUNT_ENTRY.entry]: ['mount.js'],
-      [WORKER_ENTRY]: ['worker.js'],
-      [WRAPPER_KEY]: ['wrapper.js'],
     });
   });
 

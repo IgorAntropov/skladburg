@@ -17,6 +17,8 @@ export { getViolationMessageKey } from './errors/getViolationMessageKey';
 export { parseApiError } from './errors/parseApiError';
 export { translateApiError } from './errors/translateApiError';
 export { createIdempotencyKey } from './idempotency/createIdempotencyKey';
+export type { PermissionMessageKeyValue } from './permissions/getPermissionMessageKey';
+export { getPermissionMessageKey } from './permissions/getPermissionMessageKey';
 export type { ApiQueryMetaValue } from './query/apiQueryMetaTypes';
 export type { CreateQueryClientOptionsValue } from './query/createQueryClient';
 export { createQueryClient } from './query/createQueryClient';

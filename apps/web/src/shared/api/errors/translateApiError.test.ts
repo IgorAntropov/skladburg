@@ -56,7 +56,7 @@ beforeAll(async () => {
 });
 
 describe('translateApiError', () => {
-  it('puts the denied permission into the text', () => {
+  it('puts the permission name into the text', () => {
     const error = createError(ErrorCode.PERMISSION_DENIED, {
       case: 'permissionDenied',
       value: create(PermissionDeniedParamsSchema, { permission: 'deal_approve' }),
@@ -64,35 +64,42 @@ describe('translateApiError', () => {
 
     const text = translateApiError(t, error);
 
-    expect(text).toBe(t('error.permission_denied', { permission: 'deal_approve' }));
-    expect(text).toContain('deal_approve');
-    expect(text).not.toContain('{permission}');
+    expect(text).toBe(t('error.permission_denied', { permission: t('permission.deal_approve') }));
+    expect(text).toContain(t('permission.deal_approve'));
+    expect(text).not.toContain('deal_approve');
+    expect(text).not.toMatch(/\{\w+\}/u);
   });
 
-  it('leaves no placeholder when the permission denial has no params', () => {
-    const text = translateApiError(t, createError(ErrorCode.PERMISSION_DENIED));
+  it('uses the unnamed text for an unknown permission', () => {
+    const text = translateApiError(t, createError(ErrorCode.PERMISSION_DENIED, {
+      case: 'permissionDenied',
+      value: create(PermissionDeniedParamsSchema, { permission: 'no_such_permission' }),
+    }));
 
-    expect(text).toBe(t('error.permission_denied', { permission: '' }));
-    expect(text).not.toContain('{permission}');
+    expect(text).toBe(t('error.permission_denied.unnamed'));
+    expect(text).not.toContain('no_such_permission');
   });
 
-  it('leaves no placeholder when the permission field is empty', () => {
+  it('uses the unnamed text when the permission field is empty', () => {
     const text = translateApiError(t, createError(ErrorCode.PERMISSION_DENIED, {
       case: 'permissionDenied',
       value: create(PermissionDeniedParamsSchema, { permission: '' }),
     }));
 
-    expect(text).toBe(t('error.permission_denied', { permission: '' }));
-    expect(text).not.toContain('{permission}');
+    expect(text).toBe(t('error.permission_denied.unnamed'));
   });
 
-  it('leaves no placeholder when the permission denial carries params of another kind', () => {
+  it('uses the unnamed text when the permission denial has no params', () => {
+    expect(translateApiError(t, createError(ErrorCode.PERMISSION_DENIED))).toBe(t('error.permission_denied.unnamed'));
+  });
+
+  it('uses the unnamed text when the permission denial carries params of another kind', () => {
     const text = translateApiError(t, createError(ErrorCode.PERMISSION_DENIED, {
       case: 'notFound',
       value: create(NotFoundParamsSchema),
     }));
 
-    expect(text).toBe(t('error.permission_denied', { permission: '' }));
+    expect(text).toBe(t('error.permission_denied.unnamed'));
   });
 
   it('gives the plain text for a code without params', () => {

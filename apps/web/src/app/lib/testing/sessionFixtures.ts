@@ -22,7 +22,12 @@ const SESSION_ORGANIZATION_ID = 'f0000001-0000-4000-8000-000000000000';
 const SESSION_ORGANIZATION_NAME = 'Заказчик 1';
 const SESSION_USER_ID = 'f0000002-0000-4000-8000-000000000000';
 const SESSION_USER_DISPLAY_NAME = 'Анна Смирнова';
-const ALL_PERMISSIONS: readonly string[] = ['deal_view', 'warehouse_view'];
+const ALL_PERMISSIONS: readonly string[] = [
+  'network_view',
+  'marketplace_view',
+  'deal_view',
+  'warehouse_view',
+];
 
 export const createSessionFixture = ({
   permissions = ALL_PERMISSIONS,

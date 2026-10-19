@@ -5,7 +5,6 @@ import {
   ConnectError,
 } from '@connectrpc/connect';
 import { AccessService } from '@skladburg/contracts/access/v1/access';
-import { ProfileKind } from '@skladburg/contracts/organization/v1/organization';
 import {
   QueryClient,
   QueryClientProvider,
@@ -110,16 +109,16 @@ describe('SessionSectionsProvider', () => {
     });
   });
 
-  it('gives the sections that follow the profile of the organization', async () => {
-    renderProvider({ routes: createSessionRoutes(createSessionFixture({ profiles: [ProfileKind.CARRIER] })) });
+  it('gives the sections that follow the permissions of the session', async () => {
+    renderProvider({ routes: createSessionRoutes(createSessionFixture({ permissions: ['network_view', 'deal_view'] })) });
 
     await waitFor(() => {
       expect(getSummary()).toBe('ready network network,deals');
     });
   });
 
-  it('reports empty for an organization without sections', async () => {
-    renderProvider({ routes: createSessionRoutes(createSessionFixture({ profiles: [] })) });
+  it('reports empty for a session without section permissions', async () => {
+    renderProvider({ routes: createSessionRoutes(createSessionFixture({ permissions: [] })) });
 
     await waitFor(() => {
       expect(getSummary()).toBe('empty');

@@ -40,6 +40,8 @@ const MAX_SCENE_GZIP_KILOBYTES = 300;
 
 const MAX_STARTUP_GZIP_KILOBYTES = 120;
 
+const MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES = 125;
+
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
 const PRECACHE_GLOB_PATTERNS = ['**/*.{js,css,html,woff2,svg,png}'];
@@ -82,6 +84,12 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_STARTUP_GZIP_KILOBYTES,
     name: 'startup',
+  },
+  {
+    entries: ['src/features/create-warehouse/ui/form/CreateWarehouseForm.tsx'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES,
+    name: 'create-warehouse-form',
   },
 ];
 

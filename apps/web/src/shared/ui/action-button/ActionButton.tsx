@@ -52,7 +52,6 @@ export const ActionButton = ({
 }: ActionButtonProps): ReactElement => {
   const { t } = useI18n();
 
-  const isPending = access.status === 'allowed' && command.isPending;
   const isRetryable = command.apiError?.isRetryable === true;
   const isErrorBelow = errorPlacement === 'below';
   const isSubmit = type === 'submit';
@@ -74,7 +73,7 @@ export const ActionButton = ({
         className={className}
         data-testid={testId}
         onClick={handleClick}
-        pending={isPending}
+        pending={command.isPending}
         pendingLabel={pendingLabel ?? t('action.pending')}
         size={size}
         tooltipSide={tooltipSide}

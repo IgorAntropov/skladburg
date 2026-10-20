@@ -36,6 +36,15 @@ const motionSegmentTestFiles: string[] = ['apps/web/src/shared/lib/motion/**/*.t
 const formSegmentFiles: string[] = ['apps/web/src/shared/lib/form/**/*.{ts,tsx}'];
 const formSegmentTestFiles: string[] = ['apps/web/src/shared/lib/form/**/*.test.{ts,tsx}'];
 const lazyProfileMenuChunkTestFiles: string[] = ['apps/web/src/widgets/profile-menu/ui/menu/**/*.test.{ts,tsx}'];
+const lazyCreateWarehouseFormFiles: string[] = [
+  'apps/web/src/features/create-warehouse/api/form/**/*.{ts,tsx}',
+  'apps/web/src/features/create-warehouse/ui/form/**/*.{ts,tsx}',
+];
+const lazyCreateWarehouseFormTestFiles: string[] = [
+  'apps/web/src/features/create-warehouse/api/form/**/*.test.{ts,tsx}',
+  'apps/web/src/features/create-warehouse/ui/form/**/*.test.{ts,tsx}',
+];
+const lazyCreateWarehouseFeatureFiles: string[] = ['apps/web/src/features/create-warehouse/**/*.{ts,tsx}'];
 const sceneSegmentFiles: string[] = ['apps/web/src/**/scene/**', 'apps/web/src/shared/3d/**'];
 const lazyWidgetSceneFiles: string[] = ['apps/web/src/widgets/**/scene/**/*.{ts,tsx}'];
 
@@ -169,6 +178,11 @@ const sectionPagesLazyRestriction: LazyModuleRestrictionValue = {
 const profileMenuChunkLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'the profile menu chunk',
   regex: '(^|/)menu(/|$)',
+};
+
+const createWarehouseFormChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the create-warehouse form chunk',
+  regex: '(^|/)form(/|$)',
 };
 
 const mountAppLazyRestriction: LazyModuleRestrictionValue = {
@@ -615,6 +629,27 @@ export default defineConfig(
     ),
   },
   {
+    files: lazyCreateWarehouseFormFiles,
+    rules: createBoundaryRules(
+      [
+        engineRestriction,
+        registryRestriction,
+        apiTestingEntryRestriction,
+        routingTestingEntryRestriction,
+        ...motionRestrictions,
+        formPackageRestriction,
+      ],
+      webSourceSyntaxRestrictions,
+    ),
+  },
+  {
+    files: lazyCreateWarehouseFormTestFiles,
+    rules: createBoundaryRules(
+      [engineRestrictionForTests, registryRestriction, ...motionRestrictions, formPackageRestriction],
+      webSyntaxRestrictions,
+    ),
+  },
+  {
     files: engineBoundaryFiles,
     ignores: [...webTestFiles, ...sceneSegmentFiles],
     rules: createLazyModuleRules([], sceneBoundaryImportRestrictions),
@@ -642,6 +677,11 @@ export default defineConfig(
     files: lazyProfileMenuFiles,
     ignores: [...webTestFiles, ...lazyProfileMenuChunkFiles],
     rules: createLazyModuleRules(profileMenuLazyRestrictions, sceneBoundaryImportRestrictions),
+  },
+  {
+    files: lazyCreateWarehouseFeatureFiles,
+    ignores: [...webTestFiles, ...lazyCreateWarehouseFormFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([createWarehouseFormChunkLazyRestriction], sceneBoundaryImportRestrictions),
   },
   {
     files: lazyWidgetSceneFiles,

@@ -234,6 +234,7 @@ describe('HudLayout', () => {
           inspectorKey: 'deal:first',
           isInspectorOpen: true,
           listTabs: [{ content: <MountProbe onMount={onListsMount} />, id: 'deals', label: DEALS_TAB_LABEL }],
+          panel: undefined,
           scene: <MountProbe onMount={onSceneMount} />,
         });
         const { rerender } = render(withTestLocalizer(<HudLayout {...firstProps} />));
@@ -243,6 +244,25 @@ describe('HudLayout', () => {
         expect(onListsMount).toHaveBeenCalledTimes(1);
         expect(onSceneMount).toHaveBeenCalledTimes(1);
       });
+    });
+  });
+
+  describe('on a phone with both the lists and the panel', () => {
+    beforeEach(() => {
+      viewport.setViewportClass('phone');
+    });
+
+    it('shows the panel and no lists, and brings the lists back when the panel leaves', () => {
+      const { rerender } = render(withTestLocalizer(<HudLayout {...createProps()} />));
+
+      expect(screen.getByText(SLOT_TEXT.panel)).toBeDefined();
+      expect(screen.queryByText(SLOT_TEXT.lists)).toBeNull();
+      expect(screen.queryByRole('tablist')).toBeNull();
+
+      rerender(withTestLocalizer(<HudLayout {...createProps({ panel: undefined })} />));
+
+      expect(screen.getByText(SLOT_TEXT.lists)).toBeDefined();
+      expect(screen.queryByText(SLOT_TEXT.panel)).toBeNull();
     });
   });
 

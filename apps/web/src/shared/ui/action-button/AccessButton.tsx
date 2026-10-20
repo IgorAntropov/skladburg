@@ -23,6 +23,7 @@ export interface AccessButtonProps extends Omit<ButtonProps, 'aria-describedby' 
 export const AccessButton = ({
   access,
   children,
+  pending,
   tooltipSide,
   ...buttonProps
 }: AccessButtonProps): ReactElement => {
@@ -33,11 +34,12 @@ export const AccessButton = ({
   const isDenied = denialReason !== undefined;
   const describedById = isDenied ? reasonId : undefined;
   const isBlocked = access.status !== 'allowed';
+  const isPending = access.status === 'allowed' && pending === true;
 
   return (
     <div className="flex max-w-full flex-col items-start gap-2">
       <Tooltip canOpen={isDenied} content={denialReason ?? ''} side={tooltipSide}>
-        <Button {...buttonProps} aria-describedby={describedById} aria-disabled={isBlocked}>
+        <Button {...buttonProps} aria-describedby={describedById} aria-disabled={isBlocked} pending={isPending}>
           {children}
         </Button>
       </Tooltip>

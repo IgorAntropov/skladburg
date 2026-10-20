@@ -1,3 +1,6 @@
+import type { MouseEvent } from 'react';
+import type { Mock } from 'vitest';
+
 import {
   cleanup,
   fireEvent,
@@ -22,10 +25,10 @@ import { AccessButton } from './AccessButton';
 const BUTTON_LABEL = 'Добавить склад';
 const PERMISSION_NAME = defaultLocaleCatalog['permission.warehouse_create'];
 
-const renderButton = (access: CommandAccessValue): ReturnType<typeof vi.fn> => {
-  const onClick = vi.fn();
+const renderButton = (access: CommandAccessValue, isPending = false): Mock<(event: MouseEvent<HTMLButtonElement>) => void> => {
+  const onClick = vi.fn<(event: MouseEvent<HTMLButtonElement>) => void>();
 
-  render(withTestLocalizer(<AccessButton access={access} onClick={onClick}>{BUTTON_LABEL}</AccessButton>));
+  render(withTestLocalizer(<AccessButton access={access} onClick={onClick} pending={isPending}>{BUTTON_LABEL}</AccessButton>));
 
   return onClick;
 };
@@ -72,5 +75,17 @@ describe('AccessButton', () => {
     expect(onClick).not.toHaveBeenCalled();
     expect(button.getAttribute('aria-disabled')).toBe('true');
     expect(button.getAttribute('aria-describedby')).toBeNull();
+  });
+
+  it('shows the busy state only when the access is allowed', () => {
+    renderButton({ status: 'allowed' }, true);
+
+    expect(screen.getByRole('button').getAttribute('aria-busy')).toBe('true');
+  });
+
+  it('does not show the busy state when the access is denied', () => {
+    renderButton({ permission: 'warehouse_create', status: 'denied' }, true);
+
+    expect(screen.getByRole('button', { name: BUTTON_LABEL }).getAttribute('aria-busy')).toBeNull();
   });
 });

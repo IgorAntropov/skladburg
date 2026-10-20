@@ -73,6 +73,27 @@ const motionSegmentFilePath = fileURLToPath(new URL('../../apps/web/src/shared/l
 const motionSegmentTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/motion/probe-scope.test.tsx', import.meta.url));
 const formSegmentFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/form/probe-form.ts', import.meta.url));
 const formSegmentTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/form/probe-form.test.tsx', import.meta.url));
+const createWarehouseFormViewFilePath = fileURLToPath(
+  new URL('../../apps/web/src/features/create-warehouse/ui/form/CreateWarehouseForm.tsx', import.meta.url),
+);
+const createWarehouseFormViewTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/features/create-warehouse/ui/form/CreateWarehouseForm.test.tsx', import.meta.url),
+);
+const createWarehouseFormHookFilePath = fileURLToPath(
+  new URL('../../apps/web/src/features/create-warehouse/api/form/useCreateWarehouseForm.ts', import.meta.url),
+);
+const createWarehouseButtonFilePath = fileURLToPath(
+  new URL('../../apps/web/src/features/create-warehouse/ui/CreateWarehouseButton.tsx', import.meta.url),
+);
+const createWarehouseApiFilePath = fileURLToPath(
+  new URL('../../apps/web/src/features/create-warehouse/api/useWarehousePlacesQuery.ts', import.meta.url),
+);
+const createWarehouseLauncherFilePath = fileURLToPath(
+  new URL('../../apps/web/src/features/create-warehouse/model/useCreateWarehouseLauncher.ts', import.meta.url),
+);
+const createWarehouseLauncherTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/features/create-warehouse/model/useCreateWarehouseLauncher.test.tsx', import.meta.url),
+);
 const scriptsProbeFilePath = fileURLToPath(new URL('./probe-tool.ts', import.meta.url));
 
 const formattingRuleIds: ReadonlySet<string> = new Set([
@@ -735,6 +756,8 @@ describe('eslint.config.ts with the local rules', () => {
       ['widgets/profile-menu outside of the chunk', profileMenuFilePath],
       ['the lazy chunk of the profile menu', profileMenuChunkFilePath],
       ['a test of the lazy chunk of the profile menu', profileMenuChunkTestFilePath],
+      ['the button of the create-warehouse feature outside of the chunk', createWarehouseButtonFilePath],
+      ['the api of the create-warehouse feature outside of the chunk', createWarehouseApiFilePath],
       ['shared/ui', sharedUiFilePath],
       ['shared/lib outside of the segment', sharedLibFilePath],
       ['the segment of the animation library', motionSegmentFilePath],
@@ -777,6 +800,30 @@ describe('eslint.config.ts with the local rules', () => {
         const outcome = await lint(untypedEslint, toCode(specifier), formSegmentFilePath);
 
         expect(isRestricted(outcome.ruleIds)).toBe(false);
+      });
+
+      describe.each([
+        ['the view of the lazy chunk of create-warehouse', createWarehouseFormViewFilePath],
+        ['the hook of the lazy chunk of create-warehouse', createWarehouseFormHookFilePath],
+        ['a test of the lazy chunk of create-warehouse', createWarehouseFormViewTestFilePath],
+      ])('in %s', (_placeName, filePath) => {
+        it.each(segmentEntries)('allows %s', async (_name, specifier) => {
+          const outcome = await lint(untypedEslint, toCode(specifier), filePath);
+
+          expect(isRestricted(outcome.ruleIds)).toBe(false);
+        });
+
+        it.each(packageEntries)('reports %s', async (_name, specifier) => {
+          const outcome = await lint(untypedEslint, toCode(specifier), filePath);
+
+          expect(isRestricted(outcome.ruleIds)).toBe(true);
+        });
+
+        it('reports the animation library', async () => {
+          const outcome = await lint(untypedEslint, toCode('motion/react'), filePath);
+
+          expect(isRestricted(outcome.ruleIds)).toBe(true);
+        });
       });
     });
 
@@ -1829,6 +1876,61 @@ describe('eslint.config.ts with the local rules', () => {
         ['a page', pageFilePath],
       ])('does not restrict ./menu/ProfileMenu in %s', async (_name, filePath) => {
         expect(await readLazyMessages(toValueImport('./menu/ProfileMenu'), filePath)).toEqual([]);
+      });
+    });
+
+    describe('the lazy chunk of create-warehouse', () => {
+      it.each([
+        ['the form view from the button', './form/CreateWarehouseFormBody', createWarehouseButtonFilePath],
+        ['the form view by an alias', '@/features/create-warehouse/ui/form/CreateWarehouseForm', createWarehouseLauncherFilePath],
+        ['the form hook from the launcher', '../api/form/useCreateWarehouseForm', createWarehouseLauncherFilePath],
+        ['the form folder itself', './form', createWarehouseButtonFilePath],
+        ['the form view from the api segment', '../ui/form/CreateWarehouseForm', createWarehouseApiFilePath],
+      ])('reports a value import of %s', async (_name, specifier, filePath) => {
+        const messages = await readLazyMessages(toValueImport(specifier), filePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('create-warehouse form chunk');
+        expect(messages[0]).toContain(lazyMessagePart);
+      });
+
+      it('reports a re-export of a value of the chunk', async () => {
+        const code = 'export { CreateWarehouseForm } from \'./form/CreateWarehouseForm\';\n';
+
+        expect(await readLazyMessages(code, createWarehouseButtonFilePath)).toHaveLength(1);
+      });
+
+      it.each([
+        ['import type', toTypeImport],
+        ['an import with only inline types', toNamedTypeImport],
+        ['import()', toDynamicImport],
+        ['an import type query', toTypeQuery],
+      ])('allows %s of the form view outside of the chunk', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode('../ui/form/CreateWarehouseForm'), createWarehouseLauncherFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['the form view', createWarehouseFormViewFilePath],
+        ['the form hook', createWarehouseFormHookFilePath],
+        ['a test of the form view', createWarehouseFormViewTestFilePath],
+      ])('allows a value import of a part of the chunk in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('./CreateWarehouseFormBody'), filePath)).toEqual([]);
+      });
+
+      it('allows a value import of the chunk in a test outside of the chunk', async () => {
+        expect(await readLazyMessages(toValueImport('../ui/form/CreateWarehouseForm'), createWarehouseLauncherTestFilePath)).toEqual([]);
+      });
+
+      it('allows a value import of the loader that sits next to the chunk', async () => {
+        expect(await readLazyMessages(toValueImport('../ui/loadCreateWarehouseForm'), createWarehouseLauncherFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['a page', pageFilePath],
+        ['a feature view', featureViewFilePath],
+        ['a widget', widgetFilePath],
+      ])('does not restrict a form folder in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('./form/ProbeForm'), filePath)).toEqual([]);
       });
     });
 

@@ -29,11 +29,12 @@ export const PhoneHudLayout = ({
 
   const isListsShown = hasLists({ listsHeader, listTabs });
   const isPanelShown = hasSlot(panel);
-  const isPanelMain = !isListsShown && isPanelShown;
+  const isPanelMain = isPanelShown;
+  const isListsMain = isListsShown && !isPanelShown;
 
   return (
     <>
-      {isListsShown && (
+      {isListsMain && (
         <HudZone className={MAIN_ZONE_CLASS_NAME} label={t('hud.lists.label')}>
           <ListsZoneContent header={listsHeader} tabs={listTabs} />
         </HudZone>

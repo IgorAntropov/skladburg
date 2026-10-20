@@ -3,6 +3,11 @@ import type { ReactElement } from 'react';
 import type { ObjectRefValue } from '@/shared/routing';
 import type { TabsItemValue } from '@/shared/ui';
 
+import {
+  CreateWarehouseButton,
+  CreateWarehousePanel,
+  useCreateWarehouseLauncher,
+} from '@/features/create-warehouse';
 import { useI18n } from '@/shared/i18n';
 import {
   HudLayout,
@@ -23,10 +28,13 @@ export const WarehousePage = ({ focus }: WarehousePageProps): ReactElement => {
   const { t } = useI18n();
   const inspectorFocus = useInspectorFocus('warehouse', focus);
   const { data: warehouses } = useWarehousesQuery();
+  const launcher = useCreateWarehouseLauncher();
+
+  const panel = launcher.isOpen ? <CreateWarehousePanel launcher={launcher} /> : undefined;
 
   const listTabs: readonly TabsItemValue[] = [
     {
-      content: <WarehouseList />,
+      content: <WarehouseList action={<CreateWarehouseButton launcher={launcher} />} />,
       count: warehouses?.length,
       id: 'warehouses',
       label: t('hud.lists.warehouses'),
@@ -41,6 +49,7 @@ export const WarehousePage = ({ focus }: WarehousePageProps): ReactElement => {
         inspector={<ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
         listsHeader={<OrganizationCard />}
         listTabs={listTabs}
+        panel={panel}
         scene={<ScenePlaceholder label={t('warehouse.placeholder')} />}
       />
     </div>

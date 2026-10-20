@@ -24,6 +24,11 @@ export const PERSONAS = {
     organizationName: 'Заказчик 1',
     sections: ALL_SECTIONS,
   },
+  freshStorekeeper: {
+    id: '90000004-0000-4000-8000-000000000000',
+    organizationName: 'Заказчик 1',
+    sections: ['warehouse'],
+  },
 } as const satisfies Record<string, PersonaValue>;
 
 export const DEFAULT_PERSONA: PersonaValue = PERSONAS.freshCustomer;
@@ -31,3 +36,9 @@ export const DEFAULT_PERSONA: PersonaValue = PERSONAS.freshCustomer;
 export const ORGANIZATION_NAME = DEFAULT_PERSONA.organizationName;
 
 export const WAREHOUSE_NAMES = ['Склад 1', 'Склад 2', 'Склад 3'] as const;
+
+export const NEW_WAREHOUSE = {
+  address: 'ул. Южная, 12',
+  cityName: 'Казань',
+  name: 'Склад на Южной',
+} as const;

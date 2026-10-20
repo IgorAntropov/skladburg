@@ -5,6 +5,7 @@ export default defineConfig([
   ...fsd.configs.recommended,
   {
     files: [
+      './src/features/create-warehouse/**',
       './src/features/reset-demo/**',
       './src/features/switch-persona/**',
       './src/features/switch-theme/**',

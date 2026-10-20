@@ -4,4 +4,5 @@ export {
   type IEventOutbox,
   type IModuleRuntime,
 } from './moduleRuntime';
+export { createNetworkService } from './network/index';
 export { createOrganizationService } from './organizationService';

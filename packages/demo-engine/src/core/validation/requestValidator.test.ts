@@ -75,10 +75,10 @@ describe('createRequestValidator.collect', () => {
 
     expect(violations).toEqual([
       { fieldPath: 'idempotency_key', ruleId: 'string.uuid_empty' },
-      { fieldPath: 'name', ruleId: 'string.min_len' },
+      { fieldPath: 'name', ruleId: 'required' },
       { fieldPath: 'city_id', ruleId: 'string.uuid_empty' },
       { fieldPath: 'board_node_id', ruleId: 'string.uuid_empty' },
-      { fieldPath: 'time_zone', ruleId: 'string.pattern' },
+      { fieldPath: 'time_zone', ruleId: 'required' },
     ]);
   });
 
@@ -148,7 +148,7 @@ describe('createRequestValidator.validate', () => {
     expect(details?.params.case).toBe('validationFailed');
     expect(details?.params.value).toMatchObject({
       violations: [
-        { fieldPath: 'name', ruleId: 'string.min_len' },
+        { fieldPath: 'name', ruleId: 'required' },
         { fieldPath: 'time_zone', ruleId: 'string.pattern' },
       ],
     });

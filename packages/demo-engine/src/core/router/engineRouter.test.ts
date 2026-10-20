@@ -11,6 +11,7 @@ import { createConnectTransport } from '@connectrpc/connect-web';
 import { AccessService } from '@skladburg/contracts/access/v1/access';
 import { ClockService } from '@skladburg/contracts/clock/v1/clock';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
+import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import {
   describe,
@@ -52,6 +53,7 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
     accessService: { getSession, listPermissions: unused, listRoles: unused },
     clockService: { getWorldClock: unused },
     errors,
+    networkService: { listBoardNodes: unused, listCities: unused },
     organizationService: {
       createWarehouse: unused,
       getOrganization: unused,
@@ -179,10 +181,12 @@ describe('engine router', () => {
 
     const access = await bodyFor(AccessService.typeName, AccessService.method.getSession.name);
     const clock = await bodyFor(ClockService.typeName, ClockService.method.getWorldClock.name);
+    const network = await bodyFor(NetworkService.typeName, NetworkService.method.listCities.name);
     const organization = await bodyFor(OrganizationService.typeName, OrganizationService.method.listSpheres.name);
 
     expect(access.status).toBe(401);
     expect(clock.status).toBe(401);
+    expect(network.status).toBe(401);
     expect(organization.status).toBe(401);
   });
 

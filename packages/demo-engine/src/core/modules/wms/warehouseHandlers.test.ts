@@ -340,7 +340,7 @@ describe('OrganizationService.createWarehouse', () => {
     expect(readErrorDetail(error).code).toBe(ErrorCode.VALIDATION_FAILED);
     expect(violations).toEqual(expect.arrayContaining([
       { fieldPath: 'idempotency_key', ruleId: 'string.uuid' },
-      { fieldPath: 'name', ruleId: 'string.min_len' },
+      { fieldPath: 'name', ruleId: 'required' },
       { fieldPath: 'city_id', ruleId: 'string.uuid_empty' },
     ]));
   });
@@ -356,6 +356,19 @@ describe('OrganizationService.createWarehouse', () => {
 
     expect(fieldPaths).toContain('time_zone');
     expect(fieldPaths).toContain('capabilities[0]');
+  });
+
+  it('rejects an empty time zone with the required rule on time_zone', async () => {
+    const { commits, organization } = createModuleHarness();
+
+    const error = await captureError(organization.createWarehouse(
+      createRequest({ timeZone: '' }),
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
+    ));
+
+    expect(readErrorDetail(error).code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(getViolations(readErrorDetail(error))).toEqual([{ fieldPath: 'time_zone', ruleId: 'required' }]);
+    expect(commits).toHaveLength(0);
   });
 
   it('writes nothing and sends no events when the body is invalid', async () => {

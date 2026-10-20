@@ -535,6 +535,27 @@ describe('form rules parity with protovalidate', () => {
     );
   });
 
+  it.each(['name', 'timeZone'])('requires %s of CreateWarehouseRequest on the client and at protovalidate', async (fieldName) => {
+    const item = ruleMessages.find(candidate => typeName(candidate) === 'organization.v1.CreateWarehouseRequest');
+    const rules = item === undefined ? undefined : await loadTable(item);
+    const field = item?.message.fields.find(candidate => candidate.localName === fieldName);
+
+    expect(item).toBeDefined();
+    expect(field).toBeDefined();
+    expect(rules?.fields[fieldName]?.isRequired).toBe(true);
+
+    if (item === undefined || rules === undefined || field === undefined) {
+      return;
+    }
+
+    const emptyMessage = buildMessageWithValue(item.message, field, { [fieldName]: '' });
+    const violations = emptyMessage === undefined ? [] : collectViolations(item.message, emptyMessage.message);
+
+    expect(violations.filter(violation => violation.fieldPath === field.name).map(violation => violation.ruleId)).toEqual(['required']);
+    expect(validateFormValues(rules, { [fieldName]: '' }, [fieldName]).map(issue => issue.ruleId)).toEqual(['required']);
+    expect(validateFormValues(rules, { [fieldName]: fieldName === 'name' ? 'Склад' : 'Europe/Moscow' }, [fieldName])).toEqual([]);
+  });
+
   it('lists the fields that stay on the server', async () => {
     const serverOnlyFields: string[] = [];
 

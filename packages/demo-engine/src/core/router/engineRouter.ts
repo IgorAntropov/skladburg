@@ -14,6 +14,7 @@ import {
 } from '@connectrpc/connect/protocol';
 import { AccessService } from '@skladburg/contracts/access/v1/access';
 import { ClockService } from '@skladburg/contracts/clock/v1/clock';
+import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 
 import type { IDomainErrors } from '../errors/index';
@@ -22,6 +23,7 @@ export interface CreateEngineHandlerOptionsValue {
   accessService: ServiceImpl<typeof AccessService>;
   clockService: ServiceImpl<typeof ClockService>;
   errors: IDomainErrors;
+  networkService: ServiceImpl<typeof NetworkService>;
   organizationService: ServiceImpl<typeof OrganizationService>;
 }
 
@@ -56,6 +58,7 @@ export const createEngineHandler = (options: CreateEngineHandlerOptionsValue): E
 
   router.service(AccessService, options.accessService);
   router.service(ClockService, options.clockService);
+  router.service(NetworkService, options.networkService);
   router.service(OrganizationService, options.organizationService);
 
   return createFetchHandler(createPathDispatcher(router.handlers));

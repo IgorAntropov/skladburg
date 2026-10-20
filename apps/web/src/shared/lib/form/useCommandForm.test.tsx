@@ -226,11 +226,11 @@ describe('useCommandForm', () => {
       pressSubmit();
 
       await waitFor(() => {
-        expect(getErrorText('name')).toBe(defaultLocaleCatalog['validation.string.min_len']);
+        expect(getErrorText('name')).toBe(defaultLocaleCatalog['validation.required']);
       });
       expect(getErrorText('cityId')).toBe(defaultLocaleCatalog['validation.string.uuid_empty']);
       expect(getErrorText('boardNodeId')).toBe(defaultLocaleCatalog['validation.string.uuid_empty']);
-      expect(getErrorText('timeZone')).toBe(defaultLocaleCatalog['validation.string.pattern']);
+      expect(getErrorText('timeZone')).toBe(defaultLocaleCatalog['validation.required']);
       expect(getErrorText('address')).toBe('');
       expect(getInput('name').getAttribute('aria-invalid')).toBe('true');
       expect(execute).not.toHaveBeenCalled();

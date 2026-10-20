@@ -103,7 +103,7 @@ describe('createContractResolver', () => {
         address: { type: 'string.max_len' },
         boardNodeId: { type: 'string.uuid' },
         cityId: { type: 'string.uuid_empty' },
-        name: { type: 'string.min_len' },
+        name: { type: 'required' },
         timeZone: { type: 'string.pattern' },
       });
     });
@@ -112,6 +112,23 @@ describe('createContractResolver', () => {
       const result = await resolveWarehouse(validWarehouse({ capabilities: [0, 0] }));
 
       expect(result.errors).toEqual({ capabilities: { type: 'repeated.unique' } });
+    });
+
+    it('reports a text shorter than the minimum length of a field', async () => {
+      const rules = {
+        fields: {
+          code: {
+            kind: 'string',
+            minLen: 3,
+            protoName: 'code',
+          },
+        },
+      } as const satisfies FormRulesValue;
+
+      const result = await createContractResolver<TestValues>(rules, ['code'])({ code: 'ab' }, undefined, OPTIONS);
+
+      expect(result.values).toEqual({});
+      expect(result.errors).toEqual({ code: { type: 'string.min_len' } });
     });
 
     it('does not check a field that is not in the list of form fields', async () => {

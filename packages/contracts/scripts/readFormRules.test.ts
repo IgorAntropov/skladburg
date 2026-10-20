@@ -774,8 +774,9 @@ describe('readFileFormRules on the current contract', () => {
         },
         cityId: { isUuid: true, kind: 'string', protoName: 'city_id' },
         idempotencyKey: { isUuid: true, kind: 'string', protoName: 'idempotency_key' },
-        name: { kind: 'string', maxLen: 120, minLen: 1, protoName: 'name' },
+        name: { isRequired: true, kind: 'string', maxLen: 120, protoName: 'name' },
         timeZone: {
+          isRequired: true,
           kind: 'string',
           pattern: '^[A-Za-z_]+(/[A-Za-z0-9_+-]+)+$',
           protoName: 'time_zone',

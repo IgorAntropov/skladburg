@@ -89,7 +89,7 @@ describe('CreateWarehouseRequest', () => {
     const request = createWarehouseRequest({ name: '' });
 
     expect(collectViolations(CreateWarehouseRequestSchema, request)).toEqual([
-      { fieldPath: 'name', ruleId: 'string.min_len' },
+      { fieldPath: 'name', ruleId: 'required' },
     ]);
   });
 
@@ -140,11 +140,19 @@ describe('CreateWarehouseRequest', () => {
     },
   );
 
-  it.each(['Moscow', 'UTC+3', ''])('rejects time zone "%s"', (timeZone) => {
+  it.each(['Moscow', 'UTC+3'])('rejects time zone "%s"', (timeZone) => {
     const request = createWarehouseRequest({ timeZone });
 
     expect(collectViolations(CreateWarehouseRequestSchema, request)).toEqual([
       { fieldPath: 'time_zone', ruleId: 'string.pattern' },
+    ]);
+  });
+
+  it('rejects an empty time zone as missing', () => {
+    const request = createWarehouseRequest({ timeZone: '' });
+
+    expect(collectViolations(CreateWarehouseRequestSchema, request)).toEqual([
+      { fieldPath: 'time_zone', ruleId: 'required' },
     ]);
   });
 

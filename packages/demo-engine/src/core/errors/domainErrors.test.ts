@@ -136,7 +136,7 @@ describe('createDomainErrors', () => {
 
   it('carries the violations of validation_failed', () => {
     const error = createErrors().validationFailed([
-      { fieldPath: 'name', ruleId: 'string.min_len' },
+      { fieldPath: 'name', ruleId: 'required' },
       { fieldPath: 'capabilities[1]', ruleId: 'enum.not_in' },
     ]);
     const detail = readDetail(error);
@@ -145,7 +145,7 @@ describe('createDomainErrors', () => {
     expect(detail.params.case).toBe('validationFailed');
     expect(detail.params.value).toMatchObject({
       violations: [
-        { fieldPath: 'name', ruleId: 'string.min_len' },
+        { fieldPath: 'name', ruleId: 'required' },
         { fieldPath: 'capabilities[1]', ruleId: 'enum.not_in' },
       ],
     });

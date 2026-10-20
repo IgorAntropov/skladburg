@@ -100,7 +100,7 @@ describe('parseApiError against the demo engine', () => {
     expect(error.isRetryable).toBe(false);
     expect(getFieldViolations(error)).toEqual(expect.arrayContaining([
       expect.objectContaining({ fieldPath: 'idempotency_key', ruleId: 'string.uuid_empty' }),
-      expect.objectContaining({ fieldPath: 'name', ruleId: 'string.min_len' }),
+      expect.objectContaining({ fieldPath: 'name', ruleId: 'required' }),
     ]));
   });
 
@@ -127,8 +127,8 @@ describe('parseApiError against the demo engine', () => {
       'enum.not_in',
       'int32.gte_lte',
       'repeated.unique',
+      'required',
       'string.max_len',
-      'string.min_len',
       'string.pattern',
       'string.uuid',
       'string.uuid_empty',

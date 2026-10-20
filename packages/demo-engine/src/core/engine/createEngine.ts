@@ -25,6 +25,7 @@ import { createIdempotencyGuard } from '../idempotency/index';
 import {
   createAccessService,
   createClockService,
+  createNetworkService,
   createOrganizationService,
 } from '../modules/index';
 import {
@@ -147,6 +148,7 @@ export const createEngineWithTasks = async (
     accessService: createAccessService(runtime),
     clockService: createClockService(runtime, () => clock.getSnapshot()),
     errors,
+    networkService: createNetworkService(runtime),
     organizationService: createOrganizationService(runtime),
   });
   const scheduler = createScheduler({

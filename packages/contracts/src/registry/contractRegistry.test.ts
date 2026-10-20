@@ -191,7 +191,7 @@ describe('contract registry', () => {
     });
   });
 
-  it('keeps the min_len rule of the warehouse name in the image only', () => {
+  it('keeps the required rule of the warehouse name in the image only', () => {
     const imageName = getRuleSchema(registry, CreateWarehouseRequestSchema).fields.find(candidate => candidate.name === 'name');
     const generatedName = CreateWarehouseRequestSchema.fields.find(candidate => candidate.name === 'name');
 
@@ -204,8 +204,9 @@ describe('contract registry', () => {
 
     const imageRules = getOption(imageName, fieldRules);
 
+    expect(imageRules.required).toBe(true);
     expect(imageRules.type.case).toBe('string');
-    expect(imageRules.type.case === 'string' ? imageRules.type.value.minLen : undefined).toBe(1n);
+    expect(imageRules.type.case === 'string' ? imageRules.type.value.maxLen : undefined).toBe(120n);
     expect(hasOption(generatedName, fieldRules)).toBe(false);
   });
 

@@ -10,9 +10,20 @@ import {
 
 import { createSessionQueryOptions } from './sessionQueryOptions';
 
-export const useSessionQuery = (): UseQueryResult<GetSessionResponse> => {
+export interface SessionQueryOptionsValue<TData> {
+  isEnabled?: boolean | undefined;
+  select?: ((session: GetSessionResponse) => TData) | undefined;
+}
+
+export const useSessionQuery = <TData = GetSessionResponse>(
+  options?: SessionQueryOptionsValue<TData>,
+): UseQueryResult<TData> => {
   const client = useApiClient();
   const { organizationId, userId } = useActingContext();
 
-  return useQuery(createSessionQueryOptions({ client, organizationId, userId }));
+  return useQuery({
+    ...createSessionQueryOptions({ client, organizationId, userId }),
+    enabled: options?.isEnabled,
+    select: options?.select,
+  });
 };

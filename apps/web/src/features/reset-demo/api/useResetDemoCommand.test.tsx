@@ -18,7 +18,10 @@ import {
   vi,
 } from 'vitest';
 
-import type { IDemoControl } from '@/shared/api';
+import type {
+  CommandValue,
+  IDemoControl,
+} from '@/shared/api';
 
 import {
   ApiRuntimeProvider,
@@ -27,7 +30,7 @@ import {
 import { createTestRuntime } from '@/shared/api/index.testing';
 
 import { useIsDemoResetAvailable } from './useIsDemoResetAvailable';
-import { useResetDemoMutation } from './useResetDemoMutation';
+import { useResetDemoCommand } from './useResetDemoCommand';
 
 const createDemoControl = (reset: IDemoControl['reset']): IDemoControl => ({
   listPersonas: () => Promise.resolve([]),
@@ -52,35 +55,37 @@ const renderWithRuntime = <Result extends boolean | object>(
   return renderHook(useHook, { wrapper: Wrapper }).result;
 };
 
-describe('useResetDemoMutation', () => {
+const useResetCommandUnderTest = (): CommandValue => useResetDemoCommand({ onSuccess: () => undefined });
+
+describe('useResetDemoCommand', () => {
   afterEach(() => {
     cleanup();
   });
 
   it('resets the demo once per call and does not retry a failure', async () => {
     const reset = vi.fn(() => Promise.reject(new Error('engine is busy')));
-    const result = renderWithRuntime(createDemoControl(reset), useResetDemoMutation);
+    const result = renderWithRuntime(createDemoControl(reset), useResetCommandUnderTest);
 
     act(() => {
-      result.current.mutate();
+      result.current.run();
     });
 
     await waitFor(() => {
-      expect(result.current.isError).toBe(true);
+      expect(result.current.error).not.toBeNull();
     });
 
     expect(reset).toHaveBeenCalledTimes(1);
   });
 
   it('fails without the demo control', async () => {
-    const result = renderWithRuntime(undefined, useResetDemoMutation);
+    const result = renderWithRuntime(undefined, useResetCommandUnderTest);
 
     act(() => {
-      result.current.mutate();
+      result.current.run();
     });
 
     await waitFor(() => {
-      expect(result.current.isError).toBe(true);
+      expect(result.current.error).not.toBeNull();
     });
   });
 });

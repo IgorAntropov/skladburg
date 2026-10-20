@@ -1,3 +1,7 @@
+export type { ActionButtonProps } from './action-button/ActionButton';
+export { ActionButton } from './action-button/ActionButton';
+export type { CommandErrorNoticeProps } from './action-button/CommandErrorNotice';
+export { CommandErrorNotice } from './action-button/CommandErrorNotice';
 export type { AvatarProps } from './avatar/Avatar';
 export { Avatar } from './avatar/Avatar';
 export type { AvatarSizeValue } from './avatar/avatarStyles';

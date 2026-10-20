@@ -161,6 +161,12 @@ const settleMicrotasks = async (): Promise<void> => {
   });
 };
 
+const waitForMenuLoad = async (loadProfileMenu: LoadProfileMenuType): Promise<void> => {
+  await act(async () => {
+    await vi.mocked(loadProfileMenu).mock.results[0]?.value;
+  });
+};
+
 describe('ProfileMenuLauncher', () => {
   afterEach(() => {
     cleanup();
@@ -213,6 +219,7 @@ describe('ProfileMenuLauncher', () => {
       expect(screen.queryByRole('menu')).toBeNull();
 
       gate.open();
+      await waitForMenuLoad(loadProfileMenu);
 
       expect(await screen.findByRole('menu', { name: MENU_NAME })).toBeDefined();
       expect(loadProfileMenu).toHaveBeenCalledTimes(1);
@@ -225,7 +232,7 @@ describe('ProfileMenuLauncher', () => {
       await waitFor(() => {
         expect(loadProfileMenu).toHaveBeenCalledTimes(1);
       });
-      await settleMicrotasks();
+      await waitForMenuLoad(loadProfileMenu);
 
       fireEvent.click(getButton());
 

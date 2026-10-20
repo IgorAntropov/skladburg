@@ -3,6 +3,8 @@ import { compareCodeUnits } from './compareCodeUnits';
 
 export type KnownPermissionCode = Exclude<PermissionCode, PermissionCode.UNSPECIFIED>;
 
+export type PermissionNameValue = Lowercase<Exclude<keyof typeof PermissionCode, 'UNSPECIFIED'>>;
+
 interface PermissionCodeIndexValue {
   codesByName: ReadonlyMap<string, KnownPermissionCode>;
   sortedCodes: readonly KnownPermissionCode[];
@@ -14,7 +16,10 @@ const isDeclaredCode = (value: number | string): value is PermissionCode => type
 
 const isKnownCode = (code: PermissionCode): code is KnownPermissionCode => code !== PermissionCode.UNSPECIFIED;
 
-export const getPermissionName = (code: KnownPermissionCode): string => PermissionCode[code].toLowerCase();
+const toPermissionName = (enumKey: string): PermissionNameValue => enumKey.toLowerCase() as PermissionNameValue;
+
+export const getPermissionName = (code: KnownPermissionCode): PermissionNameValue =>
+  toPermissionName(PermissionCode[code]);
 
 const buildPermissionCodeIndex = (): PermissionCodeIndexValue => {
   const sortedCodes = Object.values(PermissionCode)

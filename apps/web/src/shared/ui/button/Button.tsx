@@ -20,7 +20,7 @@ const LABEL_CELL_CLASS_NAME = 'col-start-1 row-start-1 inline-flex items-center 
 
 const SPINNER_CLASS_NAME = 'size-4 shrink-0';
 
-export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type'> {
+export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-busy' | 'type'> {
   pending?: boolean | undefined;
   pendingLabel?: string | undefined;
   ref?: Ref<HTMLButtonElement> | undefined;
@@ -30,6 +30,7 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
 }
 
 export const Button = ({
+  'aria-disabled': ariaDisabled,
   children,
   className,
   onClick,
@@ -41,10 +42,11 @@ export const Button = ({
   ...rest
 }: ButtonProps): ReactElement => {
   const isLabelPairShown = pendingLabel !== undefined;
+  const isBlocked = pending || ariaDisabled === true || ariaDisabled === 'true';
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>): void => {
-    console.log('> Button -> handleClick:', { pending, type });
-    if (pending) {
+    console.log('> Button -> handleClick:', { isBlocked, pending, type });
+    if (isBlocked) {
       event.preventDefault();
       return;
     }
@@ -55,7 +57,7 @@ export const Button = ({
     <button
       {...rest}
       aria-busy={pending ? true : undefined}
-      aria-disabled={pending ? true : undefined}
+      aria-disabled={isBlocked ? true : undefined}
       className={cn(buttonClassName({ size, variant }), className)}
       onClick={handleClick}
       type={type}

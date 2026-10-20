@@ -83,4 +83,31 @@ describe('Button', () => {
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
+
+  it('never reaches onClick while aria-disabled without pending', () => {
+    const onClick = vi.fn();
+    render(<Button aria-disabled onClick={onClick}>{SAVE_LABEL}</Button>);
+    const button = screen.getByRole('button', { name: SAVE_LABEL });
+
+    fireEvent.click(button);
+
+    expect(onClick).not.toHaveBeenCalled();
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(button.hasAttribute('aria-busy')).toBe(false);
+  });
+
+  it('does not submit the form of an aria-disabled submit button', () => {
+    const onSubmit = vi.fn((event: SubmitEvent<HTMLFormElement>) => {
+      event.preventDefault();
+    });
+    render(
+      <form onSubmit={onSubmit}>
+        <Button aria-disabled="true" type="submit">{SAVE_LABEL}</Button>
+      </form>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: SAVE_LABEL }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
 });

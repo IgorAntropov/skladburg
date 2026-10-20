@@ -43,7 +43,7 @@ const createOrganization = (profiles: readonly ProfileKind[]): Organization =>
     profiles: profiles.map(kind => ({ kind })),
   });
 
-const catalogNames = new Set(listPermissionCodes().map(getPermissionName));
+const catalogNames = new Set<string>(listPermissionCodes().map(getPermissionName));
 
 const appliedRoles = PROFILE_SETS.flatMap(profiles =>
   listPresetsForProfiles(profiles).map(preset => ({

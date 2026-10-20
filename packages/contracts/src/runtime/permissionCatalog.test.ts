@@ -1,6 +1,7 @@
 import {
   describe,
   expect,
+  expectTypeOf,
   it,
 } from 'vitest';
 
@@ -15,6 +16,7 @@ import {
   findPermissionCode,
   getPermissionName,
   listPermissionCodes,
+  type PermissionNameValue,
 } from './permissionCodeNames';
 
 const NAME_PATTERN = /^[a-z][a-z0-9]*(_[a-z0-9]+)*_(view|create|edit|delete|approve|sign|fund|release|export|manage)$/;
@@ -23,6 +25,13 @@ describe('permission code names', () => {
   it('names a code in lower case without the enum prefix', () => {
     expect(getPermissionName(PermissionCode.DEAL_APPROVE)).toBe('deal_approve');
     expect(getPermissionName(PermissionCode.TRANSPORT_OFFER_APPROVE)).toBe('transport_offer_approve');
+  });
+
+  it('narrows the name to a literal of the declared permissions', () => {
+    expectTypeOf(getPermissionName(PermissionCode.DEAL_APPROVE)).toEqualTypeOf<PermissionNameValue>();
+    expectTypeOf<'deal_approve'>().toExtend<PermissionNameValue>();
+    expectTypeOf<'unspecified'>().not.toExtend<PermissionNameValue>();
+    expectTypeOf<string>().not.toExtend<PermissionNameValue>();
   });
 
   it('finds a code by its name', () => {

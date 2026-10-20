@@ -6,7 +6,10 @@ import {
   Root,
   Trigger,
 } from '@radix-ui/react-tooltip';
-import { use } from 'react';
+import {
+  use,
+  useState,
+} from 'react';
 
 import { formatShortcut } from './formatShortcut';
 import { TooltipGroup } from './TooltipGroup';
@@ -23,6 +26,7 @@ const SIDE_OFFSET_PX = 8;
 const SHORTCUT_LABEL_SEPARATOR = ' ';
 
 export interface TooltipProps {
+  canOpen?: boolean | undefined;
   children: ReactElement;
   content: string;
   shortcut?: string | undefined;
@@ -30,21 +34,32 @@ export interface TooltipProps {
 }
 
 export const Tooltip = ({
+  canOpen = true,
   children,
   content,
   shortcut,
   side = 'top',
 }: TooltipProps): ReactElement => {
   const isInsideGroup = use(TooltipGroupContext);
+  const [isOpenRequested, setIsOpenRequested] = useState(false);
 
   const shortcutKeys = shortcut === undefined ? [] : formatShortcut(shortcut);
   const hasShortcut = shortcutKeys.length > 0;
   const activeShortcut = hasShortcut ? shortcut : undefined;
   const shortcutDescription = hasShortcut ? shortcutKeys.join(SHORTCUT_LABEL_SEPARATOR) : undefined;
   const contentRole = hasShortcut ? undefined : 'presentation';
+  const isOpen = canOpen && isOpenRequested;
+
+  if (!canOpen && isOpenRequested) {
+    setIsOpenRequested(false);
+  }
+
+  const handleOpenChange = (nextIsOpen: boolean): void => {
+    setIsOpenRequested(canOpen && nextIsOpen);
+  };
 
   const tooltip = (
-    <Root>
+    <Root onOpenChange={handleOpenChange} open={isOpen}>
       <Trigger aria-keyshortcuts={activeShortcut} asChild>{children}</Trigger>
       <Portal>
         <Content

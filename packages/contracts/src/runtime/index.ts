@@ -14,4 +14,5 @@ export {
   getPermissionName,
   type KnownPermissionCode,
   listPermissionCodes,
+  type PermissionNameValue,
 } from './permissionCodeNames';

@@ -1,4 +1,9 @@
 export type { ApiClient } from './client/apiClientTypes';
+export type {
+  CommandOptionsValue,
+  CommandValue,
+} from './command/commandTypes';
+export { useCommand } from './command/useCommand';
 export {
   ACTING_CONTEXT_STORAGE_KEY,
   getTabStorage,
@@ -16,7 +21,9 @@ export { getFieldViolations } from './errors/getFieldViolations';
 export { getViolationMessageKey } from './errors/getViolationMessageKey';
 export { parseApiError } from './errors/parseApiError';
 export { translateApiError } from './errors/translateApiError';
+export { translatePermissionDenial } from './errors/translatePermissionDenial';
 export { createIdempotencyKey } from './idempotency/createIdempotencyKey';
+export type { CommandAccessValue } from './permissions/commandAccessTypes';
 export type { PermissionMessageKeyValue } from './permissions/getPermissionMessageKey';
 export { getPermissionMessageKey } from './permissions/getPermissionMessageKey';
 export type { ApiQueryMetaValue } from './query/apiQueryMetaTypes';

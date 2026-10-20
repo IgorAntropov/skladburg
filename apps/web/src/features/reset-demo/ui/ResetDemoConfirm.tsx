@@ -1,6 +1,5 @@
 import type {
   KeyboardEvent,
-  MouseEvent,
   ReactElement,
 } from 'react';
 
@@ -10,15 +9,17 @@ import {
   useRef,
 } from 'react';
 
+import { useCommandAccess } from '@/entities/session';
 import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
 import {
+  ActionButton,
   Button,
-  ErrorNotice,
+  CommandErrorNotice,
   useAnnounce,
 } from '@/shared/ui';
 
-import { useResetDemoMutation } from '../api/useResetDemoMutation';
+import { useResetDemoCommand } from '../api/useResetDemoCommand';
 
 const GROUP_CLASS_NAME = 'flex gap-x-4 gap-y-3';
 
@@ -33,27 +34,19 @@ export const ResetDemoConfirm = ({ isStacked = false, onClose }: ResetDemoConfir
   const promptId = useId();
   const hintId = useId();
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
-  const {
-    error,
-    isError,
-    isPending,
-    mutate,
-    submittedAt,
-  } = useResetDemoMutation();
+  const access = useCommandAccess();
 
   const prompt = t('demo.reset.confirm.prompt');
   const doneMessage = t('demo.reset.done');
 
-  const handleAcceptClick = (event: MouseEvent<HTMLButtonElement>): void => {
-    console.log('> ResetDemoConfirm -> handleAcceptClick:', { isPending });
-    event.currentTarget.focus();
-    mutate(undefined, {
-      onSuccess: () => {
-        announce(doneMessage);
-        onClose();
-      },
-    });
+  const handleResetDone = (): void => {
+    console.log('> ResetDemoConfirm -> handleResetDone:', { doneMessage });
+    announce(doneMessage);
+    onClose();
   };
+
+  const command = useResetDemoCommand({ onSuccess: handleResetDone });
+  const { isPending } = command;
 
   const handleCancelClick = (): void => {
     console.log('> ResetDemoConfirm -> handleCancelClick:', { isPending });
@@ -100,18 +93,19 @@ export const ResetDemoConfirm = ({ isStacked = false, onClose }: ResetDemoConfir
           >
             {t('demo.reset.confirm.cancel')}
           </Button>
-          <Button
+          <ActionButton
+            access={access}
             className="min-w-28"
+            command={command}
             data-testid="reset-confirm-accept"
-            onClick={handleAcceptClick}
-            pending={isPending}
+            errorPlacement="external"
             pendingLabel={t('demo.reset.pending')}
           >
             {t('demo.reset.confirm.accept')}
-          </Button>
+          </ActionButton>
         </div>
       </div>
-      {isError && <ErrorNotice announceKey={submittedAt} error={error} />}
+      <CommandErrorNotice command={command} />
     </div>
   );
 };

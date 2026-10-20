@@ -1,4 +1,8 @@
-import type { QueryClient } from '@tanstack/react-query';
+import type { GetSessionResponse } from '@skladburg/contracts/access/v1/access';
+import type {
+  QueryClient,
+  UseQueryResult,
+} from '@tanstack/react-query';
 import type {
   ReactElement,
   ReactNode,
@@ -44,7 +48,7 @@ const OTHER_USER_ID = 'f1000003-0000-4000-8000-000000000000';
 
 interface RenderedSessionValue {
   queryClient: QueryClient;
-  result: { current: ReturnType<typeof useSessionQuery> };
+  result: { current: UseQueryResult<GetSessionResponse> };
 }
 
 const renderSessionHook = (runtime: ApiRuntimeValue): RenderedSessionValue => {
@@ -56,7 +60,7 @@ const renderSessionHook = (runtime: ApiRuntimeValue): RenderedSessionValue => {
     </ApiRuntimeProvider>
   );
 
-  const { result } = renderHook(useSessionQuery, { wrapper: Wrapper });
+  const { result } = renderHook(() => useSessionQuery(), { wrapper: Wrapper });
 
   return { queryClient, result };
 };

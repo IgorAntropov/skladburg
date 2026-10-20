@@ -2,8 +2,8 @@ import type { Translate } from '@/shared/i18n';
 
 import type { ApiErrorValue } from './apiErrorTypes';
 
-import { getPermissionMessageKey } from '../permissions/getPermissionMessageKey';
 import { getErrorMessageKey } from './getErrorMessageKey';
+import { translatePermissionDenial } from './translatePermissionDenial';
 
 const getDeniedPermission = (params: ApiErrorValue['params']): string => {
   switch (params.case) {
@@ -31,9 +31,5 @@ export const translateApiError = (t: Translate, error: ApiErrorValue): string =>
     return t(key);
   }
 
-  const permissionKey = getPermissionMessageKey(getDeniedPermission(error.params));
-
-  return permissionKey === undefined
-    ? t('error.permission_denied.unnamed')
-    : t(key, { permission: t(permissionKey) });
+  return translatePermissionDenial(t, getDeniedPermission(error.params));
 };

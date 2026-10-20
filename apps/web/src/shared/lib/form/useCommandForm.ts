@@ -4,6 +4,7 @@ import type {
   SyntheticEvent,
 } from 'react';
 import type {
+  FieldErrors,
   FieldValues,
   Path,
 } from 'react-hook-form';
@@ -25,6 +26,7 @@ import {
   useCommand,
 } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
+import { useAnnounce } from '@/shared/ui';
 
 import type {
   CommandFormOptionsValue,
@@ -32,8 +34,9 @@ import type {
   FormFieldBindingValue,
 } from './commandFormTypes';
 
+import { areFormValuesEqual } from './areFormValuesEqual';
 import { createContractResolver } from './createContractResolver';
-import { findTopmostField } from './findTopmostField';
+import { focusTopmostField } from './focusTopmostField';
 import { mapServerViolations } from './mapServerViolations';
 import { translateFieldViolation } from './translateFieldViolation';
 
@@ -50,6 +53,7 @@ export const useCommandForm = <TValues extends FieldValues, TResult>(
     rules,
   } = options;
   const { t } = useI18n();
+  const announce = useAnnounce();
   const [fieldNames] = useState(() => Object.keys(defaultValues));
   const [resolver] = useState(() => createContractResolver<TValues>(rules, fieldNames));
   const {
@@ -64,11 +68,12 @@ export const useCommandForm = <TValues extends FieldValues, TResult>(
     mode: 'onSubmit',
     resolver,
     reValidateMode: 'onChange',
-    shouldFocusError: true,
+    shouldFocusError: false,
   });
   const submittedValuesRef = useRef<TValues | undefined>(undefined);
   const handledServerErrorRef = useRef<Error | null>(null);
   const fieldElementsRef = useRef(new Map<string, FieldElementValue>());
+  const [unplacedError, setUnplacedError] = useState<Error | null>(null);
 
   const command = useCommand<TResult>({
     execute: (idempotencyKey) => {
@@ -95,9 +100,10 @@ export const useCommandForm = <TValues extends FieldValues, TResult>(
     [apiError, fieldNames, rules],
   );
   const hasCommandError = apiError !== undefined;
-  const isErrorShownOnFields = serverMapping !== undefined
+  const isMappedToFields = serverMapping !== undefined
     && serverMapping.fieldIssues.length > 0
     && serverMapping.unmatched.length === 0;
+  const isErrorShownOnFields = isMappedToFields && unplacedError !== error;
   const visibleCommand: CommandValue = isErrorShownOnFields
     ? {
         ...command,
@@ -114,12 +120,22 @@ export const useCommandForm = <TValues extends FieldValues, TResult>(
       return;
     }
 
+    const submittedValues = submittedValuesRef.current;
+
+    if (submittedValues !== undefined && !areFormValuesEqual(values, submittedValues)) {
+      reset();
+    }
+
     submittedValuesRef.current = values;
     command.run();
   };
 
-  const handleInvalidSubmit = (): void => {
-    console.log('> useCommandForm -> handleInvalidSubmit:', { method: method?.name });
+  const handleInvalidSubmit = (errors: FieldErrors<TValues>): void => {
+    const invalidFields = Object.keys(errors);
+
+    console.log('> useCommandForm -> handleInvalidSubmit:', { invalidCount: invalidFields.length, method: method?.name });
+    focusTopmostField(fieldElementsRef.current, invalidFields);
+    announce(t('error.validation_failed'));
   };
 
   const handleSubmit = (event: SyntheticEvent<HTMLFormElement>): void => {
@@ -182,10 +198,13 @@ export const useCommandForm = <TValues extends FieldValues, TResult>(
     }
 
     const isFieldPath = (candidate: string): candidate is Path<TValues> => fieldNames.includes(candidate);
+    const issueFields = serverMapping.fieldIssues.map(issue => issue.field);
+    const isEveryFieldMounted = issueFields.every(field => fieldElementsRef.current.has(field));
 
     handledServerErrorRef.current = error;
     console.log('> useCommandForm -> showServerViolations:', {
       fieldIssueCount: serverMapping.fieldIssues.length,
+      isEveryFieldMounted,
       method: method?.name,
       unmatchedCount: serverMapping.unmatched.length,
     });
@@ -196,15 +215,15 @@ export const useCommandForm = <TValues extends FieldValues, TResult>(
       }
     }
 
-    const topmostField = findTopmostField(
-      fieldElementsRef.current,
-      serverMapping.fieldIssues.map(issue => issue.field),
-    );
+    focusTopmostField(fieldElementsRef.current, issueFields);
 
-    if (topmostField !== undefined) {
-      fieldElementsRef.current.get(topmostField)?.focus();
+    if (!isEveryFieldMounted) {
+      setUnplacedError(error);
     }
-  }, [error, fieldNames, method?.name, serverMapping, setError]);
+    else if (isMappedToFields) {
+      announce(t('error.validation_failed'));
+    }
+  }, [announce, error, fieldNames, isMappedToFields, method?.name, serverMapping, setError, t]);
 
   return {
     command: visibleCommand,

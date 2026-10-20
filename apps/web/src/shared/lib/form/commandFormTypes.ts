@@ -15,7 +15,7 @@ import type {
 import type { CommandValue } from '@/shared/api';
 
 export interface CommandFormOptionsValue<TValues extends FieldValues, TResult> {
-  defaultValues: DefaultValues<TValues>;
+  defaultValues: DefaultValues<TValues> & TValues;
   execute: (values: TValues, idempotencyKey: string) => Promise<TResult>;
   method?: DescMethod | undefined;
   onSuccess?: ((result: TResult) => void) | undefined;

@@ -36,7 +36,10 @@ import {
 
 import { createQueryClient } from '@/shared/api';
 import { withTestLocalizer } from '@/shared/i18n/index.testing';
-import { ActionButton } from '@/shared/ui';
+import {
+  ActionButton,
+  LiveRegionProvider,
+} from '@/shared/ui';
 
 import type { FormFieldBindingValue } from './commandFormTypes';
 
@@ -55,6 +58,8 @@ interface WarehouseFormValues {
 }
 
 const DOM_ORDER: FieldNameValue[] = ['name', 'cityId', 'boardNodeId', 'timeZone', 'address'];
+const REGISTRATION_ORDER: FieldNameValue[] = DOM_ORDER.toReversed();
+const NO_FIELDS: readonly FieldNameValue[] = [];
 
 const SUBMIT_LABEL = 'Добавить склад';
 const RETRY_LABEL = defaultLocaleCatalog['common.retry'];
@@ -138,9 +143,10 @@ const TestField = ({ binding }: TestFieldProps): ReactElement => {
 
 interface WarehouseFormProps {
   execute: ExecuteValue;
+  omittedFields: readonly FieldNameValue[];
 }
 
-const WarehouseForm = ({ execute }: WarehouseFormProps): ReactElement => {
+const WarehouseForm = ({ execute, omittedFields }: WarehouseFormProps): ReactElement => {
   const { command, getFieldProps, handleSubmit } = useCommandForm<WarehouseFormValues, CreateWarehouseResponse>({
     defaultValues: DEFAULT_VALUES,
     execute,
@@ -148,19 +154,28 @@ const WarehouseForm = ({ execute }: WarehouseFormProps): ReactElement => {
     rules: CreateWarehouseRequestFormRules,
   });
 
+  const registered = REGISTRATION_ORDER
+    .filter(name => !omittedFields.includes(name))
+    .map(name => ({ binding: getFieldProps(name), name }));
+  const inDomOrder = registered.toSorted(
+    (current, prev) => DOM_ORDER.indexOf(current.name) - DOM_ORDER.indexOf(prev.name),
+  );
+
   return (
     <form noValidate onSubmit={handleSubmit}>
-      {DOM_ORDER.map(name => <TestField binding={getFieldProps(name)} key={name} />)}
+      {inDomOrder.map(({ binding, name }) => <TestField binding={binding} key={name} />)}
       <ActionButton access={{ status: 'allowed' }} command={command} type="submit">{SUBMIT_LABEL}</ActionButton>
     </form>
   );
 };
 
-const renderForm = (execute: ExecuteValue): void => {
+const renderForm = (execute: ExecuteValue, omittedFields: readonly FieldNameValue[] = NO_FIELDS): void => {
   render(withTestLocalizer(
-    <QueryClientProvider client={createQueryClient({ networkMode: 'always' })}>
-      <WarehouseForm execute={execute} />
-    </QueryClientProvider>,
+    <LiveRegionProvider>
+      <QueryClientProvider client={createQueryClient({ networkMode: 'always' })}>
+        <WarehouseForm execute={execute} omittedFields={omittedFields} />
+      </QueryClientProvider>
+    </LiveRegionProvider>,
   ));
 };
 
@@ -176,12 +191,14 @@ const getInput = (name: FieldNameValue): HTMLInputElement => {
 
 const getErrorText = (name: FieldNameValue): string => screen.getByTestId(`${name}-error`).textContent;
 
+const getAnnouncement = (): string => screen.getByRole('status').textContent;
+
 const typeInto = (name: FieldNameValue, value: string): void => {
   fireEvent.change(getInput(name), { target: { value } });
 };
 
-const fillValidValues = (): void => {
-  for (const name of DOM_ORDER) {
+const fillValidValues = (omittedFields: readonly FieldNameValue[] = NO_FIELDS): void => {
+  for (const name of DOM_ORDER.filter(candidate => !omittedFields.includes(candidate))) {
     typeInto(name, VALID_VALUES[name]);
   }
 };
@@ -220,6 +237,7 @@ describe('useCommandForm', () => {
       await waitFor(() => {
         expect(document.activeElement).toBe(getInput('name'));
       });
+      expect(getAnnouncement()).toBe(FORM_MESSAGE);
     });
 
     it('checks a corrected field again on every input and leaves the other fields alone', async () => {
@@ -331,6 +349,7 @@ describe('useCommandForm', () => {
       await waitFor(() => {
         expect(document.activeElement).toBe(getInput('name'));
       });
+      expect(getAnnouncement()).toBe(FORM_MESSAGE);
     });
 
     it('shows a violation without a field of the form as a general text', async () => {
@@ -348,6 +367,23 @@ describe('useCommandForm', () => {
       await waitFor(() => {
         expect(getErrorText('name')).toBe(defaultLocaleCatalog['validation.string.max_len']);
       });
+      expect(getAnnouncement()).toBe('');
+    });
+
+    it('keeps the general text when a field with a violation is not on the screen', async () => {
+      const execute = vi.fn<ExecuteValue>()
+        .mockRejectedValueOnce(createValidationError([
+          ['name', 'string.max_len'],
+          ['address', 'string.max_len'],
+        ]));
+      renderForm(execute, ['address']);
+      fillValidValues(['address']);
+
+      pressSubmit();
+
+      expect((await screen.findByRole('alert')).textContent).toBe(FORM_MESSAGE);
+      expect(getErrorText('name')).toBe(defaultLocaleCatalog['validation.string.max_len']);
+      expect(getAnnouncement()).toBe('');
     });
 
     it('shows the general text when no violation belongs to the form', async () => {
@@ -433,7 +469,7 @@ describe('useCommandForm', () => {
       expect(execute.mock.calls[1]?.[0]).toEqual(execute.mock.calls[0]?.[0]);
     });
 
-    it('keeps the key of a pending command when a field is touched', async () => {
+    it('sends the retry with a new key and the new values when a field was changed while the command was pending', async () => {
       let rejectExecute: (error: Error) => void = () => undefined;
       const execute = vi.fn<ExecuteValue>()
         .mockImplementationOnce(() => new Promise<CreateWarehouseResponse>((_resolve, reject) => {
@@ -447,7 +483,7 @@ describe('useCommandForm', () => {
       await waitFor(() => {
         expect(getInput('name').readOnly).toBe(true);
       });
-      typeInto('address', '');
+      typeInto('address', 'Москва');
       rejectExecute(createUnavailableError());
       await screen.findByRole('alert');
 
@@ -457,7 +493,9 @@ describe('useCommandForm', () => {
         expect(execute).toHaveBeenCalledTimes(2);
       });
       await waitForIdle();
-      expect(execute.mock.calls[1]?.[1]).toBe(execute.mock.calls[0]?.[1]);
+      expect(execute.mock.calls[1]?.[1]).not.toBe(execute.mock.calls[0]?.[1]);
+      expect(execute.mock.calls[0]?.[0].address).toBe('');
+      expect(execute.mock.calls[1]?.[0].address).toBe('Москва');
     });
   });
 });

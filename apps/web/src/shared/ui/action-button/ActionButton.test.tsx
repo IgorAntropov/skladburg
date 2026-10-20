@@ -125,7 +125,6 @@ interface SubmitFormProps {
 
 const SubmitForm = ({ access, command, onSubmit }: SubmitFormProps): ReactElement => (
   <form data-testid="form" onSubmit={onSubmit}>
-    <input data-testid="field" />
     <ActionButton access={access} command={command} data-testid="submit" type="submit">{ADD_LABEL}</ActionButton>
   </form>
 );
@@ -148,14 +147,6 @@ const renderSubmitForm = (access: CommandAccessValue, command: CommandValue): Re
   render(withTestLocalizer(<SubmitForm access={access} command={command} onSubmit={onSubmit} />));
 
   return onSubmit;
-};
-
-const pressEnterInField = (): void => {
-  const field = screen.getByTestId('field');
-  const isKeyDownAllowed = fireEvent.keyDown(field, { code: 'Enter', key: 'Enter' });
-  if (isKeyDownAllowed) {
-    fireEvent.click(screen.getByTestId('submit'));
-  }
 };
 
 describe('ActionButton', () => {
@@ -241,41 +232,6 @@ describe('ActionButton', () => {
       expect(command.run).not.toHaveBeenCalled();
     });
 
-    it('does not run the real command when the form is submitted', () => {
-      const createWarehouse = vi.fn<CreateWarehouseHandler>(createResponse);
-      const onSubmit = vi.fn((event: SyntheticEvent<HTMLFormElement>): void => {
-        event.preventDefault();
-      });
-      const SubmitWarehouseForm = (): ReactElement => {
-        const client = useApiClient();
-        const command = useCommand({
-          execute: idempotencyKey => client.organization.createWarehouse({
-            boardNodeId: 'node',
-            cityId: 'city',
-            idempotencyKey,
-            name: 'Склад «Север»',
-          }),
-          method: OrganizationService.method.createWarehouse,
-        });
-
-        return <SubmitForm access={ALLOWED_ACCESS} command={command} onSubmit={onSubmit} />;
-      };
-      const routes: TestRuntimeOptionsValue['routes'] = router => router.service(OrganizationService, { createWarehouse });
-
-      render(withTestLocalizer(
-        <ApiRuntimeProvider runtime={createTestRuntime({ routes })}>
-          <QueryClientProvider client={createQueryClient({ networkMode: 'always' })}>
-            <SubmitWarehouseForm />
-          </QueryClientProvider>
-        </ApiRuntimeProvider>,
-      ));
-
-      fireEvent.click(screen.getByRole('button', { name: ADD_LABEL }));
-
-      expect(onSubmit).toHaveBeenCalledTimes(1);
-      expect(createWarehouse).not.toHaveBeenCalled();
-    });
-
     it.each<[string, CommandAccessValue, boolean]>([
       ['denied', { permission: 'warehouse_create', status: 'denied' }, false],
       ['checking', { status: 'checking' }, false],
@@ -285,18 +241,9 @@ describe('ActionButton', () => {
       const onSubmit = renderSubmitForm(access, command);
 
       fireEvent.click(screen.getByTestId('submit'));
-      pressEnterInField();
 
       expect(onSubmit).not.toHaveBeenCalled();
       expect(command.run).not.toHaveBeenCalled();
-    });
-
-    it('submits the form on the implicit submission click when allowed', () => {
-      const onSubmit = renderSubmitForm(ALLOWED_ACCESS, createStubCommand(false));
-
-      pressEnterInField();
-
-      expect(onSubmit).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -22,6 +22,10 @@ const rules: FormRulesValue = {
     minOne: { kind: 'string', minLen: 1, protoName: 'min_one' },
     minZero: { kind: 'string', minLen: 0, protoName: 'min_zero' },
     plain: { kind: 'string', protoName: 'plain' },
+    presenceItems: { hasPresence: true, kind: 'repeated', minItems: 1, protoName: 'presence_items' },
+    presenceMinOne: { hasPresence: true, kind: 'string', minLen: 1, protoName: 'presence_min_one' },
+    presenceRequired: { hasPresence: true, isRequired: true, kind: 'string', minLen: 1, protoName: 'presence_required' },
+    presenceUuid: { hasPresence: true, isUuid: true, kind: 'string', protoName: 'presence_uuid' },
     requiredEnum: { isRequired: true, kind: 'enum', protoName: 'required_enum' },
     serverOnlyRequired: { isRequired: true, isServerOnly: true, kind: 'opaque', protoName: 'server_only_required' },
     serverOnlyUuid: { isServerOnly: true, isUuid: true, kind: 'string', protoName: 'server_only_uuid' },
@@ -50,6 +54,13 @@ describe('isFormFieldRequired', () => {
   it('lets ifZeroValue allow an empty value but keeps explicit required', () => {
     expect(isFormFieldRequired(rules, 'ifZeroUuid')).toBe(false);
     expect(isFormFieldRequired(rules, 'ifZeroRequired')).toBe(true);
+  });
+
+  it('lets explicit presence skip an unset field unless required', () => {
+    expect(isFormFieldRequired(rules, 'presenceMinOne')).toBe(false);
+    expect(isFormFieldRequired(rules, 'presenceUuid')).toBe(false);
+    expect(isFormFieldRequired(rules, 'presenceItems')).toBe(false);
+    expect(isFormFieldRequired(rules, 'presenceRequired')).toBe(true);
   });
 
   it('is false when the field is ignored always', () => {

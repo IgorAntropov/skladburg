@@ -33,6 +33,7 @@ export interface ActionButtonProps extends WithTestIdValue {
   pendingLabel?: string | undefined;
   size?: ButtonSizeValue | undefined;
   tooltipSide?: TooltipProps['side'] | undefined;
+  type?: 'button' | 'submit' | undefined;
   variant?: ButtonVariantValue | undefined;
 }
 
@@ -50,6 +51,7 @@ export const ActionButton = ({
   pendingLabel,
   size,
   tooltipSide,
+  type = 'button',
   variant,
 }: ActionButtonProps): ReactElement => {
   const { t } = useI18n();
@@ -63,11 +65,15 @@ export const ActionButton = ({
   const describedById = isDenied ? reasonId : undefined;
   const isBlocked = !isAllowed;
   const isErrorBelow = errorPlacement === 'below';
+  const isSubmit = type === 'submit';
   const label = isRetryable ? t('common.retry') : children;
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>): void => {
     console.log('> ActionButton -> handleClick:', { isRetryable, method: command.method?.name });
     event.currentTarget.focus();
+    if (isSubmit) {
+      return;
+    }
     command.run();
   };
 
@@ -83,6 +89,7 @@ export const ActionButton = ({
           pending={isPending}
           pendingLabel={pendingLabel ?? t('action.pending')}
           size={size}
+          type={type}
           variant={variant}
         >
           {label}

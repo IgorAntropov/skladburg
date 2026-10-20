@@ -25,6 +25,10 @@ export const isFormFieldRequired = (rules: FormRulesValue, field: string): boole
     return false;
   }
 
+  if (fieldRules.hasPresence === true) {
+    return fieldRules.isRequired === true;
+  }
+
   if (fieldRules.isRequired === true) {
     return true;
   }

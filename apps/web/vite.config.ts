@@ -96,6 +96,7 @@ const FORBIDDEN_INITIAL_PACKAGES = [
   'motion',
   'motion-dom',
   'motion-utils',
+  'react-hook-form',
   'three',
   'workbox-window',
   'zustand',

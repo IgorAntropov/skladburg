@@ -71,6 +71,8 @@ const profileMenuChunkTestFilePath = fileURLToPath(
 );
 const motionSegmentFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/motion/probe-scope.ts', import.meta.url));
 const motionSegmentTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/motion/probe-scope.test.tsx', import.meta.url));
+const formSegmentFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/form/probe-form.ts', import.meta.url));
+const formSegmentTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/form/probe-form.test.tsx', import.meta.url));
 const scriptsProbeFilePath = fileURLToPath(new URL('./probe-tool.ts', import.meta.url));
 
 const formattingRuleIds: ReadonlySet<string> = new Set([
@@ -588,6 +590,8 @@ describe('eslint.config.ts with the local rules', () => {
       ['a test of widgets/profile-menu outside of the chunk', profileMenuTestFilePath],
       ['shared/ui', sharedUiFilePath],
       ['shared/lib outside of the segment', sharedLibFilePath],
+      ['the segment of the form library', formSegmentFilePath],
+      ['a test of the segment of the form library', formSegmentTestFilePath],
       ['the client of the api layer', apiClientFilePath],
       ['the demo transport', demoTransportFilePath],
       ['shared/i18n', i18nFilePath],
@@ -708,6 +712,122 @@ describe('eslint.config.ts with the local rules', () => {
 
       expect(outcome.ruleIds).toContain('no-restricted-imports');
       expect(outcome.ruleIds).toContain('@typescript-eslint/no-restricted-imports');
+    });
+  });
+
+  describe('boundary of the form library in the web application', () => {
+    const packageEntries: readonly (readonly [string, string])[] = [
+      ['the package entry', 'react-hook-form'],
+      ['a nested entry', 'react-hook-form/dist/types'],
+    ];
+    const segmentEntries: readonly (readonly [string, string])[] = [
+      ['the public entry of the segment', '@/shared/lib/form'],
+      ['a nested path of the segment', '@/shared/lib/form/useCommandForm'],
+    ];
+    const restrictedPlaces: readonly (readonly [string, string])[] = [
+      ['a page', pageFilePath],
+      ['a test of a page', pageTestFilePath],
+      ['app', applicationScriptFilePath],
+      ['a test in app', applicationTestFilePath],
+      ['a feature view', featureViewFilePath],
+      ['a widget', widgetFilePath],
+      ['a test of a widget', widgetTestFilePath],
+      ['widgets/profile-menu outside of the chunk', profileMenuFilePath],
+      ['the lazy chunk of the profile menu', profileMenuChunkFilePath],
+      ['a test of the lazy chunk of the profile menu', profileMenuChunkTestFilePath],
+      ['shared/ui', sharedUiFilePath],
+      ['shared/lib outside of the segment', sharedLibFilePath],
+      ['the segment of the animation library', motionSegmentFilePath],
+      ['a test of the segment of the animation library', motionSegmentTestFilePath],
+      ['the client of the api layer', apiClientFilePath],
+      ['the demo transport', demoTransportFilePath],
+      ['shared/i18n', i18nFilePath],
+      ['app/bootstrap', bootstrapFilePath],
+      ['the location of shared/routing', routingLocationFilePath],
+    ];
+
+    describe.each(importForms)('with %s', (_formName, toCode) => {
+      describe.each(restrictedPlaces)('in %s', (_placeName, filePath) => {
+        it.each(packageEntries)('reports %s', async (_name, specifier) => {
+          const outcome = await lint(untypedEslint, toCode(specifier), filePath);
+
+          expect(isRestricted(outcome.ruleIds)).toBe(true);
+        });
+
+        it.each(segmentEntries)('reports %s', async (_name, specifier) => {
+          const outcome = await lint(untypedEslint, toCode(specifier), filePath);
+
+          expect(isRestricted(outcome.ruleIds)).toBe(true);
+        });
+      });
+
+      it.each(packageEntries)('allows %s in the segment', async (_name, specifier) => {
+        const outcome = await lint(untypedEslint, toCode(specifier), formSegmentFilePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(false);
+      });
+
+      it.each(packageEntries)('allows %s in a test of the segment', async (_name, specifier) => {
+        const outcome = await lint(untypedEslint, toCode(specifier), formSegmentTestFilePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(false);
+      });
+
+      it.each(segmentEntries)('allows %s in the segment itself', async (_name, specifier) => {
+        const outcome = await lint(untypedEslint, toCode(specifier), formSegmentFilePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(false);
+      });
+    });
+
+    it.each([
+      ['a package with a similar name', 'react-hook-form-devtools'],
+      ['a package that starts with the same letters', 'react-hook-forms'],
+      ['a sibling segment', '@/shared/lib/form-tools'],
+      ['another segment', '@/shared/lib/cn'],
+      ['a relative module', './form'],
+    ])('does not report %s in a page', async (_name, specifier) => {
+      const outcome = await lint(untypedEslint, toValueImport(specifier), pageFilePath);
+
+      expect(isRestricted(outcome.ruleIds)).toBe(false);
+    });
+
+    it.each([
+      ['a static import', toValueImport],
+      ['a dynamic import', toDynamicImport],
+    ])('explains where the form library is allowed for %s', async (_name, toCode) => {
+      if (untypedEslint === undefined) {
+        throw new Error('ESLint is not initialized');
+      }
+
+      const [packageResult] = await untypedEslint.lintText(toCode('react-hook-form'), { filePath: pageFilePath });
+      const [segmentResult] = await untypedEslint.lintText(toCode('@/shared/lib/form'), { filePath: pageFilePath });
+      const readMessage = (messages: readonly Linter.LintMessage[] | undefined): string | undefined =>
+        messages?.find(item => item.ruleId === 'no-restricted-imports' || item.ruleId === 'no-restricted-syntax')?.message;
+
+      expect(readMessage(packageResult?.messages)).toContain('shared/lib/form');
+      expect(readMessage(segmentResult?.messages)).toContain('lazy chunk');
+    });
+
+    it('keeps the engine boundary in the segment', async () => {
+      const outcome = await lint(untypedEslint, toValueImport('@skladburg/demo-engine/client'), formSegmentFilePath);
+
+      expect(isRestricted(outcome.ruleIds)).toBe(true);
+    });
+
+    it('keeps the testing entries closed in the segment and open in its tests', async () => {
+      const code = `${toValueImport('@/shared/api/index.testing')}${toValueImport('@/shared/routing/index.testing')}`;
+      const sourceOutcome = await lint(untypedEslint, code, formSegmentFilePath);
+      const testOutcome = await lint(untypedEslint, code, formSegmentTestFilePath);
+
+      expect(sourceOutcome.ruleIds.filter(ruleId => ruleId === 'no-restricted-imports')).toHaveLength(2);
+      expect(isRestricted(testOutcome.ruleIds)).toBe(false);
+    });
+
+    it('keeps the animation library closed outside of its segment inside the segment of the form library', async () => {
+      const outcome = await lint(untypedEslint, toValueImport('motion/react'), formSegmentFilePath);
+
+      expect(isRestricted(outcome.ruleIds)).toBe(true);
     });
   });
 

@@ -79,6 +79,10 @@ export const useCommand = <TResult>(options: CommandOptionsValue<TResult>): Comm
   }, [methodName, mutate]);
 
   const reset = useCallback((): void => {
+    if (isRunningRef.current) {
+      return;
+    }
+
     idempotencyKeyRef.current = undefined;
     resetMutation();
   }, [resetMutation]);

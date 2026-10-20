@@ -2,7 +2,10 @@ import type {
   CreateWarehouseRequest,
   CreateWarehouseResponse,
 } from '@skladburg/contracts/organization/v1/organization';
-import type { ReactElement } from 'react';
+import type {
+  ReactElement,
+  SyntheticEvent,
+} from 'react';
 
 import { create } from '@bufbuild/protobuf';
 import {
@@ -35,7 +38,10 @@ import {
   vi,
 } from 'vitest';
 
-import type { CommandAccessValue } from '@/shared/api';
+import type {
+  CommandAccessValue,
+  CommandValue,
+} from '@/shared/api';
 import type { TestRuntimeOptionsValue } from '@/shared/api/index.testing';
 
 import {
@@ -111,6 +117,47 @@ const renderButton = (access: CommandAccessValue, createWarehouse: CreateWarehou
   ));
 };
 
+interface SubmitFormProps {
+  access: CommandAccessValue;
+  command: CommandValue;
+  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
+}
+
+const SubmitForm = ({ access, command, onSubmit }: SubmitFormProps): ReactElement => (
+  <form data-testid="form" onSubmit={onSubmit}>
+    <input data-testid="field" />
+    <ActionButton access={access} command={command} data-testid="submit" type="submit">{ADD_LABEL}</ActionButton>
+  </form>
+);
+
+const createStubCommand = (isPending: boolean): CommandValue => ({
+  apiError: undefined,
+  error: null,
+  failedAt: 0,
+  isPending,
+  method: undefined,
+  reset: vi.fn(),
+  run: vi.fn(),
+});
+
+const renderSubmitForm = (access: CommandAccessValue, command: CommandValue): ReturnType<typeof vi.fn> => {
+  const onSubmit = vi.fn((event: SyntheticEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+  });
+
+  render(withTestLocalizer(<SubmitForm access={access} command={command} onSubmit={onSubmit} />));
+
+  return onSubmit;
+};
+
+const pressEnterInField = (): void => {
+  const field = screen.getByTestId('field');
+  const isKeyDownAllowed = fireEvent.keyDown(field, { code: 'Enter', key: 'Enter' });
+  if (isKeyDownAllowed) {
+    fireEvent.click(screen.getByTestId('submit'));
+  }
+};
+
 describe('ActionButton', () => {
   afterEach(() => {
     cleanup();
@@ -179,5 +226,77 @@ describe('ActionButton', () => {
 
     expect(alert.textContent).toBe(PERMISSION_DENIED_MESSAGE);
     expect(screen.getByRole('button', { name: ADD_LABEL })).toBeDefined();
+  });
+
+  describe('submit type', () => {
+    it('hands the press to the form and does not run the command itself', () => {
+      const command = createStubCommand(false);
+      const onSubmit = renderSubmitForm(ALLOWED_ACCESS, command);
+
+      const button = screen.getByRole('button', { name: ADD_LABEL });
+      fireEvent.click(button);
+
+      expect(button.getAttribute('type')).toBe('submit');
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+      expect(command.run).not.toHaveBeenCalled();
+    });
+
+    it('does not run the real command when the form is submitted', () => {
+      const createWarehouse = vi.fn<CreateWarehouseHandler>(createResponse);
+      const onSubmit = vi.fn((event: SyntheticEvent<HTMLFormElement>): void => {
+        event.preventDefault();
+      });
+      const SubmitWarehouseForm = (): ReactElement => {
+        const client = useApiClient();
+        const command = useCommand({
+          execute: idempotencyKey => client.organization.createWarehouse({
+            boardNodeId: 'node',
+            cityId: 'city',
+            idempotencyKey,
+            name: 'Склад «Север»',
+          }),
+          method: OrganizationService.method.createWarehouse,
+        });
+
+        return <SubmitForm access={ALLOWED_ACCESS} command={command} onSubmit={onSubmit} />;
+      };
+      const routes: TestRuntimeOptionsValue['routes'] = router => router.service(OrganizationService, { createWarehouse });
+
+      render(withTestLocalizer(
+        <ApiRuntimeProvider runtime={createTestRuntime({ routes })}>
+          <QueryClientProvider client={createQueryClient({ networkMode: 'always' })}>
+            <SubmitWarehouseForm />
+          </QueryClientProvider>
+        </ApiRuntimeProvider>,
+      ));
+
+      fireEvent.click(screen.getByRole('button', { name: ADD_LABEL }));
+
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+      expect(createWarehouse).not.toHaveBeenCalled();
+    });
+
+    it.each<[string, CommandAccessValue, boolean]>([
+      ['denied', { permission: 'warehouse_create', status: 'denied' }, false],
+      ['checking', { status: 'checking' }, false],
+      ['pending', ALLOWED_ACCESS, true],
+    ])('keeps the form unsent while %s', (_name, access, isPending) => {
+      const command = createStubCommand(isPending);
+      const onSubmit = renderSubmitForm(access, command);
+
+      fireEvent.click(screen.getByTestId('submit'));
+      pressEnterInField();
+
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(command.run).not.toHaveBeenCalled();
+    });
+
+    it('submits the form on the implicit submission click when allowed', () => {
+      const onSubmit = renderSubmitForm(ALLOWED_ACCESS, createStubCommand(false));
+
+      pressEnterInField();
+
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
   });
 });

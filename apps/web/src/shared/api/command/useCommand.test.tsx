@@ -260,6 +260,97 @@ describe('useCommand', () => {
     expect(execute.mock.calls[1]?.[0]).not.toBe(execute.mock.calls[0]?.[0]);
   });
 
+  it('ignores a reset while the command is pending and keeps the result after the response', async () => {
+    let resolveExecute: (value: string) => void = () => undefined;
+    const onSuccess = vi.fn<(result: string) => void>();
+    const execute = vi.fn<ExecuteValue>(() => new Promise<string>((resolve) => {
+      resolveExecute = resolve;
+    }));
+    const { result } = renderCommand({ execute, onSuccess });
+
+    act(() => {
+      result.current.run();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isPending).toBe(true);
+    });
+
+    act(() => {
+      result.current.reset();
+    });
+
+    expect(result.current.isPending).toBe(true);
+
+    act(() => {
+      result.current.run();
+    });
+
+    expect(execute).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveExecute('done');
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isPending).toBe(false);
+    });
+
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.run();
+    });
+
+    await waitFor(() => {
+      expect(execute).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('shows the error of a command reset during the request and keeps the key for a retry', async () => {
+    let rejectExecute: (error: Error) => void = () => undefined;
+    const execute = vi.fn<ExecuteValue>()
+      .mockImplementationOnce(() => new Promise<string>((_resolve, reject) => {
+        rejectExecute = reject;
+      }))
+      .mockResolvedValueOnce('done');
+    const { result } = renderCommand({ execute });
+
+    act(() => {
+      result.current.run();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isPending).toBe(true);
+    });
+
+    act(() => {
+      result.current.reset();
+    });
+
+    await act(async () => {
+      rejectExecute(createUnavailableError());
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.apiError?.code).toBe(ErrorCode.UNAVAILABLE);
+    });
+
+    expect(result.current.isPending).toBe(false);
+
+    act(() => {
+      result.current.run();
+    });
+
+    await waitFor(() => {
+      expect(execute).toHaveBeenCalledTimes(2);
+    });
+
+    expect(execute.mock.calls[1]?.[0]).toBe(execute.mock.calls[0]?.[0]);
+  });
+
   it('parses a connect error with a detail into the api error', async () => {
     const execute = vi.fn<ExecuteValue>(() => Promise.reject(createPermissionDeniedError()));
     const { result } = renderCommand({ execute });

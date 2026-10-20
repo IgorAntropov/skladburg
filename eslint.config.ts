@@ -33,6 +33,8 @@ const lazyProfileMenuFiles: string[] = ['apps/web/src/widgets/profile-menu/**/*.
 const lazyProfileMenuChunkFiles: string[] = ['apps/web/src/widgets/profile-menu/ui/menu/**/*.{ts,tsx}'];
 const motionSegmentFiles: string[] = ['apps/web/src/shared/lib/motion/**/*.{ts,tsx}'];
 const motionSegmentTestFiles: string[] = ['apps/web/src/shared/lib/motion/**/*.test.{ts,tsx}'];
+const formSegmentFiles: string[] = ['apps/web/src/shared/lib/form/**/*.{ts,tsx}'];
+const formSegmentTestFiles: string[] = ['apps/web/src/shared/lib/form/**/*.test.{ts,tsx}'];
 const lazyProfileMenuChunkTestFiles: string[] = ['apps/web/src/widgets/profile-menu/ui/menu/**/*.test.{ts,tsx}'];
 const sceneSegmentFiles: string[] = ['apps/web/src/**/scene/**', 'apps/web/src/shared/3d/**'];
 const lazyWidgetSceneFiles: string[] = ['apps/web/src/widgets/**/scene/**/*.{ts,tsx}'];
@@ -76,6 +78,23 @@ const motionSegmentRestriction: BoundaryRestrictionValue = {
 };
 
 const motionRestrictions: BoundaryRestrictionValue[] = [motionPackageRestriction, motionSegmentRestriction];
+
+const formPackageRestriction: BoundaryRestrictionValue = {
+  importPattern: '^react-hook-form(/|$)',
+  message: 'The form library is imported only inside shared/lib/form; take useCommandForm from it in a lazy chunk',
+  selectorPattern: '^react-hook-form($|[^-a-z0-9_])',
+};
+
+const formSegmentRestriction: BoundaryRestrictionValue = {
+  importPattern: '^@/shared/lib/form(/|$)',
+  message: 'shared/lib/form pulls the form library into the bundle; use it only in a lazy chunk so that the initial bundle '
+    + 'stays free of it',
+  selectorPattern: '^@.shared.lib.form($|[^-a-z0-9_])',
+};
+
+const formRestrictions: BoundaryRestrictionValue[] = [formPackageRestriction, formSegmentRestriction];
+
+const libraryRestrictions: BoundaryRestrictionValue[] = [...motionRestrictions, ...formRestrictions];
 
 const apiTestingEntryRestriction: BoundaryRestrictionValue = {
   importPattern: '^@/shared/api/index\\.testing$',
@@ -508,71 +527,92 @@ export default defineConfig(
   {
     files: engineBoundaryFiles,
     rules: createBoundaryRules(
-      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...motionRestrictions],
+      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...libraryRestrictions],
       webSourceSyntaxRestrictions,
     ),
   },
   {
     files: engineBoundaryTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction, ...motionRestrictions], webSyntaxRestrictions),
+    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction, ...libraryRestrictions], webSyntaxRestrictions),
   },
   {
     files: engineBoundaryAllowedFiles,
     rules: createBoundaryRules(
-      [registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...motionRestrictions],
+      [registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...libraryRestrictions],
       webSourceSyntaxRestrictions,
     ),
   },
   {
     files: engineBoundaryAllowedTestFiles,
-    rules: createBoundaryRules([registryRestriction, ...motionRestrictions], webSyntaxRestrictions),
+    rules: createBoundaryRules([registryRestriction, ...libraryRestrictions], webSyntaxRestrictions),
   },
   {
     files: timeZoneExemptFiles,
     rules: createBoundaryRules(
-      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...motionRestrictions],
+      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...libraryRestrictions],
       timeZoneExemptSourceSyntaxRestrictions,
     ),
   },
   {
     files: timeZoneExemptTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction, ...motionRestrictions], navigationRestrictions),
+    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction, ...libraryRestrictions], navigationRestrictions),
   },
   {
     files: navigationOwnerFiles,
     rules: createBoundaryRules(
-      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...motionRestrictions],
+      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...libraryRestrictions],
       navigationOwnerSourceSyntaxRestrictions,
     ),
   },
   {
     files: navigationOwnerTestFiles,
     rules: createBoundaryRules(
-      [engineRestrictionForTests, registryRestriction, ...motionRestrictions],
+      [engineRestrictionForTests, registryRestriction, ...libraryRestrictions],
       webTimeZoneRestrictions,
     ),
   },
   {
     files: motionSegmentFiles,
     rules: createBoundaryRules(
-      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction],
+      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...formRestrictions],
       webSourceSyntaxRestrictions,
     ),
   },
   {
     files: motionSegmentTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction], webSyntaxRestrictions),
+    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction, ...formRestrictions], webSyntaxRestrictions),
+  },
+  {
+    files: formSegmentFiles,
+    rules: createBoundaryRules(
+      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...motionRestrictions],
+      webSourceSyntaxRestrictions,
+    ),
+  },
+  {
+    files: formSegmentTestFiles,
+    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction, ...motionRestrictions], webSyntaxRestrictions),
   },
   {
     files: lazyProfileMenuChunkFiles,
     rules: createBoundaryRules(
-      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, motionPackageRestriction],
+      [
+        engineRestriction,
+        registryRestriction,
+        apiTestingEntryRestriction,
+        routingTestingEntryRestriction,
+        motionPackageRestriction,
+        ...formRestrictions,
+      ],
       webSourceSyntaxRestrictions,
     ),
   },
   {
     files: lazyProfileMenuChunkTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction, motionPackageRestriction], webSyntaxRestrictions),
+    rules: createBoundaryRules(
+      [engineRestrictionForTests, registryRestriction, motionPackageRestriction, ...formRestrictions],
+      webSyntaxRestrictions,
+    ),
   },
   {
     files: engineBoundaryFiles,

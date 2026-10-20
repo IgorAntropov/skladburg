@@ -1,3 +1,5 @@
+export type { AccessButtonProps } from './action-button/AccessButton';
+export { AccessButton } from './action-button/AccessButton';
 export type { ActionButtonProps } from './action-button/ActionButton';
 export { ActionButton } from './action-button/ActionButton';
 export type { CommandErrorNoticeProps } from './action-button/CommandErrorNotice';

@@ -4,14 +4,11 @@ import type {
   ReactNode,
 } from 'react';
 
-import { useId } from 'react';
-
 import type {
   CommandAccessValue,
   CommandValue,
 } from '@/shared/api';
 
-import { translatePermissionDenial } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
 
 import type {
@@ -20,8 +17,7 @@ import type {
 } from '../button/buttonTypes';
 import type { TooltipProps } from '../tooltip/Tooltip';
 
-import { Button } from '../button/Button';
-import { Tooltip } from '../tooltip/Tooltip';
+import { AccessButton } from './AccessButton';
 import { CommandErrorNotice } from './CommandErrorNotice';
 
 export interface ActionButtonProps extends WithTestIdValue {
@@ -55,15 +51,9 @@ export const ActionButton = ({
   variant,
 }: ActionButtonProps): ReactElement => {
   const { t } = useI18n();
-  const reasonId = useId();
 
-  const isAllowed = access.status === 'allowed';
-  const isPending = isAllowed && command.isPending;
+  const isPending = access.status === 'allowed' && command.isPending;
   const isRetryable = command.apiError?.isRetryable === true;
-  const denialReason = access.status === 'denied' ? translatePermissionDenial(t, access.permission) : undefined;
-  const isDenied = denialReason !== undefined;
-  const describedById = isDenied ? reasonId : undefined;
-  const isBlocked = !isAllowed;
   const isErrorBelow = errorPlacement === 'below';
   const isSubmit = type === 'submit';
   const label = isRetryable ? t('common.retry') : children;
@@ -79,23 +69,20 @@ export const ActionButton = ({
 
   return (
     <div className="flex max-w-full flex-col items-start gap-2">
-      <Tooltip canOpen={isDenied} content={denialReason ?? ''} side={tooltipSide}>
-        <Button
-          aria-describedby={describedById}
-          aria-disabled={isBlocked}
-          className={className}
-          data-testid={testId}
-          onClick={handleClick}
-          pending={isPending}
-          pendingLabel={pendingLabel ?? t('action.pending')}
-          size={size}
-          type={type}
-          variant={variant}
-        >
-          {label}
-        </Button>
-      </Tooltip>
-      {isDenied && <span className="sr-only" id={reasonId}>{denialReason}</span>}
+      <AccessButton
+        access={access}
+        className={className}
+        data-testid={testId}
+        onClick={handleClick}
+        pending={isPending}
+        pendingLabel={pendingLabel ?? t('action.pending')}
+        size={size}
+        tooltipSide={tooltipSide}
+        type={type}
+        variant={variant}
+      >
+        {label}
+      </AccessButton>
       {isErrorBelow && <CommandErrorNotice command={command} />}
     </div>
   );

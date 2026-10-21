@@ -25,10 +25,10 @@ const otherUuid = '8d14e6a2-0b3c-4f57-9a68-12cd45ef7890';
 const createWarehouseRequest = (overrides: Partial<CreateWarehouseRequest> = {}): CreateWarehouseRequest =>
   create(CreateWarehouseRequestSchema, {
     address: 'Тестовая улица, 1',
-    boardNodeId: otherUuid,
     capabilities: [WarehouseCapability.RAMP, WarehouseCapability.COLD],
     cityId: validUuid,
     idempotencyKey: validUuid,
+    mapNodeId: otherUuid,
     name: 'Склад Северный',
     timeZone: 'Europe/Moscow',
     ...overrides,
@@ -115,19 +115,19 @@ describe('CreateWarehouseRequest', () => {
     ]);
   });
 
-  it('rejects a board node id that is not a UUID', () => {
-    const request = createWarehouseRequest({ boardNodeId: 'node-1' });
+  it('rejects a map node id that is not a UUID', () => {
+    const request = createWarehouseRequest({ mapNodeId: 'node-1' });
 
     expect(collectViolations(CreateWarehouseRequestSchema, request)).toEqual([
-      { fieldPath: 'board_node_id', ruleId: 'string.uuid' },
+      { fieldPath: 'map_node_id', ruleId: 'string.uuid' },
     ]);
   });
 
-  it('rejects an empty board node id with the dedicated rule', () => {
-    const request = createWarehouseRequest({ boardNodeId: '' });
+  it('rejects an empty map node id with the dedicated rule', () => {
+    const request = createWarehouseRequest({ mapNodeId: '' });
 
     expect(collectViolations(CreateWarehouseRequestSchema, request)).toEqual([
-      { fieldPath: 'board_node_id', ruleId: 'string.uuid_empty' },
+      { fieldPath: 'map_node_id', ruleId: 'string.uuid_empty' },
     ]);
   });
 
@@ -193,10 +193,10 @@ describe('CreateWarehouseRequest', () => {
   it('rejects a capability outside the enum with the index of the element', () => {
     const request = fromJson(CreateWarehouseRequestSchema, {
       address: 'Тестовая улица, 1',
-      boardNodeId: otherUuid,
       capabilities: [WarehouseCapability.OVERSIZE, WarehouseCapability.COLD, 99],
       cityId: validUuid,
       idempotencyKey: validUuid,
+      mapNodeId: otherUuid,
       name: 'Склад Северный',
       timeZone: 'Europe/Moscow',
     });

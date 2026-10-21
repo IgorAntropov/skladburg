@@ -36,17 +36,17 @@ export const createWarehouseHandlers = (runtime: IModuleRuntime): WarehouseHandl
             throw errors.notFound(EntityKind.CITY);
           }
 
-          if (transaction.get('boardNodes', request.boardNodeId)?.cityId !== request.cityId) {
-            throw errors.notFound(EntityKind.BOARD_NODE);
+          if (transaction.get('mapNodes', request.mapNodeId)?.cityId !== request.cityId) {
+            throw errors.notFound(EntityKind.MAP_NODE);
           }
 
           const warehouse = create(WarehouseSchema, {
             address: request.address,
-            boardNodeId: request.boardNodeId,
             capabilities: request.capabilities,
             cityId: request.cityId,
             id: random.uuid(),
             isWmsEnabled: true,
+            mapNodeId: request.mapNodeId,
             name: request.name,
             tenantId: caller.organizationId,
             timeZone: request.timeZone,

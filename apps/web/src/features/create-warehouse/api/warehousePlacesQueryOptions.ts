@@ -15,12 +15,12 @@ export const createWarehousePlacesQueryOptions = (
 ): UndefinedInitialDataOptions<WarehousePlacesValue, Error, WarehousePlacesValue, WarehousePlacesQueryKeyValue> => queryOptions({
   meta: { channels: [] },
   queryFn: async (): Promise<WarehousePlacesValue> => {
-    const [citiesResponse, boardNodesResponse] = await Promise.all([
+    const [citiesResponse, mapNodesResponse] = await Promise.all([
       client.network.listCities({}),
-      client.network.listBoardNodes({}),
+      client.network.listMapNodes({}),
     ]);
 
-    return { boardNodes: boardNodesResponse.boardNodes, cities: citiesResponse.cities };
+    return { cities: citiesResponse.cities, mapNodes: mapNodesResponse.mapNodes };
   },
   queryKey: networkKeys.warehousePlaces(),
   staleTime: Infinity,

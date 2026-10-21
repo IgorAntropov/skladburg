@@ -184,7 +184,7 @@ describe('seed contents', () => {
 
     for (const warehouse of reader.list('warehouses')) {
       expect(reader.get('cities', warehouse.cityId), warehouse.name).toBeDefined();
-      expect(reader.get('boardNodes', warehouse.boardNodeId)?.cityId).toBe(warehouse.cityId);
+      expect(reader.get('mapNodes', warehouse.mapNodeId)?.cityId).toBe(warehouse.cityId);
       expect(reader.get('organizations', warehouse.tenantId)).toBeDefined();
       expect(reader.get('cities', warehouse.cityId)?.timeZone).toBe(warehouse.timeZone);
     }
@@ -196,8 +196,8 @@ describe('seed contents', () => {
     }
   });
 
-  it('places board nodes on distinct grid cells', () => {
-    const cells = createSeedReader().list('boardNodes').map(node => `${String(node.position?.column)}:${String(node.position?.row)}`);
+  it('places map nodes on distinct grid cells', () => {
+    const cells = createSeedReader().list('mapNodes').map(node => `${String(node.position?.column)}:${String(node.position?.row)}`);
 
     expect(new Set(cells).size).toBe(cells.length);
   });

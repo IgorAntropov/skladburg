@@ -22,8 +22,8 @@ import {
   createSeedUsers,
 } from './seedAccess';
 import {
-  createSeedBoardNodes,
   createSeedCities,
+  createSeedMapNodes,
 } from './seedNetwork';
 import {
   createSeedOrganizations,
@@ -54,9 +54,9 @@ export const DEFAULT_ENGINE_SEED: EngineSeedValue = {
 };
 
 export const createSeedRecords = (): SeedRecordsValue => ({
-  boardNodes: createSeedBoardNodes(),
   cities: createSeedCities(),
   idempotency: [],
+  mapNodes: createSeedMapNodes(),
   memberships: createSeedMemberships(),
   organizations: createSeedOrganizations(),
   organizationSettings: createSeedOrganizationSettings(),

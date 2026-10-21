@@ -47,10 +47,10 @@ const METHOD = OrganizationService.method.createWarehouse;
 
 const createRequest = (overrides: Partial<CreateWarehouseRequest> = {}): CreateWarehouseRequest => create(CreateWarehouseRequestSchema, {
   address: '',
-  boardNodeId: NODE_ID,
   capabilities: [WarehouseCapability.RAMP],
   cityId: CITY_ID,
   idempotencyKey: KEY,
+  mapNodeId: NODE_ID,
   name: 'Склад 1',
   timeZone: 'Europe/Moscow',
   ...overrides,

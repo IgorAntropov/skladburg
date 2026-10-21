@@ -51,13 +51,13 @@ type FieldNameValue = keyof WarehouseFormValues;
 
 interface WarehouseFormValues {
   address: string;
-  boardNodeId: string;
   cityId: string;
+  mapNodeId: string;
   name: string;
   timeZone: string;
 }
 
-const DOM_ORDER: FieldNameValue[] = ['name', 'cityId', 'boardNodeId', 'timeZone', 'address'];
+const DOM_ORDER: FieldNameValue[] = ['name', 'cityId', 'mapNodeId', 'timeZone', 'address'];
 const REGISTRATION_ORDER: FieldNameValue[] = DOM_ORDER.toReversed();
 const NO_FIELDS: readonly FieldNameValue[] = [];
 
@@ -66,20 +66,20 @@ const RETRY_LABEL = defaultLocaleCatalog['common.retry'];
 const FORM_MESSAGE = defaultLocaleCatalog['error.validation_failed'];
 
 const CITY_ID = '0b9c1f3e-6d4a-4e55-8f1d-7a2b3c4d5e6f';
-const BOARD_NODE_ID = '1c0d2a4f-7e5b-4f66-9a2e-8b3c4d5e6f70';
+const MAP_NODE_ID = '1c0d2a4f-7e5b-4f66-9a2e-8b3c4d5e6f70';
 
 const VALID_VALUES: WarehouseFormValues = {
   address: '',
-  boardNodeId: BOARD_NODE_ID,
   cityId: CITY_ID,
+  mapNodeId: MAP_NODE_ID,
   name: 'Склад «Север»',
   timeZone: 'Europe/Moscow',
 };
 
 const DEFAULT_VALUES: WarehouseFormValues = {
   address: '',
-  boardNodeId: '',
   cityId: '',
+  mapNodeId: '',
   name: '',
   timeZone: '',
 };
@@ -229,7 +229,7 @@ describe('useCommandForm', () => {
         expect(getErrorText('name')).toBe(defaultLocaleCatalog['validation.required']);
       });
       expect(getErrorText('cityId')).toBe(defaultLocaleCatalog['validation.string.uuid_empty']);
-      expect(getErrorText('boardNodeId')).toBe(defaultLocaleCatalog['validation.string.uuid_empty']);
+      expect(getErrorText('mapNodeId')).toBe(defaultLocaleCatalog['validation.string.uuid_empty']);
       expect(getErrorText('timeZone')).toBe(defaultLocaleCatalog['validation.required']);
       expect(getErrorText('address')).toBe('');
       expect(getInput('name').getAttribute('aria-invalid')).toBe('true');

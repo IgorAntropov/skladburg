@@ -13,7 +13,7 @@ import { mapServerViolations } from './mapServerViolations';
 
 const FIELD_NAMES = [
   'address',
-  'boardNodeId',
+  'mapNodeId',
   'capabilities',
   'cityId',
   'contactPhone',

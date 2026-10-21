@@ -45,8 +45,8 @@ import { createSeededRandom } from '../ports/index';
 import { DEMO_USER_HEADER } from '../protocol';
 import {
   createSeedSnapshot,
-  SeedBoardNodeId,
   SeedCityId,
+  SeedMapNodeId,
   SeedOrganizationId,
   SeedUserId,
   SeedWarehouseId,
@@ -350,10 +350,10 @@ describe('createCallGuard: scope field', () => {
 
   const probeRequest = (warehouseId: string, method: DescMethodUnary = probe): MessageShape<DescMessage> => create(method.input, {
     address: warehouseId,
-    boardNodeId: SeedBoardNodeId.KAZAN,
     capabilities: [WarehouseCapability.RAMP],
     cityId: SeedCityId.KAZAN,
     idempotencyKey: '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153',
+    mapNodeId: SeedMapNodeId.KAZAN,
     name: 'Склад 9',
     timeZone: 'Europe/Moscow',
   });
@@ -484,10 +484,10 @@ describe('createCallGuard: limit', () => {
     create(method.input, {
       address: warehouseId,
       amount,
-      boardNodeId: SeedBoardNodeId.KAZAN,
       capabilities: [WarehouseCapability.RAMP],
       cityId: SeedCityId.KAZAN,
       idempotencyKey: '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153',
+      mapNodeId: SeedMapNodeId.KAZAN,
       name: 'Склад 9',
       timeZone: 'Europe/Moscow',
     });

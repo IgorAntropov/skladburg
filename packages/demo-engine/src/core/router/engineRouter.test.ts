@@ -53,7 +53,7 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
     accessService: { getSession, listPermissions: unused, listRoles: unused },
     clockService: { getWorldClock: unused },
     errors,
-    networkService: { listBoardNodes: unused, listCities: unused },
+    networkService: { listCities: unused, listMapNodes: unused },
     organizationService: {
       createWarehouse: unused,
       getOrganization: unused,

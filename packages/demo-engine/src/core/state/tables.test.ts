@@ -1,8 +1,8 @@
 import { create } from '@bufbuild/protobuf';
 import { UserSchema } from '@skladburg/contracts/access/v1/access';
 import {
-  BoardNodeSchema,
   CitySchema,
+  MapNodeSchema,
 } from '@skladburg/contracts/network/v1/network';
 import {
   OrganizationSchema,
@@ -53,12 +53,12 @@ describe('message tables', () => {
       organizationId: 'org-1',
     });
     const city = create(CitySchema, { id: 'city-1', name: 'Москва', timeZone: 'Europe/Moscow' });
-    const node = create(BoardNodeSchema, { cityId: 'city-1', id: 'node-1', position: { column: 2, row: 3 } });
+    const node = create(MapNodeSchema, { cityId: 'city-1', id: 'node-1', position: { column: 2, row: 3 } });
 
     expect(TABLE_DEFINITIONS.organizations.decode(TABLE_DEFINITIONS.organizations.encode(organization))).toEqual(organization);
     expect(TABLE_DEFINITIONS.organizationSettings.decode(TABLE_DEFINITIONS.organizationSettings.encode(settings))).toEqual(settings);
     expect(TABLE_DEFINITIONS.cities.decode(TABLE_DEFINITIONS.cities.encode(city))).toEqual(city);
-    expect(TABLE_DEFINITIONS.boardNodes.decode(TABLE_DEFINITIONS.boardNodes.encode(node))).toEqual(node);
+    expect(TABLE_DEFINITIONS.mapNodes.decode(TABLE_DEFINITIONS.mapNodes.encode(node))).toEqual(node);
     const sphere = create(SphereSchema, { id: 'sphere-1', name: 'Продукты' });
     const user = create(UserSchema, { displayName: 'Анна Смирнова', id: 'user-1' });
 

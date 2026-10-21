@@ -33,8 +33,8 @@ export {
 } from './core/protocol';
 export {
   type EngineSeedValue,
-  SeedBoardNodeId,
   SeedCityId,
+  SeedMapNodeId,
   SeedMembershipId,
   SeedOrganizationId,
   SeedPersonaId,

@@ -45,10 +45,10 @@ const createWarehouseRequest = (
   overrides: Partial<MessageShape<typeof CreateWarehouseRequestSchema>> = {},
 ): MessageShape<typeof CreateWarehouseRequestSchema> => create(CreateWarehouseRequestSchema, {
   address: 'Адрес 1',
-  boardNodeId: OTHER_UUID,
   capabilities: [WarehouseCapability.RAMP],
   cityId: UUID,
   idempotencyKey: UUID,
+  mapNodeId: OTHER_UUID,
   name: 'Склад 1',
   timeZone: 'Europe/Moscow',
   ...overrides,
@@ -77,7 +77,7 @@ describe('createRequestValidator.collect', () => {
       { fieldPath: 'idempotency_key', ruleId: 'string.uuid_empty' },
       { fieldPath: 'name', ruleId: 'required' },
       { fieldPath: 'city_id', ruleId: 'string.uuid_empty' },
-      { fieldPath: 'board_node_id', ruleId: 'string.uuid_empty' },
+      { fieldPath: 'map_node_id', ruleId: 'string.uuid_empty' },
       { fieldPath: 'time_zone', ruleId: 'required' },
     ]);
   });
@@ -107,10 +107,10 @@ describe('createRequestValidator.collect', () => {
   it('indexes the element of a repeated field', () => {
     const request = fromJson(CreateWarehouseRequestSchema, {
       address: '',
-      boardNodeId: OTHER_UUID,
       capabilities: [WarehouseCapability.RAMP, 99],
       cityId: UUID,
       idempotencyKey: UUID,
+      mapNodeId: OTHER_UUID,
       name: 'Склад 1',
       timeZone: 'Europe/Moscow',
     });

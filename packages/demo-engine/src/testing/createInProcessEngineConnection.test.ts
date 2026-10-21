@@ -24,8 +24,8 @@ import type { InProcessEngineValue } from './createInProcessEngineConnection';
 import { createSpyStorage } from '../core/engine/testing/engineHarness';
 import { callAs } from '../core/modules/testing/moduleHarness';
 import {
-  SeedBoardNodeId,
   SeedCityId,
+  SeedMapNodeId,
   SeedOrganizationId,
   SeedUserId,
 } from '../core/seed/index';
@@ -96,10 +96,10 @@ describe('in-process engine connection', () => {
 
     await createOrganizationClient(opened).createWarehouse(create(CreateWarehouseRequestSchema, {
       address: 'ул. Вымышленная, 1',
-      boardNodeId: SeedBoardNodeId.KAZAN,
       capabilities: [WarehouseCapability.RAMP],
       cityId: SeedCityId.KAZAN,
       idempotencyKey: COMMAND_KEY,
+      mapNodeId: SeedMapNodeId.KAZAN,
       name: 'Склад 9',
       timeZone: 'Europe/Moscow',
     }), customerOptions);

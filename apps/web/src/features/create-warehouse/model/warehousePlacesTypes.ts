@@ -1,14 +1,14 @@
 import type {
-  BoardNode,
   City,
+  MapNode,
 } from '@skladburg/contracts/network/v1/network';
 
 export interface WarehousePlacementValue {
-  boardNodeId: string;
+  mapNodeId: string;
   timeZone: string;
 }
 
 export interface WarehousePlacesValue {
-  boardNodes: readonly BoardNode[];
   cities: readonly City[];
+  mapNodes: readonly MapNode[];
 }

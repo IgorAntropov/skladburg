@@ -765,7 +765,6 @@ describe('readFileFormRules on the current contract', () => {
     expect(message?.rules).toEqual({
       fields: {
         address: { kind: 'string', maxLen: 500, protoName: 'address' },
-        boardNodeId: { isUuid: true, kind: 'string', protoName: 'board_node_id' },
         capabilities: {
           isUnique: true,
           items: { definedValues: [0, 1, 2, 3], kind: 'enum', notIn: [0] },
@@ -774,6 +773,7 @@ describe('readFileFormRules on the current contract', () => {
         },
         cityId: { isUuid: true, kind: 'string', protoName: 'city_id' },
         idempotencyKey: { isUuid: true, kind: 'string', protoName: 'idempotency_key' },
+        mapNodeId: { isUuid: true, kind: 'string', protoName: 'map_node_id' },
         name: { isRequired: true, kind: 'string', maxLen: 120, protoName: 'name' },
         timeZone: {
           isRequired: true,

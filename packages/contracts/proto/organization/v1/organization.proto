@@ -76,7 +76,7 @@ message Warehouse {
   string tenant_id = 2;
   string name = 3;
   string city_id = 4;
-  string board_node_id = 5;
+  string map_node_id = 5;
   string time_zone = 6;
   string address = 7;
   repeated WarehouseCapability capabilities = 8;
@@ -136,7 +136,7 @@ message CreateWarehouseRequest {
     (buf.validate.field).string.max_len = 120
   ];
   string city_id = 3 [(buf.validate.field).string.uuid = true];
-  string board_node_id = 4 [(buf.validate.field).string.uuid = true];
+  string map_node_id = 4 [(buf.validate.field).string.uuid = true];
   string time_zone = 5 [
     (buf.validate.field).required = true,
     (buf.validate.field).string.pattern = "^[A-Za-z_]+(/[A-Za-z0-9_+-]+)+$"

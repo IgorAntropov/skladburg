@@ -9,7 +9,7 @@ export const ENGINE_COLLECTION_NAMES = [
   'roles',
   'spheres',
   'cities',
-  'boardNodes',
+  'mapNodes',
   'warehouses',
   'idempotency',
   'personas',
@@ -56,9 +56,9 @@ export type StoredRecordValue = StoredObjectValue | Uint8Array;
 export type StoredScalarValue = bigint | boolean | null | number | string;
 
 export const createEmptyCollections = (): Record<EngineCollectionName, EngineCollectionValue> => ({
-  boardNodes: new Map(),
   cities: new Map(),
   idempotency: new Map(),
+  mapNodes: new Map(),
   memberships: new Map(),
   organizations: new Map(),
   organizationSettings: new Map(),

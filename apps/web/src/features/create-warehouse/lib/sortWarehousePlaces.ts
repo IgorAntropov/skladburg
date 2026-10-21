@@ -4,7 +4,7 @@ export const sortWarehousePlaces = (places: WarehousePlacesValue, locale: string
   const collator = new Intl.Collator(locale);
 
   return {
-    boardNodes: places.boardNodes,
     cities: places.cities.toSorted((current, prev) => collator.compare(current.name, prev.name)),
+    mapNodes: places.mapNodes,
   };
 };

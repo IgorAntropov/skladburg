@@ -65,48 +65,48 @@ describe('NetworkService.listCities', () => {
   });
 });
 
-describe('NetworkService.listBoardNodes', () => {
-  it('returns the board nodes of the seed with a session alone', async () => {
-    const response = await createNetworkClient().listBoardNodes({}, callAs(SeedUserId.ADMIN_1));
+describe('NetworkService.listMapNodes', () => {
+  it('returns the map nodes of the seed with a session alone', async () => {
+    const response = await createNetworkClient().listMapNodes({}, callAs(SeedUserId.ADMIN_1));
 
-    expect(response.boardNodes).toHaveLength(SEED_NODE_COUNT);
+    expect(response.mapNodes).toHaveLength(SEED_NODE_COUNT);
     expect(response.page?.nextPageToken).toBe('');
   });
 
-  it('pages through the board nodes without gaps and duplicates', async () => {
+  it('pages through the map nodes without gaps and duplicates', async () => {
     const client = createNetworkClient();
     const options = callAs(SeedUserId.ADMIN_1);
-    const all = await client.listBoardNodes({}, options);
-    const first = await client.listBoardNodes({ page: { pageSize: SMALL_PAGE_SIZE } }, options);
-    const second = await client.listBoardNodes({ page: { pageSize: SMALL_PAGE_SIZE, pageToken: first.page?.nextPageToken } }, options);
-    const third = await client.listBoardNodes({ page: { pageSize: SMALL_PAGE_SIZE, pageToken: second.page?.nextPageToken } }, options);
+    const all = await client.listMapNodes({}, options);
+    const first = await client.listMapNodes({ page: { pageSize: SMALL_PAGE_SIZE } }, options);
+    const second = await client.listMapNodes({ page: { pageSize: SMALL_PAGE_SIZE, pageToken: first.page?.nextPageToken } }, options);
+    const third = await client.listMapNodes({ page: { pageSize: SMALL_PAGE_SIZE, pageToken: second.page?.nextPageToken } }, options);
 
-    expect(first.boardNodes).toHaveLength(SMALL_PAGE_SIZE);
-    expect(third.boardNodes).toHaveLength(SEED_NODE_COUNT - 2 * SMALL_PAGE_SIZE);
+    expect(first.mapNodes).toHaveLength(SMALL_PAGE_SIZE);
+    expect(third.mapNodes).toHaveLength(SEED_NODE_COUNT - 2 * SMALL_PAGE_SIZE);
     expect(third.page?.nextPageToken).toBe('');
-    const pagedIds = [...first.boardNodes, ...second.boardNodes, ...third.boardNodes].map(node => node.id);
+    const pagedIds = [...first.mapNodes, ...second.mapNodes, ...third.mapNodes].map(node => node.id);
 
-    expect(pagedIds).toEqual(all.boardNodes.map(node => node.id));
-    expect(new Set(all.boardNodes.map(node => node.id)).size).toBe(SEED_NODE_COUNT);
+    expect(pagedIds).toEqual(all.mapNodes.map(node => node.id));
+    expect(new Set(all.mapNodes.map(node => node.id)).size).toBe(SEED_NODE_COUNT);
   });
 
   it('rejects a call without a user with session_required', async () => {
-    const error = await captureError(createNetworkClient().listBoardNodes({}, callAs(undefined)));
+    const error = await captureError(createNetworkClient().listMapNodes({}, callAs(undefined)));
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.SESSION_REQUIRED);
   });
 });
 
-describe('the board nodes and the cities of the seed together', () => {
-  it('points every board node at an existing city and gives every city a board node', async () => {
+describe('the map nodes and the cities of the seed together', () => {
+  it('points every map node at an existing city and gives every city a map node', async () => {
     const client = createNetworkClient();
     const options = callAs(SeedUserId.ADMIN_1);
     const { cities } = await client.listCities({}, options);
-    const { boardNodes } = await client.listBoardNodes({}, options);
+    const { mapNodes } = await client.listMapNodes({}, options);
     const cityIds = new Set(cities.map(city => city.id));
-    const nodeCityIds = new Set(boardNodes.map(node => node.cityId));
+    const nodeCityIds = new Set(mapNodes.map(node => node.cityId));
 
-    expect(boardNodes.every(node => cityIds.has(node.cityId))).toBe(true);
+    expect(mapNodes.every(node => cityIds.has(node.cityId))).toBe(true);
     expect(cities.every(city => nodeCityIds.has(city.id))).toBe(true);
   });
 });

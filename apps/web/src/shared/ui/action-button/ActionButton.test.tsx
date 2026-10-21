@@ -92,9 +92,9 @@ const AddWarehouseButton = ({ access }: AddWarehouseButtonProps): ReactElement =
   const client = useApiClient();
   const command = useCommand({
     execute: idempotencyKey => client.organization.createWarehouse({
-      boardNodeId: 'node',
       cityId: 'city',
       idempotencyKey,
+      mapNodeId: 'node',
       name: 'Склад «Север»',
     }),
     method: OrganizationService.method.createWarehouse,

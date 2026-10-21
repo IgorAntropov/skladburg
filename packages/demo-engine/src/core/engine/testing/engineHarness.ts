@@ -37,8 +37,8 @@ import {
   ENGINE_BASE_URL,
 } from '../../protocol';
 import {
-  SeedBoardNodeId,
   SeedCityId,
+  SeedMapNodeId,
 } from '../../seed/index';
 import { createEngine } from '../createEngine';
 
@@ -187,10 +187,10 @@ export const createEngineCaller = (engine: IDemoEngine, useBinaryFormat = true):
 export const createWarehouseRequest = (idempotencyKey: string, overrides: Partial<CreateWarehouseRequest> = {}): CreateWarehouseRequest =>
   create(CreateWarehouseRequestSchema, {
     address: 'ул. Вымышленная, 1',
-    boardNodeId: SeedBoardNodeId.KAZAN,
     capabilities: [WarehouseCapability.RAMP],
     cityId: SeedCityId.KAZAN,
     idempotencyKey,
+    mapNodeId: SeedMapNodeId.KAZAN,
     name: 'Склад 9',
     timeZone: 'Europe/Moscow',
     ...overrides,

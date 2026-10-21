@@ -1,12 +1,12 @@
-import type { BoardNode } from '@skladburg/contracts/network/v1/network';
+import type { MapNode } from '@skladburg/contracts/network/v1/network';
 
 import type {
   WarehousePlacementValue,
   WarehousePlacesValue,
 } from '../model/warehousePlacesTypes';
 
-const pickFirstNodeById = (nodes: readonly BoardNode[], cityId: string): BoardNode | undefined => {
-  let first: BoardNode | undefined;
+const pickFirstNodeById = (nodes: readonly MapNode[], cityId: string): MapNode | undefined => {
+  let first: MapNode | undefined;
 
   for (const node of nodes) {
     if (node.cityId === cityId && (first === undefined || node.id < first.id)) {
@@ -27,7 +27,7 @@ export const resolveWarehousePlacement = (
     return undefined;
   }
 
-  const node = pickFirstNodeById(places.boardNodes, city.id);
+  const node = pickFirstNodeById(places.mapNodes, city.id);
 
-  return node === undefined ? undefined : { boardNodeId: node.id, timeZone: city.timeZone };
+  return node === undefined ? undefined : { mapNodeId: node.id, timeZone: city.timeZone };
 };

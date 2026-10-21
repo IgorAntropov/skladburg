@@ -27,8 +27,8 @@ import {
 } from 'vitest';
 
 import {
-  SeedBoardNodeId,
   SeedCityId,
+  SeedMapNodeId,
   SeedOrganizationId,
   SeedUserId,
   SeedWarehouseId,
@@ -48,10 +48,10 @@ const UNKNOWN_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 
 const createRequest = (overrides: Partial<CreateWarehouseRequest> = {}): CreateWarehouseRequest => create(CreateWarehouseRequestSchema, {
   address: 'ул. Вымышленная, 1',
-  boardNodeId: SeedBoardNodeId.KAZAN,
   capabilities: [WarehouseCapability.RAMP, WarehouseCapability.COLD],
   cityId: SeedCityId.KAZAN,
   idempotencyKey: KEY,
+  mapNodeId: SeedMapNodeId.KAZAN,
   name: 'Склад 9',
   timeZone: 'Europe/Moscow',
   ...overrides,
@@ -242,7 +242,7 @@ describe('OrganizationService.createWarehouse', () => {
       expect(text).not.toContain('ул. Вымышленная, 1');
       expect(text).not.toContain('Europe/Moscow');
       expect(text).not.toContain(SeedCityId.KAZAN);
-      expect(text).not.toContain(SeedBoardNodeId.KAZAN);
+      expect(text).not.toContain(SeedMapNodeId.KAZAN);
     }
 
     expect(changed?.payload.case === 'warehouseChanged' ? Object.keys(changed.payload.value).sort() : []).toEqual([
@@ -398,28 +398,28 @@ describe('OrganizationService.createWarehouse', () => {
     expect(events).toHaveLength(0);
   });
 
-  it('answers not_found for a board node that does not exist', async () => {
+  it('answers not_found for a map node that does not exist', async () => {
     const { organization } = createModuleHarness();
 
     const error = await captureError(organization.createWarehouse(
-      createRequest({ boardNodeId: UNKNOWN_ID }),
+      createRequest({ mapNodeId: UNKNOWN_ID }),
       callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
     const detail = readErrorDetail(error);
 
-    expect(detail.params.case === 'notFound' ? detail.params.value.entity : undefined).toBe(EntityKind.BOARD_NODE);
+    expect(detail.params.case === 'notFound' ? detail.params.value.entity : undefined).toBe(EntityKind.MAP_NODE);
   });
 
-  it('answers not_found for a board node that belongs to another city', async () => {
+  it('answers not_found for a map node that belongs to another city', async () => {
     const { organization } = createModuleHarness();
 
     const error = await captureError(organization.createWarehouse(
-      createRequest({ boardNodeId: SeedBoardNodeId.MOSCOW }),
+      createRequest({ mapNodeId: SeedMapNodeId.MOSCOW }),
       callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
     ));
     const detail = readErrorDetail(error);
 
-    expect(detail.params.case === 'notFound' ? detail.params.value.entity : undefined).toBe(EntityKind.BOARD_NODE);
+    expect(detail.params.case === 'notFound' ? detail.params.value.entity : undefined).toBe(EntityKind.MAP_NODE);
   });
 
   it('does not store the key of a failed command', async () => {

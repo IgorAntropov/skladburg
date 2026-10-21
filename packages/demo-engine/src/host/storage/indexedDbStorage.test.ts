@@ -100,6 +100,52 @@ const openForeignConnection = (factory: IDBFactory, version: number): Promise<ID
   });
 });
 
+const LEGACY_DATABASE_VERSION = 1;
+const LEGACY_STORE_NAMES = [
+  'organizations',
+  'organizationSettings',
+  'users',
+  'memberships',
+  'roles',
+  'spheres',
+  'cities',
+  'boardNodes',
+  'warehouses',
+  'idempotency',
+  'personas',
+  'meta',
+] as const;
+const LEGACY_SCHEMA_VERSION = 3;
+
+const createLegacyDatabase = (factory: IDBFactory): Promise<void> => new Promise((resolve, reject) => {
+  const request = factory.open(DATABASE_NAME, LEGACY_DATABASE_VERSION);
+
+  request.addEventListener('upgradeneeded', () => {
+    for (const name of LEGACY_STORE_NAMES) {
+      request.result.createObjectStore(name);
+    }
+  });
+  request.addEventListener('success', () => {
+    const database = request.result;
+    const transaction = database.transaction([...LEGACY_STORE_NAMES], 'readwrite');
+
+    transaction.objectStore('boardNodes').put(new Uint8Array([1, 2, 3]), 'legacy-node');
+    transaction.objectStore('warehouses').put(new Uint8Array([4, 5, 6]), 'legacy-warehouse');
+    transaction.objectStore('meta').put(LEGACY_SCHEMA_VERSION, 'schemaVersion');
+    transaction.objectStore('meta').put(createSeedSnapshot().meta, 'engineMeta');
+    transaction.addEventListener('complete', () => {
+      database.close();
+      resolve();
+    });
+    transaction.addEventListener('error', () => {
+      reject(transaction.error ?? new Error('The legacy database was not filled'));
+    });
+  });
+  request.addEventListener('error', () => {
+    reject(request.error ?? new Error('The legacy database did not open'));
+  });
+});
+
 beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
 });
@@ -341,6 +387,52 @@ describe('createIndexedDbStorage when another connection changes the version', (
   });
 });
 
+describe('createIndexedDbStorage over a database of the previous version', () => {
+  it('recreates the stores with the map nodes, drops the old records and stays writable after the upgrade', async () => {
+    const factory = new IDBFactory();
+    await createLegacyDatabase(factory);
+
+    const storage = await openStorage(factory);
+    const upgraded = await openForeignConnection(factory, INDEXED_DB_VERSION);
+    const storeNames = Array.from(upgraded.objectStoreNames);
+    upgraded.close();
+
+    expect(INDEXED_DB_VERSION).toBeGreaterThan(LEGACY_DATABASE_VERSION);
+    expect(storeNames).toContain('mapNodes');
+    expect(storeNames).not.toContain('boardNodes');
+    expect(await storage.load()).toBeUndefined();
+
+    const snapshot = createSeedSnapshot();
+    await storage.replaceAll(snapshot);
+    const node = [...snapshot.collections.mapNodes.values()][0] ?? new Uint8Array();
+
+    await storage.commit({
+      deletes: {},
+      meta: snapshot.meta,
+      puts: { mapNodes: new Map<string, StoredRecordValue>([['added-node', node]]) },
+    });
+    const loaded = await storage.load();
+
+    expect(loaded?.collections.mapNodes.has('added-node')).toBe(true);
+    expect(loaded?.collections.mapNodes.size).toBe(snapshot.collections.mapNodes.size + 1);
+    expect(loaded?.collections.warehouses.has('legacy-warehouse')).toBe(false);
+    expect(loaded?.schemaVersion).toBe(snapshot.schemaVersion);
+  });
+
+  it('upgrades once a tab of the previous version closes its connection on the versionchange event', async () => {
+    const factory = new IDBFactory();
+    await createLegacyDatabase(factory);
+    const oldTab = await openForeignConnection(factory, LEGACY_DATABASE_VERSION);
+    oldTab.addEventListener('versionchange', () => {
+      oldTab.close();
+    });
+
+    const storage = await openStorage(factory);
+
+    expect(await storage.load()).toBeUndefined();
+  });
+});
+
 describe('createIndexedDbStorage with the engine', () => {
   const customerOptions = (caller: ReturnType<typeof createEngineCaller>): ReturnType<ReturnType<typeof createEngineCaller>['options']> =>
     caller.options(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
@@ -388,5 +480,25 @@ describe('createIndexedDbStorage with the engine', () => {
     });
 
     expect(secondEngine.getClockSnapshot().worldTimeMs).toBeGreaterThanOrEqual(worldTimeMs);
+  });
+
+  it('starts on the starting data when the database of the previous version holds a snapshot of the old schema', async () => {
+    const factory = new IDBFactory();
+    await createLegacyDatabase(factory);
+    const storage = await openStorage(factory);
+    const engine = await createEngine({
+      epoch: TEST_ENGINE_EPOCH,
+      realTime: createFakeRealTime(),
+      storage,
+    });
+    const caller = createEngineCaller(engine);
+    const listed = await caller.organization.listWarehouses({}, customerOptions(caller));
+    const stored = await storage.load();
+    const seed = createSeedSnapshot();
+
+    expect(listed.warehouses).toHaveLength(3);
+    expect(stored?.collections.mapNodes.size).toBe(seed.collections.mapNodes.size);
+    expect(stored?.collections.mapNodes.has('legacy-node')).toBe(false);
+    expect(stored?.collections.warehouses.has('legacy-warehouse')).toBe(false);
   });
 });

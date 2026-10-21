@@ -110,10 +110,10 @@ describe('parseApiError against the demo engine', () => {
       captureApiError(runtime.client.organization.createWarehouse({})),
       captureApiError(runtime.client.organization.createWarehouse({
         address: 'a'.repeat(501),
-        boardNodeId: 'not-a-uuid',
         capabilities: [WarehouseCapability.RAMP, WarehouseCapability.RAMP],
         cityId: VALID_UUID,
         idempotencyKey: VALID_UUID,
+        mapNodeId: 'not-a-uuid',
         name: 'n'.repeat(121),
         timeZone: 'moscow',
       })),

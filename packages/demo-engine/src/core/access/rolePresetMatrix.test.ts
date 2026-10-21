@@ -41,8 +41,8 @@ import {
 } from '../modules/testing/moduleHarness';
 import {
   createSeedRecords,
-  SeedBoardNodeId,
   SeedCityId,
+  SeedMapNodeId,
   SeedOrganizationId,
   SeedUserId,
 } from '../seed/index';
@@ -236,10 +236,10 @@ describe('role preset matrix: permission x preset x organization', () => {
 describe('warehouse_create needs the whole organization', () => {
   const request = create(CreateWarehouseRequestSchema, {
     address: 'ул. Вымышленная, 1',
-    boardNodeId: SeedBoardNodeId.KAZAN,
     capabilities: [WarehouseCapability.RAMP],
     cityId: SeedCityId.KAZAN,
     idempotencyKey: CREATE_WAREHOUSE_KEY,
+    mapNodeId: SeedMapNodeId.KAZAN,
     name: 'Склад 9',
     timeZone: 'Europe/Moscow',
   });

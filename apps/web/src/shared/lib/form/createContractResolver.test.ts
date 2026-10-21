@@ -18,9 +18,9 @@ type TestValues = Record<string, unknown>;
 const OPTIONS: ResolverOptions<TestValues> = { fields: {}, shouldUseNativeValidation: undefined };
 
 const CITY_ID = '0b9c1f3e-6d4a-4e55-8f1d-7a2b3c4d5e6f';
-const BOARD_NODE_ID = '1c0d2a4f-7e5b-4f66-9a2e-8b3c4d5e6f70';
+const MAP_NODE_ID = '1c0d2a4f-7e5b-4f66-9a2e-8b3c4d5e6f70';
 
-const WAREHOUSE_FIELDS = ['address', 'boardNodeId', 'capabilities', 'cityId', 'name', 'timeZone'];
+const WAREHOUSE_FIELDS = ['address', 'mapNodeId', 'capabilities', 'cityId', 'name', 'timeZone'];
 
 const NUMBER_RULES = {
   fields: {
@@ -60,9 +60,9 @@ const NUMBER_FIELDS = ['kind', 'kinds', 'note', 'quantity', 'volume'];
 
 const validWarehouse = (overrides: TestValues = {}): TestValues => ({
   address: '',
-  boardNodeId: BOARD_NODE_ID,
   capabilities: [1],
   cityId: CITY_ID,
+  mapNodeId: MAP_NODE_ID,
   name: 'Склад «Север»',
   timeZone: 'Europe/Moscow',
   ...overrides,
@@ -92,8 +92,8 @@ describe('createContractResolver', () => {
     it('reports a rule id for every field that breaks the rules and returns no values', async () => {
       const result = await resolveWarehouse(validWarehouse({
         address: 'a'.repeat(501),
-        boardNodeId: 'node',
         cityId: '',
+        mapNodeId: 'node',
         name: '',
         timeZone: 'Moscow',
       }));
@@ -101,8 +101,8 @@ describe('createContractResolver', () => {
       expect(result.values).toEqual({});
       expect(result.errors).toEqual({
         address: { type: 'string.max_len' },
-        boardNodeId: { type: 'string.uuid' },
         cityId: { type: 'string.uuid_empty' },
+        mapNodeId: { type: 'string.uuid' },
         name: { type: 'required' },
         timeZone: { type: 'string.pattern' },
       });

@@ -1,7 +1,7 @@
 export { createSeedRoleId } from './seedAccess';
 export {
-  SeedBoardNodeId,
   SeedCityId,
+  SeedMapNodeId,
   SeedMembershipId,
   SeedOrganizationId,
   SeedPersonaId,

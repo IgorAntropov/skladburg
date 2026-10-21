@@ -8,8 +8,8 @@ import type {
   User,
 } from '@skladburg/contracts/access/v1/access';
 import type {
-  BoardNode,
   City,
+  MapNode,
 } from '@skladburg/contracts/network/v1/network';
 import type {
   Organization,
@@ -29,8 +29,8 @@ import {
   UserSchema,
 } from '@skladburg/contracts/access/v1/access';
 import {
-  BoardNodeSchema,
   CitySchema,
+  MapNodeSchema,
 } from '@skladburg/contracts/network/v1/network';
 import {
   OrganizationSchema,
@@ -69,9 +69,9 @@ export type TableDefinitionsValue = {
 };
 
 export interface TableIndexesValue {
-  boardNodes: never;
   cities: never;
   idempotency: never;
+  mapNodes: never;
   memberships: 'organizationId' | 'userId';
   organizations: never;
   organizationSettings: never;
@@ -85,9 +85,9 @@ export interface TableIndexesValue {
 export type TableName = EngineCollectionName;
 
 export interface TableRecordsValue {
-  boardNodes: BoardNode;
   cities: City;
   idempotency: IdempotencyRecordValue;
+  mapNodes: MapNode;
   memberships: Membership;
   organizations: Organization;
   organizationSettings: OrganizationSettings;
@@ -128,9 +128,9 @@ const defineRecordTable = <TRecord extends { id: string }>(
 });
 
 export const TABLE_DEFINITIONS: TableDefinitionsValue = {
-  boardNodes: defineMessageTable(BoardNodeSchema, node => node.id, {}),
   cities: defineMessageTable(CitySchema, city => city.id, {}),
   idempotency: defineRecordTable(parseIdempotencyRecord, serializeIdempotencyRecord),
+  mapNodes: defineMessageTable(MapNodeSchema, node => node.id, {}),
   memberships: defineMessageTable(MembershipSchema, membership => membership.id, {
     organizationId: membership => membership.organizationId,
     userId: membership => membership.userId,

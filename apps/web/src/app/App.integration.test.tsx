@@ -275,10 +275,10 @@ const createWarehouse = async (runtime: ApiRuntimeValue): Promise<void> => {
 
   await runtime.client.organization.createWarehouse({
     address: 'ул. Вымышленная, 1',
-    boardNodeId: template?.boardNodeId ?? '',
     capabilities: [],
     cityId: template?.cityId ?? '',
     idempotencyKey: createIdempotencyKey(),
+    mapNodeId: template?.mapNodeId ?? '',
     name: 'Склад для события',
     timeZone: 'Europe/Moscow',
   });

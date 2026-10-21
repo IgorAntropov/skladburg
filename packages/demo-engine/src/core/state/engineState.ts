@@ -60,9 +60,9 @@ export interface TransactionOutcomeValue<TResult> extends CheckpointOutcomeValue
 export type VolatileMetaValue = LiveMetaValue & Pick<EngineMetaValue, 'worldTimeMs'>;
 
 const createTables = (): TablesValue => ({
-  boardNodes: createTable(TABLE_DEFINITIONS.boardNodes),
   cities: createTable(TABLE_DEFINITIONS.cities),
   idempotency: createTable(TABLE_DEFINITIONS.idempotency),
+  mapNodes: createTable(TABLE_DEFINITIONS.mapNodes),
   memberships: createTable(TABLE_DEFINITIONS.memberships),
   organizations: createTable(TABLE_DEFINITIONS.organizations),
   organizationSettings: createTable(TABLE_DEFINITIONS.organizationSettings),
@@ -74,9 +74,9 @@ const createTables = (): TablesValue => ({
 });
 
 const createOverlays = (tables: TablesValue): OverlaysValue => ({
-  boardNodes: tables.boardNodes.createOverlay(),
   cities: tables.cities.createOverlay(),
   idempotency: tables.idempotency.createOverlay(),
+  mapNodes: tables.mapNodes.createOverlay(),
   memberships: tables.memberships.createOverlay(),
   organizations: tables.organizations.createOverlay(),
   organizationSettings: tables.organizationSettings.createOverlay(),

@@ -15,6 +15,7 @@ import {
 import type { CommandAccessValue } from '@/shared/api';
 import type { ChunkRecoveryValue } from '@/shared/lib/module-loader';
 
+import { createNetworkDirectoryQueryOptions } from '@/entities/network';
 import { useCommandAccess } from '@/entities/session';
 import { useApiClient } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
@@ -29,7 +30,6 @@ import {
 
 import type { CreateWarehouseFormProps } from '../ui/form/CreateWarehouseForm';
 
-import { createWarehousePlacesQueryOptions } from '../api/warehousePlacesQueryOptions';
 import { loadCreateWarehouseForm } from '../ui/loadCreateWarehouseForm';
 import { CREATE_WAREHOUSE_FOCUS_KEY } from './createWarehouseFocusKey';
 
@@ -89,7 +89,7 @@ export const useCreateWarehouseLauncher = (): CreateWarehouseLauncherValue => {
         console.log('> useCreateWarehouseLauncher -> warmUp:', { error });
       });
     }
-    void queryClient.query(createWarehousePlacesQueryOptions(client)).catch((error: unknown) => {
+    void queryClient.query(createNetworkDirectoryQueryOptions(client)).catch((error: unknown) => {
       console.log('> useCreateWarehouseLauncher -> warmUp:', { error });
     });
   }, [client, isAllowed, queryClient]);

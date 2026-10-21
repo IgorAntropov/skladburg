@@ -202,6 +202,47 @@ describe('seed contents', () => {
     expect(new Set(cells).size).toBe(cells.length);
   });
 
+  it('joins the map nodes with eleven distinct route legs between existing nodes', () => {
+    const reader = createSeedReader();
+    const legs = reader.list('routeLegs');
+    const pairs = legs.map(leg => [leg.fromMapNodeId, leg.toMapNodeId].sort().join('|'));
+
+    expect(legs).toHaveLength(11);
+
+    for (const leg of legs) {
+      expect(reader.get('mapNodes', leg.fromMapNodeId), leg.id).toBeDefined();
+      expect(reader.get('mapNodes', leg.toMapNodeId), leg.id).toBeDefined();
+      expect(leg.fromMapNodeId, leg.id).not.toBe(leg.toMapNodeId);
+      expect(leg.distanceKm, leg.id).toBeGreaterThan(0);
+      expect(leg.driveMinutes, leg.id).toBeGreaterThan(0);
+    }
+
+    expect(new Set(pairs).size).toBe(legs.length);
+  });
+
+  it('keeps the route legs in one connected graph that reaches every map node', () => {
+    const reader = createSeedReader();
+    const nodeIds = reader.list('mapNodes').map(node => node.id);
+    const legs = reader.list('routeLegs');
+    const reached = new Set<string>(nodeIds.slice(0, 1));
+    const queue = [...reached];
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+
+      for (const leg of legs) {
+        const next = leg.fromMapNodeId === current ? leg.toMapNodeId : leg.toMapNodeId === current ? leg.fromMapNodeId : undefined;
+
+        if (next !== undefined && !reached.has(next)) {
+          reached.add(next);
+          queue.push(next);
+        }
+      }
+    }
+
+    expect([...reached].sort()).toEqual([...nodeIds].sort());
+  });
+
   it('gives every organization settings with its name as brand and the Russian locale', () => {
     const reader = createSeedReader();
 

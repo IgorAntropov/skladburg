@@ -4,11 +4,14 @@ import {
   CitySchema,
   type MapNode,
   MapNodeSchema,
+  type RouteLeg,
+  RouteLegSchema,
 } from '@skladburg/contracts/network/v1/network';
 
 import {
   SeedCityId,
   SeedMapNodeId,
+  SeedRouteLegId,
 } from './seedIds';
 
 export const MOSCOW_TIME_ZONE = 'Europe/Moscow';
@@ -23,6 +26,94 @@ interface SeedCityDefinitionValue {
   row: number;
   timeZone: string;
 }
+
+interface SeedRouteLegDefinitionValue {
+  distanceKm: number;
+  driveMinutes: number;
+  fromMapNodeId: string;
+  id: string;
+  toMapNodeId: string;
+}
+
+const SEED_ROUTE_LEG_DEFINITIONS: readonly SeedRouteLegDefinitionValue[] = [
+  {
+    distanceKm: 710,
+    driveMinutes: 540,
+    fromMapNodeId: SeedMapNodeId.MOSCOW,
+    id: SeedRouteLegId.MOSCOW_SAINT_PETERSBURG,
+    toMapNodeId: SeedMapNodeId.SAINT_PETERSBURG,
+  },
+  {
+    distanceKm: 420,
+    driveMinutes: 330,
+    fromMapNodeId: SeedMapNodeId.MOSCOW,
+    id: SeedRouteLegId.MOSCOW_NIZHNY_NOVGOROD,
+    toMapNodeId: SeedMapNodeId.NIZHNY_NOVGOROD,
+  },
+  {
+    distanceKm: 820,
+    driveMinutes: 600,
+    fromMapNodeId: SeedMapNodeId.MOSCOW,
+    id: SeedRouteLegId.MOSCOW_KAZAN,
+    toMapNodeId: SeedMapNodeId.KAZAN,
+  },
+  {
+    distanceKm: 520,
+    driveMinutes: 400,
+    fromMapNodeId: SeedMapNodeId.MOSCOW,
+    id: SeedRouteLegId.MOSCOW_VORONEZH,
+    toMapNodeId: SeedMapNodeId.VORONEZH,
+  },
+  {
+    distanceKm: 400,
+    driveMinutes: 330,
+    fromMapNodeId: SeedMapNodeId.NIZHNY_NOVGOROD,
+    id: SeedRouteLegId.NIZHNY_NOVGOROD_KAZAN,
+    toMapNodeId: SeedMapNodeId.KAZAN,
+  },
+  {
+    distanceKm: 750,
+    driveMinutes: 570,
+    fromMapNodeId: SeedMapNodeId.VORONEZH,
+    id: SeedRouteLegId.VORONEZH_KRASNODAR,
+    toMapNodeId: SeedMapNodeId.KRASNODAR,
+  },
+  {
+    distanceKm: 950,
+    driveMinutes: 720,
+    fromMapNodeId: SeedMapNodeId.KAZAN,
+    id: SeedRouteLegId.KAZAN_YEKATERINBURG,
+    toMapNodeId: SeedMapNodeId.YEKATERINBURG,
+  },
+  {
+    distanceKm: 1000,
+    driveMinutes: 780,
+    fromMapNodeId: SeedMapNodeId.KAZAN,
+    id: SeedRouteLegId.KAZAN_CHELYABINSK,
+    toMapNodeId: SeedMapNodeId.CHELYABINSK,
+  },
+  {
+    distanceKm: 210,
+    driveMinutes: 170,
+    fromMapNodeId: SeedMapNodeId.YEKATERINBURG,
+    id: SeedRouteLegId.YEKATERINBURG_CHELYABINSK,
+    toMapNodeId: SeedMapNodeId.CHELYABINSK,
+  },
+  {
+    distanceKm: 1600,
+    driveMinutes: 1260,
+    fromMapNodeId: SeedMapNodeId.YEKATERINBURG,
+    id: SeedRouteLegId.YEKATERINBURG_NOVOSIBIRSK,
+    toMapNodeId: SeedMapNodeId.NOVOSIBIRSK,
+  },
+  {
+    distanceKm: 1500,
+    driveMinutes: 1200,
+    fromMapNodeId: SeedMapNodeId.CHELYABINSK,
+    id: SeedRouteLegId.CHELYABINSK_NOVOSIBIRSK,
+    toMapNodeId: SeedMapNodeId.NOVOSIBIRSK,
+  },
+];
 
 const SEED_CITY_DEFINITIONS: readonly SeedCityDefinitionValue[] = [
   { cityId: SeedCityId.MOSCOW, column: 4, mapNodeId: SeedMapNodeId.MOSCOW, name: 'Москва', row: 3, timeZone: MOSCOW_TIME_ZONE },
@@ -89,3 +180,5 @@ export const createSeedMapNodes = (): MapNode[] => SEED_CITY_DEFINITIONS.map(def
   id: definition.mapNodeId,
   position: { column: definition.column, row: definition.row },
 }));
+
+export const createSeedRouteLegs = (): RouteLeg[] => SEED_ROUTE_LEG_DEFINITIONS.map(definition => create(RouteLegSchema, definition));

@@ -100,6 +100,13 @@ const openForeignConnection = (factory: IDBFactory, version: number): Promise<ID
   });
 });
 
+interface LegacyDatabaseValue {
+  nodeStoreName: string;
+  schemaVersion: number;
+  storeNames: readonly string[];
+  version: number;
+}
+
 const LEGACY_DATABASE_VERSION = 1;
 const LEGACY_STORE_NAMES = [
   'organizations',
@@ -116,35 +123,52 @@ const LEGACY_STORE_NAMES = [
   'meta',
 ] as const;
 const LEGACY_SCHEMA_VERSION = 3;
+const PREVIOUS_DATABASE_VERSION = 2;
+const PREVIOUS_SCHEMA_VERSION = 4;
 
-const createLegacyDatabase = (factory: IDBFactory): Promise<void> => new Promise((resolve, reject) => {
-  const request = factory.open(DATABASE_NAME, LEGACY_DATABASE_VERSION);
+const LEGACY_DATABASE: LegacyDatabaseValue = {
+  nodeStoreName: 'boardNodes',
+  schemaVersion: LEGACY_SCHEMA_VERSION,
+  storeNames: LEGACY_STORE_NAMES,
+  version: LEGACY_DATABASE_VERSION,
+};
 
-  request.addEventListener('upgradeneeded', () => {
-    for (const name of LEGACY_STORE_NAMES) {
-      request.result.createObjectStore(name);
-    }
-  });
-  request.addEventListener('success', () => {
-    const database = request.result;
-    const transaction = database.transaction([...LEGACY_STORE_NAMES], 'readwrite');
+const PREVIOUS_DATABASE: LegacyDatabaseValue = {
+  nodeStoreName: 'mapNodes',
+  schemaVersion: PREVIOUS_SCHEMA_VERSION,
+  storeNames: LEGACY_STORE_NAMES.map(name => (name === 'boardNodes' ? 'mapNodes' : name)),
+  version: PREVIOUS_DATABASE_VERSION,
+};
 
-    transaction.objectStore('boardNodes').put(new Uint8Array([1, 2, 3]), 'legacy-node');
-    transaction.objectStore('warehouses').put(new Uint8Array([4, 5, 6]), 'legacy-warehouse');
-    transaction.objectStore('meta').put(LEGACY_SCHEMA_VERSION, 'schemaVersion');
-    transaction.objectStore('meta').put(createSeedSnapshot().meta, 'engineMeta');
-    transaction.addEventListener('complete', () => {
-      database.close();
-      resolve();
+const createLegacyDatabase = (factory: IDBFactory, legacy: LegacyDatabaseValue = LEGACY_DATABASE): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const request = factory.open(DATABASE_NAME, legacy.version);
+
+    request.addEventListener('upgradeneeded', () => {
+      for (const name of legacy.storeNames) {
+        request.result.createObjectStore(name);
+      }
     });
-    transaction.addEventListener('error', () => {
-      reject(transaction.error ?? new Error('The legacy database was not filled'));
+    request.addEventListener('success', () => {
+      const database = request.result;
+      const transaction = database.transaction([...legacy.storeNames], 'readwrite');
+
+      transaction.objectStore(legacy.nodeStoreName).put(new Uint8Array([1, 2, 3]), 'legacy-node');
+      transaction.objectStore('warehouses').put(new Uint8Array([4, 5, 6]), 'legacy-warehouse');
+      transaction.objectStore('meta').put(legacy.schemaVersion, 'schemaVersion');
+      transaction.objectStore('meta').put(createSeedSnapshot().meta, 'engineMeta');
+      transaction.addEventListener('complete', () => {
+        database.close();
+        resolve();
+      });
+      transaction.addEventListener('error', () => {
+        reject(transaction.error ?? new Error('The legacy database was not filled'));
+      });
+    });
+    request.addEventListener('error', () => {
+      reject(request.error ?? new Error('The legacy database did not open'));
     });
   });
-  request.addEventListener('error', () => {
-    reject(request.error ?? new Error('The legacy database did not open'));
-  });
-});
 
 beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -419,6 +443,35 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     expect(loaded?.schemaVersion).toBe(snapshot.schemaVersion);
   });
 
+  it('recreates the stores with the route legs for a database of version 2 and stays writable after the upgrade', async () => {
+    const factory = new IDBFactory();
+    await createLegacyDatabase(factory, PREVIOUS_DATABASE);
+
+    const storage = await openStorage(factory);
+    const upgraded = await openForeignConnection(factory, INDEXED_DB_VERSION);
+    const storeNames = Array.from(upgraded.objectStoreNames);
+    upgraded.close();
+
+    expect(INDEXED_DB_VERSION).toBeGreaterThan(PREVIOUS_DATABASE_VERSION);
+    expect(storeNames).toContain('routeLegs');
+    expect(await storage.load()).toBeUndefined();
+
+    const snapshot = createSeedSnapshot();
+    await storage.replaceAll(snapshot);
+    const leg = [...snapshot.collections.routeLegs.values()][0] ?? new Uint8Array();
+
+    await storage.commit({
+      deletes: {},
+      meta: snapshot.meta,
+      puts: { routeLegs: new Map<string, StoredRecordValue>([['added-leg', leg]]) },
+    });
+    const loaded = await storage.load();
+
+    expect(loaded?.collections.routeLegs.has('added-leg')).toBe(true);
+    expect(loaded?.collections.routeLegs.size).toBe(snapshot.collections.routeLegs.size + 1);
+    expect(loaded?.collections.mapNodes.has('legacy-node')).toBe(false);
+  });
+
   it('upgrades once a tab of the previous version closes its connection on the versionchange event', async () => {
     const factory = new IDBFactory();
     await createLegacyDatabase(factory);
@@ -498,6 +551,23 @@ describe('createIndexedDbStorage with the engine', () => {
 
     expect(listed.warehouses).toHaveLength(3);
     expect(stored?.collections.mapNodes.size).toBe(seed.collections.mapNodes.size);
+    expect(stored?.collections.mapNodes.has('legacy-node')).toBe(false);
+    expect(stored?.collections.warehouses.has('legacy-warehouse')).toBe(false);
+  });
+
+  it('starts on the starting data with the route legs when the database of version 2 holds a snapshot without them', async () => {
+    const factory = new IDBFactory();
+    await createLegacyDatabase(factory, PREVIOUS_DATABASE);
+    const storage = await openStorage(factory);
+    await createEngine({
+      epoch: TEST_ENGINE_EPOCH,
+      realTime: createFakeRealTime(),
+      storage,
+    });
+    const stored = await storage.load();
+    const seed = createSeedSnapshot();
+
+    expect(stored?.collections.routeLegs.size).toBe(seed.collections.routeLegs.size);
     expect(stored?.collections.mapNodes.has('legacy-node')).toBe(false);
     expect(stored?.collections.warehouses.has('legacy-warehouse')).toBe(false);
   });

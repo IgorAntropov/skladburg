@@ -1,13 +1,12 @@
 import type { ProfileKind } from '@skladburg/contracts/organization/v1/organization';
 import type { ReactElement } from 'react';
 
+import {
+  SIDE_BADGES,
+  toOrganizationSide,
+} from '@/entities/organization';
 import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
-
-import {
-  isKnownProfileKind,
-  SIDE_BADGES,
-} from './sideBadgeConfig';
 
 const SIDE_BADGE_CLASS_NAME
   = 'inline-flex items-center gap-1.5 rounded-full border border-current/35 px-2.5 py-0.5 text-sm leading-5 font-medium';
@@ -19,7 +18,7 @@ interface SideBadgesProps {
 export const SideBadges = ({ sides }: SideBadgesProps): null | ReactElement => {
   const { t } = useI18n();
 
-  const knownSides = sides.filter(isKnownProfileKind);
+  const knownSides = [...new Set(sides.map(toOrganizationSide))].filter(side => side !== undefined);
 
   if (knownSides.length === 0) {
     return null;

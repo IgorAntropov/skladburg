@@ -6,6 +6,7 @@ export {
   SeedOrganizationId,
   SeedPersonaId,
   SeedRoleId,
+  SeedRouteLegId,
   SeedSphereId,
   SeedUserId,
   SeedWarehouseId,

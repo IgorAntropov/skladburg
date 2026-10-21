@@ -10,6 +10,7 @@ import type {
 import type {
   City,
   MapNode,
+  RouteLeg,
 } from '@skladburg/contracts/network/v1/network';
 import type {
   Organization,
@@ -31,6 +32,7 @@ import {
 import {
   CitySchema,
   MapNodeSchema,
+  RouteLegSchema,
 } from '@skladburg/contracts/network/v1/network';
 import {
   OrganizationSchema,
@@ -77,6 +79,7 @@ export interface TableIndexesValue {
   organizationSettings: never;
   personas: never;
   roles: 'tenantId';
+  routeLegs: never;
   spheres: never;
   users: never;
   warehouses: 'tenantId';
@@ -93,6 +96,7 @@ export interface TableRecordsValue {
   organizationSettings: OrganizationSettings;
   personas: DemoPersonaValue;
   roles: Role;
+  routeLegs: RouteLeg;
   spheres: Sphere;
   users: User;
   warehouses: Warehouse;
@@ -139,6 +143,7 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   organizationSettings: defineMessageTable(OrganizationSettingsSchema, settings => settings.organizationId, {}),
   personas: defineRecordTable(parseDemoPersona, serializeDemoPersona),
   roles: defineMessageTable(RoleSchema, role => role.id, { tenantId: role => role.tenantId }),
+  routeLegs: defineMessageTable(RouteLegSchema, leg => leg.id, {}),
   spheres: defineMessageTable(SphereSchema, sphere => sphere.id, {}),
   users: defineMessageTable(UserSchema, user => user.id, {}),
   warehouses: defineMessageTable(WarehouseSchema, warehouse => warehouse.id, { tenantId: warehouse => warehouse.tenantId }),

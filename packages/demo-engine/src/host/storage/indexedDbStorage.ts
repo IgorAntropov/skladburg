@@ -20,7 +20,7 @@ import {
   ENGINE_COLLECTION_NAMES,
 } from '../../core/ports/index';
 
-export const INDEXED_DB_VERSION = 2;
+export const INDEXED_DB_VERSION = 3;
 
 const META_STORE_NAME = 'meta';
 const SCHEMA_VERSION_KEY = 'schemaVersion';

@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import type { ObjectRefValue } from '@/shared/routing';
 import type { TabsItemValue } from '@/shared/ui';
 
+import { useWarehousesQuery } from '@/entities/warehouse';
 import {
   CreateWarehouseButton,
   CreateWarehousePanel,
@@ -16,7 +17,6 @@ import {
 import { ObjectInspector } from '@/widgets/object-inspector';
 import { ScenePlaceholder } from '@/widgets/scene-viewport';
 
-import { useWarehousesQuery } from '../api/useWarehousesQuery';
 import { OrganizationCard } from './OrganizationCard';
 import { WarehouseList } from './WarehouseList';
 

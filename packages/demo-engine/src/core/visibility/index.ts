@@ -1,4 +1,8 @@
 export {
+  listVisibleMapSites,
+  resolveMapSiteProfileKind,
+} from './mapSiteVisibility';
+export {
   getVisibleOrganization,
   isOrganizationVerified,
   MIN_SHOWCASE_VERIFICATION_LEVEL,

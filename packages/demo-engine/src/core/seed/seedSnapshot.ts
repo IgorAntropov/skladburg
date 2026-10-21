@@ -24,6 +24,7 @@ import {
 import {
   createSeedCities,
   createSeedMapNodes,
+  createSeedRouteLegs,
 } from './seedNetwork';
 import {
   createSeedOrganizations,
@@ -42,7 +43,7 @@ export type SeedRecordsValue = {
   [TName in TableName]: TableRecordsValue[TName][];
 };
 
-export const SEED_VERSION = 4;
+export const SEED_VERSION = 5;
 export const SEED_TIME_SCALE = 1;
 export const SEED_WORLD_START_MS = Date.UTC(2026, 9, 12, 6, 0, 0);
 export const SEED_RANDOM_SEED = 20261012;
@@ -62,6 +63,7 @@ export const createSeedRecords = (): SeedRecordsValue => ({
   organizationSettings: createSeedOrganizationSettings(),
   personas: createSeedPersonas(),
   roles: createSeedRoles(),
+  routeLegs: createSeedRouteLegs(),
   spheres: createSeedSpheres(),
   users: createSeedUsers(),
   warehouses: createSeedWarehouses(),

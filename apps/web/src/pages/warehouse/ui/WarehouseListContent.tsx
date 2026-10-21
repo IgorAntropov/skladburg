@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 
 import { Warehouse } from 'lucide-react';
 
+import { useWarehousesQuery } from '@/entities/warehouse';
 import { useI18n } from '@/shared/i18n';
 import {
   Card,
@@ -10,7 +11,6 @@ import {
 } from '@/shared/ui';
 import { ZoneEmptyState } from '@/widgets/hud-layout';
 
-import { useWarehousesQuery } from '../api/useWarehousesQuery';
 import {
   WAREHOUSE_ADDRESS_CLASS_NAME,
   WAREHOUSE_ADDRESS_SKELETON_CLASS_NAME,

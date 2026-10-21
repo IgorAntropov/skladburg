@@ -1,4 +1,7 @@
-import { Vector3 } from 'three';
+import {
+  Matrix4,
+  Vector3,
+} from 'three';
 import {
   describe,
   expect,
@@ -7,7 +10,12 @@ import {
 
 import type { NetworkSceneBuildingValue } from '../layout';
 
-import { buildChipSets } from './buildChipSets';
+import {
+  buildChipSets,
+  findChipSlot,
+  writeChipMarkerMatrices,
+} from './buildChipSets';
+import { applyChipAzimuth } from './chipOrientation';
 
 const createBuilding = (overrides: Partial<NetworkSceneBuildingValue>): NetworkSceneBuildingValue => ({
   cityId: 'city',
@@ -29,9 +37,9 @@ const createBuilding = (overrides: Partial<NetworkSceneBuildingValue>): NetworkS
 
 describe('buildChipSets', () => {
   const buildings = [
-    createBuilding({ id: 'a', side: 'customer', x: 5, z: -4 }),
-    createBuilding({ id: 'b', side: 'supplier', x: 8.2, z: -4 }),
-    createBuilding({ id: 'c', side: 'customer', x: 5, z: 3 }),
+    createBuilding({ id: 'a', side: 'customer', siteId: 'a', x: 5, z: -4 }),
+    createBuilding({ id: 'b', side: 'supplier', siteId: 'b', x: 8.2, z: -4 }),
+    createBuilding({ id: 'c', side: 'customer', siteId: 'c', x: 5, z: 3 }),
     createBuilding({ id: 'decor', isCompany: false, kind: 'house', side: undefined, siteId: undefined }),
   ];
 
@@ -71,5 +79,75 @@ describe('buildChipSets', () => {
 
     expect(postMatrices).toHaveLength(0);
     expect(sets.every(set => set.count === 0)).toBe(true);
+  });
+
+  it('keeps the site ids of every set in the order of its plates', () => {
+    const { sets } = buildChipSets(buildings);
+
+    expect(sets.map(set => set.siteIds)).toEqual([['a', 'c'], ['b'], []]);
+  });
+
+  it('finds the plate of a site and nothing for a city, a decor or a missing id', () => {
+    const { sets } = buildChipSets(buildings);
+
+    expect(findChipSlot(sets, 'c')).toEqual({ index: 1, setIndex: 0 });
+    expect(findChipSlot(sets, 'b')).toEqual({ index: 0, setIndex: 1 });
+    expect(findChipSlot(sets, 'city')).toBeUndefined();
+    expect(findChipSlot(sets, 'decor')).toBeUndefined();
+    expect(findChipSlot(sets, undefined)).toBeUndefined();
+  });
+});
+
+describe('own site markers', () => {
+  const buildings = [
+    createBuilding({ id: 'a', isOwn: true, side: 'customer', x: 5, z: -4 }),
+    createBuilding({ id: 'b', isOwn: false, side: 'supplier', x: 8.2, z: -4 }),
+    createBuilding({ id: 'c', isOwn: true, side: 'carrier', x: 5, z: 3 }),
+    createBuilding({ id: 'd', isOwn: false, side: 'customer', x: -5, z: 3 }),
+  ];
+
+  it('gives a marker only to the plates of own sites', () => {
+    const { markers } = buildChipSets(buildings);
+
+    expect(markers.count).toBe(2);
+    expect(markers.matrices).toHaveLength(2 * 16);
+    expect(markers.sources).toEqual([{ index: 0, setIndex: 0 }, { index: 0, setIndex: 2 }]);
+  });
+
+  it('has no markers when no site is own', () => {
+    const { markers } = buildChipSets(buildings.map(building => ({ ...building, isOwn: false })));
+
+    expect(markers.count).toBe(0);
+    expect(markers.matrices).toHaveLength(0);
+  });
+
+  it('puts the marker 1.2 m right and 1.05 m up of the plate center on the plate frame', () => {
+    const { markers, sets } = buildChipSets(buildings);
+
+    applyChipAzimuth(sets[0]?.matrices ?? new Float32Array(), 2, Math.PI / 4, undefined);
+    writeChipMarkerMatrices(markers, sets);
+
+    const plate = new Matrix4().fromArray(sets[0]?.matrices ?? [], 0);
+    const marker = new Matrix4().fromArray(markers.matrices, 0);
+    const expected = new Vector3(1.2, 1.05, 0).applyMatrix4(plate);
+
+    expect(new Vector3().setFromMatrixPosition(marker).distanceTo(expected)).toBeLessThan(1e-5);
+    expect(new Vector3().setFromMatrixScale(marker).x).toBeCloseTo(1, 6);
+    expect(new Vector3().setFromMatrixScale(marker).y).toBeCloseTo(1.2247449, 6);
+  });
+
+  it('follows the plate when it grows and rises under the cursor', () => {
+    const { markers, sets } = buildChipSets(buildings);
+    const customer = sets[0]?.matrices ?? new Float32Array();
+
+    applyChipAzimuth(customer, 2, 0, 0);
+    writeChipMarkerMatrices(markers, sets);
+
+    const plate = new Matrix4().fromArray(customer, 0);
+    const marker = new Matrix4().fromArray(markers.matrices, 0);
+
+    expect(new Vector3().setFromMatrixScale(marker).x).toBeCloseTo(1.25, 6);
+    expect(new Vector3().setFromMatrixPosition(marker).distanceTo(new Vector3(1.2, 1.05, 0).applyMatrix4(plate))).toBeLessThan(1e-5);
+    expect(new Vector3().setFromMatrixPosition(marker).y).toBeCloseTo(4.1 + 1.05 * 1.25 * 1.2247449, 5);
   });
 });

@@ -22,16 +22,16 @@ import type { NetworkSceneBuildingValue } from '../layout';
 
 import { buildBuildingParts } from '../geometry/buildBuildingParts';
 import { createGablePrismGeometry } from '../geometry/createGablePrismGeometry';
-import { createUnitBoxGeometry } from '../geometry/createUnitBoxGeometry';
 import { getVisibleBuildingCount } from '../layout';
 import { InstancedLayer } from './InstancedLayer';
 
 interface NetworkBuildingsProps {
+  boxGeometry: BufferGeometry;
   buildings: readonly NetworkSceneBuildingValue[];
   level: QualityLevelValue;
 }
 
-export const NetworkBuildings = ({ buildings, level }: NetworkBuildingsProps): ReactElement => {
+export const NetworkBuildings = ({ boxGeometry, buildings, level }: NetworkBuildingsProps): ReactElement => {
   const { decorDensity, hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const refreshShadowMap = useShadowMapRefresh();
 
@@ -41,7 +41,6 @@ export const NetworkBuildings = ({ buildings, level }: NetworkBuildingsProps): R
   const buildingRoofAlt = useWorldMaterial('buildingRoofAlt');
   const warehouseRoof = useWorldMaterial('warehouseRoof');
 
-  const boxGeometry = useMemo(() => createUnitBoxGeometry(), []);
   const gableGeometry = useMemo(() => createGablePrismGeometry(), []);
   const parts = useMemo(() => buildBuildingParts(buildings), [buildings]);
 
@@ -66,10 +65,9 @@ export const NetworkBuildings = ({ buildings, level }: NetworkBuildingsProps): R
 
   useEffect(() => {
     return () => {
-      boxGeometry.dispose();
       gableGeometry.dispose();
     };
-  }, [boxGeometry, gableGeometry]);
+  }, [gableGeometry]);
 
   return (
     <>

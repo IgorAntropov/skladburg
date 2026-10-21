@@ -20,6 +20,7 @@ import {
 } from './inspectorStyles';
 import { OpenWarehouseButton } from './OpenWarehouseButton';
 import { OwnSiteAddress } from './OwnSiteAddress';
+import { ShowOnMapButton } from './ShowOnMapButton';
 
 interface SiteInspectorProps {
   city: NetworkMapCityValue;
@@ -61,7 +62,10 @@ export const SiteInspector = ({ city, site }: SiteInspectorProps): ReactElement 
         <InspectorProperty label={t('network.inspector.timeZone')}>{timeZoneLabel}</InspectorProperty>
         {site.isOwn && <OwnSiteAddress warehouseId={site.id} />}
       </dl>
-      {site.isOwn && <OpenWarehouseButton warehouseId={site.id} />}
+      <div className="flex flex-wrap gap-2 empty:hidden">
+        {site.isOwn && <OpenWarehouseButton warehouseId={site.id} />}
+        <ShowOnMapButton objectId={site.id} />
+      </div>
     </div>
   );
 };

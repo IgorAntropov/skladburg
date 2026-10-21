@@ -13,20 +13,16 @@ import { loadSceneRoot } from '../lib/loadSceneRoot';
 export type SceneModulesStateValue<TData, TInteraction>
   = | { error: unknown; kind: 'failed' }
     | { kind: 'loaded'; rootModule: SceneRootModuleValue; sceneModule: SceneModuleValue<TData, TInteraction> }
-    | { kind: 'loading' };
+    | { kind: 'loading'; rootModule: SceneRootModuleValue | undefined; sceneModule: SceneModuleValue<TData, TInteraction> | undefined };
 
 type SceneRootModuleValue = Awaited<ReturnType<typeof loadSceneRoot>>;
 
-const LOADING_STATE = { kind: 'loading' } as const;
-
-const peekModules = <TData, TInteraction>(
-  loadScene: CachedModuleLoader<SceneModuleValue<TData, TInteraction>>,
+const createModulesState = <TData, TInteraction>(
+  rootModule: SceneRootModuleValue | undefined,
+  sceneModule: SceneModuleValue<TData, TInteraction> | undefined,
 ): SceneModulesStateValue<TData, TInteraction> => {
-  const rootModule = loadSceneRoot.peekLoadedModule();
-  const sceneModule = loadScene.peekLoadedModule();
-
   if (rootModule === undefined || sceneModule === undefined) {
-    return LOADING_STATE;
+    return { kind: 'loading', rootModule, sceneModule };
   }
 
   return { kind: 'loaded', rootModule, sceneModule };
@@ -35,7 +31,9 @@ const peekModules = <TData, TInteraction>(
 export const useSceneModules = <TData, TInteraction>(
   loadScene: CachedModuleLoader<SceneModuleValue<TData, TInteraction>>,
 ): SceneModulesStateValue<TData, TInteraction> => {
-  const [modulesState, setModulesState] = useState<SceneModulesStateValue<TData, TInteraction>>(() => peekModules(loadScene));
+  const [modulesState, setModulesState] = useState<SceneModulesStateValue<TData, TInteraction>>(
+    () => createModulesState(loadSceneRoot.peekLoadedModule(), loadScene.peekLoadedModule()),
+  );
 
   const isLoading = modulesState.kind === 'loading';
 
@@ -50,17 +48,28 @@ export const useSceneModules = <TData, TInteraction>(
       console.log('> useSceneModules -> warmCameraControls:', { error });
     });
 
-    Promise.all([loadSceneRoot(), loadScene()]).then(
-      ([rootModule, sceneModule]) => {
+    const handleFailure = (error: unknown): void => {
+      if (!isCancelled) {
+        setModulesState(current => current.kind === 'failed' ? current : { error, kind: 'failed' });
+      }
+    };
+
+    loadSceneRoot().then(
+      (rootModule) => {
         if (!isCancelled) {
-          setModulesState({ kind: 'loaded', rootModule, sceneModule });
+          setModulesState(current => current.kind === 'failed' ? current : createModulesState(rootModule, current.sceneModule));
         }
       },
-      (error: unknown) => {
+      handleFailure,
+    );
+
+    loadScene().then(
+      (sceneModule) => {
         if (!isCancelled) {
-          setModulesState({ error, kind: 'failed' });
+          setModulesState(current => current.kind === 'failed' ? current : createModulesState(current.rootModule, sceneModule));
         }
       },
+      handleFailure,
     );
 
     return () => {

@@ -62,7 +62,7 @@ export const SceneStage = <TData, TInteraction>({
   shadowMapSize,
 }: SceneStageProps<TData, TInteraction>): null | ReactElement => {
   const modulesState = useSceneModules(loadScene);
-  const loadedSceneModule = modulesState.kind === 'loaded' ? modulesState.sceneModule : undefined;
+  const loadedSceneModule = modulesState.kind === 'failed' ? undefined : modulesState.sceneModule;
   const preparedState = usePreparedSceneData(loadedSceneModule, sceneData);
   const preparedData = preparedState.kind === 'ready' ? preparedState.data : undefined;
   const isReducedMotion = usePrefersReducedMotion();
@@ -93,7 +93,7 @@ export const SceneStage = <TData, TInteraction>({
     throw preparedState.error;
   }
 
-  if (modulesState.kind === 'loading' || preparedState.kind === 'pending' || world === undefined) {
+  if (modulesState.kind !== 'loaded' || preparedState.kind === 'pending' || world === undefined) {
     return null;
   }
 

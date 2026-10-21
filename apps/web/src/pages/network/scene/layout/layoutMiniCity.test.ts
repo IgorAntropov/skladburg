@@ -11,6 +11,7 @@ import {
   COMPANY_MIN_SPACING_METERS,
   DECOR_MAX_COUNT,
   HOUSE_SIZE_RANGE_METERS,
+  MINI_CITY_OVERFLOW_RADIUS_METERS,
   MINI_CITY_RADIUS_METERS,
   OFFICE_SIZE_RANGE_METERS,
 } from './layoutConstants';
@@ -20,7 +21,10 @@ import {
   getBuildingSlotKey,
   getFarthestCornerDistance,
 } from './layoutTestSupport';
-import { MINI_CITY_BASE_SLOT_COUNT } from './miniCitySlots';
+import {
+  MINI_CITY_BASE_SLOT_COUNT,
+  MINI_CITY_MAX_SITE_COUNT,
+} from './miniCitySlots';
 
 const SEED = 20261013;
 const CENTER = { x: 30, z: -18 };
@@ -60,10 +64,10 @@ describe('layoutMiniCity', () => {
   });
 
   it('keeps the centers of the company buildings at least the company spacing apart', () => {
-    for (const count of [2, MINI_CITY_BASE_SLOT_COUNT, MINI_CITY_BASE_SLOT_COUNT + 12, 40]) {
+    for (const count of [2, MINI_CITY_BASE_SLOT_COUNT, MINI_CITY_MAX_SITE_COUNT, 40]) {
       const companies = layout(createSites(count), ['city', String(count)].join('-')).buildings.filter(building => building.isCompany);
 
-      expect(companies).toHaveLength(count);
+      expect(companies).toHaveLength(Math.min(count, MINI_CITY_MAX_SITE_COUNT));
 
       for (const [index, building] of companies.entries()) {
         for (const other of companies.slice(index + 1)) {
@@ -185,21 +189,50 @@ describe('layoutMiniCity', () => {
     expect(reseeded).not.toEqual(first);
   });
 
-  it('keeps every site when there are more sites than base slots and widens the city', () => {
-    const sites = createSites(MINI_CITY_BASE_SLOT_COUNT + 7);
-    const { buildings, radius } = layout(sites);
+  it('keeps every site when there are more sites than base slots and widens the city by one ring', () => {
+    const sites = createSites(MINI_CITY_MAX_SITE_COUNT);
+    const { buildings, hiddenSiteIds, radius } = layout(sites);
     const companies = buildings.filter(building => building.isCompany);
 
     expect(companies).toHaveLength(sites.length);
     expect(new Set(companies.map(building => building.siteId)).size).toBe(sites.length);
-    expect(radius).toBeGreaterThan(MINI_CITY_RADIUS_METERS);
+    expect(hiddenSiteIds).toEqual([]);
+    expect(radius).toBe(MINI_CITY_OVERFLOW_RADIUS_METERS);
     expect(buildings.every(building => getFarthestCornerDistance(building, CENTER) <= radius + 1e-9)).toBe(true);
     expectNoOverlaps(buildings);
   });
 
-  it('gives the same overflow layout for any order of the sites', () => {
-    const sites = createSites(MINI_CITY_BASE_SLOT_COUNT + 5);
+  it('keeps the base radius while the sites fit the base slots', () => {
+    expect(layout(createSites(MINI_CITY_BASE_SLOT_COUNT)).radius).toBe(MINI_CITY_RADIUS_METERS);
+    expect(layout(createSites(MINI_CITY_BASE_SLOT_COUNT + 1)).radius).toBe(MINI_CITY_OVERFLOW_RADIUS_METERS);
+  });
+
+  it('gives the same overflow layout for any order of the sites that all fit', () => {
+    const sites = createSites(MINI_CITY_BASE_SLOT_COUNT + 3);
 
     expect(getCompanySlots(layout(sites.toReversed()).buildings)).toEqual(getCompanySlots(layout(sites).buildings));
+  });
+
+  it('hides the sites over the limit, own first, and lists them in the order of the model', () => {
+    const sites: MiniCitySiteValue[] = Array.from(
+      { length: 30 },
+      (_, index) => ({ id: ['site', String(index).padStart(2, '0')].join('-'), isOwn: index >= 25, side: 'supplier' }),
+    );
+    const { buildings, hiddenSiteIds, radius } = layout(sites);
+    const companies = buildings.filter(building => building.isCompany);
+    const visibleIds = companies.map(building => building.id);
+
+    expect(companies).toHaveLength(MINI_CITY_MAX_SITE_COUNT);
+    expect(hiddenSiteIds).toHaveLength(sites.length - MINI_CITY_MAX_SITE_COUNT);
+    expect(radius).toBe(MINI_CITY_OVERFLOW_RADIUS_METERS);
+    expect(sites.slice(25).every(site => visibleIds.includes(site.id))).toBe(true);
+    expect(hiddenSiteIds).toEqual(sites.filter(site => !visibleIds.includes(site.id)).map(site => site.id));
+    expect(new Set([...visibleIds, ...hiddenSiteIds]).size).toBe(sites.length);
+    expectNoOverlaps(buildings);
+  });
+
+  it('hides nothing while the sites fit', () => {
+    expect(layout(createSites(0)).hiddenSiteIds).toEqual([]);
+    expect(layout(createSites(MINI_CITY_BASE_SLOT_COUNT)).hiddenSiteIds).toEqual([]);
   });
 });

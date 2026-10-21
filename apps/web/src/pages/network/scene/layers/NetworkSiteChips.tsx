@@ -1,5 +1,8 @@
 import type { ReactElement } from 'react';
-import type { Group } from 'three';
+import type {
+  BufferGeometry,
+  Group,
+} from 'three';
 
 import {
   useFrame,
@@ -13,29 +16,37 @@ import {
   useMemo,
   useRef,
 } from 'react';
-import { InstancedMesh } from 'three';
 
 import type { MapSideValue } from '@/entities/network';
 
 import { SIDE_SHAPES } from '@/entities/organization';
 import { useWorldMaterial } from '@/shared/3d';
 
+import type { ChipSlotValue } from '../geometry/buildChipSets';
 import type { ChipGeometriesValue } from '../geometry/createChipGeometry';
+import type { OwnMarkerGeometriesValue } from '../geometry/createOwnMarkerGeometry';
 import type { NetworkSceneBuildingValue } from '../layout';
 
-import { buildChipSets } from '../geometry/buildChipSets';
+import {
+  buildChipSets,
+  findChipSlot,
+  writeChipMarkerMatrices,
+} from '../geometry/buildChipSets';
 import {
   applyChipAzimuth,
   getCameraAzimuth,
 } from '../geometry/chipOrientation';
 import { INSTANCE_MATRIX_ITEM_SIZE } from '../geometry/composeInstanceMatrix';
 import { createChipGeometries } from '../geometry/createChipGeometry';
-import { createUnitBoxGeometry } from '../geometry/createUnitBoxGeometry';
+import { createOwnMarkerGeometries } from '../geometry/createOwnMarkerGeometry';
 import { CHIP_AZIMUTH_EPSILON_RADIANS } from '../geometry/networkSceneMetrics';
 import { InstancedLayer } from './InstancedLayer';
+import { markInstanceMatricesUpdated } from './markInstanceMatricesUpdated';
 
 interface NetworkSiteChipsProps {
+  boxGeometry: BufferGeometry;
   buildings: readonly NetworkSceneBuildingValue[];
+  hoveredId: string | undefined;
 }
 
 const createAllChipGeometries = (): Record<MapSideValue, ChipGeometriesValue> => ({
@@ -44,7 +55,7 @@ const createAllChipGeometries = (): Record<MapSideValue, ChipGeometriesValue> =>
   supplier: createChipGeometries(SIDE_SHAPES.supplier.outline),
 });
 
-export const NetworkSiteChips = ({ buildings }: NetworkSiteChipsProps): ReactElement => {
+export const NetworkSiteChips = ({ boxGeometry, buildings, hoveredId }: NetworkSiteChipsProps): ReactElement => {
   const camera = useThree(state => state.camera);
   const invalidate = useThree(state => state.invalidate);
 
@@ -52,34 +63,38 @@ export const NetworkSiteChips = ({ buildings }: NetworkSiteChipsProps): ReactEle
   const supplierMaterial = useWorldMaterial('sideSupplier');
   const carrierMaterial = useWorldMaterial('sideCarrier');
   const rimMaterial = useWorldMaterial('sideRim');
+  const markerOutlineMaterial = useWorldMaterial('road');
 
   const groupRef = useRef<Group>(null);
   const azimuthRef = useRef(0);
+  const hoveredSlotRef = useRef<ChipSlotValue | undefined>(undefined);
 
   const chipSets = useMemo(() => buildChipSets(buildings), [buildings]);
   const chipGeometries = useMemo(() => createAllChipGeometries(), []);
-  const postGeometry = useMemo(() => createUnitBoxGeometry(), []);
+  const markerGeometries = useMemo((): OwnMarkerGeometriesValue => createOwnMarkerGeometries(), []);
   const sideMaterials = useMemo(
     () => ({ carrier: carrierMaterial, customer: customerMaterial, supplier: supplierMaterial }),
     [carrierMaterial, customerMaterial, supplierMaterial],
   );
 
   const turnChips = useCallback((azimuth: number): void => {
-    for (const set of chipSets.sets) {
-      applyChipAzimuth(set.matrices, set.count, azimuth);
-    }
+    const hoveredSlot = hoveredSlotRef.current;
 
-    const group = groupRef.current;
+    for (let setIndex = 0; setIndex < chipSets.sets.length; setIndex += 1) {
+      const set = chipSets.sets[setIndex];
 
-    if (group === null) {
-      return;
-    }
-
-    for (const child of group.children) {
-      if (child instanceof InstancedMesh) {
-        child.instanceMatrix.needsUpdate = true;
+      if (set !== undefined) {
+        applyChipAzimuth(
+          set.matrices,
+          set.count,
+          azimuth,
+          hoveredSlot?.setIndex === setIndex ? hoveredSlot.index : undefined,
+        );
       }
     }
+
+    writeChipMarkerMatrices(chipSets.markers, chipSets.sets);
+    markInstanceMatricesUpdated(groupRef.current);
   }, [chipSets]);
 
   useFrame((state) => {
@@ -96,10 +111,11 @@ export const NetworkSiteChips = ({ buildings }: NetworkSiteChipsProps): ReactEle
   useLayoutEffect(() => {
     const azimuth = getCameraAzimuth(camera.quaternion);
 
+    hoveredSlotRef.current = findChipSlot(chipSets.sets, hoveredId);
     azimuthRef.current = azimuth;
     turnChips(azimuth);
     invalidate();
-  }, [camera, invalidate, turnChips]);
+  }, [camera, chipSets, hoveredId, invalidate, turnChips]);
 
   useEffect(() => {
     return () => {
@@ -108,9 +124,10 @@ export const NetworkSiteChips = ({ buildings }: NetworkSiteChipsProps): ReactEle
         geometries.rim.dispose();
       }
 
-      postGeometry.dispose();
+      markerGeometries.house.dispose();
+      markerGeometries.outline.dispose();
     };
-  }, [chipGeometries, postGeometry]);
+  }, [chipGeometries, markerGeometries]);
 
   return (
     <>
@@ -137,10 +154,28 @@ export const NetworkSiteChips = ({ buildings }: NetworkSiteChipsProps): ReactEle
             />
           </Fragment>
         ))}
+        <InstancedLayer
+          count={chipSets.markers.count}
+          geometry={markerGeometries.outline}
+          hasShadowCast={false}
+          hasShadowReceive={false}
+          material={markerOutlineMaterial}
+          matrices={chipSets.markers.matrices}
+          tints={undefined}
+        />
+        <InstancedLayer
+          count={chipSets.markers.count}
+          geometry={markerGeometries.house}
+          hasShadowCast={false}
+          hasShadowReceive={false}
+          material={rimMaterial}
+          matrices={chipSets.markers.matrices}
+          tints={undefined}
+        />
       </group>
       <InstancedLayer
         count={chipSets.postMatrices.length / INSTANCE_MATRIX_ITEM_SIZE}
-        geometry={postGeometry}
+        geometry={boxGeometry}
         hasShadowCast={false}
         hasShadowReceive={false}
         material={rimMaterial}

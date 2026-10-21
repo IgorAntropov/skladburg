@@ -6,6 +6,8 @@ export const MINI_CITY_RADIUS_METERS = 6.4;
 
 export const MINI_CITY_SLOT_PITCH_METERS = 3.2;
 
+export const MINI_CITY_OVERFLOW_RADIUS_METERS = 8;
+
 export const COMPANY_MIN_SPACING_METERS = 3.2;
 
 export const MINI_CITY_BUILDING_MAX_SIDE_METERS = 2;

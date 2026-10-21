@@ -88,6 +88,7 @@ export const catalog = {
   'network.inspector.notFound.title': 'Объект не найден',
   'network.inspector.openWarehouse': 'Открыть склад',
   'network.inspector.own': 'Ваша площадка',
+  'network.inspector.showOnMap': 'Показать на карте',
   'network.inspector.timeZone': 'Часовой пояс',
   'network.miniMap.city': {
     few: '{city}, {count} площадки',

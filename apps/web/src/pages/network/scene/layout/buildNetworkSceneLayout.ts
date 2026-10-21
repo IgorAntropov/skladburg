@@ -60,7 +60,15 @@ const createLayout = (model: NetworkMapModelValue): NetworkSceneLayoutValue => {
         .map(site => ({ id: site.id, isOwn: site.isOwn, side: site.side }));
       const miniCity = layoutMiniCity({ center, cityId: city.id, seed: NETWORK_WORLD_SEED, sites });
 
-      cities.push({ cityId: city.cityId, id: city.id, name: city.name, radius: miniCity.radius, x: center.x, z: center.z });
+      cities.push({
+        cityId: city.cityId,
+        hiddenSiteIds: miniCity.hiddenSiteIds,
+        id: city.id,
+        name: city.name,
+        radius: miniCity.radius,
+        x: center.x,
+        z: center.z,
+      });
       buildings.push(...miniCity.buildings);
     }
   }

@@ -13,6 +13,7 @@ import { hasListTabs } from '../lib/hasLists';
 interface ListsZoneContentProps {
   defaultTabId?: string | undefined;
   header: ReactNode;
+  resetKey?: number | string | undefined;
   tabs: readonly TabsItemValue[] | undefined;
 }
 
@@ -22,7 +23,12 @@ const HEADER_CLASS_NAME = 'px-3 empty:hidden';
 
 const TABS_CLASS_NAME = '[&>[role=tabpanel]]:scroll-shadow-y';
 
-export const ListsZoneContent = ({ defaultTabId, header, tabs }: ListsZoneContentProps): ReactElement => {
+export const ListsZoneContent = ({
+  defaultTabId,
+  header,
+  resetKey,
+  tabs,
+}: ListsZoneContentProps): ReactElement => {
   const { t } = useI18n();
 
   const isTabsShown = hasListTabs(tabs);
@@ -30,7 +36,15 @@ export const ListsZoneContent = ({ defaultTabId, header, tabs }: ListsZoneConten
   return (
     <div className={ROOT_CLASS_NAME}>
       <div className={HEADER_CLASS_NAME}>{header}</div>
-      {isTabsShown && <Tabs className={TABS_CLASS_NAME} defaultTabId={defaultTabId} items={tabs} label={t('hud.lists.label')} />}
+      {isTabsShown && (
+        <Tabs
+          className={TABS_CLASS_NAME}
+          defaultTabId={defaultTabId}
+          items={tabs}
+          key={resetKey}
+          label={t('hud.lists.label')}
+        />
+      )}
     </div>
   );
 };

@@ -1,13 +1,10 @@
 import { create } from 'zustand';
 
-interface FocusRequestValue {
-  id: string;
-  sequence: number;
-}
+import type { NetworkFocusRequestValue } from './networkSceneInteraction';
 
 interface NetworkMapStoreValue {
   clearHoveredId: (id: string) => void;
-  focusRequest: FocusRequestValue | undefined;
+  focusRequest: NetworkFocusRequestValue | undefined;
   hoveredId: string | undefined;
   requestFocus: (id: string) => void;
   setHoveredId: (id: string) => void;

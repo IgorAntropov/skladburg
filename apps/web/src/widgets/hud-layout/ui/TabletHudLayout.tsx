@@ -78,6 +78,7 @@ export const TabletHudLayout = ({
   kpi,
   listsHeader,
   listTabs,
+  listTabsResetKey,
   onInspectorClose,
   panel,
   sceneControls,
@@ -131,7 +132,7 @@ export const TabletHudLayout = ({
 
         >
           <div className={BOTTOM_TABS_CLASS_NAME} data-testid="hud-bottom-tabs">
-            <Tabs defaultTabId={defaultListTabId} items={bottomTabs} label={t('hud.bottom.label')} />
+            <Tabs defaultTabId={defaultListTabId} items={bottomTabs} key={listTabsResetKey} label={t('hud.bottom.label')} />
           </div>
         </HudZone>
       )}
@@ -152,7 +153,7 @@ export const TabletHudLayout = ({
           padding="edge"
 
         >
-          <ListsZoneContent defaultTabId={defaultListTabId} header={listsHeader} tabs={listTabs} />
+          <ListsZoneContent defaultTabId={defaultListTabId} header={listsHeader} resetKey={listTabsResetKey} tabs={listTabs} />
         </HudZone>
       )}
       {isInspectorOpen && (

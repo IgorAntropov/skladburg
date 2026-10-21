@@ -55,6 +55,24 @@ import { SceneViewport } from './SceneViewport';
 
 const sceneRootControl = vi.hoisted(() => ({ isBroken: false, mountCount: 0 }));
 
+const rootGateControl = vi.hoisted(() => ({ gate: undefined as Promise<void> | undefined }));
+
+vi.mock('../lib/loadSceneRoot', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../lib/loadSceneRoot')>();
+  const loadSceneRoot = Object.assign(
+    async () => {
+      await rootGateControl.gate;
+
+      return original.loadSceneRoot();
+    },
+    {
+      peekLoadedModule: () => rootGateControl.gate === undefined ? original.loadSceneRoot.peekLoadedModule() : undefined,
+    },
+  );
+
+  return { loadSceneRoot };
+});
+
 vi.mock('../lib/webGlSupport', () => ({
   isSoftwareRenderer: vi.fn(() => false),
   isWebGlSupported: vi.fn(() => true),
@@ -218,6 +236,7 @@ describe('SceneViewport', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     sceneRootControl.isBroken = false;
     sceneRootControl.mountCount = 0;
+    rootGateControl.gate = undefined;
   });
 
   afterEach(() => {
@@ -320,6 +339,38 @@ describe('SceneViewport', () => {
       renderViewport(loadScene);
 
       expect(await screen.findByTestId('scene-root-probe')).toBeTruthy();
+    });
+
+    it('prepares the scene data before the scene root is loaded', async () => {
+      const rootGate = createDeferredPreparation();
+      rootGateControl.gate = rootGate.promise;
+      const prepare = vi.fn(() => Promise.resolve());
+
+      renderViewport(createCachedModuleLoader(() => Promise.resolve(createSceneModule(prepare))));
+      await waitFor(() => {
+        expect(prepare).toHaveBeenCalledExactlyOnceWith(SCENE_DATA);
+      });
+
+      expect(getSceneState()).toBe('loading');
+      expect(screen.queryByTestId('scene-root-probe')).toBeNull();
+
+      rootGate.finish();
+
+      await waitFor(() => {
+        expect(getSceneState()).toBe('ready');
+      });
+    });
+
+    it('offers a retry when the scene root fails to load', async () => {
+      const rootGate = createDeferredPreparation();
+      rootGateControl.gate = rootGate.promise;
+
+      renderImportedViewport(loadSceneModule);
+      rootGate.fail(new ChunkLoadError(1));
+
+      await screen.findByRole('button', { name: RETRY_NAME });
+
+      expect(getSceneState()).toBe('error');
     });
 
     it('offers a retry after the first chunk failure and loads again', async () => {

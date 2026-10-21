@@ -6,6 +6,10 @@ import {
   ListChecks,
   Truck,
 } from 'lucide-react';
+import {
+  useCallback,
+  useState,
+} from 'react';
 
 import type { ObjectRefValue } from '@/shared/routing';
 import type { TabsItemValue } from '@/shared/ui';
@@ -16,15 +20,12 @@ import {
   useInspectorFocus,
   ZoneEmptyState,
 } from '@/widgets/hud-layout';
-import {
-  SceneCameraControls,
-  SceneViewport,
-} from '@/widgets/scene-viewport';
+import { SceneCameraControls } from '@/widgets/scene-viewport';
 
 import { useNetworkMapModel } from '../api/useNetworkMapModel';
 import { EMPTY_NETWORK_MAP_MODEL } from '../model/emptyNetworkMapModel';
-import { loadNetworkScene } from './loadNetworkScene';
 import { NetworkInspector } from './NetworkInspector';
+import { NetworkSceneViewport } from './NetworkSceneViewport';
 import { NetworkSitesTab } from './NetworkSitesTab';
 
 interface NetworkPageProps {
@@ -37,6 +38,12 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
   const { t } = useI18n();
   const inspectorFocus = useInspectorFocus('network', focus);
   const modelState = useNetworkMapModel();
+  const [listTabsResetKey, setListTabsResetKey] = useState(0);
+
+  const handleWorldSiteSelect = useCallback((): void => {
+    console.log('> NetworkPage -> handleWorldSiteSelect:');
+    setListTabsResetKey(current => current + 1);
+  }, []);
 
   const sceneData = modelState.data ?? (modelState.error === null ? undefined : EMPTY_NETWORK_MAP_MODEL);
 
@@ -68,11 +75,12 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
         inspector={<NetworkInspector focus={focus} onClose={inspectorFocus.onInspectorClose} state={modelState} />}
         kpi={<ZoneEmptyState icon={ChartNoAxesColumn} text={t('hud.kpi.empty')} />}
         listTabs={listTabs}
+        listTabsResetKey={listTabsResetKey}
         scene={(
-          <SceneViewport
-            interaction={undefined}
+          <NetworkSceneViewport
+            focus={focus}
             label={t('section.network.placeholder')}
-            loadScene={loadNetworkScene}
+            onWorldSiteSelect={handleWorldSiteSelect}
             sceneData={sceneData}
           />
         )}

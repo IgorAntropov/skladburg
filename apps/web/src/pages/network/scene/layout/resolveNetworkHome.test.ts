@@ -40,6 +40,7 @@ const createBuilding = (x: number, z: number, isOwn: boolean): NetworkSceneBuild
 
 const createCity = (id: string, x: number, z: number, radius = 6.4): NetworkSceneCityValue => ({
   cityId: id,
+  hiddenSiteIds: [],
   id,
   name: id,
   radius,

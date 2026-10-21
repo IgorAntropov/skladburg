@@ -7,13 +7,16 @@ import {
 import { NETWORK_WORLD_SIZE_METERS } from '../networkWorldConstants';
 import { getVisibleBuildingCount } from './buildingVisibility';
 import { buildNetworkSceneLayout } from './buildNetworkSceneLayout';
+import { CITY_RESERVE_RADIUS_METERS } from './buildTerrainReserved';
 import { HOME_MIN_RADIUS_METERS } from './layoutConstants';
 import {
   createTestCity,
   createTestModel,
   createTestRoad,
   createTestSite,
+  getFarthestCornerDistance,
 } from './layoutTestSupport';
+import { MINI_CITY_MAX_SITE_COUNT } from './miniCitySlots';
 
 const CITIES = [createTestCity('a', 4, 2), createTestCity('b', 7, 3), createTestCity('c', 5, 6)];
 const ROADS = [createTestRoad('r1', 'a', 'b'), createTestRoad('r2', 'b', 'c')];
@@ -92,6 +95,27 @@ describe('buildNetworkSceneLayout', () => {
 
       expect(visible).toBeGreaterThanOrEqual(1);
       expect(Math.abs((visible - 1) / decorCount - density)).toBeLessThan(0.08);
+    }
+  });
+
+  it('keeps a crowded city inside its clearing and lists the hidden sites at the city', () => {
+    const sites = Array.from(
+      { length: 30 },
+      (_, index) => createTestSite(['site', String(index).padStart(2, '0')].join('-'), 'a', index === 27),
+    );
+    const layout = buildNetworkSceneLayout(createTestModel(CITIES, ROADS, sites));
+    const [city] = layout.cities;
+    const companies = layout.buildings.filter(building => building.isCompany);
+
+    expect(city?.id).toBe('a');
+    expect(companies.length).toBeLessThanOrEqual(MINI_CITY_MAX_SITE_COUNT);
+    expect(city?.hiddenSiteIds).toHaveLength(sites.length - companies.length);
+    expect(companies.some(building => building.id === 'site-27')).toBe(true);
+    expect(city?.hiddenSiteIds).not.toContain('site-27');
+    expect(layout.cities.slice(1).every(other => other.hiddenSiteIds.length === 0)).toBe(true);
+
+    for (const building of layout.buildings.filter(candidate => candidate.cityId === 'a')) {
+      expect(getFarthestCornerDistance(building, { x: city?.x ?? 0, z: city?.z ?? 0 })).toBeLessThanOrEqual(CITY_RESERVE_RADIUS_METERS);
     }
   });
 

@@ -30,6 +30,7 @@ export interface NetworkSceneBuildingValue {
 
 export interface NetworkSceneCityValue {
   cityId: string;
+  hiddenSiteIds: readonly string[];
   id: string;
   name: string;
   radius: number;

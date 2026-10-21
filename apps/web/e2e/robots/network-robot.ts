@@ -19,21 +19,32 @@ const NETWORK_GROUP_HEADING = 'Площадки сети';
 const SITES_TAB_NAME = /^Склады/;
 const NOT_FOUND_TITLE = 'Объект не найден';
 
+export type ListTabValue = 'deals' | 'trips' | 'warehouses';
+
 export interface NetworkRobotValue {
+  closeInspector: () => Promise<void>;
   expectCityInspector: (cityName: string) => Promise<void>;
   expectCitySiteLinks: (sites: readonly NetworkSiteValue[]) => Promise<void>;
+  expectListTabActive: (tab: ListTabValue) => Promise<void>;
   expectMiniMapShown: () => Promise<void>;
+  expectNoInspectorBody: () => Promise<void>;
   expectNoOwnGroup: () => Promise<void>;
   expectNotFoundInspector: () => Promise<void>;
   expectNoViolationsOfAccessibility: () => Promise<void>;
   expectOwnSitesFirst: (sites: readonly NetworkSiteValue[]) => Promise<void>;
   expectRowCount: (count: number) => Promise<void>;
+  expectRowHovered: (siteId: string) => Promise<void>;
+  expectRowNotHovered: (siteId: string) => Promise<void>;
   expectRowSelected: (siteId: string) => Promise<void>;
+  expectShowOnMapShown: () => Promise<void>;
   expectSiteInspector: (site: NetworkSiteValue, sideName?: string) => Promise<void>;
   expectSitesTabOpen: () => Promise<void>;
   expectWarehouseOpened: (warehouseId: string) => Promise<void>;
+  hoverRow: (siteId: string) => Promise<void>;
   openCitySiteLink: (siteId: string) => Promise<void>;
+  openListTab: (tab: ListTabValue) => Promise<void>;
   openWarehouse: () => Promise<void>;
+  showOnMap: () => Promise<void>;
   tapCityMarkers: (expectedCount: number) => Promise<void>;
   tapRow: (siteId: string) => Promise<void>;
 }
@@ -48,8 +59,11 @@ export const createNetworkRobot = (page: Page): NetworkRobotValue => {
   const citySiteLinks = page.getByTestId('network-city-site-link');
   const miniMap = page.getByTestId('network-mini-map');
   const cityMarkers = page.getByTestId('network-mini-map-city');
+  const showOnMapButton = page.getByTestId('network-inspector-show-on-map');
+  const inspectorCloseButton = page.locator('h2 + button');
 
   const getRow = (siteId: string): Locator => rows.and(page.locator(`[data-site-id="${siteId}"]`));
+  const getListTab = (tab: ListTabValue): Locator => page.locator(`[role="tab"][id$="-trigger-${tab}"]`);
   const getInspectorHeading = (title: string): Locator => page.getByRole('heading', { exact: true, level: 2, name: title });
   const getGroupHeading = (title: string): Locator => siteList.getByRole('heading', { level: 3, name: new RegExp(`^${title}`) });
   const expectAddress = async (hash: string): Promise<void> => {
@@ -57,6 +71,10 @@ export const createNetworkRobot = (page: Page): NetworkRobotValue => {
   };
 
   return {
+    async closeInspector(): Promise<void> {
+      await inspectorCloseButton.click();
+      await expect(inspectorBody).toHaveCount(0);
+    },
     async expectCityInspector(cityName: string): Promise<void> {
       await expect(getInspectorHeading(cityName)).toBeVisible();
       await expect(inspectorBody).toHaveAttribute('data-object-type', 'city');
@@ -69,9 +87,15 @@ export const createNetworkRobot = (page: Page): NetworkRobotValue => {
         await expect(citySiteLinks.nth(index)).toContainText(site.label);
       }
     },
+    async expectListTabActive(tab: ListTabValue): Promise<void> {
+      await expect(getListTab(tab)).toHaveAttribute('data-state', 'active');
+    },
     async expectMiniMapShown(): Promise<void> {
       await expect(miniMap).toBeVisible();
       await expect(cityMarkers.first()).toBeVisible();
+    },
+    async expectNoInspectorBody(): Promise<void> {
+      await expect(inspectorBody).toHaveCount(0);
     },
     async expectNoOwnGroup(): Promise<void> {
       await expect(getGroupHeading(NETWORK_GROUP_HEADING)).toBeVisible();
@@ -96,9 +120,18 @@ export const createNetworkRobot = (page: Page): NetworkRobotValue => {
     async expectRowCount(count: number): Promise<void> {
       await expect(rows).toHaveCount(count);
     },
+    async expectRowHovered(siteId: string): Promise<void> {
+      await expect(getRow(siteId)).toHaveAttribute('data-hovered', 'true');
+    },
+    async expectRowNotHovered(siteId: string): Promise<void> {
+      await expect(getRow(siteId)).not.toHaveAttribute('data-hovered', 'true');
+    },
     async expectRowSelected(siteId: string): Promise<void> {
       await expect(getRow(siteId)).toHaveAttribute('aria-current', 'true');
       await expect(rows.and(page.locator('[aria-current="true"]'))).toHaveCount(1);
+    },
+    async expectShowOnMapShown(): Promise<void> {
+      await expect(showOnMapButton).toBeVisible();
     },
     async expectSiteInspector(site: NetworkSiteValue, sideName?: string): Promise<void> {
       await expect(getInspectorHeading(site.label)).toBeVisible();
@@ -117,12 +150,22 @@ export const createNetworkRobot = (page: Page): NetworkRobotValue => {
       await expectAddress(`#/${toWarehouseRoute(warehouseId).segment}/${warehouseId}`);
       await expect(page.getByTestId('page-warehouse')).toBeVisible();
     },
+    async hoverRow(siteId: string): Promise<void> {
+      await getRow(siteId).hover();
+    },
     async openCitySiteLink(siteId: string): Promise<void> {
       await citySiteLinks.and(page.locator(`[data-site-id="${siteId}"]`)).click();
       await expectAddress(`#/${toSiteRoute(siteId).segment}/${siteId}`);
     },
+    async openListTab(tab: ListTabValue): Promise<void> {
+      await getListTab(tab).click();
+      await expect(getListTab(tab)).toHaveAttribute('data-state', 'active');
+    },
     async openWarehouse(): Promise<void> {
       await openWarehouseButton.click();
+    },
+    async showOnMap(): Promise<void> {
+      await showOnMapButton.click();
     },
     async tapCityMarkers(expectedCount: number): Promise<void> {
       await expect(cityMarkers).toHaveCount(expectedCount);

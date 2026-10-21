@@ -2,6 +2,7 @@ import type { LayoutPointValue } from './networkSceneTypes';
 
 import {
   MINI_CITY_BUILDING_MAX_SIDE_METERS,
+  MINI_CITY_OVERFLOW_RADIUS_METERS,
   MINI_CITY_RADIUS_METERS,
   MINI_CITY_SLOT_PITCH_METERS,
 } from './layoutConstants';
@@ -36,8 +37,6 @@ const createSlots = (radius: number): readonly LayoutPointValue[] => {
   ));
 };
 
-export const getMiniCityRadiusForLevel = (level: number): number => MINI_CITY_RADIUS_METERS + level * MINI_CITY_SLOT_PITCH_METERS;
-
 export const getMiniCitySlots = (radius: number): readonly LayoutPointValue[] => {
   const cached = slotsByRadius.get(radius);
 
@@ -52,3 +51,4 @@ export const getMiniCitySlots = (radius: number): readonly LayoutPointValue[] =>
 };
 
 export const MINI_CITY_BASE_SLOT_COUNT = getMiniCitySlots(MINI_CITY_RADIUS_METERS).length;
+export const MINI_CITY_MAX_SITE_COUNT = getMiniCitySlots(MINI_CITY_OVERFLOW_RADIUS_METERS).length;

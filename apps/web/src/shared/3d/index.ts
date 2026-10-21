@@ -3,6 +3,10 @@ export type {
   ScenePointValue,
 } from './camera/cameraTypes';
 export { IsometricCameraRig } from './camera/IsometricCameraRig';
+export {
+  SceneCameraRigProvider,
+  useSceneCameraRig,
+} from './camera/sceneCameraRigContext';
 export { SceneCanvas } from './canvas/SceneCanvas';
 export { WorldGeometryProvider } from './geometry/WorldGeometryProvider';
 export { DayNightRig } from './lighting/DayNightRig';

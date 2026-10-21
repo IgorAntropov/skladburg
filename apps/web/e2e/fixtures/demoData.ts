@@ -79,6 +79,14 @@ export const FOREIGN_NETWORK_SITE = {
   sideName: 'Поставщик',
 } as const satisfies NetworkSiteValue & { sideName: string };
 
+export const FAR_NETWORK_SITE = {
+  cityName: 'Челябинск',
+  cityNodeId: '70000008-0000-4000-8000-000000000000',
+  id: '80000009-0000-4000-8000-000000000000',
+  label: 'Поставщик 3',
+  sideName: 'Поставщик',
+} as const satisfies NetworkSiteValue & { sideName: string };
+
 export const UNKNOWN_NETWORK_SITE_ID = 'f7000001-0000-4000-8000-000000000000';
 
 export const NETWORK_SITE_COUNT = 9;

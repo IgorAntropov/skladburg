@@ -17,8 +17,15 @@ import {
   createScreenPoint,
   projectWorldPointToScreen,
 } from '../geometry/projectWorldPointToScreen';
+import { resolveCityLabelState } from '../geometry/resolveCityLabelState';
+
+interface CityLabelStatesValue {
+  hoveredId: string | undefined;
+  selectedId: string | undefined;
+}
 
 interface CityLabelValue {
+  city: NetworkSceneCityValue;
   element: HTMLElement;
   isVisible: boolean;
   worldPoint: { x: number; y: number; z: number };
@@ -28,6 +35,8 @@ interface CityLabelValue {
 
 interface NetworkCityLabelsProps {
   cities: readonly NetworkSceneCityValue[];
+  hoveredId: string | undefined;
+  selectedId: string | undefined;
 }
 
 const MOVE_EPSILON_PX = 0.01;
@@ -38,16 +47,55 @@ const LABEL_CLASS_NAME = [
   'absolute top-0 left-0 -translate-x-1/2 -translate-y-[calc(100%+4px)] select-none',
   'rounded-control border border-line bg-panel-solid px-2 py-0.5 shadow-panel',
   'text-xs leading-4 font-semibold whitespace-nowrap text-on-panel',
+  'data-[hovered=true]:border-indicator',
+  'data-[selected=true]:border-indicator data-[selected=true]:ring-1 data-[selected=true]:ring-indicator data-[selected=true]:ring-inset',
 ].join(' ');
+
+const MORE_CLASS_NAME = [
+  'ml-1.5 inline-block rounded-full bg-hover px-1.5',
+  'text-xs leading-4 font-medium tabular-nums text-on-panel-muted',
+].join(' ');
+
+const setBooleanAttribute = (element: HTMLElement, name: string, isOn: boolean): void => {
+  if (isOn) {
+    element.setAttribute(name, 'true');
+  }
+  else {
+    element.removeAttribute(name);
+  }
+};
+
+const applyCityLabelStates = (labels: readonly CityLabelValue[], states: CityLabelStatesValue): void => {
+  for (const label of labels) {
+    const { isHovered, isSelected } = resolveCityLabelState(label.city, states.hoveredId, states.selectedId);
+
+    setBooleanAttribute(label.element, 'data-hovered', isHovered);
+    setBooleanAttribute(label.element, 'data-selected', isSelected);
+  }
+};
 
 const createCityLabel = (city: NetworkSceneCityValue): CityLabelValue => {
   const element = document.createElement('div');
+  const name = document.createElement('span');
 
   element.className = LABEL_CLASS_NAME;
-  element.textContent = city.name;
+  element.dataset.testid = 'network-city-label';
+  element.dataset.cityId = city.id;
   element.style.display = 'none';
+  name.textContent = city.name;
+  element.append(name);
+
+  if (city.hiddenSiteIds.length > 0) {
+    const more = document.createElement('span');
+
+    more.className = MORE_CLASS_NAME;
+    more.dataset.testid = 'network-city-label-more';
+    more.textContent = `+${String(city.hiddenSiteIds.length)}`;
+    element.append(more);
+  }
 
   return {
+    city,
     element,
     isVisible: false,
     worldPoint: { x: city.x, y: CITY_LABEL_HEIGHT_METERS, z: city.z },
@@ -56,12 +104,13 @@ const createCityLabel = (city: NetworkSceneCityValue): CityLabelValue => {
   };
 };
 
-export const NetworkCityLabels = ({ cities }: NetworkCityLabelsProps): null | ReactElement => {
+export const NetworkCityLabels = ({ cities, hoveredId, selectedId }: NetworkCityLabelsProps): null | ReactElement => {
   const canvas = useThree(state => state.gl.domElement);
   const invalidate = useThree(state => state.invalidate);
 
   const labelsRef = useRef<readonly CityLabelValue[]>([]);
   const screenPointRef = useRef<ScreenPointValue>(createScreenPoint());
+  const statesRef = useRef<CityLabelStatesValue>({ hoveredId, selectedId });
 
   useFrame(({ camera, size }) => {
     const labels = labelsRef.current;
@@ -105,6 +154,7 @@ export const NetworkCityLabels = ({ cities }: NetworkCityLabelsProps): null | Re
     layer.append(...labels.map(label => label.element));
     host.append(layer);
     labelsRef.current = labels;
+    applyCityLabelStates(labels, statesRef.current);
     invalidate();
 
     return (): void => {
@@ -112,6 +162,11 @@ export const NetworkCityLabels = ({ cities }: NetworkCityLabelsProps): null | Re
       layer.remove();
     };
   }, [canvas, cities, invalidate]);
+
+  useLayoutEffect(() => {
+    statesRef.current = { hoveredId, selectedId };
+    applyCityLabelStates(labelsRef.current, statesRef.current);
+  }, [cities, hoveredId, selectedId]);
 
   return null;
 };

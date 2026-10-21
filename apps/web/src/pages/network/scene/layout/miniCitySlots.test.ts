@@ -4,16 +4,19 @@ import {
   it,
 } from 'vitest';
 
+import { CITY_RESERVE_RADIUS_METERS } from './buildTerrainReserved';
 import {
   MINI_CITY_BUILDING_MAX_SIDE_METERS,
+  MINI_CITY_OVERFLOW_RADIUS_METERS,
   MINI_CITY_RADIUS_METERS,
-  MINI_CITY_SLOT_PITCH_METERS,
 } from './layoutConstants';
 import {
-  getMiniCityRadiusForLevel,
   getMiniCitySlots,
   MINI_CITY_BASE_SLOT_COUNT,
+  MINI_CITY_MAX_SITE_COUNT,
 } from './miniCitySlots';
+
+const RADII = [MINI_CITY_RADIUS_METERS, MINI_CITY_OVERFLOW_RADIUS_METERS, 12.8];
 
 describe('mini city slots', () => {
   it('has a center slot and enough base slots for a small city', () => {
@@ -27,9 +30,7 @@ describe('mini city slots', () => {
   it('keeps the worst case building of every slot inside the radius', () => {
     const halfDiagonal = MINI_CITY_BUILDING_MAX_SIDE_METERS * Math.SQRT1_2;
 
-    for (const level of [0, 1, 2]) {
-      const radius = getMiniCityRadiusForLevel(level);
-
+    for (const radius of RADII) {
       for (const slot of getMiniCitySlots(radius)) {
         expect(Math.hypot(slot.x, slot.z) + halfDiagonal).toBeLessThanOrEqual(radius + 1e-9);
       }
@@ -37,7 +38,7 @@ describe('mini city slots', () => {
   });
 
   it('keeps slots a building apart', () => {
-    const slots = getMiniCitySlots(getMiniCityRadiusForLevel(2));
+    const slots = getMiniCitySlots(RADII[2] ?? 0);
 
     for (const [index, slot] of slots.entries()) {
       for (const other of slots.slice(index + 1)) {
@@ -50,8 +51,8 @@ describe('mini city slots', () => {
   });
 
   it('lists slots from the center outward and keeps the smaller city as a prefix of the larger one', () => {
-    const base = getMiniCitySlots(getMiniCityRadiusForLevel(0));
-    const larger = getMiniCitySlots(getMiniCityRadiusForLevel(1));
+    const base = getMiniCitySlots(MINI_CITY_RADIUS_METERS);
+    const larger = getMiniCitySlots(MINI_CITY_OVERFLOW_RADIUS_METERS);
     const distances = larger.map(slot => Math.hypot(slot.x, slot.z));
 
     expect(larger.length).toBeGreaterThan(base.length);
@@ -59,9 +60,11 @@ describe('mini city slots', () => {
     expect(distances).toEqual(distances.toSorted((current, prev) => current - prev));
   });
 
-  it('grows the radius by the pitch per level', () => {
-    expect(getMiniCityRadiusForLevel(0)).toBe(MINI_CITY_RADIUS_METERS);
-    expect(getMiniCityRadiusForLevel(2)).toBeCloseTo(MINI_CITY_RADIUS_METERS + 2 * MINI_CITY_SLOT_PITCH_METERS, 9);
+  it('keeps the overflow city inside of the clearing of the terrain and with one ring more than the base', () => {
+    expect(MINI_CITY_OVERFLOW_RADIUS_METERS).toBeLessThanOrEqual(CITY_RESERVE_RADIUS_METERS);
+    expect(MINI_CITY_MAX_SITE_COUNT).toBeGreaterThan(MINI_CITY_BASE_SLOT_COUNT);
+    expect(getMiniCitySlots(MINI_CITY_OVERFLOW_RADIUS_METERS).slice(0, MINI_CITY_BASE_SLOT_COUNT))
+      .toEqual(getMiniCitySlots(MINI_CITY_RADIUS_METERS));
   });
 
   it('gives no slots for a city too small for a building', () => {

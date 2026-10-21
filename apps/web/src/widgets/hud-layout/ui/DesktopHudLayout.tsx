@@ -31,6 +31,7 @@ export const DesktopHudLayout = ({
   kpi,
   listsHeader,
   listTabs,
+  listTabsResetKey,
   panel,
   sceneControls,
   tracker,
@@ -93,7 +94,7 @@ export const DesktopHudLayout = ({
             label={t('hud.lists.label')}
 
           >
-            <ListsZoneContent defaultTabId={defaultListTabId} header={listsHeader} tabs={listTabs} />
+            <ListsZoneContent defaultTabId={defaultListTabId} header={listsHeader} resetKey={listTabsResetKey} tabs={listTabs} />
           </HudZone>
         )}
       </div>

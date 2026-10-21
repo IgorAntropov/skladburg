@@ -24,6 +24,7 @@ export const PhoneHudLayout = ({
   isInspectorOpen,
   listsHeader,
   listTabs,
+  listTabsResetKey,
   panel,
 }: HudZonesProps): ReactElement => {
   const { t } = useI18n();
@@ -37,7 +38,7 @@ export const PhoneHudLayout = ({
     <>
       {isListsMain && (
         <HudZone className={MAIN_ZONE_CLASS_NAME} label={t('hud.lists.label')}>
-          <ListsZoneContent defaultTabId={defaultListTabId} header={listsHeader} tabs={listTabs} />
+          <ListsZoneContent defaultTabId={defaultListTabId} header={listsHeader} resetKey={listTabsResetKey} tabs={listTabs} />
         </HudZone>
       )}
       {isPanelMain && (

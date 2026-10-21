@@ -26,6 +26,7 @@ import {
   IsometricCameraRig,
   QUALITY_LEVEL_SETTINGS,
   readWorldPalette,
+  SceneCameraRigProvider,
   SceneCanvas,
   WorldGeometryProvider,
   WorldMaterialsProvider,
@@ -107,7 +108,7 @@ const SceneRoot = ({
             shadowMapSize={shadowMapSize}
             world={world}
           />
-          {content}
+          <SceneCameraRigProvider rigRef={rigRef}>{content}</SceneCameraRigProvider>
         </WorldGeometryProvider>
       </WorldMaterialsProvider>
       {autoQuality !== undefined && (

@@ -7,7 +7,7 @@ import { APP_BASE_PATH } from './build-base/appBasePath.ts';
 
 const PREVIEW_PORT = '4174';
 const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}${APP_BASE_PATH}`;
-const SCENE_SPECS = /(?:scene-budget|scene-world-edge)\.spec\.ts$/;
+const SCENE_SPECS = /(?:scene-budget|scene-network-selection|scene-world-edge)\.spec\.ts$/;
 const OFFLINE_SPEC = /app-offline\.spec\.ts$/;
 
 export default defineConfig({

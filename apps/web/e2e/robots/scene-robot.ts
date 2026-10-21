@@ -1,11 +1,16 @@
-import type { Page } from '@playwright/test';
+import type {
+  Locator,
+  Page,
+} from '@playwright/test';
 
 import { expect } from '@playwright/test';
 
 import type { GraphicsPreferenceValue } from '../fixtures/graphicsPreference.ts';
+import type { ObjectRouteValue } from '../fixtures/routes.ts';
 import type { ColorSchemeValue } from '../fixtures/themePreference.ts';
 
 import { createStoreGraphicsPreferenceScript } from '../fixtures/graphicsPreference.ts';
+import { toObjectHash } from '../fixtures/routes.ts';
 import { createStoreSystemThemeScript } from '../fixtures/themePreference.ts';
 import { createProfileMenuLocators } from './profile-menu-locators.ts';
 import {
@@ -28,13 +33,29 @@ export type AutoGraphicsLevelValue = 'high' | 'low' | 'medium';
 
 export type CameraButtonValue = 'home' | 'rotate-left' | 'rotate-right' | 'zoom-in' | 'zoom-out';
 
+export interface CityLabelOffsetValue {
+  dx: number;
+  dy: number;
+  freeAreaHeight: number;
+  labelHeight: number;
+}
+
+export interface CityLabelPlacementValue {
+  horizontalTolerancePx: number;
+  isVerticalInUpperHalf: boolean;
+}
+
 export type DragDirectionValue = 'down' | 'left' | 'right' | 'up';
 
 export interface SceneRobotValue {
   chooseGraphicsPreference: (preference: GraphicsPreferenceValue) => Promise<void>;
   countRequestedSceneChunks: () => number;
+  dragFromFreeAreaCenter: (distancePx: number) => Promise<void>;
   dragWorld: (direction: DragDirectionValue) => Promise<void>;
   expectAutoGraphicsLevel: (level: AutoGraphicsLevelValue) => Promise<void>;
+  expectCityLabelAtFreeAreaCenter: (cityId: string, placement: CityLabelPlacementValue) => Promise<void>;
+  expectCityLabelAwayFromFreeAreaCenter: (cityId: string, minDistancePx: number) => Promise<void>;
+  expectCityLabelSelected: (cityId: string) => Promise<void>;
   expectNoCanvas: () => Promise<void>;
   expectNoDrawCallsFor: (durationMs: number) => Promise<void>;
   expectNoDrawFramesFor: (durationMs: number) => Promise<void>;
@@ -42,13 +63,17 @@ export interface SceneRobotValue {
   expectSceneState: (state: SceneStateValue) => Promise<void>;
   expectThemeAttribute: (theme: ColorSchemeValue) => Promise<void>;
   markMotionStart: () => Promise<void>;
+  moveMouseToFreeAreaCenter: () => Promise<void>;
+  moveMouseToWorldCorner: () => Promise<void>;
   openNetwork: () => Promise<void>;
   openNetworkAsPersona: (personaId: string) => Promise<void>;
   openNetworkInColorScheme: (colorScheme: ColorSchemeValue) => Promise<void>;
   openNetworkWithGraphicsPreference: (preference: GraphicsPreferenceValue) => Promise<void>;
+  openObject: (route: ObjectRouteValue) => Promise<void>;
   pressCameraButton: (button: CameraButtonValue) => Promise<void>;
   pressKey: (code: string) => Promise<void>;
   readAnimationMs: () => Promise<number>;
+  readCityLabelOffset: (cityId: string) => Promise<CityLabelOffsetValue | undefined>;
   readDrawCalls: () => Promise<number>;
   readDrawFrames: () => Promise<number>;
   readLongTaskDurations: () => Promise<number[]>;
@@ -58,6 +83,7 @@ export interface SceneRobotValue {
   readWorldSettleMs: () => Promise<number>;
   resizeWindow: (size: { height: number; width: number }) => Promise<void>;
   switchColorScheme: (colorScheme: ColorSchemeValue) => Promise<void>;
+  tapFreeAreaCenter: () => Promise<void>;
   waitForCameraControls: () => Promise<void>;
   waitForDrawCallsToExceed: (count: number) => Promise<void>;
   waitForDrawFramesToExceed: (count: number, message: string) => Promise<void>;
@@ -79,6 +105,7 @@ const IDLE_TIMEOUT_MS = 15_000;
 const SCENE_STATE_TIMEOUT_MS = 40_000;
 const DRAG_STEPS = 6;
 const DRAG_SPAN_RATIO = 0.4;
+const LABEL_POLL_TIMEOUT_MS = 20_000;
 const SCENE_CHUNK_PATTERN = /\/assets\/(?:NetworkWorldScene|SceneRoot)-[^/]+\.js$/;
 
 export const createSceneRobot = (page: Page): SceneRobotValue => {
@@ -91,6 +118,7 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
   const sceneViewport = page.getByTestId('scene-viewport');
   const canvas = sceneViewport.locator('canvas');
   const freeArea = page.getByTestId('hud-free-area');
+  const cityLabels = page.getByTestId('network-city-label');
   const requestedSceneChunks: string[] = [];
   let isInitScriptAdded = false;
 
@@ -110,13 +138,18 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     await page.goto('./#/network');
   };
 
-  const dragWorld = async (direction: DragDirectionValue): Promise<void> => {
+  const readFreeAreaBox = async (): Promise<{ height: number; width: number; x: number; y: number }> => {
     const box = await freeArea.boundingBox();
 
     if (box === null) {
       throw new Error('The free area of the HUD is not laid out');
     }
 
+    return box;
+  };
+
+  const dragWorld = async (direction: DragDirectionValue): Promise<void> => {
+    const box = await readFreeAreaBox();
     const centerX = box.x + box.width / 2;
     const centerY = box.y + box.height / 2;
     const halfWidth = box.width * DRAG_SPAN_RATIO / 2;
@@ -135,6 +168,35 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     await page.mouse.up();
   };
 
+  const getCityLabel = (cityId: string): Locator => cityLabels.and(page.locator(`[data-city-id="${cityId}"]`));
+
+  const readCityLabelOffset = async (cityId: string): Promise<CityLabelOffsetValue | undefined> => {
+    const labelBox = await getCityLabel(cityId).boundingBox();
+    const freeAreaBox = await freeArea.boundingBox();
+
+    if (labelBox === null || freeAreaBox === null) {
+      return undefined;
+    }
+
+    return {
+      dx: labelBox.x + labelBox.width / 2 - (freeAreaBox.x + freeAreaBox.width / 2),
+      dy: labelBox.y + labelBox.height / 2 - (freeAreaBox.y + freeAreaBox.height / 2),
+      freeAreaHeight: freeAreaBox.height,
+      labelHeight: labelBox.height,
+    };
+  };
+
+  const dragFromFreeAreaCenter = async (distancePx: number): Promise<void> => {
+    const box = await readFreeAreaBox();
+    const centerX = box.x + box.width / 2;
+    const centerY = box.y + box.height / 2;
+
+    await page.mouse.move(centerX, centerY);
+    await page.mouse.down();
+    await page.mouse.move(centerX + distancePx, centerY, { steps: DRAG_STEPS });
+    await page.mouse.up();
+  };
+
   return {
     async chooseGraphicsPreference(preference: GraphicsPreferenceValue): Promise<void> {
       await profileButton.click();
@@ -145,6 +207,7 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     countRequestedSceneChunks(): number {
       return requestedSceneChunks.length;
     },
+    dragFromFreeAreaCenter,
     dragWorld,
     async expectAutoGraphicsLevel(level: AutoGraphicsLevelValue): Promise<void> {
       await profileButton.click();
@@ -152,6 +215,41 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
       await expect(autoGraphicsLevel).toHaveAttribute('data-auto-level', level);
       await page.keyboard.press('Escape');
       await expect(menu).toHaveCount(0);
+    },
+    async expectCityLabelAtFreeAreaCenter(cityId: string, placement: CityLabelPlacementValue): Promise<void> {
+      await expect.poll(async () => {
+        const offset = await readCityLabelOffset(cityId);
+
+        if (offset === undefined) {
+          return 'label is not shown';
+        }
+
+        const isHorizontalCentered = Math.abs(offset.dx) <= placement.horizontalTolerancePx;
+        const isVerticalInside = Math.abs(offset.dy) <= offset.freeAreaHeight / 2;
+        const isVerticalInUpperHalf = offset.dy <= 0;
+
+        if (isHorizontalCentered && isVerticalInside && (!placement.isVerticalInUpperHalf || isVerticalInUpperHalf)) {
+          return 'centered';
+        }
+
+        return `dx=${offset.dx.toFixed(1)} dy=${offset.dy.toFixed(1)} freeAreaHeight=${offset.freeAreaHeight.toFixed(1)}`;
+      }, {
+        message: `the label of the city ${cityId} is not at the center of the free area`,
+        timeout: LABEL_POLL_TIMEOUT_MS,
+      }).toBe('centered');
+    },
+    async expectCityLabelAwayFromFreeAreaCenter(cityId: string, minDistancePx: number): Promise<void> {
+      await expect.poll(async () => {
+        const offset = await readCityLabelOffset(cityId);
+
+        return offset === undefined ? Number.POSITIVE_INFINITY : Math.hypot(offset.dx, offset.dy);
+      }, {
+        message: `the label of the city ${cityId} is still near the center of the free area`,
+        timeout: LABEL_POLL_TIMEOUT_MS,
+      }).toBeGreaterThan(minDistancePx);
+    },
+    async expectCityLabelSelected(cityId: string): Promise<void> {
+      await expect(getCityLabel(cityId)).toHaveAttribute('data-selected', 'true');
     },
     async expectNoCanvas(): Promise<void> {
       await expect(canvas).toHaveCount(0);
@@ -182,6 +280,16 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     async markMotionStart(): Promise<void> {
       await page.evaluate(MARK_MOTION_START_SCRIPT);
     },
+    async moveMouseToFreeAreaCenter(): Promise<void> {
+      const box = await readFreeAreaBox();
+
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 3 });
+    },
+    async moveMouseToWorldCorner(): Promise<void> {
+      const box = await readFreeAreaBox();
+
+      await page.mouse.move(box.x + 4, box.y + 4, { steps: 3 });
+    },
     openNetwork,
     async openNetworkAsPersona(personaId: string): Promise<void> {
       await ensureDrawCounter();
@@ -196,6 +304,10 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
       await page.addInitScript({ content: createStoreGraphicsPreferenceScript(preference) });
       await openNetwork();
     },
+    async openObject(route: ObjectRouteValue): Promise<void> {
+      await ensureDrawCounter();
+      await page.goto(`./${toObjectHash(route)}`);
+    },
     async pressCameraButton(button: CameraButtonValue): Promise<void> {
       await page.getByTestId(`scene-camera-${button}`).click();
     },
@@ -205,6 +317,7 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     async readAnimationMs(): Promise<number> {
       return page.evaluate<number>(READ_ANIMATION_MS_SCRIPT);
     },
+    readCityLabelOffset,
     readDrawCalls,
     readDrawFrames,
     async readLongTaskDurations(): Promise<number[]> {
@@ -228,6 +341,11 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     async switchColorScheme(colorScheme: ColorSchemeValue): Promise<void> {
       await page.evaluate(MARK_THEME_SWITCH_SCRIPT);
       await page.emulateMedia({ colorScheme });
+    },
+    async tapFreeAreaCenter(): Promise<void> {
+      const box = await readFreeAreaBox();
+
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     },
     async waitForCameraControls(): Promise<void> {
       await expect(page.getByTestId('scene-camera-rotate-right')).toBeVisible();

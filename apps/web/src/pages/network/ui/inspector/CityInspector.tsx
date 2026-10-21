@@ -18,6 +18,7 @@ import { formatCityTimeZone } from '../../lib/formatCityTimeZone';
 import { SideBadge } from '../SideBadge';
 import { InspectorProperty } from './InspectorProperty';
 import { INSPECTOR_KICKER_CLASS_NAME } from './inspectorStyles';
+import { ShowOnMapButton } from './ShowOnMapButton';
 
 interface CityInspectorProps {
   city: NetworkMapCityValue;
@@ -45,6 +46,9 @@ export const CityInspector = ({ city, sites }: CityInspectorProps): ReactElement
       <dl className="flex flex-col gap-3">
         <InspectorProperty label={t('network.inspector.timeZone')}>{timeZoneLabel}</InspectorProperty>
       </dl>
+      <div className="flex flex-wrap gap-2 empty:hidden">
+        <ShowOnMapButton objectId={city.id} />
+      </div>
       <section className="flex flex-col gap-2">
         <h3 className="text-sm leading-5 font-semibold text-on-panel-muted" id={headingId}>
           {t('network.inspector.citySites')}

@@ -13,6 +13,7 @@ export interface HudLayoutProps {
   kpi?: ReactNode | undefined;
   listsHeader?: ReactNode | undefined;
   listTabs?: readonly TabsItemValue[] | undefined;
+  listTabsResetKey?: number | string | undefined;
   onInspectorClose: () => void;
   panel?: ReactNode | undefined;
   scene: ReactNode;

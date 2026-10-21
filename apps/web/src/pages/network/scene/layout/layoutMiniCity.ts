@@ -11,6 +11,8 @@ import {
   DECOR_MIN_COUNT,
   HOUSE_SIZE_RANGE_METERS,
   LAYOUT_SALT,
+  MINI_CITY_OVERFLOW_RADIUS_METERS,
+  MINI_CITY_RADIUS_METERS,
   OFFICE_SHARE,
   OFFICE_SIZE_RANGE_METERS,
   WAREHOUSE_SIZE_METERS,
@@ -22,9 +24,9 @@ import {
   lerpRange,
 } from './layoutHash';
 import {
-  getMiniCityRadiusForLevel,
   getMiniCitySlots,
   MINI_CITY_BASE_SLOT_COUNT,
+  MINI_CITY_MAX_SITE_COUNT,
 } from './miniCitySlots';
 
 export interface LayoutMiniCityOptionsValue {
@@ -36,6 +38,7 @@ export interface LayoutMiniCityOptionsValue {
 
 export interface MiniCityLayoutValue {
   buildings: readonly NetworkSceneBuildingValue[];
+  hiddenSiteIds: readonly string[];
   radius: number;
 }
 
@@ -61,14 +64,15 @@ const findFreeBaseSlot = (start: number, isTaken: (index: number) => boolean): n
   return undefined;
 };
 
-const resolveRadiusLevel = (siteCount: number): number => {
-  let level = 0;
+const splitVisibleSites = (sites: readonly MiniCitySiteValue[]): { hiddenSiteIds: string[]; visible: MiniCitySiteValue[] } => {
+  const ownFirst = [...sites.filter(site => site.isOwn), ...sites.filter(site => !site.isOwn)];
+  const visible = ownFirst.slice(0, MINI_CITY_MAX_SITE_COUNT);
+  const visibleIds = new Set(visible.map(site => site.id));
 
-  while (getMiniCitySlots(getMiniCityRadiusForLevel(level)).length < siteCount) {
-    level += 1;
-  }
-
-  return level;
+  return {
+    hiddenSiteIds: sites.filter(site => !visibleIds.has(site.id)).map(site => site.id),
+    visible,
+  };
 };
 
 const assignSiteSlots = (options: LayoutMiniCityOptionsValue, slotCount: number): Map<string, number> => {
@@ -192,13 +196,14 @@ const createDecorBuildings = (
 };
 
 export const layoutMiniCity = (options: LayoutMiniCityOptionsValue): MiniCityLayoutValue => {
-  const level = resolveRadiusLevel(options.sites.length);
-  const radius = getMiniCityRadiusForLevel(level);
+  const { hiddenSiteIds, visible } = splitVisibleSites(options.sites);
+  const visibleOptions = { ...options, sites: visible };
+  const radius = visible.length > MINI_CITY_BASE_SLOT_COUNT ? MINI_CITY_OVERFLOW_RADIUS_METERS : MINI_CITY_RADIUS_METERS;
   const slots = getMiniCitySlots(radius);
-  const baseSlots = getMiniCitySlots(getMiniCityRadiusForLevel(0));
-  const slotBySiteId = assignSiteSlots(options, slots.length);
-  const companies = createCompanyBuildings(options, slots, slotBySiteId);
-  const decor = createDecorBuildings(options, baseSlots, new Set(slotBySiteId.values()));
+  const baseSlots = getMiniCitySlots(MINI_CITY_RADIUS_METERS);
+  const slotBySiteId = assignSiteSlots(visibleOptions, slots.length);
+  const companies = createCompanyBuildings(visibleOptions, slots, slotBySiteId);
+  const decor = createDecorBuildings(visibleOptions, baseSlots, new Set(slotBySiteId.values()));
 
-  return { buildings: [...companies, ...decor], radius };
+  return { buildings: [...companies, ...decor], hiddenSiteIds, radius };
 };

@@ -1,4 +1,5 @@
 import type {
+  FocusEvent,
   PointerEvent,
   ReactElement,
 } from 'react';
@@ -26,6 +27,7 @@ const ROW_CLASS_NAME = [
   'flex h-18 w-full cursor-pointer touch-manipulation flex-col gap-1 rounded-control border border-line px-3 py-2 text-left',
   'motion-safe:transition-[background-color,border-color]',
   'hover:bg-hover active:bg-line',
+  'data-[hovered=true]:bg-hover data-[hovered=true]:active:bg-line',
   'aria-[current=true]:border-indicator aria-[current=true]:bg-hover aria-[current=true]:ring-1 aria-[current=true]:ring-indicator',
   'aria-[current=true]:ring-inset aria-[current=true]:active:bg-line',
   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
@@ -34,6 +36,8 @@ const ROW_CLASS_NAME = [
 export const NetworkSiteRow = ({ cityName, isSelected, site }: NetworkSiteRowProps): ReactElement => {
   const setHoveredId = useNetworkMapStore(state => state.setHoveredId);
   const clearHoveredId = useNetworkMapStore(state => state.clearHoveredId);
+  const requestFocus = useNetworkMapStore(state => state.requestFocus);
+  const isHovered = useNetworkMapStore(state => state.hoveredId === site.id);
   const linkRef = useRef<HTMLAnchorElement>(null);
 
   const handlePointerEnter = (event: PointerEvent<HTMLAnchorElement>): void => {
@@ -49,9 +53,19 @@ export const NetworkSiteRow = ({ cityName, isSelected, site }: NetworkSiteRowPro
     clearHoveredId(site.id);
   };
 
-  const handleFocus = (): void => {
-    console.log('> NetworkSiteRow -> handleFocus:', { siteId: site.id });
-    setHoveredId(site.id);
+  const handleFocus = (event: FocusEvent<HTMLAnchorElement>): void => {
+    const isFocusVisible = event.currentTarget.matches(':focus-visible');
+
+    console.log('> NetworkSiteRow -> handleFocus:', { isFocusVisible, siteId: site.id });
+
+    if (isFocusVisible) {
+      setHoveredId(site.id);
+    }
+  };
+
+  const handleClick = (): void => {
+    console.log('> NetworkSiteRow -> handleClick:', { siteId: site.id });
+    requestFocus(site.id);
   };
 
   const handleBlur = (): void => {
@@ -74,9 +88,11 @@ export const NetworkSiteRow = ({ cityName, isSelected, site }: NetworkSiteRowPro
       <AddressLink
         aria-current={isSelected ? 'true' : undefined}
         className={ROW_CLASS_NAME}
+        data-hovered={isHovered ? 'true' : undefined}
         data-site-id={site.id}
         data-testid="network-site-row"
         onBlur={handleBlur}
+        onClick={handleClick}
         onFocus={handleFocus}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}

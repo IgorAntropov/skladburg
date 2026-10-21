@@ -54,7 +54,7 @@ describe('applyChipAzimuth', () => {
   it('turns the front of the plate to the camera and stretches it upright', () => {
     const matrices = createMatrices();
 
-    applyChipAzimuth(matrices, 2, Math.PI / 4);
+    applyChipAzimuth(matrices, 2, Math.PI / 4, undefined);
 
     const matrix = new Matrix4().fromArray(matrices, 0);
     const front = new Vector3(0, 0, 1).transformDirection(matrix);
@@ -71,8 +71,8 @@ describe('applyChipAzimuth', () => {
   it('keeps the position of every plate while it turns', () => {
     const matrices = createMatrices();
 
-    applyChipAzimuth(matrices, 2, 1.1);
-    applyChipAzimuth(matrices, 2, -2.3);
+    applyChipAzimuth(matrices, 2, 1.1, undefined);
+    applyChipAzimuth(matrices, 2, -2.3, undefined);
 
     [4, 3.7, -9].forEach((value, axis) => {
       expect(matrices[12 + axis]).toBeCloseTo(value, 5);
@@ -87,8 +87,36 @@ describe('applyChipAzimuth', () => {
   it('touches only the first count plates', () => {
     const matrices = createMatrices();
 
-    applyChipAzimuth(matrices, 1, 0.5);
+    applyChipAzimuth(matrices, 1, 0.5, undefined);
 
     expect(matrices[16]).toBe(0);
+  });
+
+  it('grows only the hovered plate 1.25 times around its center and lifts it by 0.4 m', () => {
+    const matrices = createMatrices();
+
+    applyChipAzimuth(matrices, 2, 0.7, 1);
+
+    const calm = new Matrix4().fromArray(matrices, 0);
+    const hovered = new Matrix4().fromArray(matrices, 16);
+
+    expect(new Vector3().setFromMatrixScale(calm).x).toBeCloseTo(1, 6);
+    expect(new Vector3().setFromMatrixScale(hovered).x).toBeCloseTo(1.25, 6);
+    expect(new Vector3().setFromMatrixScale(hovered).y).toBeCloseTo(1.25 * 1.2247449, 6);
+    expect(new Vector3().setFromMatrixScale(hovered).z).toBeCloseTo(1.25, 6);
+    expect(matrices[13]).toBeCloseTo(3.7, 6);
+    expect(matrices[29]).toBeCloseTo(4.1, 6);
+    expect(matrices[28]).toBeCloseTo(-7, 6);
+    expect(matrices[30]).toBeCloseTo(2, 6);
+  });
+
+  it('returns the plate to its size and height when it is no longer hovered', () => {
+    const matrices = createMatrices();
+
+    applyChipAzimuth(matrices, 2, 0.7, 1);
+    applyChipAzimuth(matrices, 2, 0.7, undefined);
+
+    expect(matrices[29]).toBeCloseTo(3.7, 6);
+    expect(new Vector3().setFromMatrixScale(new Matrix4().fromArray(matrices, 16)).x).toBeCloseTo(1, 6);
   });
 });

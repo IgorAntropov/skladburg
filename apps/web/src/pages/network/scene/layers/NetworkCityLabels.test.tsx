@@ -1,4 +1,5 @@
 import type { RootState } from '@react-three/fiber';
+import type { ReactElement } from 'react';
 import type { OrthographicCamera } from 'three';
 
 import {
@@ -27,19 +28,12 @@ import {
 
 import type { NetworkSceneCityValue } from '../layout';
 
+import {
+  createFakeRenderer,
+  ImmediateResizeObserver,
+  VIEWPORT_RECT,
+} from './canvasTestSupport';
 import { NetworkCityLabels } from './NetworkCityLabels';
-
-const VIEWPORT_RECT = {
-  bottom: 900,
-  height: 900,
-  left: 0,
-  right: 1440,
-  toJSON: (): string => '',
-  top: 0,
-  width: 1440,
-  x: 0,
-  y: 0,
-};
 
 const CITIES: readonly NetworkSceneCityValue[] = [
   ['Воронеж', -60, 18],
@@ -49,6 +43,7 @@ const CITIES: readonly NetworkSceneCityValue[] = [
   ['Москва', -48, -6],
 ].map(([name, x, z], index) => ({
   cityId: `city-${String(index)}`,
+  hiddenSiteIds: [],
   id: `node-${String(index)}`,
   name: String(name),
   radius: 6.4,
@@ -56,54 +51,22 @@ const CITIES: readonly NetworkSceneCityValue[] = [
   z: Number(z),
 }));
 
-class ImmediateResizeObserver {
-  private readonly callback: ResizeObserverCallback;
-
-  constructor(callback: ResizeObserverCallback) {
-    this.callback = callback;
-  }
-
-  disconnect(): void {
-    return undefined;
-  }
-
-  observe(target: Element): void {
-    this.callback([{ contentRect: target.getBoundingClientRect() } as ResizeObserverEntry], this);
-  }
-
-  unobserve(): void {
-    return undefined;
-  }
-}
-
-const createFakeRenderer = (domElement: unknown): Record<string, unknown> => ({
-  capabilities: {},
-  dispose: (): void => undefined,
-  domElement,
-  extensions: {},
-  forceContextLoss: (): void => undefined,
-  getContext: (): Record<string, never> => ({}),
-  info: { autoReset: true, reset: (): void => undefined },
-  outputColorSpace: '',
-  render: (): void => undefined,
-  setClearColor: (): void => undefined,
-  setPixelRatio: (): void => undefined,
-  setSize: (): void => undefined,
-  shadowMap: {},
-  toneMapping: 0,
-  xr: {
-    addEventListener: (): void => undefined,
-    enabled: false,
-    removeEventListener: (): void => undefined,
-    setPoseTarget: (): void => undefined,
-  },
-});
-
 const readLabels = (container: HTMLElement): HTMLElement[] => {
   return Array.from(container.querySelectorAll<HTMLElement>('div.rounded-control'));
 };
 
-const renderLabels = async (isStrict: boolean): Promise<{ container: HTMLElement; state: () => RootState }> => {
+interface LabelPropsValue {
+  cities: readonly NetworkSceneCityValue[];
+  hoveredId: string | undefined;
+  selectedId: string | undefined;
+}
+
+const DEFAULT_PROPS: LabelPropsValue = { cities: CITIES, hoveredId: undefined, selectedId: undefined };
+
+const renderLabels = async (
+  isStrict: boolean,
+  initial: LabelPropsValue = DEFAULT_PROPS,
+): Promise<{ container: HTMLElement; state: () => RootState; update: (props: LabelPropsValue) => void }> => {
   let latest: RootState | undefined;
 
   const Probe = (): null => {
@@ -116,18 +79,22 @@ const renderLabels = async (isStrict: boolean): Promise<{ container: HTMLElement
     return null;
   };
 
-  const scene = (
-    <Canvas
-      frameloop="never"
-      gl={(defaultProps): never => createFakeRenderer(defaultProps.canvas) as never}
-      orthographic
-    >
-      <Probe />
-      <NetworkCityLabels cities={CITIES} />
-    </Canvas>
-  );
+  const createScene = (props: LabelPropsValue): ReactElement => {
+    const scene = (
+      <Canvas
+        frameloop="never"
+        gl={(defaultProps): never => createFakeRenderer(defaultProps.canvas) as never}
+        orthographic
+      >
+        <Probe />
+        <NetworkCityLabels cities={props.cities} hoveredId={props.hoveredId} selectedId={props.selectedId} />
+      </Canvas>
+    );
 
-  const result = render(isStrict ? <StrictMode>{scene}</StrictMode> : scene);
+    return isStrict ? <StrictMode>{scene}</StrictMode> : scene;
+  };
+
+  const result = render(createScene(initial));
 
   await waitFor(() => {
     expect(latest).toBeDefined();
@@ -141,6 +108,11 @@ const renderLabels = async (isStrict: boolean): Promise<{ container: HTMLElement
       }
 
       return latest;
+    },
+    update: (props: LabelPropsValue): void => {
+      act(() => {
+        result.rerender(createScene(props));
+      });
     },
   };
 };
@@ -170,6 +142,83 @@ describe('NetworkCityLabels', () => {
     drawFrame(state, 100);
 
     expect(readLabels(container).map(label => label.textContent)).toEqual(CITIES.map(city => city.name));
+  });
+
+  it('marks every label with the test id and the id of its city', async () => {
+    const { container, state } = await renderLabels(false);
+
+    drawFrame(state, 100);
+
+    const labels = readLabels(container);
+
+    expect(labels.map(label => label.dataset.testid)).toEqual(CITIES.map(() => 'network-city-label'));
+    expect(labels.map(label => label.dataset.cityId)).toEqual(CITIES.map(city => city.id));
+  });
+
+  it('shows no more badge for a city without hidden sites', async () => {
+    const { container } = await renderLabels(false);
+
+    expect(container.querySelector('[data-testid="network-city-label-more"]')).toBeNull();
+  });
+
+  it('shows the count of hidden sites in a separate badge after the name', async () => {
+    const cities = CITIES.map((city, index) => (index === 2 ? { ...city, hiddenSiteIds: ['a', 'b', 'c'] } : city));
+    const { container } = await renderLabels(false, { ...DEFAULT_PROPS, cities });
+
+    const badges = container.querySelectorAll('[data-testid="network-city-label-more"]');
+    const label = readLabels(container)[2];
+
+    expect(badges).toHaveLength(1);
+    expect(badges[0]?.textContent).toBe('+3');
+    expect(label?.firstElementChild?.textContent).toBe('Казань');
+    expect(label?.lastElementChild).toBe(badges[0]);
+  });
+
+  it('puts the hovered and the selected state on the labels and takes it away again', async () => {
+    const { container, update } = await renderLabels(false);
+
+    update({ ...DEFAULT_PROPS, hoveredId: 'node-1', selectedId: 'node-3' });
+
+    const marked = readLabels(container).map(label => [label.dataset.hovered, label.dataset.selected]);
+
+    expect(marked).toEqual([
+      [undefined, undefined],
+      ['true', undefined],
+      [undefined, undefined],
+      [undefined, 'true'],
+      [undefined, undefined],
+    ]);
+
+    update(DEFAULT_PROPS);
+
+    expect(readLabels(container).every(label => label.dataset.hovered === undefined && label.dataset.selected === undefined)).toBe(true);
+  });
+
+  it('selects the label of the city whose hidden site is selected', async () => {
+    const cities = CITIES.map((city, index) => (index === 4 ? { ...city, hiddenSiteIds: ['hidden-site'] } : city));
+    const { container } = await renderLabels(false, { cities, hoveredId: undefined, selectedId: 'hidden-site' });
+
+    expect(readLabels(container).map(label => label.dataset.selected)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'true',
+    ]);
+  });
+
+  it('keeps the states when the labels are recreated for another list of cities', async () => {
+    const { container, update } = await renderLabels(false, { ...DEFAULT_PROPS, selectedId: 'node-0' });
+
+    update({ cities: CITIES.map(city => ({ ...city })), hoveredId: 'node-1', selectedId: 'node-0' });
+
+    expect(readLabels(container).map(label => [label.dataset.hovered, label.dataset.selected])).toEqual([
+      [undefined, 'true'],
+      ['true', undefined],
+      [undefined, undefined],
+      [undefined, undefined],
+      [undefined, undefined],
+    ]);
   });
 
   it('moves the labels with the camera and hides the ones behind it', async () => {

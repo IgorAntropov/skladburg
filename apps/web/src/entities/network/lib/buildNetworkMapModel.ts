@@ -1,5 +1,7 @@
 import { compareCodeUnits } from '@skladburg/contracts/runtime';
 
+import { toOrganizationSide } from '@/entities/organization/@x/network';
+
 import type {
   NetworkMapCityValue,
   NetworkMapModelValue,
@@ -7,8 +9,6 @@ import type {
   NetworkMapSiteValue,
   NetworkMapSourceValue,
 } from '../model/networkMapTypes';
-
-import { toMapSide } from './toMapSide';
 
 const buildCities = (source: NetworkMapSourceValue, collator: Intl.Collator): Map<string, NetworkMapCityValue> => {
   const cityById = new Map(source.directory.cities.map(city => [city.id, city]));
@@ -44,7 +44,7 @@ const buildSites = (
   const sites: NetworkMapSiteValue[] = [];
 
   for (const site of source.sites) {
-    const side = toMapSide(site.profileKind);
+    const side = toOrganizationSide(site.profileKind);
     const city = cityByNodeId.get(site.mapNodeId);
 
     if (side !== undefined && city !== undefined) {

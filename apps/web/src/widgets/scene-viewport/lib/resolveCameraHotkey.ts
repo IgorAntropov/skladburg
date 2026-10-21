@@ -16,6 +16,8 @@ const ZOOM_IN: SceneCameraCommandValue = { direction: 1, kind: 'zoom' };
 const ZOOM_OUT: SceneCameraCommandValue = { direction: -1, kind: 'zoom' };
 const HOME: SceneCameraCommandValue = { kind: 'home' };
 
+const LIST_SELECTOR = 'ul, ol, [role="grid"], [role="listbox"], [role="tree"], [role="treegrid"]';
+
 const COMMAND_BY_CODE: Readonly<Record<string, SceneCameraCommandValue>> = {
   Equal: ZOOM_IN,
   Home: HOME,
@@ -25,6 +27,8 @@ const COMMAND_BY_CODE: Readonly<Record<string, SceneCameraCommandValue>> = {
   NumpadAdd: ZOOM_IN,
   NumpadSubtract: ZOOM_OUT,
 };
+
+const isInsideList = (target: EventTarget | null): boolean => target instanceof Element && target.closest(LIST_SELECTOR) !== null;
 
 export const resolveCameraHotkey = (event: CameraHotkeyEventValue): SceneCameraCommandValue | undefined => {
   const isModified = event.ctrlKey || event.metaKey || event.altKey;
@@ -44,6 +48,10 @@ export const resolveCameraHotkey = (event: CameraHotkeyEventValue): SceneCameraC
   }
 
   if (isEditableTarget(event.target) || isInsideOverlay(event.target)) {
+    return undefined;
+  }
+
+  if (command.kind === 'home' && isInsideList(event.target)) {
     return undefined;
   }
 

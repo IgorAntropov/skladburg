@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query';
 
 import {
+  collectPages,
   createOrganizationQueryMeta,
   getOrganizationScope,
   useActingContext,
@@ -24,11 +25,11 @@ export const useWarehousesQuery = (): UseQueryResult<readonly Warehouse[]> => {
     meta: createOrganizationQueryMeta(organizationId),
     queryFn: organizationId === undefined
       ? skipToken
-      : async (): Promise<readonly Warehouse[]> => {
-        const response = await client.service(OrganizationService).listWarehouses({});
+      : (): Promise<readonly Warehouse[]> => collectPages(async (page) => {
+          const response = await client.service(OrganizationService).listWarehouses({ page });
 
-        return response.warehouses;
-      },
+          return { items: response.warehouses, nextPageToken: response.page?.nextPageToken ?? '' };
+        }),
     queryKey: warehouseKeys.list(getOrganizationScope(organizationId)),
   });
 };

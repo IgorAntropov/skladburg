@@ -2,7 +2,18 @@ export const APP_SECTIONS = ['network', 'catalog', 'deals', 'warehouse'] as cons
 
 export type AppSectionValue = typeof APP_SECTIONS[number];
 
-export const OBJECT_TYPES = ['deal', 'document', 'dashboard', 'handling_unit', 'cell', 'vehicle', 'trip', 'warehouse'] as const;
+export const OBJECT_TYPES = [
+  'deal',
+  'document',
+  'dashboard',
+  'handling_unit',
+  'cell',
+  'vehicle',
+  'trip',
+  'warehouse',
+  'site',
+  'city',
+] as const;
 
 export type AppAddressValue
   = | { kind: 'home' }
@@ -18,10 +29,12 @@ export type ObjectTypeValue = typeof OBJECT_TYPES[number];
 
 export const OBJECT_HOME_SECTION: Readonly<Record<ObjectTypeValue, AppSectionValue>> = {
   cell: 'warehouse',
+  city: 'network',
   dashboard: 'network',
   deal: 'deals',
   document: 'deals',
   handling_unit: 'warehouse',
+  site: 'network',
   trip: 'network',
   vehicle: 'network',
   warehouse: 'warehouse',
@@ -29,10 +42,12 @@ export const OBJECT_HOME_SECTION: Readonly<Record<ObjectTypeValue, AppSectionVal
 
 export const OBJECT_PATH_SEGMENTS: Readonly<Record<ObjectTypeValue, string>> = {
   cell: 'cells',
+  city: 'cities',
   dashboard: 'dashboards',
   deal: 'deals',
   document: 'documents',
   handling_unit: 'handling-units',
+  site: 'sites',
   trip: 'trips',
   vehicle: 'vehicles',
   warehouse: 'warehouses',

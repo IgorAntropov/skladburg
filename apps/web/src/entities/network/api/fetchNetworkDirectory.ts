@@ -2,9 +2,9 @@ import { NetworkService } from '@skladburg/contracts/network/v1/network';
 
 import type { ApiClient } from '@/shared/api';
 
-import type { NetworkDirectoryValue } from '../model/networkMapTypes';
+import { collectPages } from '@/shared/api';
 
-import { collectPages } from '../lib/collectPages';
+import type { NetworkDirectoryValue } from '../model/networkMapTypes';
 
 export const fetchNetworkDirectory = async (client: ApiClient): Promise<NetworkDirectoryValue> => {
   const [cities, mapNodes, routeLegs] = await Promise.all([

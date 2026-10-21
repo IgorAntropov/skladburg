@@ -42,6 +42,12 @@ const MAX_STARTUP_GZIP_KILOBYTES = 100;
 
 const MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES = 125;
 
+const MAX_NETWORK_INSPECTOR_GZIP_KILOBYTES = 112;
+
+const MAX_NETWORK_MINI_MAP_GZIP_KILOBYTES = 69;
+
+const MAX_NETWORK_SITES_GZIP_KILOBYTES = 95;
+
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
 const PRECACHE_GLOB_PATTERNS = ['**/*.{js,css,html,woff2,svg,png}'];
@@ -90,6 +96,24 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES,
     name: 'create-warehouse-form',
+  },
+  {
+    entries: ['src/pages/network/ui/inspector/NetworkInspectorBody.tsx'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_NETWORK_INSPECTOR_GZIP_KILOBYTES,
+    name: 'network-inspector',
+  },
+  {
+    entries: ['src/pages/network/ui/mini-map/NetworkMiniMap.tsx'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_NETWORK_MINI_MAP_GZIP_KILOBYTES,
+    name: 'network-mini-map',
+  },
+  {
+    entries: ['src/pages/network/ui/sites/NetworkSitesPanel.tsx'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_NETWORK_SITES_GZIP_KILOBYTES,
+    name: 'network-sites',
   },
 ];
 

@@ -26,3 +26,4 @@ export type {
 export { resolveLocale } from './localizer/resolveLocale';
 export { LocalizerProvider } from './react/LocalizerProvider';
 export { useI18n } from './react/useI18n';
+export { getOffsetLabel } from './translation/formatZonedDateTime';

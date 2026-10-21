@@ -174,10 +174,12 @@ describe('AppRoutes sections', () => {
   it.each(OBJECT_TYPES)('opens the object of the type %s in the page of its home section with the object', async (type) => {
     const segments = {
       cell: 'cells',
+      city: 'cities',
       dashboard: 'dashboards',
       deal: 'deals',
       document: 'documents',
       handling_unit: 'handling-units',
+      site: 'sites',
       trip: 'trips',
       vehicle: 'vehicles',
       warehouse: 'warehouses',

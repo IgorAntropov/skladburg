@@ -33,7 +33,7 @@ export const formatOffset = (rawOffset: string): string => {
   return `UTC${sign}${String(Number(hours))}${minutesPart}`;
 };
 
-const getOffsetLabel = (timeZone: string, instant: Date | number): string => {
+export const getOffsetLabel = (timeZone: string, instant: Date | number): string => {
   const parts = getDateTimeFormat(OFFSET_LOCALE, { timeZone, timeZoneName: 'longOffset' }).formatToParts(instant);
   const rawOffset = parts.find(part => part.type === 'timeZoneName')?.value ?? 'GMT';
 

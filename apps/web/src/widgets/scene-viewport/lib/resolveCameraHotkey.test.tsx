@@ -96,6 +96,31 @@ describe('resolveCameraHotkey', () => {
     expect(resolveCameraHotkey(createEvent({ target }))).toBeUndefined();
   });
 
+  it.each([
+    '<ul><li><button id="target"></button></li></ul>',
+    '<ol><li><button id="target"></button></li></ol>',
+    '<div role="grid"><div><button id="target"></button></div></div>',
+    '<div role="listbox"><div id="target" role="option"></div></div>',
+    '<div role="tree"><div id="target" role="treeitem"></div></div>',
+    '<div role="treegrid"><div id="target" role="row"></div></div>',
+  ])('does not give Home to the camera inside a list: %s', (markup) => {
+    const target = mount(markup, '#target');
+
+    expect(resolveCameraHotkey(createEvent({ code: 'Home', target }))).toBeUndefined();
+  });
+
+  it.each(['KeyQ', 'KeyE', 'Equal', 'NumpadAdd', 'Minus', 'NumpadSubtract'])('keeps %s working inside a list', (code) => {
+    const target = mount('<ul><li><button id="target"></button></li></ul>', '#target');
+
+    expect(resolveCameraHotkey(createEvent({ code, target }))).toBeDefined();
+  });
+
+  it('gives Home to the camera on a button outside the lists', () => {
+    const target = mount('<div><button id="target"></button></div>', '#target');
+
+    expect(resolveCameraHotkey(createEvent({ code: 'Home', target }))).toEqual({ kind: 'home' });
+  });
+
   it('works on a button and a plain element', () => {
     const target = mount('<button id="target"></button>', '#target');
 

@@ -5,12 +5,14 @@ import type {
   RouteLeg,
 } from '@skladburg/contracts/network/v1/network';
 
+import type { OrganizationSideValue } from '@/entities/organization/@x/network';
+
 export interface MapGridPointValue {
   column: number;
   row: number;
 }
 
-export type MapSideValue = 'carrier' | 'customer' | 'supplier';
+export type MapSideValue = OrganizationSideValue;
 
 export interface NetworkDirectoryValue {
   cities: readonly City[];

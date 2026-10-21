@@ -9,4 +9,7 @@ export {
   SIDE_BADGES,
   toOrganizationSide,
 } from './config/sideBadges';
+export type { SideShapeValue } from './config/sideShapes';
+export { SIDE_SHAPES } from './config/sideShapes';
 export { toTenantSettings } from './lib/toTenantSettings';
+export { SideShape } from './ui/SideShape';

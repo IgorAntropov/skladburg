@@ -71,6 +71,7 @@ const toListTabs = (
 };
 
 export const TabletHudLayout = ({
+  defaultListTabId,
   freeAreaRef,
   inspector,
   isInspectorOpen,
@@ -130,7 +131,7 @@ export const TabletHudLayout = ({
 
         >
           <div className={BOTTOM_TABS_CLASS_NAME} data-testid="hud-bottom-tabs">
-            <Tabs items={bottomTabs} label={t('hud.bottom.label')} />
+            <Tabs defaultTabId={defaultListTabId} items={bottomTabs} label={t('hud.bottom.label')} />
           </div>
         </HudZone>
       )}
@@ -151,7 +152,7 @@ export const TabletHudLayout = ({
           padding="edge"
 
         >
-          <ListsZoneContent header={listsHeader} tabs={listTabs} />
+          <ListsZoneContent defaultTabId={defaultListTabId} header={listsHeader} tabs={listTabs} />
         </HudZone>
       )}
       {isInspectorOpen && (

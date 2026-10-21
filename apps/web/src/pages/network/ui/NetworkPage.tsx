@@ -5,7 +5,6 @@ import {
   Handshake,
   ListChecks,
   Truck,
-  Warehouse,
 } from 'lucide-react';
 
 import type { ObjectRefValue } from '@/shared/routing';
@@ -17,21 +16,26 @@ import {
   useInspectorFocus,
   ZoneEmptyState,
 } from '@/widgets/hud-layout';
-import { ObjectInspector } from '@/widgets/object-inspector';
 import {
   SceneCameraControls,
   SceneViewport,
 } from '@/widgets/scene-viewport';
 
+import { useNetworkMapModel } from '../api/useNetworkMapModel';
 import { loadNetworkScene } from './loadNetworkScene';
+import { NetworkInspector } from './NetworkInspector';
+import { NetworkSitesTab } from './NetworkSitesTab';
 
 interface NetworkPageProps {
   focus: ObjectRefValue | undefined;
 }
 
+const SITES_TAB_ID = 'warehouses';
+
 export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
   const { t } = useI18n();
   const inspectorFocus = useInspectorFocus('network', focus);
+  const modelState = useNetworkMapModel();
 
   const listTabs: readonly TabsItemValue[] = [
     {
@@ -45,8 +49,9 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
       label: t('hud.lists.trips'),
     },
     {
-      content: <ZoneEmptyState icon={Warehouse} text={t('hud.lists.empty.warehouses')} />,
-      id: 'warehouses',
+      content: <NetworkSitesTab focus={focus} state={modelState} />,
+      count: modelState.data?.sites.length,
+      id: SITES_TAB_ID,
       label: t('hud.lists.warehouses'),
     },
   ];
@@ -56,7 +61,8 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
       <h1 className="sr-only">{t('section.network.title')}</h1>
       <HudLayout
         {...inspectorFocus}
-        inspector={<ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
+        defaultListTabId={SITES_TAB_ID}
+        inspector={<NetworkInspector focus={focus} onClose={inspectorFocus.onInspectorClose} state={modelState} />}
         kpi={<ZoneEmptyState icon={ChartNoAxesColumn} text={t('hud.kpi.empty')} />}
         listTabs={listTabs}
         scene={<SceneViewport label={t('section.network.placeholder')} loadScene={loadNetworkScene} />}

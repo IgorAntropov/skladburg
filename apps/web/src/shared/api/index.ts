@@ -23,6 +23,14 @@ export { parseApiError } from './errors/parseApiError';
 export { translateApiError } from './errors/translateApiError';
 export { translatePermissionDenial } from './errors/translatePermissionDenial';
 export { createIdempotencyKey } from './idempotency/createIdempotencyKey';
+export {
+  COLLECTED_PAGE_SIZE,
+  collectPages,
+} from './pagination/collectPages';
+export type {
+  PageRequestValue,
+  PageValue,
+} from './pagination/collectPages';
 export type { CommandAccessValue } from './permissions/commandAccessTypes';
 export type { PermissionMessageKeyValue } from './permissions/getPermissionMessageKey';
 export { getPermissionMessageKey } from './permissions/getPermissionMessageKey';

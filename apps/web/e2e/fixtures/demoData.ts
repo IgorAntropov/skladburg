@@ -42,3 +42,45 @@ export const NEW_WAREHOUSE = {
   cityName: 'Казань',
   name: 'Склад на Южной',
 } as const;
+
+export interface NetworkSiteValue {
+  cityName: string;
+  cityNodeId: string;
+  id: string;
+  label: string;
+}
+
+export const OWN_NETWORK_SITES = [
+  {
+    cityName: 'Москва',
+    cityNodeId: '70000001-0000-4000-8000-000000000000',
+    id: '80000001-0000-4000-8000-000000000000',
+    label: 'Склад 1',
+  },
+  {
+    cityName: 'Санкт-Петербург',
+    cityNodeId: '70000002-0000-4000-8000-000000000000',
+    id: '80000002-0000-4000-8000-000000000000',
+    label: 'Склад 2',
+  },
+  {
+    cityName: 'Казань',
+    cityNodeId: '70000003-0000-4000-8000-000000000000',
+    id: '80000003-0000-4000-8000-000000000000',
+    label: 'Склад 3',
+  },
+] as const satisfies readonly NetworkSiteValue[];
+
+export const FOREIGN_NETWORK_SITE = {
+  cityName: 'Краснодар',
+  cityNodeId: '70000004-0000-4000-8000-000000000000',
+  id: '80000004-0000-4000-8000-000000000000',
+  label: 'Поставщик 1',
+  sideName: 'Поставщик',
+} as const satisfies NetworkSiteValue & { sideName: string };
+
+export const UNKNOWN_NETWORK_SITE_ID = 'f7000001-0000-4000-8000-000000000000';
+
+export const NETWORK_SITE_COUNT = 9;
+
+export const NETWORK_CITY_COUNT = 9;

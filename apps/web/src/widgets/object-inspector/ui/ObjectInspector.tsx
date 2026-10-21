@@ -1,4 +1,7 @@
-import type { ReactElement } from 'react';
+import type {
+  ReactElement,
+  ReactNode,
+} from 'react';
 
 import {
   MousePointerClick,
@@ -11,8 +14,10 @@ import { useI18n } from '@/shared/i18n';
 import { Button } from '@/shared/ui';
 
 export interface ObjectInspectorProps {
+  children?: ReactNode | undefined;
   focus: ObjectRefValue | undefined;
   onClose: () => void;
+  title?: string | undefined;
 }
 
 const ROOT_CLASS_NAME = 'flex flex-1 flex-col gap-3';
@@ -36,8 +41,18 @@ const EMPTY_ICON_CLASS_NAME = 'flex size-10 shrink-0 items-center justify-center
 
 const EMPTY_TEXT_CLASS_NAME = 'max-w-80 text-base text-pretty text-on-panel-muted @xl:max-w-none';
 
-export const ObjectInspector = ({ focus, onClose }: ObjectInspectorProps): ReactElement => {
+export const ObjectInspector = ({
+  children,
+  focus,
+  onClose,
+  title,
+}: ObjectInspectorProps): ReactElement => {
   const { t } = useI18n();
+
+  const isEmptyShown = focus === undefined;
+  const isBodyShown = focus !== undefined && children !== undefined;
+  const isStubShown = focus !== undefined && children === undefined;
+  const heading = title ?? t('hud.inspector.title');
 
   const handleCloseClick = (): void => {
     console.log('> ObjectInspector -> handleCloseClick:', { focus });
@@ -47,7 +62,7 @@ export const ObjectInspector = ({ focus, onClose }: ObjectInspectorProps): React
   return (
     <div className={ROOT_CLASS_NAME}>
       <div className={HEADER_CLASS_NAME}>
-        <h2 className={TITLE_CLASS_NAME}>{t('hud.inspector.title')}</h2>
+        <h2 className={TITLE_CLASS_NAME}>{heading}</h2>
         {focus !== undefined && (
           <Button className={CLOSE_CLASS_NAME} onClick={handleCloseClick} variant="ghost">
             <X aria-hidden className="size-4" />
@@ -55,22 +70,22 @@ export const ObjectInspector = ({ focus, onClose }: ObjectInspectorProps): React
           </Button>
         )}
       </div>
-      {focus === undefined
-        ? (
-            <div className={EMPTY_CLASS_NAME}>
-              <span aria-hidden className={EMPTY_ICON_CLASS_NAME}>
-                <MousePointerClick className="size-5" />
-              </span>
-              <p className={EMPTY_TEXT_CLASS_NAME}>{t('hud.inspector.empty')}</p>
-            </div>
-          )
-        : (
-            <p className={OBJECT_CLASS_NAME}>
-              {t('hud.inspector.object', { type: t(`object.type.${focus.type}`) })}
-              {' '}
-              <span className={IDENTIFIER_CLASS_NAME} data-testid="object-note" translate="no">{focus.id}</span>
-            </p>
-          )}
+      {isEmptyShown && (
+        <div className={EMPTY_CLASS_NAME}>
+          <span aria-hidden className={EMPTY_ICON_CLASS_NAME}>
+            <MousePointerClick className="size-5" />
+          </span>
+          <p className={EMPTY_TEXT_CLASS_NAME}>{t('hud.inspector.empty')}</p>
+        </div>
+      )}
+      {isBodyShown && children}
+      {isStubShown && (
+        <p className={OBJECT_CLASS_NAME}>
+          {t('hud.inspector.object', { type: t(`object.type.${focus.type}`) })}
+          {' '}
+          <span className={IDENTIFIER_CLASS_NAME} data-testid="object-note" translate="no">{focus.id}</span>
+        </p>
+      )}
     </div>
   );
 };

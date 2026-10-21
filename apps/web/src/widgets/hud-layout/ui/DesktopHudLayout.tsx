@@ -25,6 +25,7 @@ import { HudZone } from './HudZone';
 import { ListsZoneContent } from './ListsZoneContent';
 
 export const DesktopHudLayout = ({
+  defaultListTabId,
   freeAreaRef,
   inspector,
   kpi,
@@ -92,7 +93,7 @@ export const DesktopHudLayout = ({
             label={t('hud.lists.label')}
 
           >
-            <ListsZoneContent header={listsHeader} tabs={listTabs} />
+            <ListsZoneContent defaultTabId={defaultListTabId} header={listsHeader} tabs={listTabs} />
           </HudZone>
         )}
       </div>

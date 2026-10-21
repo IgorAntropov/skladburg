@@ -34,6 +34,8 @@ describe('formatAddressPath', () => {
     ['vehicle', '/vehicles/'],
     ['trip', '/trips/'],
     ['warehouse', '/warehouses/'],
+    ['site', '/sites/'],
+    ['city', '/cities/'],
   ] as const)('formats the %s object with a plural kebab-case segment', (type, prefix) => {
     expect(formatAddressPath({ kind: 'object', object: { id: DEAL_ID, type } })).toBe(`${prefix}${DEAL_ID}`);
   });
@@ -71,10 +73,12 @@ describe('parseAddressPath round trip', () => {
   it('maps objects to their home sections', () => {
     expect(OBJECT_HOME_SECTION).toEqual({
       cell: 'warehouse',
+      city: 'network',
       dashboard: 'network',
       deal: 'deals',
       document: 'deals',
       handling_unit: 'warehouse',
+      site: 'network',
       trip: 'network',
       vehicle: 'network',
       warehouse: 'warehouse',

@@ -43,6 +43,8 @@ const CARD_CLASS_NAME = [
   'motion-safe:transition-opacity motion-safe:duration-(--duration-fast) motion-safe:ease-out motion-safe:starting:opacity-0',
 ].join(' ');
 
+const MESSAGE_CLASS_NAME = 'flex flex-col items-center gap-3';
+
 const BADGE_CLASS_NAME = 'flex size-10 shrink-0 items-center justify-center rounded-full';
 
 const NEUTRAL_BADGE_CLASS_NAME = 'bg-hover text-on-panel-muted';
@@ -64,17 +66,19 @@ export const ScenePlaceholder = ({
   const iconClassName = cn('size-5', isLoading && 'animate-spin motion-reduce:animate-none');
 
   return (
-    <div aria-hidden={isDecorative || undefined} className={ROOT_CLASS_NAME} role={role}>
+    <div aria-hidden={isDecorative || undefined} className={ROOT_CLASS_NAME}>
       <span className={BOARD_CLASS_NAME}>
         <span className={RISING_LINES_CLASS_NAME} />
         <span className={FALLING_LINES_CLASS_NAME} />
       </span>
       <div className={CARD_CLASS_NAME}>
-        <span aria-hidden className={badgeClassName}>
-          <LabelIcon className={iconClassName} />
-        </span>
-        <p className="text-base leading-6 font-medium text-balance">{label}</p>
-        {hint !== undefined && <p className="text-sm leading-5 text-balance text-on-panel-muted">{hint}</p>}
+        <div className={MESSAGE_CLASS_NAME} role={role}>
+          <span aria-hidden className={badgeClassName}>
+            <LabelIcon className={iconClassName} />
+          </span>
+          <p className="text-base leading-6 font-medium text-balance">{label}</p>
+          {hint !== undefined && <p className="text-sm leading-5 text-balance text-on-panel-muted">{hint}</p>}
+        </div>
         {action}
       </div>
     </div>

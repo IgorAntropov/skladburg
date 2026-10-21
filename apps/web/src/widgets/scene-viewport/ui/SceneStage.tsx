@@ -83,7 +83,7 @@ export const SceneStage = ({
 
   return (
     <SceneLayer className={STAGE_LAYER_CLASS_NAME}>
-      <div className={JUMP_FADE_LAYER_CLASS_NAME} ref={jumpFadeLayerRef}>
+      <div aria-hidden className={JUMP_FADE_LAYER_CLASS_NAME} ref={jumpFadeLayerRef}>
         <SceneRoot
           autoQuality={autoQuality}
           Content={sceneModule.default}

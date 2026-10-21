@@ -19,3 +19,9 @@ export const FIRST_SECTION: SectionValue = 'network';
 export const toSectionHash = (section: SectionValue): string => `#/${section}`;
 
 export const toObjectHash = ({ id, segment }: ObjectRouteValue): string => `#/${segment}/${id}`;
+
+export const toSiteRoute = (id: string): ObjectRouteValue => ({ id, section: 'network', segment: 'sites' });
+
+export const toCityRoute = (id: string): ObjectRouteValue => ({ id, section: 'network', segment: 'cities' });
+
+export const toWarehouseRoute = (id: string): ObjectRouteValue => ({ id, section: 'warehouse', segment: 'warehouses' });

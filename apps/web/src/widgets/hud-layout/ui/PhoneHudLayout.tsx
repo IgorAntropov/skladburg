@@ -18,6 +18,7 @@ import { ListsZoneContent } from './ListsZoneContent';
 const MAIN_ZONE_CLASS_NAME = cn(HUD_INTERACTIVE_CLASS_NAME, HUD_PHONE_MAIN_CLASS_NAME);
 
 export const PhoneHudLayout = ({
+  defaultListTabId,
   inspector,
   inspectorKey,
   isInspectorOpen,
@@ -36,7 +37,7 @@ export const PhoneHudLayout = ({
     <>
       {isListsMain && (
         <HudZone className={MAIN_ZONE_CLASS_NAME} label={t('hud.lists.label')}>
-          <ListsZoneContent header={listsHeader} tabs={listTabs} />
+          <ListsZoneContent defaultTabId={defaultListTabId} header={listsHeader} tabs={listTabs} />
         </HudZone>
       )}
       {isPanelMain && (

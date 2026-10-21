@@ -32,6 +32,7 @@ export const NetworkCityPlazas = ({ cities, hasShadowReceive }: NetworkCityPlaza
   return (
     <InstancedLayer
       count={cities.length}
+      delays={undefined}
       geometry={geometry}
       hasShadowCast={false}
       hasShadowReceive={hasShadowReceive}

@@ -142,3 +142,62 @@ export const createScanVoidPixelsScript = (base64: string): string => `
   return { height, samples, voidCount, width };
 })(${JSON.stringify(base64)})
 `;
+
+export const GLOW_MIN_RED = 230;
+
+export const GLOW_MIN_GREEN = 190;
+
+export const GLOW_MAX_BLUE = 170;
+
+export const WARM_SPOT_MIN_RED = 95;
+
+export const WARM_SPOT_MAX_RED = 115;
+
+export const WARM_SPOT_MIN_RED_MINUS_BLUE = 38;
+
+export const WARM_SPOT_MIN_RED_MINUS_GREEN = 27;
+
+export const createCountLightPixelsScript = (base64: string): string => `
+(async (base64) => {
+  const image = new Image();
+
+  image.src = 'data:image/png;base64,' + base64;
+  await image.decode();
+
+  const canvas = document.createElement('canvas');
+
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+
+  context.drawImage(image, 0, 0);
+
+  const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height);
+  let glowCount = 0;
+  let warmSpotCount = 0;
+
+  for (let offset = 0; offset < data.length; offset += 4) {
+    const red = data[offset];
+    const green = data[offset + 1];
+    const blue = data[offset + 2];
+    const isGlow = red >= ${String(GLOW_MIN_RED)}
+      && green >= ${String(GLOW_MIN_GREEN)}
+      && blue <= ${String(GLOW_MAX_BLUE)};
+    const isWarmSpot = red >= ${String(WARM_SPOT_MIN_RED)}
+      && red <= ${String(WARM_SPOT_MAX_RED)}
+      && red - blue >= ${String(WARM_SPOT_MIN_RED_MINUS_BLUE)}
+      && red - green >= ${String(WARM_SPOT_MIN_RED_MINUS_GREEN)};
+
+    if (isGlow) {
+      glowCount += 1;
+    }
+
+    if (isWarmSpot) {
+      warmSpotCount += 1;
+    }
+  }
+
+  return { glowCount, height, warmSpotCount, width };
+})(${JSON.stringify(base64)})
+`;

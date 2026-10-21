@@ -125,7 +125,7 @@
   --world-sky-night: #5b78d2;
   --world-ground-night: #8296cc;
   --world-background-night: #3c5264;
-  --world-road: #676b71;
+  --world-road: #494d54;
   --world-plaza: #bec1ba;
   --world-building-wall: #ece4d4;
   --world-building-roof: #b5694f;
@@ -136,6 +136,10 @@
   --world-side-supplier: #596517;
   --world-side-carrier: #6e285e;
   --world-side-rim: #ffffff;
+  --world-window-glass: #262e40;
+  --world-window-glow: #ffd27f;
+  --world-lamp-glow: #fff1c2;
+  --world-light-pool: #ff8000;
 }
 
 @utility shadow-panel {

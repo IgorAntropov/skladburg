@@ -13,6 +13,7 @@ import {
 import type { WorldPaletteValue } from '../palette/worldPaletteKeys';
 import type { WorldMaterialsContextValue } from './WorldMaterialsContext';
 
+import { createWorldGlowMaterialRegistry } from './createWorldGlowMaterialRegistry';
 import { createWorldMaterialRegistry } from './createWorldMaterialRegistry';
 import { WorldMaterialsContext } from './WorldMaterialsContext';
 
@@ -24,19 +25,22 @@ interface WorldMaterialsProviderProps {
 export const WorldMaterialsProvider = ({ children, palette }: WorldMaterialsProviderProps): ReactElement => {
   const invalidate = useThree(state => state.invalidate);
   const [registry] = useState(() => createWorldMaterialRegistry(palette));
+  const [glow] = useState(() => createWorldGlowMaterialRegistry(palette));
 
-  const contextValue = useMemo((): WorldMaterialsContextValue => ({ palette, registry }), [palette, registry]);
+  const contextValue = useMemo((): WorldMaterialsContextValue => ({ glow, palette, registry }), [glow, palette, registry]);
 
   useEffect(() => {
     registry.applyPalette(palette);
+    glow.applyPalette(palette);
     invalidate();
-  }, [invalidate, palette, registry]);
+  }, [glow, invalidate, palette, registry]);
 
   useEffect(() => {
     return () => {
       registry.dispose();
+      glow.dispose();
     };
-  }, [registry]);
+  }, [glow, registry]);
 
   return <WorldMaterialsContext value={contextValue}>{children}</WorldMaterialsContext>;
 };

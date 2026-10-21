@@ -21,6 +21,8 @@ const PALETTE_KEYS: readonly WorldPaletteKeyValue[] = [
   'groundAlt',
   'groundDay',
   'groundNight',
+  'lampGlow',
+  'lightPool',
   'moon',
   'plaza',
   'road',
@@ -41,6 +43,8 @@ const PALETTE_KEYS: readonly WorldPaletteKeyValue[] = [
   'warehouseRoof',
   'warehouseWall',
   'water',
+  'windowGlass',
+  'windowGlow',
 ];
 
 const createProperties = (): Map<string, string> => {

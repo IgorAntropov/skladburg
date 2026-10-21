@@ -9,9 +9,21 @@ export {
 } from './camera/sceneCameraRigContext';
 export { SceneCanvas } from './canvas/SceneCanvas';
 export { WorldGeometryProvider } from './geometry/WorldGeometryProvider';
+export {
+  DAY_NIGHT_KEYFRAMES,
+  MIN_LIGHT_ELEVATION_RADIANS,
+} from './lighting/dayNightKeyframes';
 export { DayNightRig } from './lighting/DayNightRig';
 export { useShadowMapRefresh } from './lighting/shadowMapRefresh';
 export type { ShadowMapSizeValue } from './lighting/shadowSettings';
+export {
+  computeGlowIntensity,
+  WORLD_GLOW_RAMP,
+} from './materials/computeGlowIntensity';
+export type { WorldGlowMaterialSpecValue } from './materials/createWorldGlowMaterialRegistry';
+export { WORLD_GLOW_DELAY_ATTRIBUTE } from './materials/glowShader';
+export { useDayNightValue } from './materials/useDayNightValue';
+export { useWorldGlowMaterial } from './materials/useWorldGlowMaterial';
 export { useWorldMaterial } from './materials/useWorldMaterial';
 export { WorldMaterialsProvider } from './materials/WorldMaterialsProvider';
 export { readWorldPalette } from './palette/readWorldPalette';

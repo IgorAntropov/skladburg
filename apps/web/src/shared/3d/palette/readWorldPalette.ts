@@ -30,6 +30,8 @@ export const readWorldPalette = (readProperty: (name: string) => string): WorldP
     groundAlt: readWorldColor(readProperty, WORLD_PALETTE_KEYS.groundAlt),
     groundDay: readWorldColor(readProperty, WORLD_PALETTE_KEYS.groundDay),
     groundNight: readWorldColor(readProperty, WORLD_PALETTE_KEYS.groundNight),
+    lampGlow: readWorldColor(readProperty, WORLD_PALETTE_KEYS.lampGlow),
+    lightPool: readWorldColor(readProperty, WORLD_PALETTE_KEYS.lightPool),
     moon: readWorldColor(readProperty, WORLD_PALETTE_KEYS.moon),
     plaza: readWorldColor(readProperty, WORLD_PALETTE_KEYS.plaza),
     road: readWorldColor(readProperty, WORLD_PALETTE_KEYS.road),
@@ -50,5 +52,7 @@ export const readWorldPalette = (readProperty: (name: string) => string): WorldP
     warehouseRoof: readWorldColor(readProperty, WORLD_PALETTE_KEYS.warehouseRoof),
     warehouseWall: readWorldColor(readProperty, WORLD_PALETTE_KEYS.warehouseWall),
     water: readWorldColor(readProperty, WORLD_PALETTE_KEYS.water),
+    windowGlass: readWorldColor(readProperty, WORLD_PALETTE_KEYS.windowGlass),
+    windowGlow: readWorldColor(readProperty, WORLD_PALETTE_KEYS.windowGlow),
   };
 };

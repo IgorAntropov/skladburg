@@ -47,6 +47,8 @@ const BARE_STATUS_ICON_THEMES: readonly ThemeNameValue[] = ['dark'];
 
 const { darkOverrideNames, tokens } = readThemeTokens(themeCss);
 
+const { DAY_NIGHT_KEYFRAMES, MIN_LIGHT_ELEVATION_RADIANS } = await import('@/shared/3d');
+
 const WORLD_TOKEN_PREFIX = '--world-';
 
 const WORLD_LIGHT_TOKEN_NAMES: readonly string[] = [
@@ -58,6 +60,12 @@ const WORLD_LIGHT_TOKEN_NAMES: readonly string[] = [
   'moon',
   'sky-night',
   'ground-night',
+];
+
+const WORLD_GLOW_TOKEN_NAMES: readonly string[] = [
+  'window-glow',
+  'lamp-glow',
+  'light-pool',
 ];
 
 const WORLD_TERRAIN_TOKEN_NAMES: readonly string[] = [
@@ -89,7 +97,9 @@ const readWorldDeclarations = (): [string, string][] => {
 const readWorldTokens = (): Map<string, string> => new Map(readWorldDeclarations());
 
 const readWorldSurfaceEntries = (): [string, string][] => {
-  return [...readWorldTokens()].filter(([name]) => !WORLD_LIGHT_TOKEN_NAMES.includes(name));
+  return [...readWorldTokens()].filter(([name]) => {
+    return !WORLD_LIGHT_TOKEN_NAMES.includes(name) && !WORLD_GLOW_TOKEN_NAMES.includes(name);
+  });
 };
 
 const readWorldSurfaceTokens = (): string[] => {
@@ -301,8 +311,8 @@ const WORLD_ROOF_TOKEN_NAMES: readonly string[] = [
   'warehouse-roof',
 ];
 
-const ROAD_COLOR_DISTANCE = 30;
-const ROAD_LUMINANCE_CONTRAST = 1.8;
+const ROAD_COLOR_DISTANCE = 40;
+const ROAD_LUMINANCE_CONTRAST = 2.9;
 const PLAZA_COLOR_DISTANCE = 15;
 const ROOF_COLOR_DISTANCE = 25;
 const WALL_COLOR_DISTANCE = 25;
@@ -564,6 +574,246 @@ describe('world city surfaces', () => {
 
   it('keeps the road darker than the plaza', () => {
     expect(relativeLuminance(readWorldColor('road'))).toBeLessThan(relativeLuminance(readWorldColor('plaza')));
+  });
+});
+
+type FaceNormalValue = readonly [number, number, number];
+
+type LinearColorValue = readonly [number, number, number];
+
+interface WorldPhasePaletteValue {
+  ground: string;
+  light: string;
+  sky: string;
+}
+
+type WorldPhaseValue = 'day' | 'night';
+
+const WORLD_PHASE_PALETTES: Readonly<Record<WorldPhaseValue, WorldPhasePaletteValue>> = {
+  day: {
+    ground: 'ground-day',
+    light: 'sun-day',
+    sky: 'sky-day',
+  },
+  night: {
+    ground: 'ground-night',
+    light: 'moon',
+    sky: 'sky-night',
+  },
+};
+
+const UP_NORMAL: FaceNormalValue = [0, 1, 0];
+
+const WALL_NORMALS: readonly FaceNormalValue[] = [
+  [1, 0, 0],
+  [-1, 0, 0],
+  [0, 0, 1],
+  [0, 0, -1],
+];
+
+const WORLD_WALL_TOKEN_NAMES: readonly string[] = ['building-wall', 'warehouse-wall'];
+
+const WORLD_CORNER_GROUND_TOKEN_NAMES: readonly string[] = [...WORLD_OPEN_GROUND_TOKEN_NAMES, 'plaza'];
+
+const WORLD_POOL_GROUND_TOKEN_NAMES: readonly string[] = [...WORLD_OPEN_GROUND_TOKEN_NAMES, 'plaza', 'road'];
+
+const GLOW_CONTRAST = 3;
+const WINDOW_SWITCH_CONTRAST = 8;
+const WINDOW_GLASS_DAY_CONTRAST = 3;
+const WINDOW_GLASS_NIGHT_CONTRAST = 1.5;
+const LIGHT_POOL_DISC_STRENGTH = 0.105;
+const LIGHT_POOL_DISC_COUNT = 3;
+const LIGHT_POOL_STRENGTH = LIGHT_POOL_DISC_STRENGTH * LIGHT_POOL_DISC_COUNT;
+const LIGHT_POOL_MIN_CONTRAST = 1.5;
+const LIGHT_POOL_MAX_LUMINANCE = 0.3;
+const LAMP_OVER_POOL_CONTRAST = 2.5;
+const HALO_SHELL_STRENGTH = 0.085;
+const HALO_SHELL_COUNT = 2;
+const HALO_MIN_CONTRAST = 1.15;
+const POOL_WARM_MIN_RED_OVER_BLUE = 15;
+const POOL_WARM_MIN_RED_OVER_GREEN = 10;
+const SCREEN_CHANNEL_MAX = 255;
+const ROAD_NIGHT_CONTRAST = 1.7;
+const CORNER_GROUND_CONTRAST = 3;
+const CORNER_LAYERS_CONTRAST = 5;
+const RIM_NIGHT_CONTRAST = 4.5;
+
+const delinearizeChannel = (linear: number): number => {
+  const clamped = Math.min(1, Math.max(0, linear));
+  const unit = clamped <= 0.0031308 ? clamped * 12.92 : 1.055 * clamped ** (1 / 2.4) - 0.055;
+
+  return unit * 255;
+};
+
+const toLinearColor = (color: RgbaColorValue): LinearColorValue => {
+  return [linearizeChannel(color.red), linearizeChannel(color.green), linearizeChannel(color.blue)];
+};
+
+const fromLinearColor = (linear: LinearColorValue): RgbaColorValue => {
+  return {
+    alpha: 1,
+    blue: delinearizeChannel(linear[2]),
+    green: delinearizeChannel(linear[1]),
+    red: delinearizeChannel(linear[0]),
+  };
+};
+
+const lightFace = (albedo: RgbaColorValue, phase: WorldPhaseValue, normal: FaceNormalValue): RgbaColorValue => {
+  const keyframe = DAY_NIGHT_KEYFRAMES[phase];
+  const palette = WORLD_PHASE_PALETTES[phase];
+  const albedoLinear = toLinearColor(albedo);
+  const skyLinear = toLinearColor(readWorldColor(palette.sky));
+  const groundLinear = toLinearColor(readWorldColor(palette.ground));
+  const lightLinear = toLinearColor(readWorldColor(palette.light));
+  const hemisphereWeight = 0.5 + 0.5 * normal[1];
+  const elevation = Math.max(MIN_LIGHT_ELEVATION_RADIANS, keyframe.lightElevationRadians);
+  const horizontal = Math.cos(elevation);
+  const direction: FaceNormalValue = [
+    horizontal * Math.sin(keyframe.lightAzimuthRadians),
+    Math.sin(elevation),
+    horizontal * Math.cos(keyframe.lightAzimuthRadians),
+  ];
+  const facing = Math.max(0, normal[0] * direction[0] + normal[1] * direction[1] + normal[2] * direction[2]);
+
+  const lightChannel = (channel: 0 | 1 | 2): number => {
+    const hemisphere = skyLinear[channel] * hemisphereWeight + groundLinear[channel] * (1 - hemisphereWeight);
+    const irradiance = hemisphere * keyframe.hemisphereIntensity
+      + lightLinear[channel] * keyframe.lightIntensity * facing;
+
+    return (albedoLinear[channel] * irradiance) / Math.PI;
+  };
+
+  return fromLinearColor([lightChannel(0), lightChannel(1), lightChannel(2)]);
+};
+
+const lightFlatSurface = (name: string, phase: WorldPhaseValue): RgbaColorValue => {
+  return lightFace(readWorldColor(name), phase, UP_NORMAL);
+};
+
+const readNightSurfaces = (): RgbaColorValue[] => {
+  const flat = WORLD_POOL_GROUND_TOKEN_NAMES.map(name => lightFlatSurface(name, 'night'));
+  const walls = WORLD_WALL_TOKEN_NAMES.flatMap((name) => {
+    return WALL_NORMALS.map(normal => lightFace(readWorldColor(name), 'night', normal));
+  });
+
+  return [...flat, ...walls];
+};
+
+const addGlowOnScreen = (surface: RgbaColorValue, glowName: string, strength: number): RgbaColorValue => {
+  const glow = readWorldColor(glowName);
+
+  return {
+    alpha: 1,
+    blue: Math.min(SCREEN_CHANNEL_MAX, surface.blue + glow.blue * strength),
+    green: Math.min(SCREEN_CHANNEL_MAX, surface.green + glow.green * strength),
+    red: Math.min(SCREEN_CHANNEL_MAX, surface.red + glow.red * strength),
+  };
+};
+
+const readWorstContrast = (foreground: RgbaColorValue, backdrops: readonly RgbaColorValue[]): number => {
+  return Math.min(...backdrops.map(backdrop => contrastRatio(foreground, backdrop)));
+};
+
+describe('world night glow', () => {
+  it('declares every color of the night glow', () => {
+    const missingNames = ['window-glass', ...WORLD_GLOW_TOKEN_NAMES].filter(name => !readWorldTokens().has(name));
+
+    expect(missingNames).toEqual([]);
+  });
+
+  it('models the night ground as the measured lit meadow', () => {
+    const meadow = lightFlatSurface('ground', 'night');
+
+    expect([meadow.red, meadow.green, meadow.blue].map(Math.round)).toEqual([0x3b, 0x52, 0x64]);
+  });
+
+  it.each(['window-glow', 'lamp-glow'])('keeps %s at 3:1 on every surface lit by the night', (name) => {
+    expect(readWorstContrast(readWorldColor(name), readNightSurfaces())).toBeGreaterThanOrEqual(GLOW_CONTRAST);
+  });
+
+  it('lights the lamp head brighter than the window', () => {
+    expect(relativeLuminance(readWorldColor('lamp-glow'))).toBeGreaterThan(relativeLuminance(readWorldColor('window-glow')));
+  });
+
+  it('tells a lit window from a dark one', () => {
+    expect(measureLuminanceContrast('window-glow', 'window-glass')).toBeGreaterThanOrEqual(WINDOW_SWITCH_CONTRAST);
+  });
+
+  it('keeps the dark window glass visible on the walls by day', () => {
+    const dayWalls = WORLD_WALL_TOKEN_NAMES.flatMap((name) => {
+      return WALL_NORMALS.map(normal => lightFace(readWorldColor(name), 'day', normal));
+    });
+
+    expect(readWorstContrast(readWorldColor('window-glass'), dayWalls)).toBeGreaterThanOrEqual(WINDOW_GLASS_DAY_CONTRAST);
+  });
+
+  it('keeps the dark window glass darker than the walls by night', () => {
+    const nightWalls = WORLD_WALL_TOKEN_NAMES.flatMap((name) => {
+      return WALL_NORMALS.map(normal => lightFace(readWorldColor(name), 'night', normal));
+    });
+
+    expect(readWorstContrast(readWorldColor('window-glass'), nightWalls)).toBeGreaterThanOrEqual(WINDOW_GLASS_NIGHT_CONTRAST);
+  });
+
+  it.each(WORLD_POOL_GROUND_TOKEN_NAMES)('lights the pool on the %s lighter than the surface and below the lamp head', (name) => {
+    const surface = lightFlatSurface(name, 'night');
+    const pooled = addGlowOnScreen(surface, 'light-pool', LIGHT_POOL_STRENGTH);
+
+    expect(contrastRatio(pooled, surface)).toBeGreaterThanOrEqual(LIGHT_POOL_MIN_CONTRAST);
+    expect(relativeLuminance(pooled)).toBeGreaterThan(relativeLuminance(surface));
+    expect(relativeLuminance(pooled)).toBeLessThanOrEqual(LIGHT_POOL_MAX_LUMINANCE);
+    expect(contrastRatio(readWorldColor('lamp-glow'), pooled)).toBeGreaterThanOrEqual(LAMP_OVER_POOL_CONTRAST);
+  });
+
+  it.each(WORLD_POOL_GROUND_TOKEN_NAMES)('keeps the pool on the %s warm as the shader adds it in screen sRGB', (name) => {
+    const pooled = addGlowOnScreen(lightFlatSurface(name, 'night'), 'light-pool', LIGHT_POOL_STRENGTH);
+
+    expect(pooled.red - pooled.blue).toBeGreaterThanOrEqual(POOL_WARM_MIN_RED_OVER_BLUE);
+    expect(pooled.red - pooled.green).toBeGreaterThanOrEqual(POOL_WARM_MIN_RED_OVER_GREEN);
+  });
+
+  it.each(WORLD_POOL_GROUND_TOKEN_NAMES)('keeps the halo over the %s visible and weaker than the pool', (name) => {
+    const surface = lightFlatSurface(name, 'night');
+    const haloEdge = addGlowOnScreen(surface, 'light-pool', HALO_SHELL_STRENGTH);
+    const haloCenter = addGlowOnScreen(surface, 'light-pool', HALO_SHELL_STRENGTH * HALO_SHELL_COUNT);
+    const pooled = addGlowOnScreen(surface, 'light-pool', LIGHT_POOL_STRENGTH);
+
+    expect(contrastRatio(haloEdge, surface)).toBeGreaterThanOrEqual(HALO_MIN_CONTRAST);
+    expect(relativeLuminance(haloCenter)).toBeLessThan(relativeLuminance(pooled));
+  });
+
+  it.each(WORLD_OPEN_GROUND_TOKEN_NAMES)('keeps the road by night darker than the %s with a visible step', (ground) => {
+    const road = lightFlatSurface('road', 'night');
+    const surface = lightFlatSurface(ground, 'night');
+
+    expect(relativeLuminance(road)).toBeLessThan(relativeLuminance(surface));
+    expect(contrastRatio(road, surface)).toBeGreaterThanOrEqual(ROAD_NIGHT_CONTRAST);
+  });
+});
+
+describe('world selection corners without lighting', () => {
+  it.each(WORLD_CORNER_GROUND_TOKEN_NAMES)('holds 3:1 on the %s by day with the better of the two layers', (name) => {
+    const surface = lightFlatSurface(name, 'day');
+    const better = Math.max(
+      contrastRatio(readWorldColor('side-rim'), surface),
+      contrastRatio(readWorldColor('road'), surface),
+    );
+
+    expect(better).toBeGreaterThanOrEqual(CORNER_GROUND_CONTRAST);
+  });
+
+  it.each(WORLD_CORNER_GROUND_TOKEN_NAMES)('holds 3:1 on the %s by night with the light layer', (name) => {
+    const surface = lightFlatSurface(name, 'night');
+
+    expect(contrastRatio(readWorldColor('side-rim'), surface)).toBeGreaterThanOrEqual(CORNER_GROUND_CONTRAST);
+  });
+
+  it('keeps the light layer apart from the dark one', () => {
+    expect(measureLuminanceContrast('side-rim', 'road')).toBeGreaterThanOrEqual(CORNER_LAYERS_CONTRAST);
+  });
+
+  it('holds the white rim of a chip against every lit surface by night', () => {
+    expect(readWorstContrast(readWorldColor('side-rim'), readNightSurfaces())).toBeGreaterThanOrEqual(RIM_NIGHT_CONTRAST);
   });
 });
 

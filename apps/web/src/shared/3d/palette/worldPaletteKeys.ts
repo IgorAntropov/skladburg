@@ -12,6 +12,8 @@ export const WORLD_PALETTE_KEYS = {
   groundAlt: '--world-ground-alt',
   groundDay: '--world-ground-day',
   groundNight: '--world-ground-night',
+  lampGlow: '--world-lamp-glow',
+  lightPool: '--world-light-pool',
   moon: '--world-moon',
   plaza: '--world-plaza',
   road: '--world-road',
@@ -32,6 +34,8 @@ export const WORLD_PALETTE_KEYS = {
   warehouseRoof: '--world-warehouse-roof',
   warehouseWall: '--world-warehouse-wall',
   water: '--world-water',
+  windowGlass: '--world-window-glass',
+  windowGlow: '--world-window-glow',
 } as const;
 
 export type WorldPaletteKeyValue = keyof typeof WORLD_PALETTE_KEYS;

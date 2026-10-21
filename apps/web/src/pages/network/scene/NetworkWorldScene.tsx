@@ -27,11 +27,19 @@ import { useNetworkPointerPicking } from './interaction/useNetworkPointerPicking
 import { NetworkBuildings } from './layers/NetworkBuildings';
 import { NetworkCityLabels } from './layers/NetworkCityLabels';
 import { NetworkCityPlazas } from './layers/NetworkCityPlazas';
+import { NetworkLampLight } from './layers/NetworkLampLight';
 import { NetworkRoads } from './layers/NetworkRoads';
 import { NetworkSelectionCorners } from './layers/NetworkSelectionCorners';
 import { NetworkSiteChips } from './layers/NetworkSiteChips';
+import { NetworkStreetLamps } from './layers/NetworkStreetLamps';
+import { NetworkWindows } from './layers/NetworkWindows';
+import { useGlowProgramWarmup } from './layers/useGlowProgramWarmup';
 import { buildNetworkSceneLayout } from './layout';
 import { NETWORK_WORLD_SEED } from './networkWorldConstants';
+import {
+  buildStreetLamps,
+  buildWindowInstances,
+} from './night';
 
 const createTerrainParams = (layout: NetworkSceneLayoutValue): Parameters<typeof loadWorldTerrain>[0] => ({
   reserved: layout.terrainReserved,
@@ -54,9 +62,12 @@ const NetworkWorldScene = ({
   const terrain = loadWorldTerrain.peek(createTerrainParams(layout));
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const boxGeometry = useMemo((): BufferGeometry => createUnitBoxGeometry(), []);
+  const windows = useMemo(() => buildWindowInstances(layout.buildings, layout.cities), [layout.buildings, layout.cities]);
+  const lamps = useMemo(() => buildStreetLamps(layout.roads, layout.cities), [layout.cities, layout.roads]);
 
   useNetworkCameraFocus(layout, interaction);
   useNetworkPointerPicking(layout, interaction);
+  useGlowProgramWarmup();
 
   useEffect(() => {
     return () => {
@@ -72,8 +83,10 @@ const NetworkWorldScene = ({
     <>
       <WorldTerrain level={level} terrain={terrain} />
       <NetworkRoads hasShadowReceive={hasShadows} roads={layout.roads} />
+      <NetworkStreetLamps boxGeometry={boxGeometry} lamps={lamps} level={level} />
       <NetworkCityPlazas cities={layout.cities} hasShadowReceive={hasShadows} />
       <NetworkBuildings boxGeometry={boxGeometry} buildings={layout.buildings} level={level} />
+      <NetworkWindows level={level} windows={windows} />
       <NetworkSelectionCorners
         boxGeometry={boxGeometry}
         buildings={layout.buildings}
@@ -81,6 +94,7 @@ const NetworkWorldScene = ({
         selectedId={interaction?.selected?.id}
       />
       <NetworkSiteChips boxGeometry={boxGeometry} buildings={layout.buildings} hoveredId={interaction?.hoveredId} />
+      <NetworkLampLight lamps={lamps} level={level} />
       <NetworkCityLabels cities={layout.cities} hoveredId={interaction?.hoveredId} selectedId={interaction?.selected?.id} />
     </>
   );

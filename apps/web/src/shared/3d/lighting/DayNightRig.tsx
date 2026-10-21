@@ -22,6 +22,7 @@ import type { QualityLevelValue } from '../quality/qualityLevel';
 import type { SceneWorldValue } from '../world/sceneWorld';
 import type { ShadowMapSizeValue } from './shadowSettings';
 
+import { useWorldMaterialsContext } from '../materials/useWorldMaterialsContext';
 import { useWorldPalette } from '../materials/useWorldPalette';
 import { QUALITY_LEVEL_SETTINGS } from '../quality/qualityLevel';
 import { setSceneBackground } from '../world/setSceneBackground';
@@ -55,6 +56,7 @@ export const DayNightRig = ({
   world,
 }: DayNightRigProps): ReactElement => {
   const palette = useWorldPalette();
+  const { glow } = useWorldMaterialsContext();
   const scene = useThree(state => state.scene);
   const gl = useThree(state => state.gl);
   const invalidate = useThree(state => state.invalidate);
@@ -77,6 +79,7 @@ export const DayNightRig = ({
 
   const applyLighting = useCallback((): void => {
     computeDayNightLighting(tween.value, palette, lighting);
+    glow.applyDayNight(tween.value);
 
     const light = lightRef.current;
     const hemisphere = hemisphereRef.current;
@@ -96,7 +99,7 @@ export const DayNightRig = ({
       frustum.centerY + lighting.lightDirection.y * frustum.distance,
       frustum.centerZ + lighting.lightDirection.z * frustum.distance,
     );
-  }, [frustum, lighting, palette, tween]);
+  }, [frustum, glow, lighting, palette, tween]);
 
   useLayoutEffect(() => {
     const light = lightRef.current;

@@ -41,6 +41,8 @@ const PALETTE: WorldPaletteValue = {
   groundAlt: rgb(10, 11, 12),
   groundDay: rgb(90, 140, 70),
   groundNight: rgb(10, 20, 60),
+  lampGlow: rgb(255, 241, 194),
+  lightPool: rgb(255, 207, 142),
   moon: rgb(120, 150, 255),
   plaza: rgb(190, 193, 186),
   road: rgb(103, 107, 113),
@@ -61,6 +63,8 @@ const PALETTE: WorldPaletteValue = {
   warehouseRoof: rgb(127, 141, 164),
   warehouseWall: rgb(211, 218, 224),
   water: rgb(28, 29, 30),
+  windowGlass: rgb(38, 46, 64),
+  windowGlow: rgb(255, 210, 127),
 };
 
 const STEPS = 200;

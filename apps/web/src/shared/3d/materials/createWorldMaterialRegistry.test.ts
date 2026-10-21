@@ -27,6 +27,8 @@ const createUniformPalette = (color: RgbaColorValue): WorldPaletteValue => {
     groundAlt: color,
     groundDay: color,
     groundNight: color,
+    lampGlow: color,
+    lightPool: color,
     moon: color,
     plaza: color,
     road: color,
@@ -47,6 +49,8 @@ const createUniformPalette = (color: RgbaColorValue): WorldPaletteValue => {
     warehouseRoof: color,
     warehouseWall: color,
     water: color,
+    windowGlass: color,
+    windowGlow: color,
   };
 };
 

@@ -32,6 +32,8 @@ export class ImmediateResizeObserver {
 
 export const createFakeRenderer = (domElement: unknown): Record<string, unknown> => ({
   capabilities: {},
+  compile: (): void => undefined,
+  compileAsync: (): Promise<void> => Promise.resolve(),
   dispose: (): void => undefined,
   domElement,
   extensions: {},

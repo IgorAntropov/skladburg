@@ -20,7 +20,7 @@ import {
 import type { MapSideValue } from '@/entities/network';
 
 import { SIDE_SHAPES } from '@/entities/organization';
-import { useWorldMaterial } from '@/shared/3d';
+import { useWorldGlowMaterial } from '@/shared/3d';
 
 import type { ChipSlotValue } from '../geometry/buildChipSets';
 import type { ChipGeometriesValue } from '../geometry/createChipGeometry';
@@ -40,6 +40,11 @@ import { INSTANCE_MATRIX_ITEM_SIZE } from '../geometry/composeInstanceMatrix';
 import { createChipGeometries } from '../geometry/createChipGeometry';
 import { createOwnMarkerGeometries } from '../geometry/createOwnMarkerGeometry';
 import { CHIP_AZIMUTH_EPSILON_RADIANS } from '../geometry/networkSceneMetrics';
+import {
+  UNLIT_RIM_SPEC,
+  UNLIT_ROAD_SPEC,
+  UNLIT_SIDE_SPECS,
+} from './glowSpecs';
 import { InstancedLayer } from './InstancedLayer';
 import { markInstanceMatricesUpdated } from './markInstanceMatricesUpdated';
 
@@ -59,11 +64,11 @@ export const NetworkSiteChips = ({ boxGeometry, buildings, hoveredId }: NetworkS
   const camera = useThree(state => state.camera);
   const invalidate = useThree(state => state.invalidate);
 
-  const customerMaterial = useWorldMaterial('sideCustomer');
-  const supplierMaterial = useWorldMaterial('sideSupplier');
-  const carrierMaterial = useWorldMaterial('sideCarrier');
-  const rimMaterial = useWorldMaterial('sideRim');
-  const markerOutlineMaterial = useWorldMaterial('road');
+  const customerMaterial = useWorldGlowMaterial(UNLIT_SIDE_SPECS.customer);
+  const supplierMaterial = useWorldGlowMaterial(UNLIT_SIDE_SPECS.supplier);
+  const carrierMaterial = useWorldGlowMaterial(UNLIT_SIDE_SPECS.carrier);
+  const rimMaterial = useWorldGlowMaterial(UNLIT_RIM_SPEC);
+  const markerOutlineMaterial = useWorldGlowMaterial(UNLIT_ROAD_SPEC);
 
   const groupRef = useRef<Group>(null);
   const azimuthRef = useRef(0);
@@ -136,6 +141,7 @@ export const NetworkSiteChips = ({ boxGeometry, buildings, hoveredId }: NetworkS
           <Fragment key={set.side}>
             <InstancedLayer
               count={set.count}
+              delays={undefined}
               geometry={chipGeometries[set.side].rim}
               hasShadowCast={false}
               hasShadowReceive={false}
@@ -145,6 +151,7 @@ export const NetworkSiteChips = ({ boxGeometry, buildings, hoveredId }: NetworkS
             />
             <InstancedLayer
               count={set.count}
+              delays={undefined}
               geometry={chipGeometries[set.side].body}
               hasShadowCast={false}
               hasShadowReceive={false}
@@ -156,6 +163,7 @@ export const NetworkSiteChips = ({ boxGeometry, buildings, hoveredId }: NetworkS
         ))}
         <InstancedLayer
           count={chipSets.markers.count}
+          delays={undefined}
           geometry={markerGeometries.outline}
           hasShadowCast={false}
           hasShadowReceive={false}
@@ -165,6 +173,7 @@ export const NetworkSiteChips = ({ boxGeometry, buildings, hoveredId }: NetworkS
         />
         <InstancedLayer
           count={chipSets.markers.count}
+          delays={undefined}
           geometry={markerGeometries.house}
           hasShadowCast={false}
           hasShadowReceive={false}
@@ -175,6 +184,7 @@ export const NetworkSiteChips = ({ boxGeometry, buildings, hoveredId }: NetworkS
       </group>
       <InstancedLayer
         count={chipSets.postMatrices.length / INSTANCE_MATRIX_ITEM_SIZE}
+        delays={undefined}
         geometry={boxGeometry}
         hasShadowCast={false}
         hasShadowReceive={false}

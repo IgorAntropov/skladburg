@@ -16,6 +16,7 @@ import { useEffect } from 'react';
 import {
   BoxGeometry,
   InstancedMesh,
+  MeshBasicMaterial,
 } from 'three';
 import {
   afterEach,
@@ -153,6 +154,18 @@ const drawFrame = (state: () => RootState, timestamp: number): void => {
   });
 };
 
+const readMaterials = (state: RootState): unknown[] => {
+  const materials: unknown[] = [];
+
+  state.scene.traverse((object) => {
+    if (object instanceof InstancedMesh) {
+      materials.push(object.material);
+    }
+  });
+
+  return materials;
+};
+
 const readCornerMeshes = (state: RootState): MeshReadingValue[] => readMeshes(state).filter(mesh => mesh.count === 8);
 
 const readCornerReach = (mesh: MeshReadingValue | undefined): number => {
@@ -177,6 +190,19 @@ describe('selection and own site layers', () => {
     cleanup();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it('draws the chips, the posts, the house marks and the corners with materials that no light touches', async () => {
+    const { state } = await renderLayers({ hoveredId: undefined, selectedId: 'own' });
+    const materials = readMaterials(state());
+
+    expect(materials).toHaveLength(readMeshes(state()).length);
+    expect(materials.length).toBeGreaterThanOrEqual(9);
+
+    for (const material of materials) {
+      expect(material).toBeInstanceOf(MeshBasicMaterial);
+      expect(material).toMatchObject({ transparent: false, visible: true });
+    }
   });
 
   it('draws no corners while nothing is selected', async () => {

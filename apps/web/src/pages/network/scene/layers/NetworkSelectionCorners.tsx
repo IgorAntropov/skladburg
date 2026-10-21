@@ -14,7 +14,7 @@ import {
   useRef,
 } from 'react';
 
-import { useWorldMaterial } from '@/shared/3d';
+import { useWorldGlowMaterial } from '@/shared/3d';
 
 import type { CornerAnimationValue } from '../geometry/cornerAppear';
 import type { SelectionFrameValue } from '../geometry/selectionFrame';
@@ -36,6 +36,10 @@ import {
   writeSelectionCorners,
 } from '../geometry/writeSelectionCorners';
 import { readPrefersReducedMotion } from '../motion/readPrefersReducedMotion';
+import {
+  UNLIT_RIM_SPEC,
+  UNLIT_ROAD_SPEC,
+} from './glowSpecs';
 import { InstancedLayer } from './InstancedLayer';
 import { markInstanceMatricesUpdated } from './markInstanceMatricesUpdated';
 
@@ -56,8 +60,8 @@ export const NetworkSelectionCorners = ({
 }: NetworkSelectionCornersProps): null | ReactElement => {
   const invalidate = useThree(state => state.invalidate);
 
-  const lightMaterial = useWorldMaterial('sideRim');
-  const darkMaterial = useWorldMaterial('road');
+  const lightMaterial = useWorldGlowMaterial(UNLIT_RIM_SPEC);
+  const darkMaterial = useWorldGlowMaterial(UNLIT_ROAD_SPEC);
 
   const groupRef = useRef<Group>(null);
   const frameRef = useRef<SelectionFrameValue | undefined>(undefined);
@@ -113,6 +117,7 @@ export const NetworkSelectionCorners = ({
     <group ref={groupRef}>
       <InstancedLayer
         count={SELECTION_CORNER_INSTANCE_COUNT}
+        delays={undefined}
         geometry={boxGeometry}
         hasShadowCast={false}
         hasShadowReceive={false}
@@ -122,6 +127,7 @@ export const NetworkSelectionCorners = ({
       />
       <InstancedLayer
         count={SELECTION_CORNER_INSTANCE_COUNT}
+        delays={undefined}
         geometry={boxGeometry}
         hasShadowCast={false}
         hasShadowReceive={false}

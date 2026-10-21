@@ -2,6 +2,7 @@ export { getBuildingFootprint } from './buildingFootprint';
 export {
   getVisibleBuildingCount,
   isBuildingVisible,
+  orderBuildingsForDensity,
 } from './buildingVisibility';
 export { buildNetworkSceneLayout } from './buildNetworkSceneLayout';
 export {

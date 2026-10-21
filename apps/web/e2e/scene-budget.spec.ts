@@ -7,6 +7,7 @@ import {
   test,
 } from './fixtures/test.ts';
 import { DESKTOP_VIEWPORT } from './fixtures/viewports.ts';
+import { createSceneEdgeRobot } from './robots/scene-edge-robot.ts';
 import { createSceneRobot } from './robots/scene-robot.ts';
 
 interface RotationMeasurementValue {
@@ -19,6 +20,7 @@ interface RotationMeasurementValue {
 }
 
 interface ThemeSwitchMeasurementValue {
+  drawCallsPerFrame: number;
   frames: number;
   longTaskCount: number;
   longTaskMaxMs: number;
@@ -40,6 +42,8 @@ const MIN_THEME_TRANSITION_FRAMES = 10;
 const MIN_THEME_TRANSITION_MS = 2000;
 const MAX_THEME_TRANSITION_MS = 5000;
 const MAX_THEME_APPLY_MS = 1000;
+const MIN_NIGHT_GLOW_PIXELS = 100;
+const MIN_NIGHT_WARM_SPOT_PIXELS = 200;
 
 const openReadyWorld = async (scene: SceneRobotValue): Promise<void> => {
   await scene.openNetwork();
@@ -88,22 +92,34 @@ const openReadyWorldInColorScheme = async (
   await scene.waitForIdle();
 };
 
-const measureThemeSwitch = async (
+const settleThemeSwitch = async (
   scene: SceneRobotValue,
   colorScheme: ColorSchemeValue,
   minFrames: number,
-): Promise<ThemeSwitchMeasurementValue> => {
+): Promise<void> => {
   const framesBefore = await scene.readDrawFrames();
 
   await scene.switchColorScheme(colorScheme);
   await scene.expectThemeAttribute(colorScheme);
   await scene.waitForDrawFramesToExceed(
     framesBefore + minFrames - 1,
-    `theme switch drew fewer than ${String(minFrames)} frames`,
+    `the switch to ${colorScheme} drew fewer than ${String(minFrames)} frames`,
   );
   await scene.waitForIdle();
+};
+
+const measureThemeSwitch = async (
+  scene: SceneRobotValue,
+  colorScheme: ColorSchemeValue,
+  minFrames: number,
+): Promise<ThemeSwitchMeasurementValue> => {
+  const framesBefore = await scene.readDrawFrames();
+  const drawCallsBefore = await scene.readDrawCalls();
+
+  await settleThemeSwitch(scene, colorScheme, minFrames);
 
   const frames = (await scene.readDrawFrames()) - framesBefore;
+  const drawCallsPerFrame = frames > 0 ? ((await scene.readDrawCalls()) - drawCallsBefore) / frames : 0;
   const themeChangeDelayMs = await scene.readThemeChangeDelayMs();
   const worldSettleMs = await scene.readWorldSettleMs();
   const longTaskDurations = await scene.readTransitionLongTaskDurations();
@@ -112,15 +128,16 @@ const measureThemeSwitch = async (
 
   await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
 
-  return { frames, longTaskCount, longTaskMaxMs, themeChangeDelayMs, worldSettleMs };
+  return { drawCallsPerFrame, frames, longTaskCount, longTaskMaxMs, themeChangeDelayMs, worldSettleMs };
 };
 
 const annotateThemeSwitch = (
   type: string,
-  { frames, longTaskCount, longTaskMaxMs, themeChangeDelayMs, worldSettleMs }: ThemeSwitchMeasurementValue,
+  { drawCallsPerFrame, frames, longTaskCount, longTaskMaxMs, themeChangeDelayMs, worldSettleMs }: ThemeSwitchMeasurementValue,
 ): void => {
   const description = [
     `frames=${String(frames)}`,
+    `drawCallsPerFrame=${drawCallsPerFrame.toFixed(1)}`,
     `themeChangeDelayMs=${String(Math.round(themeChangeDelayMs))}`,
     `worldSettleMs=${String(Math.round(worldSettleMs))}`,
     `longTaskCount=${String(longTaskCount)}`,
@@ -136,7 +153,7 @@ const annotateRotation = (
 ): void => {
   const description = [
     `frames=${String(frames)}`,
-    `drawCallsPerFrame=${String(Math.round(drawCallsPerFrame))}`,
+    `drawCallsPerFrame=${drawCallsPerFrame.toFixed(1)}`,
     `animationMs=${String(Math.round(animationMs))}`,
     `settleMs=${String(Math.round(settleMs))}`,
     `longTaskCount=${String(longTaskCount)}`,
@@ -270,11 +287,98 @@ test.describe('day and night', () => {
       expect(transition.themeChangeDelayMs).toBeLessThan(MAX_THEME_APPLY_MS);
       expect(transition.themeChangeDelayMs).toBeLessThan(transition.worldSettleMs);
       expect(transition.frames).toBeGreaterThanOrEqual(MIN_THEME_TRANSITION_FRAMES);
+      expect(transition.drawCallsPerFrame).toBeGreaterThan(0);
+      expect(transition.drawCallsPerFrame).toBeLessThanOrEqual(MAX_DRAW_CALLS_PER_FRAME);
       expect(transition.worldSettleMs).toBeGreaterThanOrEqual(MIN_THEME_TRANSITION_MS);
       expect(transition.worldSettleMs).toBeLessThanOrEqual(MAX_THEME_TRANSITION_MS);
       expect(transition.longTaskCount).toBe(MAX_LONG_TASK_COUNT);
     });
   }
+});
+
+test.describe('night world', () => {
+  test.use({
+    initialGraphicsPreference: 'low',
+    reducedMotion: 'no-preference',
+    viewport: DESKTOP_VIEWPORT,
+  });
+
+  test('stays quiet at night, turns with the button within the draw call budget and goes quiet again', async ({ page }) => {
+    const scene = createSceneRobot(page);
+
+    await openReadyWorldInColorScheme(scene, 'dark');
+    await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
+
+    const rotation = await measureRotation(
+      scene,
+      async () => scene.pressCameraButton('rotate-right'),
+      MIN_ROTATION_FRAMES,
+    );
+
+    annotateRotation('rotation-night-low', rotation);
+
+    expect(rotation.frames).toBeGreaterThanOrEqual(MIN_ROTATION_FRAMES);
+    expect(rotation.drawCallsPerFrame).toBeGreaterThan(0);
+    expect(rotation.drawCallsPerFrame).toBeLessThanOrEqual(MAX_DRAW_CALLS_PER_FRAME);
+    expect(rotation.animationMs).toBeLessThanOrEqual(MAX_ROTATION_ANIMATION_MS);
+    expect(rotation.longTaskCount).toBe(MAX_LONG_TASK_COUNT);
+  });
+
+  test('shows warm lights on the canvas at night and none by day', async ({ page }) => {
+    const scene = createSceneRobot(page);
+    const edge = createSceneEdgeRobot(page, scene);
+
+    await openReadyWorldInColorScheme(scene, 'light');
+
+    const day = await edge.readLightPixelCounts();
+
+    await settleThemeSwitch(scene, 'dark', MIN_THEME_TRANSITION_FRAMES);
+
+    const night = await edge.readLightPixelCounts();
+
+    await settleThemeSwitch(scene, 'light', MIN_THEME_TRANSITION_FRAMES);
+
+    const nextDay = await edge.readLightPixelCounts();
+
+    test.info().annotations.push({
+      description: [
+        `dayGlow=${String(day.glowCount)}`,
+        `dayWarmSpots=${String(day.warmSpotCount)}`,
+        `nightGlow=${String(night.glowCount)}`,
+        `nightWarmSpots=${String(night.warmSpotCount)}`,
+      ].join(' '),
+      type: 'light-pixels',
+    });
+
+    expect(day.glowCount).toBe(0);
+    expect(day.warmSpotCount).toBe(0);
+    expect(night.glowCount).toBeGreaterThanOrEqual(MIN_NIGHT_GLOW_PIXELS);
+    expect(night.warmSpotCount).toBeGreaterThanOrEqual(MIN_NIGHT_WARM_SPOT_PIXELS);
+    expect(nextDay.glowCount).toBe(0);
+    expect(nextDay.warmSpotCount).toBe(0);
+  });
+
+  test.describe('at the high level', () => {
+    test.use({ initialGraphicsPreference: 'high' });
+
+    test('turns with the button at night and goes quiet, the draw calls are only reported', async ({ page }) => {
+      const scene = createSceneRobot(page);
+
+      await openReadyWorldInColorScheme(scene, 'dark');
+      await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
+
+      const rotation = await measureRotation(
+        scene,
+        async () => scene.pressCameraButton('rotate-right'),
+        MIN_ROTATION_FRAMES,
+      );
+
+      annotateRotation('rotation-night-high', rotation);
+
+      expect(rotation.frames).toBeGreaterThanOrEqual(MIN_ROTATION_FRAMES);
+      expect(rotation.drawCallsPerFrame).toBeGreaterThan(0);
+    });
+  });
 });
 
 test.describe('scene frame budget', () => {

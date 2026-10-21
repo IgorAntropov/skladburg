@@ -9,6 +9,7 @@ import type { SceneRobotValue } from './scene-robot.ts';
 
 import {
   ADD_VOID_PROBE_SCRIPT,
+  createCountLightPixelsScript,
   createScanVoidPixelsScript,
   createVoidColorInitScript,
   HIDE_HUD_SCRIPT,
@@ -22,18 +23,29 @@ import {
 
 export type DragDirectionValue = 'down' | 'left' | 'right' | 'up';
 
+export interface LightPixelCountsValue {
+  glowCount: number;
+  warmSpotCount: number;
+}
+
 export interface SceneEdgeRobotValue {
   dragToLimit: (direction: DragDirectionValue) => Promise<void>;
   expectNoVoid: (label: string) => Promise<void>;
   expectVoidColorReachesScene: () => Promise<void>;
   expectVoidDetectedInSnapshot: () => Promise<void>;
   paintVoidBeforeLoad: () => Promise<void>;
+  readLightPixelCounts: () => Promise<LightPixelCountsValue>;
   readViewSignature: () => Promise<string>;
   turnCamera: (direction: TurnDirectionValue) => Promise<void>;
   zoomOutToLimit: () => Promise<void>;
 }
 
 export type TurnDirectionValue = 'left' | 'right';
+
+interface LightCountScanValue extends LightPixelCountsValue {
+  height: number;
+  width: number;
+}
 
 interface VoidScanValue {
   height: number;
@@ -173,6 +185,14 @@ export const createSceneEdgeRobot = (page: Page, scene: SceneRobotValue): SceneE
     },
     async paintVoidBeforeLoad(): Promise<void> {
       await page.addInitScript({ content: createVoidColorInitScript() });
+    },
+    async readLightPixelCounts(): Promise<LightPixelCountsValue> {
+      const snapshot = await captureSnapshot();
+      const { glowCount, warmSpotCount } = await page.evaluate<LightCountScanValue>(
+        createCountLightPixelsScript(snapshot.toString('base64')),
+      );
+
+      return { glowCount, warmSpotCount };
     },
     readViewSignature,
     async turnCamera(direction: TurnDirectionValue): Promise<void> {

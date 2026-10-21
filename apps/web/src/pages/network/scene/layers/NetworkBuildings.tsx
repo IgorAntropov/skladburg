@@ -74,6 +74,7 @@ export const NetworkBuildings = ({ boxGeometry, buildings, level }: NetworkBuild
       {parts.map(part => (
         <InstancedLayer
           count={getVisibleBuildingCount(part.items, decorDensity)}
+          delays={undefined}
           geometry={geometries[part.shape]}
           hasShadowCast={hasShadows}
           hasShadowReceive={hasShadows}

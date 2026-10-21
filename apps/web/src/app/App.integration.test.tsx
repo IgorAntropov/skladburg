@@ -1,3 +1,4 @@
+import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import {
   createInProcessEngineConnection,
   SeedOrganizationId,
@@ -270,10 +271,10 @@ const expectWarehouseCount = async (frames: ManualFramesValue, count: number): P
 };
 
 const createWarehouse = async (runtime: ApiRuntimeValue): Promise<void> => {
-  const { warehouses } = await runtime.client.organization.listWarehouses({});
+  const { warehouses } = await runtime.client.service(OrganizationService).listWarehouses({});
   const [template] = warehouses;
 
-  await runtime.client.organization.createWarehouse({
+  await runtime.client.service(OrganizationService).createWarehouse({
     address: 'ул. Вымышленная, 1',
     capabilities: [],
     cityId: template?.cityId ?? '',

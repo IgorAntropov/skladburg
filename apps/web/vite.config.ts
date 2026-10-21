@@ -38,7 +38,7 @@ const MAX_INITIAL_GZIP_KILOBYTES = 90;
 
 const MAX_SCENE_GZIP_KILOBYTES = 300;
 
-const MAX_STARTUP_GZIP_KILOBYTES = 120;
+const MAX_STARTUP_GZIP_KILOBYTES = 100;
 
 const MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES = 125;
 
@@ -171,7 +171,7 @@ export default defineConfig({
         codeSplitting: {
           groups: [
             { name: 'react', priority: 2, test: /[\\/]node_modules[\\/]react[\\/]/ },
-            { name: 'zustand', priority: 1, test: /[\\/]node_modules[\\/]zustand[\\/]/ },
+            { name: 'zustand', priority: 1, test: /[\\/]node_modules[\\/]zustand[\\/]esm[\\/](?:index|vanilla|react)\.mjs$/ },
           ],
         },
       },

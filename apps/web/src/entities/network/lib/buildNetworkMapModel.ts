@@ -1,3 +1,5 @@
+import { compareCodeUnits } from '@skladburg/contracts/runtime';
+
 import type {
   NetworkMapCityValue,
   NetworkMapModelValue,
@@ -7,14 +9,6 @@ import type {
 } from '../model/networkMapTypes';
 
 import { toMapSide } from './toMapSide';
-
-const compareCodeUnits = (current: string, prev: string): number => {
-  if (current === prev) {
-    return 0;
-  }
-
-  return current < prev ? -1 : 1;
-};
 
 const buildCities = (source: NetworkMapSourceValue, collator: Intl.Collator): Map<string, NetworkMapCityValue> => {
   const cityById = new Map(source.directory.cities.map(city => [city.id, city]));

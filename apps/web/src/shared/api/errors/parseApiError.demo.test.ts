@@ -5,6 +5,7 @@ import {
 } from '@connectrpc/connect';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
+import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import {
   CreateWarehouseRequestSchema,
   WarehouseCapability,
@@ -79,7 +80,7 @@ describe('parseApiError against the demo engine', () => {
     const runtime = await startRuntime();
     runtime.actingContext.set({ organizationId: SeedOrganizationId.CUSTOMER_1, userId: SeedUserId.STOREKEEPER_1 });
 
-    const error = await captureApiError(runtime.client.organization.createWarehouse({
+    const error = await captureApiError(runtime.client.service(OrganizationService).createWarehouse({
       idempotencyKey: VALID_UUID,
       name: 'Склад',
       timeZone: 'Europe/Moscow',
@@ -94,7 +95,7 @@ describe('parseApiError against the demo engine', () => {
   it('reports validation_failed with the violations of the request', async () => {
     const runtime = await startRuntime();
 
-    const error = await captureApiError(runtime.client.organization.createWarehouse({}));
+    const error = await captureApiError(runtime.client.service(OrganizationService).createWarehouse({}));
 
     expect(error.code).toBe(ErrorCode.VALIDATION_FAILED);
     expect(error.isRetryable).toBe(false);
@@ -107,8 +108,8 @@ describe('parseApiError against the demo engine', () => {
   it('gives every rule id the engine reports for the contract its own text', async () => {
     const runtime = await startRuntime();
     const reported = await Promise.all([
-      captureApiError(runtime.client.organization.createWarehouse({})),
-      captureApiError(runtime.client.organization.createWarehouse({
+      captureApiError(runtime.client.service(OrganizationService).createWarehouse({})),
+      captureApiError(runtime.client.service(OrganizationService).createWarehouse({
         address: 'a'.repeat(501),
         capabilities: [WarehouseCapability.RAMP, WarehouseCapability.RAMP],
         cityId: VALID_UUID,
@@ -117,8 +118,8 @@ describe('parseApiError against the demo engine', () => {
         name: 'n'.repeat(121),
         timeZone: 'moscow',
       })),
-      captureApiError(runtime.client.organization.createWarehouse(UNDEFINED_CAPABILITY_REQUEST)),
-      captureApiError(runtime.client.organization.listWarehouses({ page: { pageSize: 500, pageToken: '' } })),
+      captureApiError(runtime.client.service(OrganizationService).createWarehouse(UNDEFINED_CAPABILITY_REQUEST)),
+      captureApiError(runtime.client.service(OrganizationService).listWarehouses({ page: { pageSize: 500, pageToken: '' } })),
     ]);
     const ruleIds = new Set(reported.flatMap(collectRuleIds));
 
@@ -142,7 +143,7 @@ describe('parseApiError against the demo engine', () => {
   it('maps an invalid page_token to the page_token.invalid text', async () => {
     const runtime = await startRuntime();
 
-    const error = await captureApiError(runtime.client.organization.listWarehouses({
+    const error = await captureApiError(runtime.client.service(OrganizationService).listWarehouses({
       page: { pageSize: 0, pageToken: 'no-such-token' },
     }));
 
@@ -156,7 +157,7 @@ describe('parseApiError against the demo engine', () => {
   it('reports not_found for an organization that does not exist', async () => {
     const runtime = await startRuntime();
 
-    const error = await captureApiError(runtime.client.organization.getOrganization({
+    const error = await captureApiError(runtime.client.service(OrganizationService).getOrganization({
       organizationId: VALID_UUID,
     }));
 
@@ -185,7 +186,7 @@ describe('parseApiError against the demo engine', () => {
       await inProcess.close();
     });
 
-    const error = await captureApiError(runtime.client.organization.listWarehouses({}));
+    const error = await captureApiError(runtime.client.service(OrganizationService).listWarehouses({}));
 
     expect(error).toMatchObject({ code: ErrorCode.UNAVAILABLE, isRetryable: true, traceId: undefined });
   });

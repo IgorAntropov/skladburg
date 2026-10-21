@@ -1,3 +1,4 @@
+import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import {
   createInProcessEngineConnection,
   SeedOrganizationId,
@@ -63,7 +64,7 @@ describe('network map model built from the demo engine', () => {
     expect(model.sites.slice(0, 3).every(site => site.isOwn && site.side === 'customer')).toBe(true);
     expect(model.sites.slice(3).some(site => site.isOwn)).toBe(false);
 
-    const { warehouses } = await runtime.client.organization.listWarehouses({});
+    const { warehouses } = await runtime.client.service(OrganizationService).listWarehouses({});
 
     expect(model.sites.slice(0, 3).map(site => site.id).toSorted()).toEqual(warehouses.map(warehouse => warehouse.id).toSorted());
     expect(model.sites.slice(0, 3).map(site => site.label).toSorted()).toEqual(warehouses.map(warehouse => warehouse.name).toSorted());

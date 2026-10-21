@@ -1,21 +1,20 @@
 import type { OrganizationSettings } from '@skladburg/contracts/organization/v1/organization';
 import type { UseQueryResult } from '@tanstack/react-query';
 
+import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import {
   skipToken,
   useQuery,
 } from '@tanstack/react-query';
 
 import {
+  createOrganizationQueryMeta,
+  getOrganizationScope,
   useActingContext,
   useApiClient,
 } from '@/shared/api';
 
 import { organizationKeys } from './organizationKeys';
-import {
-  createOrganizationQueryMeta,
-  getOrganizationScope,
-} from './organizationScope';
 
 export const useOrganizationSettingsQuery = (): UseQueryResult<OrganizationSettings> => {
   const client = useApiClient();
@@ -26,7 +25,7 @@ export const useOrganizationSettingsQuery = (): UseQueryResult<OrganizationSetti
     queryFn: organizationId === undefined
       ? skipToken
       : async (): Promise<OrganizationSettings> => {
-        const response = await client.organization.getOrganizationSettings({});
+        const response = await client.service(OrganizationService).getOrganizationSettings({});
 
         if (response.settings === undefined) {
           throw new Error('GetOrganizationSettings response has no settings');

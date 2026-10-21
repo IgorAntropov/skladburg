@@ -30,6 +30,10 @@ export type { ApiQueryMetaValue } from './query/apiQueryMetaTypes';
 export type { CreateQueryClientOptionsValue } from './query/createQueryClient';
 export { createQueryClient } from './query/createQueryClient';
 export { invalidateQueriesByChannel } from './query/invalidateQueriesByChannel';
+export {
+  createOrganizationQueryMeta,
+  getOrganizationScope,
+} from './query/organizationQueryScope';
 export { PREFETCH_HANDOFF_STALE_TIME_MS } from './query/prefetchHandoff';
 export type { ReturnToDefaultPersonaOnDemoResetOptionsValue } from './query/returnToDefaultPersonaOnDemoReset';
 export { returnToDefaultPersonaOnDemoReset } from './query/returnToDefaultPersonaOnDemoReset';

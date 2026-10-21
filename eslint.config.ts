@@ -45,6 +45,9 @@ const lazyCreateWarehouseFormTestFiles: string[] = [
   'apps/web/src/features/create-warehouse/ui/form/**/*.test.{ts,tsx}',
 ];
 const lazyCreateWarehouseFeatureFiles: string[] = ['apps/web/src/features/create-warehouse/**/*.{ts,tsx}'];
+const lazySceneViewportFiles: string[] = ['apps/web/src/widgets/scene-viewport/**/*.{ts,tsx}'];
+const lazySceneCameraControlsChunkFiles: string[] = ['apps/web/src/widgets/scene-viewport/ui/controls/**/*.{ts,tsx}'];
+const apiClientFiles: string[] = ['apps/web/src/shared/api/client/**/*.{ts,tsx}'];
 const sceneSegmentFiles: string[] = ['apps/web/src/**/scene/**', 'apps/web/src/shared/3d/**'];
 const lazyWidgetSceneFiles: string[] = ['apps/web/src/widgets/**/scene/**/*.{ts,tsx}'];
 
@@ -152,6 +155,12 @@ const sceneBoundaryImportRestrictions: SceneImportRestrictionValue[] = [
   sceneModuleImportRestriction,
 ];
 
+const serviceDescriptorImportRestriction: SceneImportRestrictionValue = {
+  message: 'Service descriptors are imported by the api segment of the consuming slice; a descriptor imported here lands '
+    + 'in the startup chunk; use import type',
+  regex: '^@skladburg/contracts/(?!runtime$|registry$|forms(/|$))',
+};
+
 const lazyModuleMessageSuffix = 'is loaded lazily through import(); a static value import pulls it into the initial bundle; '
   + 'use import type';
 
@@ -183,6 +192,11 @@ const profileMenuChunkLazyRestriction: LazyModuleRestrictionValue = {
 const createWarehouseFormChunkLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'the create-warehouse form chunk',
   regex: '(^|/)form(/|$)',
+};
+
+const sceneCameraControlsChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the scene camera controls chunk',
+  regex: '(^|/)controls(/|$)',
 };
 
 const mountAppLazyRestriction: LazyModuleRestrictionValue = {
@@ -660,6 +674,11 @@ export default defineConfig(
     rules: createLazyModuleRules([], sceneEngineImportRestrictions),
   },
   {
+    files: apiClientFiles,
+    ignores: webTestFiles,
+    rules: createLazyModuleRules([], [...sceneBoundaryImportRestrictions, serviceDescriptorImportRestriction]),
+  },
+  {
     files: lazyAppFiles,
     ignores: [...webTestFiles, ...lazyMountAppFiles],
     rules: createLazyModuleRules(startLazyRestrictions, sceneBoundaryImportRestrictions),
@@ -682,6 +701,14 @@ export default defineConfig(
     files: lazyCreateWarehouseFeatureFiles,
     ignores: [...webTestFiles, ...lazyCreateWarehouseFormFiles, ...sceneSegmentFiles],
     rules: createLazyModuleRules([createWarehouseFormChunkLazyRestriction], sceneBoundaryImportRestrictions),
+  },
+  {
+    files: lazySceneViewportFiles,
+    ignores: [...webTestFiles, ...lazySceneCameraControlsChunkFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules(
+      [...appLazyRestrictions, sceneCameraControlsChunkLazyRestriction],
+      sceneBoundaryImportRestrictions,
+    ),
   },
   {
     files: lazyWidgetSceneFiles,

@@ -1,6 +1,7 @@
 import type { GetSessionResponse } from '@skladburg/contracts/access/v1/access';
 import type { UndefinedInitialDataOptions } from '@tanstack/react-query';
 
+import { AccessService } from '@skladburg/contracts/access/v1/access';
 import {
   queryOptions,
   skipToken,
@@ -34,7 +35,7 @@ export const createSessionQueryOptions = ({
   return queryOptions({
     meta: createSessionQueryMeta(organizationId, userId),
     queryFn: isContextComplete
-      ? async (): Promise<GetSessionResponse> => client.access.getSession({})
+      ? async (): Promise<GetSessionResponse> => client.service(AccessService).getSession({})
       : skipToken,
     queryKey: sessionKeys.current(getSessionScope(organizationId), getSessionScope(userId)),
     staleTime: PREFETCH_HANDOFF_STALE_TIME_MS,

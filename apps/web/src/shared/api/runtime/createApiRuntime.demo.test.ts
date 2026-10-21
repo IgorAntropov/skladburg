@@ -2,6 +2,7 @@ import {
   Code,
   ConnectError,
 } from '@connectrpc/connect';
+import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
 import {
   createInProcessEngineConnection,
@@ -73,7 +74,7 @@ describe('createApiRuntime with the demo engine', () => {
       userId: SeedUserId.ADMIN_1,
     });
 
-    const response = await runtime.client.organization.listWarehouses({});
+    const response = await runtime.client.service(OrganizationService).listWarehouses({});
 
     expect(response.warehouses).toHaveLength(3);
     expect(requestHeaders.at(-1)?.get(ACTING_ORGANIZATION_HEADER)).toBe(SeedOrganizationId.CUSTOMER_1);
@@ -98,7 +99,7 @@ describe('createApiRuntime with the demo engine', () => {
       organizationId: SeedOrganizationId.CUSTOMER_1,
       userId: SeedUserId.STOREKEEPER_1,
     });
-    expect((await runtime.client.organization.listWarehouses({})).warehouses).toHaveLength(1);
+    expect((await runtime.client.service(OrganizationService).listWarehouses({})).warehouses).toHaveLength(1);
 
     runtime.close();
   });

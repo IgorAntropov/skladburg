@@ -1,21 +1,20 @@
 import type { Organization } from '@skladburg/contracts/organization/v1/organization';
 import type { UseQueryResult } from '@tanstack/react-query';
 
+import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import {
   skipToken,
   useQuery,
 } from '@tanstack/react-query';
 
 import {
+  createOrganizationQueryMeta,
+  getOrganizationScope,
   useActingContext,
   useApiClient,
 } from '@/shared/api';
 
 import { organizationKeys } from './organizationKeys';
-import {
-  createOrganizationQueryMeta,
-  getOrganizationScope,
-} from './organizationScope';
 
 export const useActingOrganizationQuery = (): UseQueryResult<Organization> => {
   const client = useApiClient();
@@ -26,7 +25,7 @@ export const useActingOrganizationQuery = (): UseQueryResult<Organization> => {
     queryFn: organizationId === undefined
       ? skipToken
       : async (): Promise<Organization> => {
-        const response = await client.organization.getOrganization({ organizationId });
+        const response = await client.service(OrganizationService).getOrganization({ organizationId });
 
         if (response.organization === undefined) {
           throw new Error('GetOrganization response has no organization');

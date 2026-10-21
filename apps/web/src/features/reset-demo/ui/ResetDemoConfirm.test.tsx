@@ -107,7 +107,7 @@ const WarehouseNamesProbe = (): ReactElement => {
   const client = useApiClient();
   const { data = [] } = useQuery({
     queryFn: async (): Promise<readonly string[]> => {
-      const response = await client.organization.listWarehouses({});
+      const response = await client.service(OrganizationService).listWarehouses({});
 
       return response.warehouses.map(warehouse => warehouse.name);
     },

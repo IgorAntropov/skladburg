@@ -6,6 +6,7 @@ export {
   userChannel,
   warehouseChannel,
 } from './channels';
+export { compareCodeUnits } from './compareCodeUnits';
 export { getErrorTraits } from './errorTraits';
 export { getMethodAccess } from './methodAccess';
 export { getPermissionTraits } from './permissionCatalog';

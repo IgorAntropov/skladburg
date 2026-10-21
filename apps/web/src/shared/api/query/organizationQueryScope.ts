@@ -1,8 +1,8 @@
 import { organizationChannel } from '@skladburg/contracts/runtime';
 
-import type { ApiQueryMetaValue } from '@/shared/api';
+import type { ApiQueryMetaValue } from './apiQueryMetaTypes';
 
-export const NO_ORGANIZATION_SCOPE = 'none';
+const NO_ORGANIZATION_SCOPE = 'none';
 
 export const getOrganizationScope = (organizationId: string | undefined): string => organizationId ?? NO_ORGANIZATION_SCOPE;
 

@@ -7,6 +7,7 @@ import type { CachedModuleLoader } from '@/shared/lib/module-loader';
 
 import type { SceneModuleValue } from './sceneViewportTypes';
 
+import { loadSceneCameraControls } from '../lib/loadSceneCameraControls';
 import { loadSceneRoot } from '../lib/loadSceneRoot';
 
 export type SceneModulesStateValue
@@ -40,6 +41,10 @@ export const useSceneModules = (loadScene: CachedModuleLoader<SceneModuleValue>)
     }
 
     let isCancelled = false;
+
+    loadSceneCameraControls().catch((error: unknown) => {
+      console.log('> useSceneModules -> warmCameraControls:', { error });
+    });
 
     Promise.all([loadSceneRoot(), loadScene()]).then(
       ([rootModule, sceneModule]) => {

@@ -27,7 +27,7 @@ export const useCreateWarehouseForm = ({
 
   const execute = async (values: CreateWarehouseFormValues, idempotencyKey: string): Promise<Warehouse> => {
     const placement = resolveWarehousePlacement(values.cityId, places);
-    const response = await client.organization.createWarehouse({
+    const response = await client.service(OrganizationService).createWarehouse({
       address: values.address,
       cityId: values.cityId,
       idempotencyKey,

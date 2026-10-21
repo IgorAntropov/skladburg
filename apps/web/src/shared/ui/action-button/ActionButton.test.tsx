@@ -91,7 +91,7 @@ interface AddWarehouseButtonProps {
 const AddWarehouseButton = ({ access }: AddWarehouseButtonProps): ReactElement => {
   const client = useApiClient();
   const command = useCommand({
-    execute: idempotencyKey => client.organization.createWarehouse({
+    execute: idempotencyKey => client.service(OrganizationService).createWarehouse({
       cityId: 'city',
       idempotencyKey,
       mapNodeId: 'node',

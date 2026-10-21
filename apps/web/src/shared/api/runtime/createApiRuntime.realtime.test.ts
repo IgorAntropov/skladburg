@@ -1,4 +1,5 @@
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
+import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import { organizationChannel } from '@skladburg/contracts/runtime';
 import {
   createInProcessEngineConnection,
@@ -91,10 +92,10 @@ describe('createApiRuntime realtime channel with the demo engine', () => {
       batches.push(batch);
     });
     await waitForSubscribed();
-    const { warehouses } = await runtime.client.organization.listWarehouses({});
+    const { warehouses } = await runtime.client.service(OrganizationService).listWarehouses({});
     const [template] = warehouses;
 
-    const response = await runtime.client.organization.createWarehouse({
+    const response = await runtime.client.service(OrganizationService).createWarehouse({
       address: 'ул. Вымышленная, 1',
       capabilities: [],
       cityId: template?.cityId ?? '',
@@ -154,7 +155,7 @@ describe('createApiRuntime realtime channel with the demo engine', () => {
     const { frames, inProcess, runtime, waitForSubscribed } = await startRuntime();
     runtime.realtime.subscribe(CUSTOMER_CHANNEL, () => undefined);
     await waitForSubscribed();
-    await runtime.client.organization.listWarehouses({});
+    await runtime.client.service(OrganizationService).listWarehouses({});
 
     runtime.close();
     await inProcess.close();

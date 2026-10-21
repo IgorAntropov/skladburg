@@ -1,4 +1,5 @@
 import { createConnectTransport } from '@connectrpc/connect-web';
+import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
 import {
   describe,
@@ -21,11 +22,11 @@ const callWithContext = async (organizationId: string | undefined, nextOrganizat
     useBinaryFormat: true,
   }));
 
-  await client.organization.listWarehouses({}).catch(() => undefined);
+  await client.service(OrganizationService).listWarehouses({}).catch(() => undefined);
 
   if (nextOrganizationId !== undefined) {
     actingContext.set({ organizationId: nextOrganizationId, userId: undefined });
-    await client.organization.listWarehouses({}).catch(() => undefined);
+    await client.service(OrganizationService).listWarehouses({}).catch(() => undefined);
   }
 
   return spy.requests.map(request => request.headers.get(ACTING_ORGANIZATION_HEADER));

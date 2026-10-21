@@ -26,6 +26,7 @@ const pageTestFilePath = fileURLToPath(new URL('../../apps/web/src/pages/probe-l
 const pageComponentTestFilePath = fileURLToPath(new URL('../../apps/web/src/pages/probe-view.test.tsx', import.meta.url));
 const apiClientFilePath = fileURLToPath(new URL('../../apps/web/src/shared/api/client/probe-client.ts', import.meta.url));
 const apiClientTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/api/client/probe-client.test.ts', import.meta.url));
+const entityApiFilePath = fileURLToPath(new URL('../../apps/web/src/entities/probe/api/probe-query.ts', import.meta.url));
 const demoTransportFilePath = fileURLToPath(new URL('../../apps/web/src/shared/api/transport/demo/probe-transport.ts', import.meta.url));
 const demoTransportTestFilePath = fileURLToPath(
   new URL('../../apps/web/src/shared/api/transport/demo/probe-transport.test.ts', import.meta.url),
@@ -93,6 +94,21 @@ const createWarehouseLauncherFilePath = fileURLToPath(
 );
 const createWarehouseLauncherTestFilePath = fileURLToPath(
   new URL('../../apps/web/src/features/create-warehouse/model/useCreateWarehouseLauncher.test.tsx', import.meta.url),
+);
+const sceneViewportFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/scene-viewport/lib/probe-loader.ts', import.meta.url),
+);
+const sceneViewportTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/scene-viewport/ui/SceneCameraControls.test.tsx', import.meta.url),
+);
+const sceneViewportSceneFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/scene-viewport/scene/probe-scene.ts', import.meta.url),
+);
+const sceneCameraControlsChunkFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/scene-viewport/ui/controls/SceneCameraControlsPanel.tsx', import.meta.url),
+);
+const sceneCameraControlsChunkTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/scene-viewport/ui/controls/SceneCameraControlsPanel.test.tsx', import.meta.url),
 );
 const scriptsProbeFilePath = fileURLToPath(new URL('./probe-tool.ts', import.meta.url));
 
@@ -1934,6 +1950,85 @@ describe('eslint.config.ts with the local rules', () => {
       });
     });
 
+    describe('the lazy chunk of the scene camera controls', () => {
+      it.each([
+        ['a sibling folder', './controls/SceneCameraControlsPanel'],
+        ['a parent folder path', '../ui/controls/SceneCameraControlsPanel'],
+        ['the folder itself', './controls'],
+        ['an alias path', '@/widgets/scene-viewport/ui/controls/SceneCameraControlsPanel'],
+      ])('reports a value import of %s in widgets/scene-viewport', async (_name, specifier) => {
+        const messages = await readLazyMessages(toValueImport(specifier), sceneViewportFilePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('scene camera controls chunk');
+        expect(messages[0]).toContain(lazyMessagePart);
+      });
+
+      it('reports a re-export of a value of the chunk in widgets/scene-viewport', async () => {
+        const code = 'export { SceneCameraControlsPanel } from \'../ui/controls/SceneCameraControlsPanel\';\n';
+
+        expect(await readLazyMessages(code, sceneViewportFilePath)).toHaveLength(1);
+      });
+
+      it.each([
+        ['import type', toTypeImport],
+        ['an import with only inline types', toNamedTypeImport],
+        ['import()', toDynamicImport],
+        ['an import type query', toTypeQuery],
+      ])('allows %s of the panel in widgets/scene-viewport', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode('../ui/controls/SceneCameraControlsPanel'), sceneViewportFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['the panel', sceneCameraControlsChunkFilePath],
+        ['a test of the panel', sceneCameraControlsChunkTestFilePath],
+      ])('allows a value import of a part of the chunk in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('./controls/SceneCameraControlsPart'), filePath)).toEqual([]);
+      });
+
+      it('allows a value import of the chunk in a test of widgets/scene-viewport', async () => {
+        expect(await readLazyMessages(toValueImport('./controls/SceneCameraControlsPanel'), sceneViewportTestFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['a package with a similar name', 'controls-kit'],
+        ['an icon package', 'lucide-react'],
+        ['a sibling module', './SceneCameraControls'],
+        ['a shared module', '@/shared/ui'],
+      ])('does not report %s in widgets/scene-viewport', async (_name, specifier) => {
+        expect(await readLazyMessages(toValueImport(specifier), sceneViewportFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['a widget outside scene-viewport', widgetFilePath],
+        ['widgets/profile-menu', profileMenuFilePath],
+        ['a page', pageFilePath],
+      ])('does not restrict a controls folder in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('./controls/ProbeControls'), filePath)).toEqual([]);
+      });
+
+      it.each(lazyAppSpecifiers)('keeps the restriction of %s in widgets/scene-viewport', async (_name, specifier) => {
+        expect(await readLazyMessages(toValueImport(specifier), sceneViewportFilePath)).toHaveLength(1);
+      });
+
+      it.each([
+        ['three', 'three'],
+        ['a react-three package', '@react-three/fiber'],
+        ['shared/3d', '@/shared/3d'],
+        ['a scene segment', './scene/SceneRoot'],
+      ])('keeps the scene boundary of %s in widgets/scene-viewport', async (_name, specifier) => {
+        expect(await readLazyMessages(toValueImport(specifier), sceneViewportFilePath)).toHaveLength(1);
+      });
+
+      it('keeps the restriction of the lazy modules in the scene segment of widgets/scene-viewport', async () => {
+        expect(await readLazyMessages(toValueImport(personaSwitcherSpecifier), sceneViewportSceneFilePath)).toHaveLength(1);
+      });
+
+      it('allows value imports of the scene libraries in the scene segment of widgets/scene-viewport', async () => {
+        expect(await readLazyMessages(toValueImport('three'), sceneViewportSceneFilePath)).toEqual([]);
+      });
+    });
+
     describe('next to the other restrictions', () => {
       const engineImportCode = 'import { probe } from \'@skladburg/demo-engine\';\n';
       const dynamicEngineImportCode = 'export const load = (): Promise<unknown> => import(\'@skladburg/demo-engine\');\n';
@@ -1988,6 +2083,61 @@ describe('eslint.config.ts with the local rules', () => {
       it('applies the lazy restriction in app/bootstrap', async () => {
         expect(await readLazyMessages(lazyImportCode, bootstrapFilePath)).toHaveLength(1);
       });
+    });
+  });
+
+  describe('service descriptors in the api client of the web application', () => {
+    const descriptorSpecifier = '@skladburg/contracts/organization/v1/organization';
+    const descriptorRuleId = '@typescript-eslint/no-restricted-imports';
+
+    const readDescriptorMessages = async (code: string, filePath: string): Promise<string[]> => {
+      if (untypedEslint === undefined) {
+        throw new Error('ESLint is not initialized');
+      }
+
+      const [result] = await untypedEslint.lintText(code, { filePath });
+
+      return (result?.messages ?? []).flatMap(message => message.ruleId === descriptorRuleId ? [message.message] : []);
+    };
+
+    it('reports a value import of a service descriptor in the api client', async () => {
+      const messages = await readDescriptorMessages(toValueImport(descriptorSpecifier), apiClientFilePath);
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toContain('api segment of the consuming slice');
+      expect(messages[0]).toContain('use import type');
+    });
+
+    it('reports a re-export of a service descriptor in the api client', async () => {
+      expect(await readDescriptorMessages(toReExport(descriptorSpecifier), apiClientFilePath)).toHaveLength(1);
+    });
+
+    it.each([
+      ['an import type', toTypeImport],
+      ['an import type query', toTypeQuery],
+    ])('allows %s of a service descriptor in the api client', async (_name, toCode) => {
+      expect(await readDescriptorMessages(toCode(descriptorSpecifier), apiClientFilePath)).toEqual([]);
+    });
+
+    it('allows the runtime entry of the contracts in the api client', async () => {
+      expect(await readDescriptorMessages(toValueImport('@skladburg/contracts/runtime'), apiClientFilePath)).toEqual([]);
+    });
+
+    it('allows a value import of a service descriptor in a test of the api client', async () => {
+      expect(await readDescriptorMessages(toValueImport(descriptorSpecifier), apiClientTestFilePath)).toEqual([]);
+    });
+
+    it.each([
+      ['the api segment of an entity', entityApiFilePath],
+      ['a page', pageFilePath],
+    ])('allows a value import of a service descriptor in %s', async (_name, filePath) => {
+      expect(await readDescriptorMessages(toValueImport(descriptorSpecifier), filePath)).toEqual([]);
+    });
+
+    it('keeps the scene boundary in the api client next to the descriptor boundary', async () => {
+      const code = `${toValueImport(descriptorSpecifier)}import { scenePart } from './scene/part';\nexport const part = scenePart;\n`;
+
+      expect(await readDescriptorMessages(code, apiClientFilePath)).toHaveLength(2);
     });
   });
 

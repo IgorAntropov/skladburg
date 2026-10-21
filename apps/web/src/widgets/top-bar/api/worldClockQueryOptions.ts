@@ -1,6 +1,7 @@
 import type { UndefinedInitialDataOptions } from '@tanstack/react-query';
 
 import { timestampMs } from '@bufbuild/protobuf/wkt';
+import { ClockService } from '@skladburg/contracts/clock/v1/clock';
 import { queryOptions } from '@tanstack/react-query';
 
 import type { ApiClient } from '@/shared/api';
@@ -17,7 +18,7 @@ export const createWorldClockQueryOptions = (
   client: ApiClient,
 ): UndefinedInitialDataOptions<WorldClockReadingValue, Error, WorldClockReadingValue, WorldClockQueryKeyValue> => queryOptions({
   queryFn: async (): Promise<WorldClockReadingValue> => {
-    const response = await client.clock.getWorldClock({});
+    const response = await client.service(ClockService).getWorldClock({});
     const receivedAtMs = performance.now();
 
     if (response.worldTime === undefined) {

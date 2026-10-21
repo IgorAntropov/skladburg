@@ -1,3 +1,4 @@
+import { AccessService } from '@skladburg/contracts/access/v1/access';
 import {
   createInProcessEngineConnection,
   SeedOrganizationId,
@@ -85,7 +86,7 @@ describe('available sections for sessions of the seed data', () => {
 
     runtime.actingContext.set({ organizationId, userId });
 
-    return resolveAvailableSections(await runtime.client.access.getSession({}));
+    return resolveAvailableSections(await runtime.client.service(AccessService).getSession({}));
   };
 
   it.each(MATRIX)('resolves sections for the $name', async ({ expectedSections, organizationId, userId }) => {

@@ -8,6 +8,7 @@ import type {
   ReactNode,
 } from 'react';
 
+import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
 import {
   createInProcessEngineConnection,
@@ -69,7 +70,7 @@ const useWarehousesWithSwitcher = (): WarehousesWithSwitcherValue => {
   const { organizationId, userId } = useActingContext();
   const switcher = useSwitchActingContext();
   const warehouses = useQuery({
-    queryFn: () => client.organization.listWarehouses({}),
+    queryFn: () => client.service(OrganizationService).listWarehouses({}),
     queryKey: ['warehouses', organizationId, userId],
   });
 

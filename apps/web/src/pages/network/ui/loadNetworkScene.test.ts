@@ -6,61 +6,58 @@ import {
   vi,
 } from 'vitest';
 
+const SCENE_PATH = '../scene/NetworkWorldScene';
+
 const sceneMocks = vi.hoisted(() => ({
+  factoryCallCount: 0,
   prepare: vi.fn<() => Promise<void>>(),
 }));
 
-vi.mock('../scene/NetworkWorldScene', () => ({
-  default: () => null,
-  prepare: sceneMocks.prepare,
-  world: {},
-}));
+const createSceneModuleMock = (): Record<string, unknown> => {
+  sceneMocks.factoryCallCount += 1;
+
+  return {
+    default: () => null,
+    prepare: sceneMocks.prepare,
+    resolveWorld: () => ({}),
+  };
+};
 
 describe('loadNetworkScene', () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.doUnmock(SCENE_PATH);
+    sceneMocks.factoryCallCount = 0;
     sceneMocks.prepare.mockReset();
   });
 
-  it('gives the scene module only after its preparation has finished', async () => {
-    let finishPreparation: () => void = () => undefined;
-
-    sceneMocks.prepare.mockImplementation(() => new Promise<void>((resolve) => {
-      finishPreparation = resolve;
-    }));
+  it('gives the scene module at once without preparing it', async () => {
+    vi.doMock(SCENE_PATH, createSceneModuleMock);
     const { loadNetworkScene } = await import('./loadNetworkScene');
-    const onLoaded = vi.fn();
 
-    const loading = loadNetworkScene().then(onLoaded);
-    await vi.waitFor(() => {
-      expect(sceneMocks.prepare).toHaveBeenCalledOnce();
-    });
+    const sceneModule = await loadNetworkScene();
 
-    expect(onLoaded).not.toHaveBeenCalled();
-    expect(loadNetworkScene.peekLoadedModule()).toBeUndefined();
-
-    finishPreparation();
-    await loading;
-
-    expect(onLoaded).toHaveBeenCalledOnce();
-    expect(loadNetworkScene.peekLoadedModule()).toBeDefined();
+    expect(sceneModule.default).toBeTypeOf('function');
+    expect(sceneModule.resolveWorld).toBeTypeOf('function');
+    expect(sceneMocks.prepare).not.toHaveBeenCalled();
+    expect(loadNetworkScene.peekLoadedModule()).toBe(sceneModule);
   });
 
-  it('prepares the scene once and keeps the module for the next calls', async () => {
-    sceneMocks.prepare.mockResolvedValue(undefined);
+  it('imports the scene once and keeps the module for the next calls', async () => {
+    vi.doMock(SCENE_PATH, createSceneModuleMock);
     const { loadNetworkScene } = await import('./loadNetworkScene');
 
     const first = await loadNetworkScene();
     const second = await loadNetworkScene();
 
     expect(second).toBe(first);
-    expect(sceneMocks.prepare).toHaveBeenCalledOnce();
+    expect(sceneMocks.factoryCallCount).toBe(1);
   });
 
-  it('rejects with the chunk error when the preparation fails and prepares again on the retry', async () => {
-    sceneMocks.prepare
-      .mockRejectedValueOnce(new Error('the fallback chunk is unavailable'))
-      .mockResolvedValueOnce(undefined);
+  it('rejects with the chunk error when the import fails and imports again on the retry', async () => {
+    vi.doMock(SCENE_PATH, () => {
+      throw new Error('the scene chunk is unavailable');
+    });
     const { loadNetworkScene } = await import('./loadNetworkScene');
 
     const failure: unknown = await loadNetworkScene().then(() => undefined, (error: unknown) => error);
@@ -68,7 +65,8 @@ describe('loadNetworkScene', () => {
     expect(failure).toMatchObject({ attempt: 1, name: 'ChunkLoadError' });
     expect(loadNetworkScene.peekLoadedModule()).toBeUndefined();
 
+    vi.doMock(SCENE_PATH, createSceneModuleMock);
+
     await expect(loadNetworkScene()).resolves.toBeDefined();
-    expect(sceneMocks.prepare).toHaveBeenCalledTimes(2);
   });
 });

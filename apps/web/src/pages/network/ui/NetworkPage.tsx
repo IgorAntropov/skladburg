@@ -22,6 +22,7 @@ import {
 } from '@/widgets/scene-viewport';
 
 import { useNetworkMapModel } from '../api/useNetworkMapModel';
+import { EMPTY_NETWORK_MAP_MODEL } from '../model/emptyNetworkMapModel';
 import { loadNetworkScene } from './loadNetworkScene';
 import { NetworkInspector } from './NetworkInspector';
 import { NetworkSitesTab } from './NetworkSitesTab';
@@ -36,6 +37,8 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
   const { t } = useI18n();
   const inspectorFocus = useInspectorFocus('network', focus);
   const modelState = useNetworkMapModel();
+
+  const sceneData = modelState.data ?? (modelState.error === null ? undefined : EMPTY_NETWORK_MAP_MODEL);
 
   const listTabs: readonly TabsItemValue[] = [
     {
@@ -65,7 +68,14 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
         inspector={<NetworkInspector focus={focus} onClose={inspectorFocus.onInspectorClose} state={modelState} />}
         kpi={<ZoneEmptyState icon={ChartNoAxesColumn} text={t('hud.kpi.empty')} />}
         listTabs={listTabs}
-        scene={<SceneViewport label={t('section.network.placeholder')} loadScene={loadNetworkScene} />}
+        scene={(
+          <SceneViewport
+            interaction={undefined}
+            label={t('section.network.placeholder')}
+            loadScene={loadNetworkScene}
+            sceneData={sceneData}
+          />
+        )}
         sceneControls={<SceneCameraControls />}
         tracker={<ZoneEmptyState icon={ListChecks} text={t('hud.tracker.empty')} />}
       />

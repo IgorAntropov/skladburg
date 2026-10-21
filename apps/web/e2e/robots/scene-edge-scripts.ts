@@ -10,7 +10,9 @@ export const HIDE_HUD_STYLE_ID = 'e2e-hide-hud';
 
 export const VOID_SAMPLE_STEP_PX = 2;
 
-export const VOID_CHROMA_THRESHOLD = 32;
+export const VOID_MIN_RED_BLUE = 192;
+
+export const VOID_MAX_GREEN = 64;
 
 export const createVoidColorInitScript = (): string => `
 (() => {
@@ -127,7 +129,7 @@ export const createScanVoidPixelsScript = (base64: string): string => `
       const green = data[offset + 1];
       const blue = data[offset + 2];
 
-      if (red - green >= ${String(VOID_CHROMA_THRESHOLD)} && blue - green >= ${String(VOID_CHROMA_THRESHOLD)}) {
+      if (red >= ${String(VOID_MIN_RED_BLUE)} && blue >= ${String(VOID_MIN_RED_BLUE)} && green <= ${String(VOID_MAX_GREEN)}) {
         voidCount += 1;
 
         if (samples.length < 5) {

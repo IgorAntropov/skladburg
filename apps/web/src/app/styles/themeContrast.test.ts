@@ -10,6 +10,7 @@ import {
   compositeOver,
   contrastRatio,
   parseCssColor,
+  relativeLuminance,
 } from '@/shared/lib/color';
 
 import type { ThemeNameValue } from './testing/readThemeTokens';
@@ -270,6 +271,96 @@ const parseWorldBackground = (value: string): RgbaColorValue => {
   return color;
 };
 
+const WORLD_CITY_TOKEN_NAMES: readonly string[] = [
+  'road',
+  'plaza',
+  'building-wall',
+  'building-roof',
+  'building-roof-alt',
+  'warehouse-wall',
+  'warehouse-roof',
+  'side-customer',
+  'side-supplier',
+  'side-carrier',
+  'side-rim',
+];
+
+const WORLD_GRASS_TOKEN_NAMES: readonly string[] = ['ground', 'ground-alt'];
+
+const WORLD_OPEN_GROUND_TOKEN_NAMES: readonly string[] = [
+  'ground',
+  'ground-alt',
+  'field',
+  'field-alt',
+  'sand',
+];
+
+const WORLD_ROOF_TOKEN_NAMES: readonly string[] = [
+  'building-roof',
+  'building-roof-alt',
+  'warehouse-roof',
+];
+
+const ROAD_COLOR_DISTANCE = 30;
+const ROAD_LUMINANCE_CONTRAST = 1.8;
+const PLAZA_COLOR_DISTANCE = 15;
+const ROOF_COLOR_DISTANCE = 25;
+const WALL_COLOR_DISTANCE = 25;
+
+const LAB_WHITE_X = 0.95047;
+const LAB_WHITE_Z = 1.08883;
+const LAB_EPSILON = 216 / 24389;
+const LAB_KAPPA = 24389 / 27;
+
+const linearizeChannel = (channel: number): number => {
+  const unit = channel / 255;
+
+  return unit <= 0.04045 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4;
+};
+
+const toLabAxis = (ratio: number): number => {
+  return ratio > LAB_EPSILON ? Math.cbrt(ratio) : (LAB_KAPPA * ratio + 16) / 116;
+};
+
+const toLab = (color: RgbaColorValue): [number, number, number] => {
+  const red = linearizeChannel(color.red);
+  const green = linearizeChannel(color.green);
+  const blue = linearizeChannel(color.blue);
+  const x = toLabAxis((0.4124564 * red + 0.3575761 * green + 0.1804375 * blue) / LAB_WHITE_X);
+  const y = toLabAxis(0.2126729 * red + 0.7151522 * green + 0.072175 * blue);
+  const z = toLabAxis((0.0193339 * red + 0.119192 * green + 0.9503041 * blue) / LAB_WHITE_Z);
+
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+};
+
+const readWorldColor = (name: string): RgbaColorValue => {
+  const rawValue = readWorldTokens().get(name);
+
+  if (rawValue === undefined) {
+    throw new Error(`World token ${WORLD_TOKEN_PREFIX}${name} is missing`);
+  }
+
+  return parseWorldBackground(rawValue);
+};
+
+const measureColorDistance = (firstName: string, secondName: string): number => {
+  const [firstL, firstA, firstB] = toLab(readWorldColor(firstName));
+  const [secondL, secondA, secondB] = toLab(readWorldColor(secondName));
+
+  return Math.hypot(firstL - secondL, firstA - secondA, firstB - secondB);
+};
+
+const measureLuminanceContrast = (firstName: string, secondName: string): number => {
+  return contrastRatio(readWorldColor(firstName), readWorldColor(secondName));
+};
+
+const readColorPairs = (
+  firstNames: readonly string[],
+  secondNames: readonly string[],
+): [string, string][] => {
+  return firstNames.flatMap(first => secondNames.map((second): [string, string] => [first, second]));
+};
+
 const readBackdrops = (theme: ThemeNameValue, name: string): BackdropValue[] => {
   const color = readColor(theme, name);
 
@@ -421,6 +512,58 @@ describe('theme tokens contract', () => {
     expect(() => readColor('dark', 'no-such-token')).toThrow(
       'Token --color-no-such-token is missing in the dark theme',
     );
+  });
+});
+
+describe('world city surfaces', () => {
+  it('declares every color of the mini city', () => {
+    const missingNames = WORLD_CITY_TOKEN_NAMES.filter(name => !readWorldTokens().has(name));
+
+    expect(missingNames).toEqual([]);
+  });
+
+  it.each(SIDE_NAMES)('copies the %s fill of the side into the world in both themes', (name) => {
+    const worldValue = readWorldTokens().get(`side-${name}`);
+
+    expect(worldValue).toBe(tokens.light.get(`--color-side-${name}`));
+    expect(worldValue).toBe(tokens.dark.get(`--color-side-${name}`));
+  });
+
+  it.each(SIDE_NAMES)('copies the %s rim of the side into the world in both themes', (name) => {
+    const worldValue = readWorldTokens().get('side-rim');
+
+    expect(worldValue).toBe(tokens.light.get(`--color-on-side-${name}`));
+    expect(worldValue).toBe(tokens.dark.get(`--color-on-side-${name}`));
+  });
+
+  it.each(readColorPairs(['road'], WORLD_OPEN_GROUND_TOKEN_NAMES))('tells the %s from the %s by hue and by lightness', (road, ground) => {
+    expect(measureColorDistance(road, ground)).toBeGreaterThanOrEqual(ROAD_COLOR_DISTANCE);
+    expect(measureLuminanceContrast(road, ground)).toBeGreaterThanOrEqual(ROAD_LUMINANCE_CONTRAST);
+  });
+
+  it.each(readColorPairs(['plaza'], [...WORLD_OPEN_GROUND_TOKEN_NAMES, 'road']))('tells the %s from the %s', (plaza, other) => {
+    expect(measureColorDistance(plaza, other)).toBeGreaterThanOrEqual(PLAZA_COLOR_DISTANCE);
+  });
+
+  it.each(readColorPairs(WORLD_ROOF_TOKEN_NAMES, WORLD_GRASS_TOKEN_NAMES))('tells the %s from the %s', (roof, grass) => {
+    expect(measureColorDistance(roof, grass)).toBeGreaterThanOrEqual(ROOF_COLOR_DISTANCE);
+  });
+
+  it.each([
+    ['building-wall', 'building-roof'],
+    ['building-wall', 'building-roof-alt'],
+    ['warehouse-wall', 'warehouse-roof'],
+  ])('tells the %s from the %s', (wall, roof) => {
+    expect(measureColorDistance(wall, roof)).toBeGreaterThanOrEqual(WALL_COLOR_DISTANCE);
+  });
+
+  it('keeps the warehouse roof apart from the roofs of the houses', () => {
+    expect(measureColorDistance('warehouse-roof', 'building-roof')).toBeGreaterThanOrEqual(WALL_COLOR_DISTANCE);
+    expect(measureColorDistance('warehouse-roof', 'building-roof-alt')).toBeGreaterThanOrEqual(WALL_COLOR_DISTANCE);
+  });
+
+  it('keeps the road darker than the plaza', () => {
+    expect(relativeLuminance(readWorldColor('road'))).toBeLessThan(relativeLuminance(readWorldColor('plaza')));
   });
 });
 

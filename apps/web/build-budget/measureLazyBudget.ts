@@ -7,6 +7,7 @@ import type {
 } from './bundleBudgetTypes.ts';
 
 import { normalizeModuleId } from './extractPackageName.ts';
+import { assertValidForbiddenPackages } from './forbiddenPackages.ts';
 
 const isEntryModule = (moduleId: string, entry: string): boolean =>
   normalizeModuleId(moduleId).endsWith(`/${entry}`);
@@ -81,5 +82,7 @@ export const assertValidLazyEntryBudgets = (budgets: readonly LazyEntryBudgetVal
         `Lazy entry budget "${budget.name}" must be a positive number of kilobytes, got ${String(budget.maxGzipKiloBytes)}`,
       );
     }
+
+    assertValidForbiddenPackages(budget.forbiddenPackages ?? []);
   }
 };

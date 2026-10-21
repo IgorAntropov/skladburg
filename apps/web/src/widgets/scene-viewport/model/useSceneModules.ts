@@ -10,16 +10,18 @@ import type { SceneModuleValue } from './sceneViewportTypes';
 import { loadSceneCameraControls } from '../lib/loadSceneCameraControls';
 import { loadSceneRoot } from '../lib/loadSceneRoot';
 
-export type SceneModulesStateValue
+export type SceneModulesStateValue<TData, TInteraction>
   = | { error: unknown; kind: 'failed' }
-    | { kind: 'loaded'; rootModule: SceneRootModuleValue; sceneModule: SceneModuleValue }
+    | { kind: 'loaded'; rootModule: SceneRootModuleValue; sceneModule: SceneModuleValue<TData, TInteraction> }
     | { kind: 'loading' };
 
 type SceneRootModuleValue = Awaited<ReturnType<typeof loadSceneRoot>>;
 
-const LOADING_STATE: SceneModulesStateValue = { kind: 'loading' };
+const LOADING_STATE = { kind: 'loading' } as const;
 
-const peekModules = (loadScene: CachedModuleLoader<SceneModuleValue>): SceneModulesStateValue => {
+const peekModules = <TData, TInteraction>(
+  loadScene: CachedModuleLoader<SceneModuleValue<TData, TInteraction>>,
+): SceneModulesStateValue<TData, TInteraction> => {
   const rootModule = loadSceneRoot.peekLoadedModule();
   const sceneModule = loadScene.peekLoadedModule();
 
@@ -30,8 +32,10 @@ const peekModules = (loadScene: CachedModuleLoader<SceneModuleValue>): SceneModu
   return { kind: 'loaded', rootModule, sceneModule };
 };
 
-export const useSceneModules = (loadScene: CachedModuleLoader<SceneModuleValue>): SceneModulesStateValue => {
-  const [modulesState, setModulesState] = useState(() => peekModules(loadScene));
+export const useSceneModules = <TData, TInteraction>(
+  loadScene: CachedModuleLoader<SceneModuleValue<TData, TInteraction>>,
+): SceneModulesStateValue<TData, TInteraction> => {
+  const [modulesState, setModulesState] = useState<SceneModulesStateValue<TData, TInteraction>>(() => peekModules(loadScene));
 
   const isLoading = modulesState.kind === 'loading';
 

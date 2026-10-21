@@ -1,6 +1,7 @@
+import type { RenderResult } from '@testing-library/react';
 import type {
-  ComponentType,
   ReactElement,
+  ReactNode,
 } from 'react';
 import type { Mock } from 'vitest';
 
@@ -26,6 +27,7 @@ import {
 import type {
   QualityLevelValue,
   SceneContentProps,
+  SceneWorldValue,
 } from '@/shared/3d';
 import type { CachedModuleLoader } from '@/shared/lib/module-loader';
 import type { IFakeViewport } from '@/shared/lib/viewport/index.testing';
@@ -33,7 +35,10 @@ import type { IMemoryLocation } from '@/shared/routing/index.testing';
 
 import { useSceneSettingsStore } from '@/features/scene-settings';
 import { withTestLocalizer } from '@/shared/i18n/index.testing';
-import { createCachedModuleLoader } from '@/shared/lib/module-loader';
+import {
+  ChunkLoadError,
+  createCachedModuleLoader,
+} from '@/shared/lib/module-loader';
 import { installFakeViewport } from '@/shared/lib/viewport/index.testing';
 import { RoutingProvider } from '@/shared/routing';
 import { createMemoryLocation } from '@/shared/routing/index.testing';
@@ -58,18 +63,18 @@ vi.mock('../lib/webGlSupport', () => ({
 vi.mock('../scene/SceneRoot', () => {
   const SceneRoot = ({
     autoQuality,
-    Content,
-    level,
+    content,
     onAutoLevelChange,
     onContextLost,
     onReady,
+    world,
   }: {
     autoQuality: undefined | { ceiling: QualityLevelValue; changeCount: number };
-    Content: ComponentType<SceneContentProps>;
-    level: QualityLevelValue;
+    content: ReactNode;
     onAutoLevelChange: (level: QualityLevelValue) => void;
     onContextLost: () => void;
     onReady: () => void;
+    world: SceneWorldValue;
   }): ReactElement => {
     if (sceneRootControl.isBroken) {
       throw new Error('the WebGL context was not created');
@@ -88,10 +93,11 @@ vi.mock('../scene/SceneRoot', () => {
         data-auto-ceiling={autoQuality?.ceiling}
         data-change-count={autoQuality?.changeCount}
         data-testid="scene-root-probe"
+        data-world-radius={world.home.radius}
       >
         <button data-testid="lose-context" onClick={onContextLost} type="button" />
         <button data-testid="change-auto-level" onClick={() => { onAutoLevelChange('low'); }} type="button" />
-        <Content level={level} />
+        {content}
       </div>
     );
   };
@@ -109,21 +115,34 @@ const PREFERENCE_MESSAGE = defaultLocaleCatalog['scene.off.preference'];
 const PHONE_MESSAGE = defaultLocaleCatalog['scene.off.phoneDefault'];
 const ENABLE_NAME = defaultLocaleCatalog['scene.off.enable'];
 
-const SCENE_WORLD = {
+interface TestSceneDataValue {
+  radius: number;
+  value: string;
+}
+
+type TestSceneModuleValue = SceneModuleValue<TestSceneDataValue>;
+
+const SCENE_DATA: TestSceneDataValue = { radius: 1, value: 'first' };
+
+const createWorld = (radius: number): SceneWorldValue => ({
   bounds: { maxX: 1, maxZ: 1, minX: -1, minZ: -1 },
-  home: { centerX: 0, centerZ: 0, radius: 1 },
+  home: { centerX: 0, centerZ: 0, radius },
   maxHeight: 1,
-};
-
-const SceneContent = ({ level }: SceneContentProps): ReactElement => <span data-level={level} data-testid="scene-content" />;
-
-const loadSceneModule = (): Promise<SceneModuleValue> => Promise.resolve({
-  default: SceneContent,
-  prepare: () => Promise.resolve(),
-  world: SCENE_WORLD,
 });
 
-const createFailingThenLoadingScene = (failureCount: number): Mock<() => Promise<SceneModuleValue>> => {
+const SceneContent = ({ data, level }: SceneContentProps<TestSceneDataValue>): ReactElement => (
+  <span data-level={level} data-testid="scene-content" data-value={data.value} />
+);
+
+const createSceneModule = (prepare: TestSceneModuleValue['prepare'] = () => Promise.resolve()): TestSceneModuleValue => ({
+  default: SceneContent,
+  prepare,
+  resolveWorld: data => createWorld(data.radius),
+});
+
+const loadSceneModule = (): Promise<TestSceneModuleValue> => Promise.resolve(createSceneModule());
+
+const createFailingThenLoadingScene = (failureCount: number): Mock<() => Promise<TestSceneModuleValue>> => {
   let failedCount = 0;
 
   return vi.fn(() => {
@@ -137,23 +156,50 @@ const createFailingThenLoadingScene = (failureCount: number): Mock<() => Promise
   });
 };
 
+interface IDeferredPreparation {
+  fail: (error: unknown) => void;
+  finish: () => void;
+  promise: Promise<void>;
+}
+
+const createDeferredPreparation = (): IDeferredPreparation => {
+  let finish: () => void = () => undefined;
+  let fail: (error: unknown) => void = () => undefined;
+  const promise = new Promise<void>((resolve, reject) => {
+    finish = resolve;
+    fail = reject;
+  });
+
+  return { fail, finish, promise };
+};
+
 let installedViewport: IFakeViewport | undefined;
 let memoryLocation: IMemoryLocation;
 
 const themeStore = createThemePreferenceStore({ colorSchemeQuery: undefined, storage: undefined, storageEvents: undefined });
 
-const renderViewport = (loadScene: CachedModuleLoader<SceneModuleValue>): void => {
-  render(withTestLocalizer(
-    <ThemePreferenceProvider store={themeStore}>
-      <RoutingProvider location={memoryLocation}>
-        <SceneViewport label={LABEL} loadScene={loadScene} />
-      </RoutingProvider>
-    </ThemePreferenceProvider>,
-  ));
+const createViewportTree = (
+  loadScene: CachedModuleLoader<TestSceneModuleValue>,
+  sceneData: TestSceneDataValue | undefined,
+): ReactElement => (
+  <ThemePreferenceProvider store={themeStore}>
+    <RoutingProvider location={memoryLocation}>
+      <SceneViewport interaction={undefined} label={LABEL} loadScene={loadScene} sceneData={sceneData} />
+    </RoutingProvider>
+  </ThemePreferenceProvider>
+);
+
+const renderViewportWithData = (
+  loadScene: CachedModuleLoader<TestSceneModuleValue>,
+  sceneData: TestSceneDataValue | undefined,
+): RenderResult => render(withTestLocalizer(createViewportTree(loadScene, sceneData)));
+
+const renderViewport = (loadScene: CachedModuleLoader<TestSceneModuleValue>): RenderResult => {
+  return renderViewportWithData(loadScene, SCENE_DATA);
 };
 
-const renderImportedViewport = (loadSceneImport: () => Promise<SceneModuleValue>): void => {
-  renderViewport(createCachedModuleLoader(loadSceneImport));
+const renderImportedViewport = (loadSceneImport: () => Promise<TestSceneModuleValue>): RenderResult => {
+  return renderViewport(createCachedModuleLoader(loadSceneImport));
 };
 
 const getSceneState = (): null | string => screen.getByTestId('scene-viewport').getAttribute(SCENE_STATE_ATTRIBUTE);
@@ -267,13 +313,13 @@ describe('SceneViewport', () => {
       expect(['high', 'low', 'medium']).toContain(screen.getByTestId('scene-content').dataset.level);
     });
 
-    it('mounts an already loaded scene on the first render', async () => {
+    it('mounts an already loaded scene as soon as its data is prepared', async () => {
       const loadScene = createCachedModuleLoader(loadSceneModule);
       await Promise.all([loadScene(), loadSceneRoot()]);
 
       renderViewport(loadScene);
 
-      expect(screen.getByTestId('scene-root-probe')).toBeTruthy();
+      expect(await screen.findByTestId('scene-root-probe')).toBeTruthy();
     });
 
     it('offers a retry after the first chunk failure and loads again', async () => {
@@ -317,6 +363,128 @@ describe('SceneViewport', () => {
       expect(screen.getByText(NO_WEBGL_MESSAGE)).toBeTruthy();
       expect(screen.queryByRole('button')).toBeNull();
       expect(useSceneSettingsStore.getState().isSceneUnavailable).toBe(true);
+    });
+  });
+
+  describe('scene data', () => {
+    const SECOND_DATA: TestSceneDataValue = { radius: 5, value: 'second' };
+
+    const rerenderViewport = (
+      view: RenderResult,
+      loadScene: CachedModuleLoader<TestSceneModuleValue>,
+      sceneData: TestSceneDataValue | undefined,
+    ): void => {
+      view.rerender(withTestLocalizer(createViewportTree(loadScene, sceneData)));
+    };
+
+    it('stays loading without data and does not prepare the scene', async () => {
+      const prepare = vi.fn(() => Promise.resolve());
+      const loadScene = createCachedModuleLoader(() => Promise.resolve(createSceneModule(prepare)));
+
+      const view = renderViewportWithData(loadScene, undefined);
+      await waitFor(() => {
+        expect(loadScene.peekLoadedModule()).toBeDefined();
+      });
+
+      expect(getSceneState()).toBe('loading');
+      expect(prepare).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('scene-root-probe')).toBeNull();
+
+      rerenderViewport(view, loadScene, SCENE_DATA);
+
+      await waitFor(() => {
+        expect(getSceneState()).toBe('ready');
+      });
+      expect(prepare).toHaveBeenCalledOnce();
+    });
+
+    it('prepares the data once and hands it to the content with the level', async () => {
+      const prepare = vi.fn(() => Promise.resolve());
+
+      renderViewport(createCachedModuleLoader(() => Promise.resolve(createSceneModule(prepare))));
+      const content = await screen.findByTestId('scene-content');
+
+      expect(prepare).toHaveBeenCalledExactlyOnceWith(SCENE_DATA);
+      expect(content.dataset.value).toBe('first');
+      expect(['high', 'low', 'medium']).toContain(content.dataset.level);
+      expect(screen.getByTestId('scene-root-probe').dataset.worldRadius).toBe('1');
+    });
+
+    it('keeps the prepared content while the new data is being prepared, then swaps it with a new world', async () => {
+      const secondPreparation = createDeferredPreparation();
+      const prepare = vi.fn((data: TestSceneDataValue) => data === SECOND_DATA ? secondPreparation.promise : Promise.resolve());
+      const loadScene = createCachedModuleLoader(() => Promise.resolve(createSceneModule(prepare)));
+      const view = renderViewport(loadScene);
+      await screen.findByTestId('scene-content');
+
+      rerenderViewport(view, loadScene, SECOND_DATA);
+      await waitFor(() => {
+        expect(prepare).toHaveBeenCalledTimes(2);
+      });
+
+      expect(screen.getByTestId('scene-content').dataset.value).toBe('first');
+      expect(screen.getByTestId('scene-root-probe').dataset.worldRadius).toBe('1');
+
+      secondPreparation.finish();
+
+      await waitFor(() => {
+        expect(screen.getByTestId('scene-content').dataset.value).toBe('second');
+      });
+      expect(screen.getByTestId('scene-root-probe').dataset.worldRadius).toBe('5');
+      expect(sceneRootControl.mountCount).toBe(1);
+    });
+
+    it('drops the answer of an outdated preparation', async () => {
+      const firstPreparation = createDeferredPreparation();
+      const prepare = vi.fn((data: TestSceneDataValue) => data === SCENE_DATA ? firstPreparation.promise : Promise.resolve());
+      const loadScene = createCachedModuleLoader(() => Promise.resolve(createSceneModule(prepare)));
+      const view = renderViewport(loadScene);
+      await waitFor(() => {
+        expect(prepare).toHaveBeenCalledOnce();
+      });
+
+      rerenderViewport(view, loadScene, SECOND_DATA);
+      await waitFor(() => {
+        expect(screen.getByTestId('scene-content').dataset.value).toBe('second');
+      });
+
+      await act(async () => {
+        firstPreparation.finish();
+        await firstPreparation.promise;
+      });
+
+      expect(screen.getByTestId('scene-content').dataset.value).toBe('second');
+      expect(screen.getByTestId('scene-root-probe').dataset.worldRadius).toBe('5');
+    });
+
+    it('treats a failed preparation as a scene failure and falls back to the light mode', async () => {
+      const prepare = vi.fn(() => Promise.reject(new Error('the terrain is not generated')));
+
+      renderViewport(createCachedModuleLoader(() => Promise.resolve(createSceneModule(prepare))));
+
+      await waitFor(() => {
+        expect(getSceneState()).toBe('off');
+      });
+      expect(screen.getByText(NO_WEBGL_MESSAGE)).toBeTruthy();
+      expect(useSceneSettingsStore.getState().isSceneUnavailable).toBe(true);
+    });
+
+    it('offers a retry when the preparation fails with a chunk error and prepares again', async () => {
+      const prepare = vi.fn<TestSceneModuleValue['prepare']>()
+        .mockRejectedValueOnce(new ChunkLoadError(1))
+        .mockResolvedValue(undefined);
+
+      renderViewport(createCachedModuleLoader(() => Promise.resolve(createSceneModule(prepare))));
+      const retryButton = await screen.findByRole('button', { name: RETRY_NAME });
+
+      expect(getSceneState()).toBe('error');
+
+      fireEvent.click(retryButton);
+
+      await waitFor(() => {
+        expect(getSceneState()).toBe('ready');
+      });
+      expect(prepare).toHaveBeenCalledTimes(2);
     });
   });
 

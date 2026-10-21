@@ -33,13 +33,15 @@ import { SceneOffPlaceholder } from './SceneOffPlaceholder';
 import { ScenePlaceholder } from './ScenePlaceholder';
 import { SceneStage } from './SceneStage';
 
-interface SceneLiveProps {
+interface SceneLiveProps<TData, TInteraction> {
   autoCeiling: QualityLevelValue | undefined;
   dprCeiling: number;
+  interaction: TInteraction;
   isStatsShown: boolean;
   label: string;
   level: QualityLevelValue;
-  loadScene: CachedModuleLoader<SceneModuleValue>;
+  loadScene: CachedModuleLoader<SceneModuleValue<TData, TInteraction>>;
+  sceneData: TData | undefined;
   shadowMapSize: ShadowMapSizeValue;
 }
 
@@ -50,15 +52,17 @@ const SCENE_STATE_BY_PHASE = {
   unavailable: 'off',
 } as const satisfies Record<SceneViewportPhaseValue, SceneStateValue>;
 
-export const SceneLive = ({
+export const SceneLive = <TData, TInteraction>({
   autoCeiling,
   dprCeiling,
+  interaction,
   isStatsShown,
   label,
   level,
   loadScene,
+  sceneData,
   shadowMapSize,
-}: SceneLiveProps): ReactElement => {
+}: SceneLiveProps<TData, TInteraction>): ReactElement => {
   const { t } = useI18n();
   const autoLevelChangeCount = useSceneSettingsStore(state => state.autoLevelChangeCount);
   const markSceneUnavailable = useSceneSettingsStore(state => state.markSceneUnavailable);
@@ -130,12 +134,14 @@ export const SceneLive = ({
           <SceneStage
             autoQuality={autoQuality}
             dprCeiling={dprCeiling}
+            interaction={interaction}
             isStatsShown={isStatsShown}
             level={level}
             loadScene={loadScene}
             onAutoLevelChange={handleAutoLevelChange}
             onContextLost={handleContextLost}
             onReady={handleSceneReady}
+            sceneData={sceneData}
             shadowMapSize={shadowMapSize}
           />
         </SceneErrorBoundary>

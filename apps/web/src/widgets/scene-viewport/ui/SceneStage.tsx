@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 
 import {
   useCallback,
+  useMemo,
   useRef,
 } from 'react';
 
@@ -19,18 +20,21 @@ import type { SceneModuleValue } from '../model/sceneViewportTypes';
 
 import { subscribeToSceneCameraCommands } from '../model/subscribeToSceneCameraCommands';
 import { usePrefersReducedMotion } from '../model/usePrefersReducedMotion';
+import { usePreparedSceneData } from '../model/usePreparedSceneData';
 import { useSceneModules } from '../model/useSceneModules';
 import { SceneLayer } from './SceneLayer';
 
-interface SceneStageProps {
+interface SceneStageProps<TData, TInteraction> {
   autoQuality: AutoQualitySettingsValue | undefined;
   dprCeiling: number;
+  interaction: TInteraction;
   isStatsShown: boolean;
   level: QualityLevelValue;
-  loadScene: CachedModuleLoader<SceneModuleValue>;
+  loadScene: CachedModuleLoader<SceneModuleValue<TData, TInteraction>>;
   onAutoLevelChange: (level: QualityLevelValue) => void;
   onContextLost: () => void;
   onReady: () => void;
+  sceneData: TData | undefined;
   shadowMapSize: ShadowMapSizeValue;
 }
 
@@ -44,18 +48,23 @@ const JUMP_FADE_DURATION_MS = 150;
 
 const JUMP_FADE_LAYER_CLASS_NAME = 'absolute inset-0';
 
-export const SceneStage = ({
+export const SceneStage = <TData, TInteraction>({
   autoQuality,
   dprCeiling,
+  interaction,
   isStatsShown,
   level,
   loadScene,
   onAutoLevelChange,
   onContextLost,
   onReady,
+  sceneData,
   shadowMapSize,
-}: SceneStageProps): null | ReactElement => {
+}: SceneStageProps<TData, TInteraction>): null | ReactElement => {
   const modulesState = useSceneModules(loadScene);
+  const loadedSceneModule = modulesState.kind === 'loaded' ? modulesState.sceneModule : undefined;
+  const preparedState = usePreparedSceneData(loadedSceneModule, sceneData);
+  const preparedData = preparedState.kind === 'ready' ? preparedState.data : undefined;
   const isReducedMotion = usePrefersReducedMotion();
   const resolvedTheme = useResolvedTheme();
   const focusInsets = useSceneInsets();
@@ -69,24 +78,36 @@ export const SceneStage = ({
     });
   }, []);
 
+  const world = useMemo(
+    () => loadedSceneModule === undefined || preparedData === undefined
+      ? undefined
+      : loadedSceneModule.resolveWorld(preparedData),
+    [loadedSceneModule, preparedData],
+  );
+
   if (modulesState.kind === 'failed') {
     throw modulesState.error;
   }
 
-  if (modulesState.kind === 'loading') {
+  if (preparedState.kind === 'failed') {
+    throw preparedState.error;
+  }
+
+  if (modulesState.kind === 'loading' || preparedState.kind === 'pending' || world === undefined) {
     return null;
   }
 
   const isNight = resolvedTheme === 'dark';
   const { rootModule, sceneModule } = modulesState;
   const SceneRoot = rootModule.default;
+  const SceneContent = sceneModule.default;
 
   return (
     <SceneLayer className={STAGE_LAYER_CLASS_NAME}>
       <div aria-hidden className={JUMP_FADE_LAYER_CLASS_NAME} ref={jumpFadeLayerRef}>
         <SceneRoot
           autoQuality={autoQuality}
-          Content={sceneModule.default}
+          content={<SceneContent data={preparedState.data} interaction={interaction} level={level} />}
           dprCeiling={dprCeiling}
           focusInsets={focusInsets}
           isNight={isNight}
@@ -99,7 +120,7 @@ export const SceneStage = ({
           onReady={onReady}
           shadowMapSize={shadowMapSize}
           subscribeToCameraCommands={subscribeToSceneCameraCommands}
-          world={sceneModule.world}
+          world={world}
         />
       </div>
     </SceneLayer>

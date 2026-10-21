@@ -14,6 +14,7 @@ import {
   createBudgetReport,
   createBudgetViolationMessage,
   createForbiddenPackageMessage,
+  createLazyBudgetForbiddenPackageMessage,
   createLazyBudgetReport,
   createLazyBudgetViolationMessage,
   createMissingLazyEntryMessage,
@@ -118,5 +119,18 @@ describe('createAnyChunkForbiddenPackageMessage', () => {
 
     expect(message).toContain('Package "stats-gl"');
     expect(message).toContain('chunk "assets/scene.js"');
+  });
+});
+
+describe('createLazyBudgetForbiddenPackageMessage', () => {
+  it('names the budget, the package and the chunk', () => {
+    const message = createLazyBudgetForbiddenPackageMessage('scene', {
+      chunkFileName: 'assets/shared.js',
+      packageName: '@radix-ui/react-dialog',
+    });
+
+    expect(message).toContain('Lazy bundle "scene"');
+    expect(message).toContain('package "@radix-ui/react-dialog"');
+    expect(message).toContain('chunk "assets/shared.js"');
   });
 });

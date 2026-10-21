@@ -16,12 +16,19 @@ import { SceneLayer } from './SceneLayer';
 import { SceneLive } from './SceneLive';
 import { SceneOffPlaceholder } from './SceneOffPlaceholder';
 
-interface SceneViewportProps {
+interface SceneViewportProps<TData, TInteraction> {
+  interaction: TInteraction;
   label: string;
-  loadScene: CachedModuleLoader<SceneModuleValue>;
+  loadScene: CachedModuleLoader<SceneModuleValue<TData, TInteraction>>;
+  sceneData: TData | undefined;
 }
 
-export const SceneViewport = ({ label, loadScene }: SceneViewportProps): ReactElement => {
+export const SceneViewport = <TData, TInteraction>({
+  interaction,
+  label,
+  loadScene,
+  sceneData,
+}: SceneViewportProps<TData, TInteraction>): ReactElement => {
   const viewportClass = useViewportClass();
   const mode = useSceneMode(viewportClass);
   const { searchParams } = useAddress();
@@ -42,10 +49,12 @@ export const SceneViewport = ({ label, loadScene }: SceneViewportProps): ReactEl
     <SceneLive
       autoCeiling={mode.isAuto ? mode.autoCeiling : undefined}
       dprCeiling={SCENE_DPR_CEILING[viewportClass]}
+      interaction={interaction}
       isStatsShown={isStatsShown}
       label={label}
       level={mode.level}
       loadScene={loadScene}
+      sceneData={sceneData}
       shadowMapSize={SCENE_SHADOW_MAP_SIZE[viewportClass]}
     />
   );

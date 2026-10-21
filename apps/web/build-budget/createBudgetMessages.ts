@@ -87,6 +87,15 @@ export const createLazyBudgetViolationMessage = (measurement: LazyBudgetMeasurem
   ].join(' ');
 };
 
+export const createLazyBudgetForbiddenPackageMessage = (
+  budgetName: string,
+  violation: ChunkPackageViolationValue,
+): string =>
+  [
+    `Lazy bundle "${budgetName}": package "${violation.packageName}" is bundled into chunk "${violation.chunkFileName}".`,
+    'This package is forbidden in this bundle; move the code that needs it out of the bundle or load it separately.',
+  ].join(' ');
+
 export const createMissingLazyEntryMessage = (budgetName: string, entry: string): string =>
   [
     `Lazy bundle "${budgetName}": module "${entry}" is not the entry of any dynamically imported chunk,`,

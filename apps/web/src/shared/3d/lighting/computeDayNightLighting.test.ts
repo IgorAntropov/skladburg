@@ -32,6 +32,9 @@ const rgb = (red: number, green: number, blue: number): RgbaColorValue => {
 const PALETTE: WorldPaletteValue = {
   background: rgb(200, 210, 120),
   backgroundNight: rgb(20, 30, 70),
+  buildingRoof: rgb(181, 105, 79),
+  buildingRoofAlt: rgb(196, 154, 88),
+  buildingWall: rgb(236, 228, 212),
   field: rgb(1, 2, 3),
   fieldAlt: rgb(4, 5, 6),
   ground: rgb(7, 8, 9),
@@ -39,8 +42,14 @@ const PALETTE: WorldPaletteValue = {
   groundDay: rgb(90, 140, 70),
   groundNight: rgb(10, 20, 60),
   moon: rgb(120, 150, 255),
+  plaza: rgb(190, 193, 186),
+  road: rgb(103, 107, 113),
   rock: rgb(13, 14, 15),
   sand: rgb(16, 17, 18),
+  sideCarrier: rgb(110, 40, 94),
+  sideCustomer: rgb(131, 68, 185),
+  sideRim: rgb(255, 255, 255),
+  sideSupplier: rgb(89, 101, 23),
   skyDay: rgb(190, 220, 255),
   skyNight: rgb(15, 25, 90),
   skySunset: rgb(250, 160, 110),
@@ -49,6 +58,8 @@ const PALETTE: WorldPaletteValue = {
   treeCrown: rgb(19, 20, 21),
   treeCrownDark: rgb(22, 23, 24),
   treeTrunk: rgb(25, 26, 27),
+  warehouseRoof: rgb(127, 141, 164),
+  warehouseWall: rgb(211, 218, 224),
   water: rgb(28, 29, 30),
 };
 

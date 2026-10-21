@@ -12,6 +12,9 @@ import { WORLD_PALETTE_KEYS } from './worldPaletteKeys';
 const PALETTE_KEYS: readonly WorldPaletteKeyValue[] = [
   'background',
   'backgroundNight',
+  'buildingRoof',
+  'buildingRoofAlt',
+  'buildingWall',
   'field',
   'fieldAlt',
   'ground',
@@ -19,8 +22,14 @@ const PALETTE_KEYS: readonly WorldPaletteKeyValue[] = [
   'groundDay',
   'groundNight',
   'moon',
+  'plaza',
+  'road',
   'rock',
   'sand',
+  'sideCarrier',
+  'sideCustomer',
+  'sideRim',
+  'sideSupplier',
   'skyDay',
   'skyNight',
   'skySunset',
@@ -29,11 +38,13 @@ const PALETTE_KEYS: readonly WorldPaletteKeyValue[] = [
   'treeCrown',
   'treeCrownDark',
   'treeTrunk',
+  'warehouseRoof',
+  'warehouseWall',
   'water',
 ];
 
 const createProperties = (): Map<string, string> => {
-  return new Map(PALETTE_KEYS.map((key, index): [string, string] => [WORLD_PALETTE_KEYS[key], `rgb(${String(index * 10)} 20 30)`]));
+  return new Map(PALETTE_KEYS.map((key, index): [string, string] => [WORLD_PALETTE_KEYS[key], `rgb(${String(index * 5)} 20 30)`]));
 };
 
 const createReader = (properties: Map<string, string>): ((name: string) => string) => {
@@ -51,7 +62,7 @@ describe('readWorldPalette', () => {
         alpha: 1,
         blue: 30,
         green: 20,
-        red: index * 10,
+        red: index * 5,
       });
     });
   });

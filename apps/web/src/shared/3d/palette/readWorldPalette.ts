@@ -21,6 +21,9 @@ export const readWorldPalette = (readProperty: (name: string) => string): WorldP
   return {
     background: readWorldColor(readProperty, WORLD_PALETTE_KEYS.background),
     backgroundNight: readWorldColor(readProperty, WORLD_PALETTE_KEYS.backgroundNight),
+    buildingRoof: readWorldColor(readProperty, WORLD_PALETTE_KEYS.buildingRoof),
+    buildingRoofAlt: readWorldColor(readProperty, WORLD_PALETTE_KEYS.buildingRoofAlt),
+    buildingWall: readWorldColor(readProperty, WORLD_PALETTE_KEYS.buildingWall),
     field: readWorldColor(readProperty, WORLD_PALETTE_KEYS.field),
     fieldAlt: readWorldColor(readProperty, WORLD_PALETTE_KEYS.fieldAlt),
     ground: readWorldColor(readProperty, WORLD_PALETTE_KEYS.ground),
@@ -28,8 +31,14 @@ export const readWorldPalette = (readProperty: (name: string) => string): WorldP
     groundDay: readWorldColor(readProperty, WORLD_PALETTE_KEYS.groundDay),
     groundNight: readWorldColor(readProperty, WORLD_PALETTE_KEYS.groundNight),
     moon: readWorldColor(readProperty, WORLD_PALETTE_KEYS.moon),
+    plaza: readWorldColor(readProperty, WORLD_PALETTE_KEYS.plaza),
+    road: readWorldColor(readProperty, WORLD_PALETTE_KEYS.road),
     rock: readWorldColor(readProperty, WORLD_PALETTE_KEYS.rock),
     sand: readWorldColor(readProperty, WORLD_PALETTE_KEYS.sand),
+    sideCarrier: readWorldColor(readProperty, WORLD_PALETTE_KEYS.sideCarrier),
+    sideCustomer: readWorldColor(readProperty, WORLD_PALETTE_KEYS.sideCustomer),
+    sideRim: readWorldColor(readProperty, WORLD_PALETTE_KEYS.sideRim),
+    sideSupplier: readWorldColor(readProperty, WORLD_PALETTE_KEYS.sideSupplier),
     skyDay: readWorldColor(readProperty, WORLD_PALETTE_KEYS.skyDay),
     skyNight: readWorldColor(readProperty, WORLD_PALETTE_KEYS.skyNight),
     skySunset: readWorldColor(readProperty, WORLD_PALETTE_KEYS.skySunset),
@@ -38,6 +47,8 @@ export const readWorldPalette = (readProperty: (name: string) => string): WorldP
     treeCrown: readWorldColor(readProperty, WORLD_PALETTE_KEYS.treeCrown),
     treeCrownDark: readWorldColor(readProperty, WORLD_PALETTE_KEYS.treeCrownDark),
     treeTrunk: readWorldColor(readProperty, WORLD_PALETTE_KEYS.treeTrunk),
+    warehouseRoof: readWorldColor(readProperty, WORLD_PALETTE_KEYS.warehouseRoof),
+    warehouseWall: readWorldColor(readProperty, WORLD_PALETTE_KEYS.warehouseWall),
     water: readWorldColor(readProperty, WORLD_PALETTE_KEYS.water),
   };
 };

@@ -1,6 +1,6 @@
 import type {
-  ComponentType,
   ReactElement,
+  ReactNode,
 } from 'react';
 
 import {
@@ -15,7 +15,6 @@ import type {
   AutoQualitySettingsValue,
   IIsometricCameraRig,
   QualityLevelValue,
-  SceneContentProps,
   SceneWorldValue,
   ShadowMapSizeValue,
 } from '@/shared/3d';
@@ -38,7 +37,7 @@ import { useSceneCameraCommands } from './useSceneCameraCommands';
 
 interface SceneRootProps {
   autoQuality: AutoQualitySettingsValue | undefined;
-  Content: ComponentType<SceneContentProps>;
+  content: ReactNode;
   dprCeiling: number;
   focusInsets: SceneInsetsValue;
   isNight: boolean;
@@ -62,7 +61,7 @@ const readDocumentProperty = (name: string): string => {
 
 const SceneRoot = ({
   autoQuality,
-  Content,
+  content,
   dprCeiling,
   focusInsets,
   isNight,
@@ -108,7 +107,7 @@ const SceneRoot = ({
             shadowMapSize={shadowMapSize}
             world={world}
           />
-          <Content level={level} />
+          {content}
         </WorldGeometryProvider>
       </WorldMaterialsProvider>
       {autoQuality !== undefined && (

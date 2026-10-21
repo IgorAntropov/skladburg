@@ -3,6 +3,7 @@ import type { Plugin } from 'vite';
 import type {
   BudgetChunkValue,
   ForbiddenPackageViolationValue,
+  LazyBudgetMeasurementValue,
   LazyEntryBudgetValue,
 } from './bundleBudgetTypes.ts';
 
@@ -12,6 +13,7 @@ import {
   createBudgetReport,
   createBudgetViolationMessage,
   createForbiddenPackageMessage,
+  createLazyBudgetForbiddenPackageMessage,
   createLazyBudgetReport,
   createLazyBudgetViolationMessage,
   createMissingLazyEntryMessage,
@@ -78,6 +80,24 @@ const toBudgetChunks = (bundle: Readonly<Record<string, BundleBudgetOutputValue>
 
 const toBytes = (kiloBytes: number): number => kiloBytes * BYTES_PER_KILOBYTE;
 
+const findLazyBudgetForbiddenPackageMessages = (
+  measurement: LazyBudgetMeasurementValue,
+  budgetChunks: readonly BudgetChunkValue[],
+): string[] => {
+  const forbiddenPackages = measurement.budget.forbiddenPackages ?? [];
+
+  if (forbiddenPackages.length === 0) {
+    return [];
+  }
+
+  const measuredFileNames = new Set(measurement.chunks.map(chunk => chunk.fileName));
+  const measuredChunks = budgetChunks.filter(chunk => measuredFileNames.has(chunk.fileName));
+
+  return findForbiddenPackagesInChunks(measuredChunks, createForbiddenPackageMatcher(forbiddenPackages)).map(violation =>
+    createLazyBudgetForbiddenPackageMessage(measurement.budget.name, violation),
+  );
+};
+
 const assertValidLimit = (maxInitialGzipKiloBytes: number): void => {
   if (!Number.isFinite(maxInitialGzipKiloBytes) || maxInitialGzipKiloBytes <= 0) {
     throw new Error(`Bundle budget must be a positive number of kilobytes, got ${String(maxInitialGzipKiloBytes)}`);
@@ -112,6 +132,9 @@ export const bundleBudgetPlugin = (options: BundleBudgetPluginOptionsValue): Bun
       const lazySizeViolations = lazyMeasurements.filter(
         measurement => measurement.gzipBytes > toBytes(measurement.budget.maxGzipKiloBytes),
       );
+      const lazyForbiddenPackageMessages = lazyMeasurements.flatMap(measurement =>
+        findLazyBudgetForbiddenPackageMessages(measurement, budgetChunks),
+      );
       const missingEntries = lazyMeasurements.flatMap(measurement =>
         measurement.missingEntries.map(entry => ({
           isRequired: measurement.budget.isRequired === true,
@@ -124,6 +147,7 @@ export const bundleBudgetPlugin = (options: BundleBudgetPluginOptionsValue): Bun
         sizeViolations.length > 0
         || packageViolations.length > 0
         || anyChunkPackageViolations.length > 0
+        || lazyForbiddenPackageMessages.length > 0
         || lazySizeViolations.length > 0
         || requiredMissingMessages.length > 0
       ) {
@@ -131,6 +155,7 @@ export const bundleBudgetPlugin = (options: BundleBudgetPluginOptionsValue): Bun
           [
             ...packageViolations.map(createForbiddenPackageMessage),
             ...anyChunkPackageViolations.map(createAnyChunkForbiddenPackageMessage),
+            ...lazyForbiddenPackageMessages,
             ...sizeViolations.map(violation => createBudgetViolationMessage(violation, limitBytes)),
             ...lazySizeViolations.map(violation =>
               createLazyBudgetViolationMessage(violation, toBytes(violation.budget.maxGzipKiloBytes)),

@@ -6,6 +6,7 @@ export { IsometricCameraRig } from './camera/IsometricCameraRig';
 export { SceneCanvas } from './canvas/SceneCanvas';
 export { WorldGeometryProvider } from './geometry/WorldGeometryProvider';
 export { DayNightRig } from './lighting/DayNightRig';
+export { useShadowMapRefresh } from './lighting/shadowMapRefresh';
 export type { ShadowMapSizeValue } from './lighting/shadowSettings';
 export { useWorldMaterial } from './materials/useWorldMaterial';
 export { WorldMaterialsProvider } from './materials/WorldMaterialsProvider';
@@ -19,6 +20,11 @@ export {
   EMPTY_TERRAIN_RESERVED,
   loadWorldTerrain,
   WorldTerrain,
+} from './terrain';
+export type {
+  TerrainCorridorValue,
+  TerrainReservedAreaValue,
+  TerrainReservedValue,
 } from './terrain';
 export type { SceneBoundsValue } from './world/sceneBounds';
 export type {

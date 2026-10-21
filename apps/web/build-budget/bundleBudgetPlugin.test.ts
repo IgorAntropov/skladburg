@@ -12,6 +12,7 @@ import type {
   BundleBudgetOutputValue,
   BundleBudgetPluginOptionsValue,
 } from './bundleBudgetPlugin.ts';
+import type { LazyEntryBudgetValue } from './bundleBudgetTypes.ts';
 
 import { bundleBudgetPlugin } from './bundleBudgetPlugin.ts';
 import { gzipSizeInBytes } from './gzipSizeInBytes.ts';
@@ -447,5 +448,73 @@ describe('bundleBudgetPlugin lazy entry budgets', () => {
         maxInitialGzipKiloBytes: 90,
       }),
     ).toThrow('at least one entry');
+  });
+});
+
+describe('bundleBudgetPlugin lazy budget forbidden packages', () => {
+  const sceneEntry = 'src/scene/Root.tsx';
+  const radixModuleId = '/repo/node_modules/@radix-ui/react-dialog/dist/index.js';
+  const createSceneChunks = (
+    sceneImports: string[],
+    sharedModuleIds: string[],
+  ): Record<string, BundleBudgetOutputValue> => ({
+    'assets/index.js': createChunk('assets/index.js', entryCode, { isEntry: true }),
+    'assets/Root.js': createChunk('assets/Root.js', createNoise(500), {
+      imports: sceneImports,
+      isDynamicEntry: true,
+      moduleIds: ['/repo/apps/web/src/scene/Root.tsx'],
+    }),
+    'assets/shared.js': createChunk('assets/shared.js', createNoise(500), { moduleIds: sharedModuleIds }),
+  });
+  const createBudget = (forbiddenPackages?: string[]): LazyEntryBudgetValue => ({
+    entries: [sceneEntry],
+    ...forbiddenPackages === undefined ? {} : { forbiddenPackages },
+    maxGzipKiloBytes: 300,
+    name: 'scene',
+  });
+
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('fails when a forbidden package is in a chunk of the budget and names the budget, chunk and package', () => {
+    const run = createOptionsRunner(
+      { lazyEntryBudgets: [createBudget(['@radix-ui/*'])] },
+      createSceneChunks(['assets/shared.js'], [radixModuleId]),
+    );
+
+    expect(run).toThrow('Lazy bundle "scene"');
+    expect(run).toThrow('package "@radix-ui/react-dialog"');
+    expect(run).toThrow('chunk "assets/shared.js"');
+  });
+
+  it('passes when the same package sits in a chunk outside the budget', () => {
+    const run = createOptionsRunner(
+      { lazyEntryBudgets: [createBudget(['@radix-ui/*'])] },
+      createSceneChunks([], [radixModuleId]),
+    );
+
+    expect(run).not.toThrow();
+  });
+
+  it('behaves as before without the field or with an empty list', () => {
+    const bundle = createSceneChunks(['assets/shared.js'], [radixModuleId]);
+
+    expect(createOptionsRunner({ lazyEntryBudgets: [createBudget()] }, bundle)).not.toThrow();
+    expect(createOptionsRunner({ lazyEntryBudgets: [createBudget([])] }, bundle)).not.toThrow();
+  });
+
+  it('rejects an invalid pattern', () => {
+    expect(() =>
+      bundleBudgetPlugin({
+        forbiddenInitialPackages: [],
+        lazyEntryBudgets: [createBudget(['*'])],
+        maxInitialGzipKiloBytes: 90,
+      }),
+    ).toThrow('exact package name');
   });
 });

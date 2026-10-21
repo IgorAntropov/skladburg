@@ -28,9 +28,12 @@ export type AutoGraphicsLevelValue = 'high' | 'low' | 'medium';
 
 export type CameraButtonValue = 'home' | 'rotate-left' | 'rotate-right' | 'zoom-in' | 'zoom-out';
 
+export type DragDirectionValue = 'down' | 'left' | 'right' | 'up';
+
 export interface SceneRobotValue {
   chooseGraphicsPreference: (preference: GraphicsPreferenceValue) => Promise<void>;
   countRequestedSceneChunks: () => number;
+  dragWorld: (direction: DragDirectionValue) => Promise<void>;
   expectAutoGraphicsLevel: (level: AutoGraphicsLevelValue) => Promise<void>;
   expectNoCanvas: () => Promise<void>;
   expectNoDrawCallsFor: (durationMs: number) => Promise<void>;
@@ -40,6 +43,7 @@ export interface SceneRobotValue {
   expectThemeAttribute: (theme: ColorSchemeValue) => Promise<void>;
   markMotionStart: () => Promise<void>;
   openNetwork: () => Promise<void>;
+  openNetworkAsPersona: (personaId: string) => Promise<void>;
   openNetworkInColorScheme: (colorScheme: ColorSchemeValue) => Promise<void>;
   openNetworkWithGraphicsPreference: (preference: GraphicsPreferenceValue) => Promise<void>;
   pressCameraButton: (button: CameraButtonValue) => Promise<void>;
@@ -73,6 +77,8 @@ interface IdleReportValue {
 const IDLE_WINDOW_MS = 500;
 const IDLE_TIMEOUT_MS = 15_000;
 const SCENE_STATE_TIMEOUT_MS = 40_000;
+const DRAG_STEPS = 6;
+const DRAG_SPAN_RATIO = 0.4;
 const SCENE_CHUNK_PATTERN = /\/assets\/(?:NetworkWorldScene|SceneRoot)-[^/]+\.js$/;
 
 export const createSceneRobot = (page: Page): SceneRobotValue => {
@@ -84,6 +90,7 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
   } = createProfileMenuLocators(page);
   const sceneViewport = page.getByTestId('scene-viewport');
   const canvas = sceneViewport.locator('canvas');
+  const freeArea = page.getByTestId('hud-free-area');
   const requestedSceneChunks: string[] = [];
   let isInitScriptAdded = false;
 
@@ -103,6 +110,31 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     await page.goto('./#/network');
   };
 
+  const dragWorld = async (direction: DragDirectionValue): Promise<void> => {
+    const box = await freeArea.boundingBox();
+
+    if (box === null) {
+      throw new Error('The free area of the HUD is not laid out');
+    }
+
+    const centerX = box.x + box.width / 2;
+    const centerY = box.y + box.height / 2;
+    const halfWidth = box.width * DRAG_SPAN_RATIO / 2;
+    const halfHeight = box.height * DRAG_SPAN_RATIO / 2;
+    const routes = {
+      down: { from: { x: centerX, y: centerY - halfHeight }, to: { x: centerX, y: centerY + halfHeight } },
+      left: { from: { x: centerX + halfWidth, y: centerY }, to: { x: centerX - halfWidth, y: centerY } },
+      right: { from: { x: centerX - halfWidth, y: centerY }, to: { x: centerX + halfWidth, y: centerY } },
+      up: { from: { x: centerX, y: centerY + halfHeight }, to: { x: centerX, y: centerY - halfHeight } },
+    } as const;
+    const { from, to } = routes[direction];
+
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: DRAG_STEPS });
+    await page.mouse.up();
+  };
+
   return {
     async chooseGraphicsPreference(preference: GraphicsPreferenceValue): Promise<void> {
       await profileButton.click();
@@ -113,6 +145,7 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     countRequestedSceneChunks(): number {
       return requestedSceneChunks.length;
     },
+    dragWorld,
     async expectAutoGraphicsLevel(level: AutoGraphicsLevelValue): Promise<void> {
       await profileButton.click();
       await expect(menu).toBeVisible();
@@ -150,6 +183,10 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
       await page.evaluate(MARK_MOTION_START_SCRIPT);
     },
     openNetwork,
+    async openNetworkAsPersona(personaId: string): Promise<void> {
+      await ensureDrawCounter();
+      await page.goto(`./#/network?as=${personaId}`);
+    },
     async openNetworkInColorScheme(colorScheme: ColorSchemeValue): Promise<void> {
       await page.emulateMedia({ colorScheme });
       await page.addInitScript({ content: createStoreSystemThemeScript() });

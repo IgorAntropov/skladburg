@@ -125,6 +125,17 @@
   --world-sky-night: #5b78d2;
   --world-ground-night: #8296cc;
   --world-background-night: #3c5264;
+  --world-road: #676b71;
+  --world-plaza: #bec1ba;
+  --world-building-wall: #ece4d4;
+  --world-building-roof: #b5694f;
+  --world-building-roof-alt: #c49a58;
+  --world-warehouse-wall: #d3dae0;
+  --world-warehouse-roof: #7f8da4;
+  --world-side-customer: #8344b9;
+  --world-side-supplier: #596517;
+  --world-side-carrier: #6e285e;
+  --world-side-rim: #ffffff;
 }
 
 @utility shadow-panel {

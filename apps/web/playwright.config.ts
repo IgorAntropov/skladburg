@@ -30,6 +30,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
       },
+      workers: 1,
     },
     {
       name: 'webkit',

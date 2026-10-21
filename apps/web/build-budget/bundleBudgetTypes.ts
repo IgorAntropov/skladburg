@@ -38,6 +38,7 @@ export interface LazyBudgetMeasurementValue {
 
 export interface LazyEntryBudgetValue {
   entries: readonly string[];
+  forbiddenPackages?: readonly string[];
   isRequired?: boolean;
   maxGzipKiloBytes: number;
   name: string;

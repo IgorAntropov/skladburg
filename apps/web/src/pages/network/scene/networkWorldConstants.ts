@@ -1,1 +1,2 @@
 export const NETWORK_WORLD_SEED = 20261013;
+export const NETWORK_WORLD_SIZE_METERS = 372;

@@ -1,6 +1,7 @@
 import type { ColorSchemeValue } from './fixtures/themePreference.ts';
 import type { SceneRobotValue } from './robots/scene-robot.ts';
 
+import { PERSONAS } from './fixtures/demoData.ts';
 import {
   expect,
   test,
@@ -30,6 +31,8 @@ const SCENE_TEST_TIMEOUT_MS = 60_000;
 const RESIZED_VIEWPORT = { height: 700, width: 1100 } as const;
 const MIN_ROTATION_FRAMES = 10;
 const MAX_ROTATION_ANIMATION_MS = 1500;
+const MAX_DRAW_CALLS_PER_FRAME = 40;
+const MIN_HOME_FRAMES = 2;
 const MAX_REDUCED_MOTION_FRAMES = 3;
 const MIN_REDUCED_MOTION_FRAMES = 1;
 const MAX_LONG_TASK_COUNT = 0;
@@ -166,8 +169,40 @@ test.describe('camera motion', () => {
     annotateRotation('rotation-button', rotation);
 
     expect(rotation.frames).toBeGreaterThanOrEqual(MIN_ROTATION_FRAMES);
+    expect(rotation.drawCallsPerFrame).toBeGreaterThan(0);
+    expect(rotation.drawCallsPerFrame).toBeLessThanOrEqual(MAX_DRAW_CALLS_PER_FRAME);
     expect(rotation.animationMs).toBeLessThanOrEqual(MAX_ROTATION_ANIMATION_MS);
     expect(rotation.longTaskCount).toBe(MAX_LONG_TASK_COUNT);
+  });
+
+  test('brings the world back home after a turn and a drag and then goes quiet', async ({ page }) => {
+    const scene = createSceneRobot(page);
+
+    await openReadyWorld(scene);
+
+    const turn = await measureRotation(
+      scene,
+      async () => scene.pressCameraButton('rotate-right'),
+      MIN_ROTATION_FRAMES,
+    );
+    const drag = await measureRotation(
+      scene,
+      async () => scene.dragWorld('left'),
+      MIN_HOME_FRAMES,
+    );
+    const home = await measureRotation(
+      scene,
+      async () => scene.pressCameraButton('home'),
+      MIN_HOME_FRAMES,
+    );
+
+    annotateRotation('turn-before-home', turn);
+    annotateRotation('drag-before-home', drag);
+    annotateRotation('home', home);
+
+    expect(home.frames).toBeGreaterThanOrEqual(MIN_HOME_FRAMES);
+    expect(home.drawCallsPerFrame).toBeLessThanOrEqual(MAX_DRAW_CALLS_PER_FRAME);
+    expect(home.longTaskCount).toBe(MAX_LONG_TASK_COUNT);
   });
 
   test('turns the world with the E key like the button does', async ({ page }) => {
@@ -185,6 +220,27 @@ test.describe('camera motion', () => {
 
     expect(rotation.frames).toBeGreaterThanOrEqual(MIN_ROTATION_FRAMES);
     expect(rotation.animationMs).toBeLessThanOrEqual(MAX_ROTATION_ANIMATION_MS);
+  });
+});
+
+test.describe('carrier without sites', () => {
+  test.use({
+    initialGraphicsPreference: 'low',
+    reducedMotion: 'reduce',
+    viewport: DESKTOP_VIEWPORT,
+  });
+
+  test('shows the whole network and draws no frames at rest', async ({ page }) => {
+    const scene = createSceneRobot(page);
+
+    await scene.openNetworkAsPersona(PERSONAS.freshCarrier.id);
+    await scene.expectSceneState('ready');
+    await scene.waitForCameraControls();
+    await scene.waitForIdle();
+
+    expect(await scene.readDrawCalls()).toBeGreaterThan(0);
+
+    await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
   });
 });
 

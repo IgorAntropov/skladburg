@@ -56,6 +56,18 @@ const NAVIGATE_FALLBACK_DENYLIST = [/^[^?]*\/[^/?]*\.(?!html(?:\?|$))[^/.?]+(?:\
 
 const FORBIDDEN_PACKAGES = ['stats-gl', 'stats.js'];
 
+const FORBIDDEN_SCENE_PACKAGES = [
+  '@bufbuild/protobuf',
+  '@connectrpc/*',
+  '@radix-ui/*',
+  '@tanstack/*',
+  'framer-motion',
+  'motion',
+  'motion-dom',
+  'motion-utils',
+  'react-hook-form',
+];
+
 const CRITICAL_PATH_ENTRIES: readonly CriticalPreloadEntryValue[] = [
   { entry: 'src/app/bootstrap/mountApp.tsx', isRequired: true },
   { entry: 'src/shared/api/transport/demo/index.ts', isDemoOnly: true, isRequired: true },
@@ -81,6 +93,7 @@ const STARTUP_BUDGET_ENTRIES = [
 const LAZY_ENTRY_BUDGETS = [
   {
     entries: ['src/widgets/scene-viewport/scene/SceneRoot.tsx', 'src/pages/network/scene/NetworkWorldScene.tsx'],
+    forbiddenPackages: FORBIDDEN_SCENE_PACKAGES,
     isRequired: true,
     maxGzipKiloBytes: MAX_SCENE_GZIP_KILOBYTES,
     name: 'scene',

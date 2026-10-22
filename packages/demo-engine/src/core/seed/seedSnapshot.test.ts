@@ -151,6 +151,21 @@ describe('seed contents', () => {
     expect(organization?.profiles.map(profile => profile.kind).sort()).toEqual([ProfileKind.SUPPLIER, ProfileKind.CARRIER].sort());
   });
 
+  it('verifies the supplier profile of the fourth supplier and leaves its carrier profile at level 0', () => {
+    const organization = createSeedReader().get('organizations', SeedOrganizationId.SUPPLIER_4);
+    const levels = new Map(organization?.profiles.map(profile => [profile.kind, profile.verificationLevel]));
+
+    expect(levels.get(ProfileKind.SUPPLIER)).toBe(2);
+    expect(levels.get(ProfileKind.CARRIER)).toBe(0);
+  });
+
+  it('gives the first carrier verification level 1 and the second one level 3', () => {
+    const reader = createSeedReader();
+
+    expect(reader.get('organizations', SeedOrganizationId.CARRIER_1)?.profiles.map(profile => profile.verificationLevel)).toEqual([1]);
+    expect(reader.get('organizations', SeedOrganizationId.CARRIER_2)?.profiles.map(profile => profile.verificationLevel)).toEqual([3]);
+  });
+
   it('has customers, suppliers and carriers in both verticals', () => {
     const organizations = createSeedReader().list('organizations');
 

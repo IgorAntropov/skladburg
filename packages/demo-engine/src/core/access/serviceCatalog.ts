@@ -4,5 +4,12 @@ import { AccessService } from '@skladburg/contracts/access/v1/access';
 import { ClockService } from '@skladburg/contracts/clock/v1/clock';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
+import { OrganizationShowcaseService } from '@skladburg/contracts/organization/v1/showcase';
 
-export const ENGINE_SERVICES: readonly DescService[] = [AccessService, ClockService, NetworkService, OrganizationService];
+export const ENGINE_SERVICES: readonly DescService[] = [
+  AccessService,
+  ClockService,
+  NetworkService,
+  OrganizationService,
+  OrganizationShowcaseService,
+];

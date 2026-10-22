@@ -4,3 +4,4 @@ export {
   type OrganizationReadHandlersValue,
 } from './organizationReadHandlers';
 export { buildPermissionCatalog } from './permissionCatalog';
+export { createOrganizationShowcaseService } from './showcaseHandlers';

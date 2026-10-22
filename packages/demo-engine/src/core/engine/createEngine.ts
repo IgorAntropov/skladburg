@@ -27,6 +27,7 @@ import {
   createClockService,
   createNetworkService,
   createOrganizationService,
+  createOrganizationShowcaseService,
 } from '../modules/index';
 import {
   createRandom,
@@ -150,6 +151,7 @@ export const createEngineWithTasks = async (
     errors,
     networkService: createNetworkService(runtime),
     organizationService: createOrganizationService(runtime),
+    organizationShowcaseService: createOrganizationShowcaseService(runtime),
   });
   const scheduler = createScheduler({
     command,

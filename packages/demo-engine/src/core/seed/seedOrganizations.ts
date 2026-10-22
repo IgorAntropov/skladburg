@@ -63,7 +63,7 @@ const SEED_ORGANIZATION_DEFINITIONS: readonly SeedOrganizationDefinitionValue[] 
     kpp: '000001004',
     name: 'Перевозчик 1',
     ogrn: '1000000010043',
-    profiles: [{ kind: ProfileKind.CARRIER, verificationLevel: 2 }],
+    profiles: [{ kind: ProfileKind.CARRIER, verificationLevel: 1 }],
     sphereIds: [SeedSphereId.FOOD],
   },
   {
@@ -92,7 +92,7 @@ const SEED_ORGANIZATION_DEFINITIONS: readonly SeedOrganizationDefinitionValue[] 
     ogrn: '1000000010076',
     profiles: [
       { kind: ProfileKind.SUPPLIER, verificationLevel: 2 },
-      { kind: ProfileKind.CARRIER, verificationLevel: 2 },
+      { kind: ProfileKind.CARRIER, verificationLevel: 0 },
     ],
     sphereIds: [SeedSphereId.CEMENT_AND_CONCRETE, SeedSphereId.TIMBER],
   },

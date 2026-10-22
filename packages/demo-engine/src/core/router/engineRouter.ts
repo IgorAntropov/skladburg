@@ -16,6 +16,7 @@ import { AccessService } from '@skladburg/contracts/access/v1/access';
 import { ClockService } from '@skladburg/contracts/clock/v1/clock';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
+import { OrganizationShowcaseService } from '@skladburg/contracts/organization/v1/showcase';
 
 import type { IDomainErrors } from '../errors/index';
 
@@ -25,6 +26,7 @@ export interface CreateEngineHandlerOptionsValue {
   errors: IDomainErrors;
   networkService: ServiceImpl<typeof NetworkService>;
   organizationService: ServiceImpl<typeof OrganizationService>;
+  organizationShowcaseService: ServiceImpl<typeof OrganizationShowcaseService>;
 }
 
 export type EngineRequestHandler = (request: Request) => Promise<Response>;
@@ -60,6 +62,7 @@ export const createEngineHandler = (options: CreateEngineHandlerOptionsValue): E
   router.service(ClockService, options.clockService);
   router.service(NetworkService, options.networkService);
   router.service(OrganizationService, options.organizationService);
+  router.service(OrganizationShowcaseService, options.organizationShowcaseService);
 
   return createFetchHandler(createPathDispatcher(router.handlers));
 };

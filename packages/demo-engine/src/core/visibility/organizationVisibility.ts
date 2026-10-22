@@ -22,6 +22,20 @@ export const projectOrganizationForShowcase = (organization: Organization): Orga
   sphereIds: [...organization.sphereIds],
 });
 
+export const isOrganizationVisibleToViewer = (
+  read: IStateReader,
+  viewerOrganizationId: string,
+  target: Organization,
+): boolean => {
+  if (viewerOrganizationId === target.id) {
+    return true;
+  }
+
+  const viewer = read.get('organizations', viewerOrganizationId);
+
+  return viewer !== undefined && isOrganizationVerified(viewer) && isOrganizationVerified(target);
+};
+
 export const getVisibleOrganization = (
   read: IStateReader,
   viewerOrganizationId: string,
@@ -33,8 +47,5 @@ export const getVisibleOrganization = (
     return target;
   }
 
-  const viewer = read.get('organizations', viewerOrganizationId);
-  const isShowcaseVisible = viewer !== undefined && isOrganizationVerified(viewer) && isOrganizationVerified(target);
-
-  return isShowcaseVisible ? projectOrganizationForShowcase(target) : undefined;
+  return isOrganizationVisibleToViewer(read, viewerOrganizationId, target) ? projectOrganizationForShowcase(target) : undefined;
 };

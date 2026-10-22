@@ -25,13 +25,17 @@ import {
 } from '@skladburg/contracts/common/v1/error';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
+import { OrganizationShowcaseService } from '@skladburg/contracts/organization/v1/showcase';
 import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
 
 import type { TestRuntimeValue } from './testRuntime';
 
 import { DEMO_USER_HEADER } from '../../protocol';
 import { createClockService } from '../clock/index';
-import { createAccessService } from '../identity/index';
+import {
+  createAccessService,
+  createOrganizationShowcaseService,
+} from '../identity/index';
 import { createNetworkService } from '../network/index';
 import { createOrganizationService } from '../organizationService';
 import { createTestRuntime } from './testRuntime';
@@ -105,6 +109,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(ClockService, createClockService(testRuntime.runtime, () => testRuntime.clock.getSnapshot()));
     service(NetworkService, createNetworkService(testRuntime.runtime));
     service(OrganizationService, createOrganizationService(testRuntime.runtime));
+    service(OrganizationShowcaseService, createOrganizationShowcaseService(testRuntime.runtime));
   });
 
   return {

@@ -4,8 +4,8 @@ import type {
   NetworkSceneCityValue,
 } from '../layout';
 
-import { EMPTY_ID_LIST } from '../../model/networkSceneInteraction';
 import { CITY_RESERVE_RADIUS_METERS } from '../layout';
+import { EMPTY_ID_LIST } from './emptyIdList';
 import {
   CITY_CORNER_BAR_WIDTH_METERS,
   CITY_CORNER_INNER_SHARE,

@@ -1,5 +1,3 @@
-export const EMPTY_ID_LIST: readonly string[] = [];
-
 export interface NetworkFocusRequestValue {
   id: string;
   sequence: number;

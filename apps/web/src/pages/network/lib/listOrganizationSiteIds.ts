@@ -1,6 +1,6 @@
 import type { NetworkMapSiteValue } from '@/entities/network';
 
-import { EMPTY_ID_LIST } from '../model/networkSceneInteraction';
+const EMPTY_ID_LIST: readonly string[] = [];
 
 export const listOrganizationSiteIds = (
   sites: readonly NetworkMapSiteValue[],

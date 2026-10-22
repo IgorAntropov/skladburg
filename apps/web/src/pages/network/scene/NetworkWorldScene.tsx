@@ -21,8 +21,8 @@ import {
 import type { NetworkSceneInteractionValue } from '../model/networkSceneInteraction';
 import type { NetworkSceneLayoutValue } from './layout';
 
-import { EMPTY_ID_LIST } from '../model/networkSceneInteraction';
 import { createUnitBoxGeometry } from './geometry/createUnitBoxGeometry';
+import { EMPTY_ID_LIST } from './geometry/emptyIdList';
 import { listSelectedIds } from './geometry/selectionFrame';
 import { useNetworkCameraFocus } from './interaction/useNetworkCameraFocus';
 import { useNetworkPointerPicking } from './interaction/useNetworkPointerPicking';

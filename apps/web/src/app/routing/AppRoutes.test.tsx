@@ -179,6 +179,7 @@ describe('AppRoutes sections', () => {
       deal: 'deals',
       document: 'documents',
       handling_unit: 'handling-units',
+      organization: 'organizations',
       site: 'sites',
       trip: 'trips',
       vehicle: 'vehicles',

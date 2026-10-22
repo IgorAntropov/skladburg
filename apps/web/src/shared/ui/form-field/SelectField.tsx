@@ -56,6 +56,7 @@ export interface SelectFieldProps {
   onBlur?: FocusEventHandler<HTMLSelectElement> | undefined;
   onChange?: ChangeEventHandler<HTMLSelectElement> | undefined;
   ref?: Ref<HTMLSelectElement> | undefined;
+  value?: string | undefined;
 }
 
 export const SelectField = ({
@@ -70,6 +71,7 @@ export const SelectField = ({
   onBlur,
   onChange,
   ref,
+  value,
 }: SelectFieldProps): ReactElement => {
   const controlId = useId();
   const messageId = `${controlId}-message`;
@@ -134,13 +136,14 @@ export const SelectField = ({
         aria-invalid={isInvalid ? true : undefined}
         aria-readonly={isReadOnly ? true : undefined}
         className={cn('peer', CONTROL_CLASS_NAME, borderClassName)}
-        defaultValue={defaultValue}
+        defaultValue={value === undefined ? defaultValue : undefined}
         id={controlId}
         name={name}
         onBlur={onBlur}
         onChange={handleChange}
         onMouseDown={handleMouseDown}
         ref={setSelectRef}
+        value={value}
       >
         {children}
       </select>

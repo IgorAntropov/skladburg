@@ -1,10 +1,11 @@
 import type { ReactElement } from 'react';
 
-import type { OrganizationSideValue } from '@/entities/organization';
-
-import { SIDE_BADGES } from '@/entities/organization';
 import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
+
+import type { OrganizationSideValue } from '../config/sideBadges';
+
+import { SIDE_BADGES } from '../config/sideBadges';
 
 const SIDE_BADGE_CLASS_NAME
   = 'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-current/35 px-2.5 py-0.5 text-sm leading-5 font-medium';

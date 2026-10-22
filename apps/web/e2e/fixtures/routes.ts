@@ -25,3 +25,5 @@ export const toSiteRoute = (id: string): ObjectRouteValue => ({ id, section: 'ne
 export const toCityRoute = (id: string): ObjectRouteValue => ({ id, section: 'network', segment: 'cities' });
 
 export const toWarehouseRoute = (id: string): ObjectRouteValue => ({ id, section: 'warehouse', segment: 'warehouses' });
+
+export const toOrganizationRoute = (id: string): ObjectRouteValue => ({ id, section: 'network', segment: 'organizations' });

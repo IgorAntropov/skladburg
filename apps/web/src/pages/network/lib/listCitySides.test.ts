@@ -15,6 +15,7 @@ const createSite = (id: string, side: OrganizationSideValue): NetworkMapSiteValu
   isOwn: false,
   label: id,
   nodeId: 'node',
+  organizationId: 'organization',
   organizationName: 'Организация',
   side,
 });

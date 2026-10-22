@@ -48,11 +48,19 @@ const lazyCreateWarehouseFeatureFiles: string[] = ['apps/web/src/features/create
 const lazySceneViewportFiles: string[] = ['apps/web/src/widgets/scene-viewport/**/*.{ts,tsx}'];
 const lazySceneCameraControlsChunkFiles: string[] = ['apps/web/src/widgets/scene-viewport/ui/controls/**/*.{ts,tsx}'];
 const lazyNetworkPageFiles: string[] = ['apps/web/src/pages/network/**/*.{ts,tsx}'];
-const lazyNetworkPageChunkFiles: string[] = [
-  'apps/web/src/pages/network/ui/inspector/**/*.{ts,tsx}',
+const networkInspectorChunkFiles: string[] = ['apps/web/src/pages/network/ui/inspector/**/*.{ts,tsx}'];
+const networkListChunkFiles: string[] = [
   'apps/web/src/pages/network/ui/sites/**/*.{ts,tsx}',
   'apps/web/src/pages/network/ui/mini-map/**/*.{ts,tsx}',
+  'apps/web/src/pages/network/ui/companies/**/*.{ts,tsx}',
+  'apps/web/src/pages/network/ui/directory/**/*.{ts,tsx}',
 ];
+const lazyNetworkPageChunkFiles: string[] = [
+  ...networkInspectorChunkFiles,
+  ...networkListChunkFiles,
+  'apps/web/src/pages/network/ui/organization-card/**/*.{ts,tsx}',
+];
+const networkDirectoryApiFiles: string[] = ['apps/web/src/pages/network/api/directory/**/*.{ts,tsx}'];
 const apiClientFiles: string[] = ['apps/web/src/shared/api/client/**/*.{ts,tsx}'];
 const sceneSegmentFiles: string[] = ['apps/web/src/**/scene/**', 'apps/web/src/shared/3d/**'];
 const lazyWidgetSceneFiles: string[] = ['apps/web/src/widgets/**/scene/**/*.{ts,tsx}'];
@@ -167,6 +175,17 @@ const serviceDescriptorImportRestriction: SceneImportRestrictionValue = {
   regex: '^@skladburg/contracts/(?!runtime$|registry$|forms(/|$))',
 };
 
+const showcaseDescriptorImportRestriction: SceneImportRestrictionValue = {
+  message: 'The organization showcase descriptor is imported only by pages/network/api/directory, which the lazy chunks of '
+    + 'the network page load; a descriptor imported elsewhere lands in the startup chunk; use import type',
+  regex: '^@skladburg/contracts/organization/v1/showcase$',
+};
+
+const sourceBoundaryImportRestrictions: SceneImportRestrictionValue[] = [
+  ...sceneBoundaryImportRestrictions,
+  showcaseDescriptorImportRestriction,
+];
+
 const lazyModuleMessageSuffix = 'is loaded lazily through import(); a static value import pulls it into the initial bundle; '
   + 'use import type';
 
@@ -218,6 +237,21 @@ const networkSitesChunkLazyRestriction: LazyModuleRestrictionValue = {
 const networkMiniMapChunkLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'the network mini-map chunk',
   regex: '(^|/)mini-map(/|$)',
+};
+
+const networkCompaniesChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the network companies chunk',
+  regex: '(^|/)companies(/|$)',
+};
+
+const networkDirectoryChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the network directory data and table chunk',
+  regex: '(^|/)directory(/|$)',
+};
+
+const networkOrganizationCardChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the network organization card chunk',
+  regex: '(^|/)organization-card(/|$)',
 };
 
 const mountAppLazyRestriction: LazyModuleRestrictionValue = {
@@ -687,7 +721,7 @@ export default defineConfig(
   {
     files: engineBoundaryFiles,
     ignores: [...webTestFiles, ...sceneSegmentFiles],
-    rules: createLazyModuleRules([], sceneBoundaryImportRestrictions),
+    rules: createLazyModuleRules([], sourceBoundaryImportRestrictions),
   },
   {
     files: engineBoundaryTestFiles,
@@ -697,35 +731,63 @@ export default defineConfig(
   {
     files: apiClientFiles,
     ignores: webTestFiles,
-    rules: createLazyModuleRules([], [...sceneBoundaryImportRestrictions, serviceDescriptorImportRestriction]),
+    rules: createLazyModuleRules([], [...sourceBoundaryImportRestrictions, serviceDescriptorImportRestriction]),
   },
   {
     files: lazyAppFiles,
     ignores: [...webTestFiles, ...lazyMountAppFiles],
-    rules: createLazyModuleRules(startLazyRestrictions, sceneBoundaryImportRestrictions),
+    rules: createLazyModuleRules(startLazyRestrictions, sourceBoundaryImportRestrictions),
   },
   {
     files: lazyMountAppFiles,
-    rules: createLazyModuleRules(appLazyRestrictions, sceneBoundaryImportRestrictions),
+    rules: createLazyModuleRules(appLazyRestrictions, sourceBoundaryImportRestrictions),
   },
   {
     files: lazyWidgetFiles,
     ignores: [...webTestFiles, ...lazyProfileMenuChunkFiles, ...sceneSegmentFiles],
-    rules: createLazyModuleRules(appLazyRestrictions, sceneBoundaryImportRestrictions),
+    rules: createLazyModuleRules(appLazyRestrictions, sourceBoundaryImportRestrictions),
   },
   {
     files: lazyProfileMenuFiles,
     ignores: [...webTestFiles, ...lazyProfileMenuChunkFiles],
-    rules: createLazyModuleRules(profileMenuLazyRestrictions, sceneBoundaryImportRestrictions),
+    rules: createLazyModuleRules(profileMenuLazyRestrictions, sourceBoundaryImportRestrictions),
   },
   {
     files: lazyCreateWarehouseFeatureFiles,
     ignores: [...webTestFiles, ...lazyCreateWarehouseFormFiles, ...sceneSegmentFiles],
-    rules: createLazyModuleRules([createWarehouseFormChunkLazyRestriction], sceneBoundaryImportRestrictions),
+    rules: createLazyModuleRules([createWarehouseFormChunkLazyRestriction], sourceBoundaryImportRestrictions),
   },
   {
     files: lazyNetworkPageFiles,
     ignores: [...webTestFiles, ...lazyNetworkPageChunkFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules(
+      [
+        networkInspectorChunkLazyRestriction,
+        networkSitesChunkLazyRestriction,
+        networkMiniMapChunkLazyRestriction,
+        networkCompaniesChunkLazyRestriction,
+        networkDirectoryChunkLazyRestriction,
+        networkOrganizationCardChunkLazyRestriction,
+      ],
+      sourceBoundaryImportRestrictions,
+    ),
+  },
+  {
+    files: networkListChunkFiles,
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([networkOrganizationCardChunkLazyRestriction], sourceBoundaryImportRestrictions),
+  },
+  {
+    files: networkInspectorChunkFiles,
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules(
+      [networkOrganizationCardChunkLazyRestriction, networkDirectoryChunkLazyRestriction],
+      sourceBoundaryImportRestrictions,
+    ),
+  },
+  {
+    files: networkDirectoryApiFiles,
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
     rules: createLazyModuleRules(
       [networkInspectorChunkLazyRestriction, networkSitesChunkLazyRestriction, networkMiniMapChunkLazyRestriction],
       sceneBoundaryImportRestrictions,
@@ -736,7 +798,7 @@ export default defineConfig(
     ignores: [...webTestFiles, ...lazySceneCameraControlsChunkFiles, ...sceneSegmentFiles],
     rules: createLazyModuleRules(
       [...appLazyRestrictions, sceneCameraControlsChunkLazyRestriction],
-      sceneBoundaryImportRestrictions,
+      sourceBoundaryImportRestrictions,
     ),
   },
   {

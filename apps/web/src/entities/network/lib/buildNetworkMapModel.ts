@@ -56,6 +56,7 @@ const buildSites = (
         isOwn,
         label: isOwn ? site.name : site.organizationName,
         nodeId: site.mapNodeId,
+        organizationId: site.organizationId,
         organizationName: site.organizationName,
         side,
       });

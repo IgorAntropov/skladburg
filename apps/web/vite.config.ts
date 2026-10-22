@@ -42,11 +42,17 @@ const MAX_STARTUP_GZIP_KILOBYTES = 100;
 
 const MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES = 125;
 
-const MAX_NETWORK_INSPECTOR_GZIP_KILOBYTES = 112;
+const MAX_NETWORK_INSPECTOR_GZIP_KILOBYTES = 107;
+
+const MAX_NETWORK_ORGANIZATION_CARD_GZIP_KILOBYTES = 94.3;
 
 const MAX_NETWORK_MINI_MAP_GZIP_KILOBYTES = 69;
 
 const MAX_NETWORK_SITES_GZIP_KILOBYTES = 95;
+
+const MAX_NETWORK_COMPANIES_GZIP_KILOBYTES = 95.5;
+
+const MAX_ORGANIZATION_TABLE_GZIP_KILOBYTES = 97.5;
 
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
@@ -117,6 +123,12 @@ const LAZY_ENTRY_BUDGETS = [
     name: 'network-inspector',
   },
   {
+    entries: ['src/pages/network/ui/organization-card/OrganizationInspector.tsx'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_NETWORK_ORGANIZATION_CARD_GZIP_KILOBYTES,
+    name: 'network-organization-card',
+  },
+  {
     entries: ['src/pages/network/ui/mini-map/NetworkMiniMap.tsx'],
     isRequired: true,
     maxGzipKiloBytes: MAX_NETWORK_MINI_MAP_GZIP_KILOBYTES,
@@ -127,6 +139,18 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_NETWORK_SITES_GZIP_KILOBYTES,
     name: 'network-sites',
+  },
+  {
+    entries: ['src/pages/network/ui/companies/NetworkCompaniesPanel.tsx'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_NETWORK_COMPANIES_GZIP_KILOBYTES,
+    name: 'network-companies',
+  },
+  {
+    entries: ['src/pages/network/ui/directory/OrganizationDirectoryPanel.tsx'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_ORGANIZATION_TABLE_GZIP_KILOBYTES,
+    name: 'organization-table',
   },
 ];
 

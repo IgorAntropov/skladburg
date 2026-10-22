@@ -14,6 +14,7 @@ const createSite = (id: string, isOwn: boolean): NetworkMapSiteValue => ({
   isOwn,
   label: id,
   nodeId: 'node',
+  organizationId: 'organization',
   organizationName: 'Организация',
   side: 'customer',
 });

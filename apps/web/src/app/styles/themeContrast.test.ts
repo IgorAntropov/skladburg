@@ -903,6 +903,51 @@ describe('HUD zone state contrast', () => {
   });
 });
 
+const readSelectedRowBackdrop = (theme: ThemeNameValue): RgbaColorValue => {
+  return compositeOver(readColor(theme, 'hover'), readColor(theme, 'panel-solid'));
+};
+
+const readPressedRowBackdrop = (theme: ThemeNameValue): RgbaColorValue => {
+  return compositeOver(readColor(theme, 'line'), readColor(theme, 'panel-solid'));
+};
+
+describe('verification badge contrast', () => {
+  it.each(THEME_NAMES)('keeps the ring of a badge visible on a selected and a pressed row in the %s theme', (theme) => {
+    const ratio = readWorstRatio(
+      readColor(theme, 'line-strong'),
+      [readSelectedRowBackdrop(theme), readPressedRowBackdrop(theme)],
+    );
+
+    expect(ratio).toBeGreaterThanOrEqual(GRAPHIC_THRESHOLD);
+  });
+
+  it.each(THEME_NAMES)('keeps the text of an unverified badge readable on a selected and a pressed row in the %s theme', (theme) => {
+    const ratio = readWorstRatio(
+      readColor(theme, 'on-panel-muted'),
+      [readSelectedRowBackdrop(theme), readPressedRowBackdrop(theme)],
+    );
+
+    expect(ratio).toBeGreaterThanOrEqual(TEXT_THRESHOLD);
+  });
+
+  it.each(THEME_NAMES)('keeps the glyph of the top level badge readable on its fill in the %s theme', (theme) => {
+    const ratio = contrastRatio(readColor(theme, 'panel-solid'), readColor(theme, 'on-panel'));
+
+    expect(ratio).toBeGreaterThanOrEqual(TEXT_THRESHOLD);
+  });
+
+  it.each(THEME_NAMES)('keeps the fill of the top level badge apart from the panel and a selected row in the %s theme', (theme) => {
+    const backdrops = [
+      readColor(theme, 'panel-solid'),
+      readSelectedRowBackdrop(theme),
+      ...readPanelBackdrops(theme),
+    ];
+    const ratio = readWorstRatio(readColor(theme, 'on-panel'), backdrops);
+
+    expect(ratio).toBeGreaterThanOrEqual(GRAPHIC_THRESHOLD);
+  });
+});
+
 describe('theme contrast', () => {
   it.each(CONTRAST_CASES)(
     '$theme theme: $foreground on $background reaches $threshold',

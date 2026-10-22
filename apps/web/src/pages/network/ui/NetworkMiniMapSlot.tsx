@@ -29,7 +29,11 @@ const MiniMapSkeleton = (): ReactElement => (
 export const NetworkMiniMapSlot = ({ focus, model }: NetworkMiniMapSlotProps): ReactElement => {
   const { t } = useI18n();
 
-  const selectedCityId = useMemo(() => findNetworkMapObject(model, focus)?.city.id, [focus, model]);
+  const selectedCityId = useMemo(() => {
+    const found = findNetworkMapObject(model, focus);
+
+    return found === undefined || found.kind === 'organization' ? undefined : found.city.id;
+  }, [focus, model]);
 
   return (
     <NetworkChunkSlot

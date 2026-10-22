@@ -110,6 +110,26 @@ const sceneCameraControlsChunkFilePath = fileURLToPath(
 const sceneCameraControlsChunkTestFilePath = fileURLToPath(
   new URL('../../apps/web/src/widgets/scene-viewport/ui/controls/SceneCameraControlsPanel.test.tsx', import.meta.url),
 );
+const networkTabFilePath = fileURLToPath(new URL('../../apps/web/src/pages/network/ui/NetworkCompaniesTab.tsx', import.meta.url));
+const networkTabTestFilePath = fileURLToPath(new URL('../../apps/web/src/pages/network/ui/NetworkCompaniesTab.test.tsx', import.meta.url));
+const networkCompaniesChunkFilePath = fileURLToPath(
+  new URL('../../apps/web/src/pages/network/ui/companies/NetworkCompaniesPanel.tsx', import.meta.url),
+);
+const networkInspectorChunkFilePath = fileURLToPath(
+  new URL('../../apps/web/src/pages/network/ui/inspector/NetworkInspectorBody.tsx', import.meta.url),
+);
+const networkOrganizationCardChunkFilePath = fileURLToPath(
+  new URL('../../apps/web/src/pages/network/ui/organization-card/OrganizationInspector.tsx', import.meta.url),
+);
+const networkSitesChunkFilePath = fileURLToPath(
+  new URL('../../apps/web/src/pages/network/ui/sites/NetworkSitesPanel.tsx', import.meta.url),
+);
+const networkDirectoryApiFilePath = fileURLToPath(
+  new URL('../../apps/web/src/pages/network/api/directory/useOrganizationShowcasesQuery.ts', import.meta.url),
+);
+const networkDirectoryApiTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/pages/network/api/directory/useOrganizationShowcasesQuery.test.tsx', import.meta.url),
+);
 const scriptsProbeFilePath = fileURLToPath(new URL('./probe-tool.ts', import.meta.url));
 
 const formattingRuleIds: ReadonlySet<string> = new Set([
@@ -2026,6 +2046,122 @@ describe('eslint.config.ts with the local rules', () => {
 
       it('allows value imports of the scene libraries in the scene segment of widgets/scene-viewport', async () => {
         expect(await readLazyMessages(toValueImport('three'), sceneViewportSceneFilePath)).toEqual([]);
+      });
+    });
+
+    describe('the organization directory of the network page', () => {
+      const showcaseSpecifier = '@skladburg/contracts/organization/v1/showcase';
+
+      it.each([
+        ['the tab of the page', networkTabFilePath],
+        ['a widget', widgetFilePath],
+        ['a page', pageFilePath],
+        ['the lazy chunk of the companies', networkCompaniesChunkFilePath],
+        ['the lazy chunk of the inspector', networkInspectorChunkFilePath],
+        ['the lazy chunk of the organization card', networkOrganizationCardChunkFilePath],
+      ])('reports a value import of the showcase descriptor in %s', async (_name, filePath) => {
+        const messages = await readLazyMessages(toValueImport(showcaseSpecifier), filePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('pages/network/api/directory');
+        expect(messages[0]).toContain('use import type');
+      });
+
+      it.each([
+        ['import type', toTypeImport],
+        ['an import with only inline types', toNamedTypeImport],
+        ['an import type query', toTypeQuery],
+      ])('allows %s of the showcase descriptor in the tab of the page', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode(showcaseSpecifier), networkTabFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['the data folder of the directory', networkDirectoryApiFilePath],
+        ['a test of the data folder', networkDirectoryApiTestFilePath],
+        ['a test of the tab', networkTabTestFilePath],
+      ])('allows a value import of the showcase descriptor in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport(showcaseSpecifier), filePath)).toEqual([]);
+      });
+
+      it.each([
+        ['the data folder from the tab', '../api/directory/useOrganizationDirectory'],
+        ['the data folder by an alias', '@/pages/network/api/directory/useOrganizationDirectory'],
+        ['the table folder', './directory/OrganizationDirectoryTable'],
+        ['the companies folder', './companies/NetworkCompaniesPanel'],
+      ])('reports a value import of %s in the tab of the page', async (_name, specifier) => {
+        const messages = await readLazyMessages(toValueImport(specifier), networkTabFilePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain(lazyMessagePart);
+      });
+
+      it.each([
+        ['import type', toTypeImport],
+        ['import()', toDynamicImport],
+      ])('allows %s of the data folder in the tab of the page', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode('../api/directory/useOrganizationDirectory'), networkTabFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['the lazy chunk of the companies', networkCompaniesChunkFilePath],
+        ['the lazy chunk of the organization card', networkOrganizationCardChunkFilePath],
+        ['a test of the tab', networkTabTestFilePath],
+      ])('allows a value import of the data folder in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('../../api/directory/useOrganizationDirectory'), filePath)).toEqual([]);
+      });
+
+      it('does not restrict a directory folder outside of the network page', async () => {
+        expect(await readLazyMessages(toValueImport('./directory/ProbeDirectory'), widgetFilePath)).toEqual([]);
+      });
+    });
+
+    describe('the organization card chunk of the network page', () => {
+      it.each([
+        ['the tab of the page', networkTabFilePath, './organization-card/OrganizationInspector'],
+        ['the lazy chunk of the inspector', networkInspectorChunkFilePath, '../organization-card/OrganizationInspector'],
+        ['the lazy chunk of the companies', networkCompaniesChunkFilePath, '../organization-card/OrganizationInspector'],
+        ['the lazy chunk of the sites', networkSitesChunkFilePath, '../organization-card/OrganizationInspector'],
+        ['an alias in the lazy chunk of the inspector', networkInspectorChunkFilePath, '@/pages/network/ui/organization-card/Probe'],
+      ])('reports a value import of the card from %s', async (_name, filePath, specifier) => {
+        const messages = await readLazyMessages(toValueImport(specifier), filePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('organization card chunk');
+        expect(messages[0]).toContain(lazyMessagePart);
+      });
+
+      it.each([
+        ['import type', toTypeImport],
+        ['import()', toDynamicImport],
+      ])('allows %s of the card in the lazy chunk of the inspector', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode('../organization-card/OrganizationInspector'), networkInspectorChunkFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['the card itself', networkOrganizationCardChunkFilePath],
+        ['a test of the tab', networkTabTestFilePath],
+      ])('allows a value import of a part of the card in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('./OrganizationRequisites'), filePath)).toEqual([]);
+      });
+
+      it('allows the card to take the shared parts of the inspector', async () => {
+        expect(
+          await readLazyMessages(toValueImport('../inspector/InspectorProperty'), networkOrganizationCardChunkFilePath),
+        ).toEqual([]);
+      });
+
+      it('reports a value import of the data folder in the lazy chunk of the inspector', async () => {
+        const messages = await readLazyMessages(
+          toValueImport('../../api/directory/useOrganizationCard'),
+          networkInspectorChunkFilePath,
+        );
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('directory data and table chunk');
+      });
+
+      it('does not restrict an organization-card folder outside of the network page', async () => {
+        expect(await readLazyMessages(toValueImport('./organization-card/ProbeCard'), widgetFilePath)).toEqual([]);
       });
     });
 

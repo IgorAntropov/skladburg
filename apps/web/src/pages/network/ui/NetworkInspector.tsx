@@ -22,7 +22,7 @@ export const NetworkInspector = ({ focus, onClose, state }: NetworkInspectorProp
   const { t } = useI18n();
 
   const { data } = state;
-  const isMapObject = focus?.type === 'site' || focus?.type === 'city';
+  const isMapObject = focus?.type === 'site' || focus?.type === 'city' || focus?.type === 'organization';
 
   const foundObject = useMemo(
     () => (data === undefined || !isMapObject ? undefined : findNetworkMapObject(data, focus)),
@@ -36,6 +36,9 @@ export const NetworkInspector = ({ focus, onClose, state }: NetworkInspectorProp
   }
   else if (foundObject?.kind === 'city') {
     title = foundObject.city.name;
+  }
+  else if (foundObject?.kind === 'organization') {
+    title = foundObject.sites[0]?.organizationName ?? t('object.type.organization');
   }
   else if (isMapObject) {
     title = t(`object.type.${focus.type}`);

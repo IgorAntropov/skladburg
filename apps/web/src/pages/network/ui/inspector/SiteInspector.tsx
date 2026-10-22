@@ -1,6 +1,5 @@
 import type { ReactElement } from 'react';
 
-import { House } from 'lucide-react';
 import { useMemo } from 'react';
 
 import type {
@@ -8,11 +7,12 @@ import type {
   NetworkMapSiteValue,
 } from '@/entities/network';
 
+import { SideBadge } from '@/entities/organization';
 import { useI18n } from '@/shared/i18n';
 import { AddressLink } from '@/shared/routing';
 
 import { formatCityTimeZone } from '../../lib/formatCityTimeZone';
-import { SideBadge } from '../SideBadge';
+import { InspectorOwnBadge } from './InspectorOwnBadge';
 import { InspectorProperty } from './InspectorProperty';
 import {
   INSPECTOR_KICKER_CLASS_NAME,
@@ -27,11 +27,6 @@ interface SiteInspectorProps {
   site: NetworkMapSiteValue;
 }
 
-const OWN_BADGE_CLASS_NAME = [
-  'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-hover px-2.5 py-0.5',
-  'text-sm leading-5 font-medium text-on-panel',
-].join(' ');
-
 export const SiteInspector = ({ city, site }: SiteInspectorProps): ReactElement => {
   const { t } = useI18n();
   const timeZoneLabel = useMemo(() => formatCityTimeZone(city.timeZone), [city.timeZone]);
@@ -41,14 +36,19 @@ export const SiteInspector = ({ city, site }: SiteInspectorProps): ReactElement 
       <div className="flex flex-wrap items-center gap-2">
         <p className={INSPECTOR_KICKER_CLASS_NAME}>{t('object.type.site')}</p>
         <SideBadge side={site.side} />
-        {site.isOwn && (
-          <span className={OWN_BADGE_CLASS_NAME}>
-            <House aria-hidden className="size-4 shrink-0 text-on-panel-muted" />
-            {t('network.inspector.own')}
-          </span>
-        )}
+        {site.isOwn && <InspectorOwnBadge label={t('network.inspector.own')} />}
       </div>
       <dl className="flex flex-col gap-3">
+        <InspectorProperty label={t('network.inspector.company')}>
+          <AddressLink
+            className={INSPECTOR_LINK_CLASS_NAME}
+            data-testid="network-inspector-company-link"
+            to={{ kind: 'object', object: { id: site.organizationId, type: 'organization' } }}
+            translate="no"
+          >
+            {site.organizationName}
+          </AddressLink>
+        </InspectorProperty>
         <InspectorProperty label={t('network.inspector.city')}>
           <AddressLink
             className={INSPECTOR_LINK_CLASS_NAME}

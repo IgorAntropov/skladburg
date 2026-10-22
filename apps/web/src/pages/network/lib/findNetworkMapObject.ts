@@ -6,7 +6,8 @@ import type {
 import type { ObjectRefValue } from '@/shared/routing';
 
 export type NetworkMapObjectValue
-  = | { city: NetworkMapCityValue; kind: 'city'; sites: readonly NetworkMapSiteValue[] }
+  = | { cities: readonly NetworkMapCityValue[]; kind: 'organization'; sites: readonly NetworkMapSiteValue[] }
+    | { city: NetworkMapCityValue; kind: 'city'; sites: readonly NetworkMapSiteValue[] }
     | { city: NetworkMapCityValue; kind: 'site'; site: NetworkMapSiteValue };
 
 export const findNetworkMapObject = (
@@ -26,6 +27,13 @@ export const findNetworkMapObject = (
     return city === undefined
       ? undefined
       : { city, kind: 'city', sites: model.sites.filter(site => site.nodeId === city.id) };
+  }
+
+  if (focus?.type === 'organization') {
+    const sites = model.sites.filter(site => site.organizationId === focus.id);
+    const nodeIds = new Set(sites.map(site => site.nodeId));
+
+    return { cities: model.cities.filter(city => nodeIds.has(city.id)), kind: 'organization', sites };
   }
 
   return undefined;

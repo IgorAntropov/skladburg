@@ -11,11 +11,11 @@ import type {
   NetworkMapSiteValue,
 } from '@/entities/network';
 
+import { SideBadge } from '@/entities/organization';
 import { useI18n } from '@/shared/i18n';
 import { AddressLink } from '@/shared/routing';
 
 import { formatCityTimeZone } from '../../lib/formatCityTimeZone';
-import { SideBadge } from '../SideBadge';
 import { InspectorProperty } from './InspectorProperty';
 import { INSPECTOR_KICKER_CLASS_NAME } from './inspectorStyles';
 import { ShowOnMapButton } from './ShowOnMapButton';

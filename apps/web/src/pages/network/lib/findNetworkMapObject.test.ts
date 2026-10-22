@@ -21,12 +21,13 @@ const createCity = (id: string, siteIds: readonly string[]): NetworkMapCityValue
   timeZone: 'Europe/Moscow',
 });
 
-const createSite = (id: string, nodeId: string): NetworkMapSiteValue => ({
+const createSite = (id: string, nodeId: string, organizationId = 'organization'): NetworkMapSiteValue => ({
   cityId: `${nodeId}-city`,
   id,
   isOwn: false,
   label: id,
   nodeId,
+  organizationId,
   organizationName: 'Организация',
   side: 'supplier',
 });
@@ -34,7 +35,12 @@ const createSite = (id: string, nodeId: string): NetworkMapSiteValue => ({
 const model: NetworkMapModelValue = {
   cities: [createCity('node-a', ['site-2', 'site-1']), createCity('node-b', ['site-3']), createCity('node-c', [])],
   roads: [],
-  sites: [createSite('site-2', 'node-a'), createSite('site-3', 'node-b'), createSite('site-1', 'node-a')],
+  sites: [
+    createSite('site-2', 'node-a', 'organization-a'),
+    createSite('site-3', 'node-b', 'organization-b'),
+    createSite('site-1', 'node-a', 'organization-b'),
+    createSite('site-4', 'node-b', 'organization-b'),
+  ],
 };
 
 describe('findNetworkMapObject', () => {
@@ -55,6 +61,28 @@ describe('findNetworkMapObject', () => {
     expect(findNetworkMapObject(model, { id: 'node-c', type: 'city' })).toEqual({
       city: model.cities[2],
       kind: 'city',
+      sites: [],
+    });
+  });
+
+  it('finds the cities and sites of a company in the model order', () => {
+    const found = findNetworkMapObject(model, { id: 'organization-b', type: 'organization' });
+
+    expect(found?.kind).toBe('organization');
+    expect(found?.kind === 'organization' ? found.sites.map(site => site.id) : []).toEqual(['site-3', 'site-1', 'site-4']);
+    expect(found?.kind === 'organization' ? found.cities.map(city => city.id) : []).toEqual(['node-a', 'node-b']);
+  });
+
+  it('lists a city of a company once however many sites it has there', () => {
+    const found = findNetworkMapObject(model, { id: 'organization-a', type: 'organization' });
+
+    expect(found).toEqual({ cities: [model.cities[0]], kind: 'organization', sites: [model.sites[0]] });
+  });
+
+  it('returns an empty company object when the model has no sites of it', () => {
+    expect(findNetworkMapObject(model, { id: 'organization-c', type: 'organization' })).toEqual({
+      cities: [],
+      kind: 'organization',
       sites: [],
     });
   });

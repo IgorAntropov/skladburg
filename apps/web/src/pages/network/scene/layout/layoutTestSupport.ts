@@ -37,6 +37,7 @@ export const createTestSite = (id: string, nodeId: string, isOwn = false): Netwo
   isOwn,
   label: `Site ${id}`,
   nodeId,
+  organizationId: 'organization',
   organizationName: 'Company',
   side: 'customer',
 });

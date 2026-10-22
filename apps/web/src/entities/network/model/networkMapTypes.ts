@@ -49,6 +49,7 @@ export interface NetworkMapSiteValue {
   isOwn: boolean;
   label: string;
   nodeId: string;
+  organizationId: string;
   organizationName: string;
   side: MapSideValue;
 }

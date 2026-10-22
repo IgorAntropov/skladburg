@@ -5,7 +5,10 @@ import {
   useMemo,
 } from 'react';
 
-import type { NetworkMapModelValue } from '@/entities/network';
+import type {
+  NetworkMapModelValue,
+  NetworkMapSiteValue,
+} from '@/entities/network';
 import type { ObjectRefValue } from '@/shared/routing';
 
 import { useNavigate } from '@/shared/routing';
@@ -16,9 +19,13 @@ import type {
   NetworkSceneInteractionValue,
 } from '../model/networkSceneInteraction';
 
+import { listOrganizationSiteIds } from '../lib/listOrganizationSiteIds';
+import { resolveNetworkFocusRequest } from '../lib/resolveNetworkFocusRequest';
 import { resolveNetworkSelectedTarget } from '../lib/resolveNetworkSelectedTarget';
 import { useNetworkMapStore } from '../model/useNetworkMapStore';
 import { loadNetworkScene } from './loadNetworkScene';
+
+const NO_SITES: readonly NetworkMapSiteValue[] = [];
 
 interface NetworkSceneViewportProps {
   focus: ObjectRefValue | undefined;
@@ -35,13 +42,17 @@ export const NetworkSceneViewport = ({
 }: NetworkSceneViewportProps): ReactElement => {
   const navigate = useNavigate();
   const hoveredId = useNetworkMapStore(state => state.hoveredId);
-  const focusRequest = useNetworkMapStore(state => state.focusRequest);
+  const hoveredOrganizationId = useNetworkMapStore(state => state.hoveredOrganizationId);
+  const focusCommand = useNetworkMapStore(state => state.focusCommand);
   const setHoveredId = useNetworkMapStore(state => state.setHoveredId);
   const clearHoveredId = useNetworkMapStore(state => state.clearHoveredId);
 
   const focusId = focus?.id;
   const focusType = focus?.type;
-  const selected = useMemo(() => resolveNetworkSelectedTarget(focusId, focusType), [focusId, focusType]);
+  const sites = sceneData?.sites ?? NO_SITES;
+  const selected = useMemo(() => resolveNetworkSelectedTarget(focusId, focusType, sites), [focusId, focusType, sites]);
+  const focusRequest = useMemo(() => resolveNetworkFocusRequest(focusCommand, sites), [focusCommand, sites]);
+  const hoveredSiteIds = useMemo(() => listOrganizationSiteIds(sites, hoveredOrganizationId), [hoveredOrganizationId, sites]);
 
   const handleSelect = useCallback((target: NetworkMapTargetValue): void => {
     console.log('> NetworkSceneViewport -> handleSelect:', target);
@@ -65,11 +76,20 @@ export const NetworkSceneViewport = ({
   const interaction = useMemo((): NetworkSceneInteractionValue => ({
     focusRequest,
     hoveredId,
+    hoveredSiteIds,
     onHoverEnd: handleHoverEnd,
     onHoverStart: handleHoverStart,
     onSelect: handleSelect,
     selected,
-  }), [focusRequest, handleHoverEnd, handleHoverStart, handleSelect, hoveredId, selected]);
+  }), [
+    focusRequest,
+    handleHoverEnd,
+    handleHoverStart,
+    handleSelect,
+    hoveredId,
+    hoveredSiteIds,
+    selected,
+  ]);
 
   return (
     <SceneViewport

@@ -56,11 +56,13 @@ export interface SceneRobotValue {
   expectCityLabelAtFreeAreaCenter: (cityId: string, placement: CityLabelPlacementValue) => Promise<void>;
   expectCityLabelAwayFromFreeAreaCenter: (cityId: string, minDistancePx: number) => Promise<void>;
   expectCityLabelSelected: (cityId: string) => Promise<void>;
+  expectCityLabelsInsideFreeArea: (cityIds: readonly string[]) => Promise<void>;
   expectNoCanvas: () => Promise<void>;
   expectNoDrawCallsFor: (durationMs: number) => Promise<void>;
   expectNoDrawFramesFor: (durationMs: number) => Promise<void>;
   expectOneCanvas: () => Promise<void>;
   expectSceneState: (state: SceneStateValue) => Promise<void>;
+  expectSomeCityLabelOutsideFreeArea: (cityIds: readonly string[]) => Promise<void>;
   expectThemeAttribute: (theme: ColorSchemeValue) => Promise<void>;
   markMotionStart: () => Promise<void>;
   moveMouseToFreeAreaCenter: () => Promise<void>;
@@ -186,6 +188,29 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     };
   };
 
+  const findCityLabelsOutsideFreeArea = async (cityIds: readonly string[]): Promise<string[]> => {
+    const freeAreaBox = await freeArea.boundingBox();
+    const misplaced: string[] = [];
+
+    for (const cityId of cityIds) {
+      const labelBox = await getCityLabel(cityId).boundingBox();
+
+      if (labelBox === null || freeAreaBox === null) {
+        misplaced.push(`${cityId}: not shown`);
+      }
+      else if (
+        labelBox.x < freeAreaBox.x
+        || labelBox.y < freeAreaBox.y
+        || labelBox.x + labelBox.width > freeAreaBox.x + freeAreaBox.width
+        || labelBox.y + labelBox.height > freeAreaBox.y + freeAreaBox.height
+      ) {
+        misplaced.push(`${cityId}: outside the free area`);
+      }
+    }
+
+    return misplaced;
+  };
+
   const dragFromFreeAreaCenter = async (distancePx: number): Promise<void> => {
     const box = await readFreeAreaBox();
     const centerX = box.x + box.width / 2;
@@ -251,6 +276,12 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     async expectCityLabelSelected(cityId: string): Promise<void> {
       await expect(getCityLabel(cityId)).toHaveAttribute('data-selected', 'true');
     },
+    async expectCityLabelsInsideFreeArea(cityIds: readonly string[]): Promise<void> {
+      await expect.poll(() => findCityLabelsOutsideFreeArea(cityIds), {
+        message: 'the labels of the cities are not inside the free area',
+        timeout: LABEL_POLL_TIMEOUT_MS,
+      }).toEqual([]);
+    },
     async expectNoCanvas(): Promise<void> {
       await expect(canvas).toHaveCount(0);
     },
@@ -273,6 +304,12 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     },
     async expectSceneState(state: SceneStateValue): Promise<void> {
       await expect(sceneViewport).toHaveAttribute('data-scene-state', state, { timeout: SCENE_STATE_TIMEOUT_MS });
+    },
+    async expectSomeCityLabelOutsideFreeArea(cityIds: readonly string[]): Promise<void> {
+      await expect.poll(async () => (await findCityLabelsOutsideFreeArea(cityIds)).length, {
+        message: 'every label of the cities is still inside the free area',
+        timeout: LABEL_POLL_TIMEOUT_MS,
+      }).toBeGreaterThan(0);
     },
     async expectThemeAttribute(theme: ColorSchemeValue): Promise<void> {
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);

@@ -95,7 +95,7 @@ describe('applyChipAzimuth', () => {
   it('grows only the hovered plate 1.25 times around its center and lifts it by 0.4 m', () => {
     const matrices = createMatrices();
 
-    applyChipAzimuth(matrices, 2, 0.7, 1);
+    applyChipAzimuth(matrices, 2, 0.7, Uint8Array.of(0, 1));
 
     const calm = new Matrix4().fromArray(matrices, 0);
     const hovered = new Matrix4().fromArray(matrices, 16);
@@ -113,10 +113,26 @@ describe('applyChipAzimuth', () => {
   it('returns the plate to its size and height when it is no longer hovered', () => {
     const matrices = createMatrices();
 
-    applyChipAzimuth(matrices, 2, 0.7, 1);
+    applyChipAzimuth(matrices, 2, 0.7, Uint8Array.of(0, 1));
     applyChipAzimuth(matrices, 2, 0.7, undefined);
 
     expect(matrices[29]).toBeCloseTo(3.7, 6);
     expect(new Vector3().setFromMatrixScale(new Matrix4().fromArray(matrices, 16)).x).toBeCloseTo(1, 6);
+  });
+
+  it('grows every plate marked in the mask and leaves the others calm', () => {
+    const matrices = createMatrices();
+
+    applyChipAzimuth(matrices, 2, 0.7, Uint8Array.of(1, 1));
+
+    expect(new Vector3().setFromMatrixScale(new Matrix4().fromArray(matrices, 0)).x).toBeCloseTo(1.25, 6);
+    expect(new Vector3().setFromMatrixScale(new Matrix4().fromArray(matrices, 16)).x).toBeCloseTo(1.25, 6);
+    expect(matrices[13]).toBeCloseTo(4.1, 6);
+    expect(matrices[29]).toBeCloseTo(4.1, 6);
+
+    applyChipAzimuth(matrices, 2, 0.7, Uint8Array.of(1, 0));
+
+    expect(matrices[13]).toBeCloseTo(4.1, 6);
+    expect(matrices[29]).toBeCloseTo(3.7, 6);
   });
 });

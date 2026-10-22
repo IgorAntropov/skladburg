@@ -30,10 +30,10 @@ import {
   stepCornerAnimation,
 } from '../geometry/cornerAppear';
 import { CORNER_APPEAR_OFFSET_METERS } from '../geometry/networkSceneMetrics';
-import { resolveSelectionFrame } from '../geometry/selectionFrame';
+import { resolveSelectionFrames } from '../geometry/selectionFrame';
 import {
   SELECTION_CORNER_INSTANCE_COUNT,
-  writeSelectionCorners,
+  writeSelectionFrames,
 } from '../geometry/writeSelectionCorners';
 import { readPrefersReducedMotion } from '../motion/readPrefersReducedMotion';
 import {
@@ -47,16 +47,14 @@ interface NetworkSelectionCornersProps {
   boxGeometry: BufferGeometry;
   buildings: readonly NetworkSceneBuildingValue[];
   cities: readonly NetworkSceneCityValue[];
-  selectedId: string | undefined;
+  selectedIds: readonly string[];
 }
-
-const MATRICES_LENGTH = SELECTION_CORNER_INSTANCE_COUNT * INSTANCE_MATRIX_ITEM_SIZE;
 
 export const NetworkSelectionCorners = ({
   boxGeometry,
   buildings,
   cities,
-  selectedId,
+  selectedIds,
 }: NetworkSelectionCornersProps): null | ReactElement => {
   const invalidate = useThree(state => state.invalidate);
 
@@ -64,22 +62,22 @@ export const NetworkSelectionCorners = ({
   const darkMaterial = useWorldGlowMaterial(UNLIT_ROAD_SPEC);
 
   const groupRef = useRef<Group>(null);
-  const frameRef = useRef<SelectionFrameValue | undefined>(undefined);
+  const framesRef = useRef<readonly SelectionFrameValue[]>([]);
   const animationRef = useRef<CornerAnimationValue>(createCornerAnimation(false));
 
-  const frame = useMemo(() => resolveSelectionFrame(buildings, cities, selectedId), [buildings, cities, selectedId]);
-  const lightMatrices = useMemo(() => new Float32Array(MATRICES_LENGTH), []);
-  const darkMatrices = useMemo(() => new Float32Array(MATRICES_LENGTH), []);
+  const frames = useMemo(() => resolveSelectionFrames(buildings, cities, selectedIds), [buildings, cities, selectedIds]);
+  const instanceCount = frames.length * SELECTION_CORNER_INSTANCE_COUNT;
+  const lightMatrices = useMemo(() => new Float32Array(instanceCount * INSTANCE_MATRIX_ITEM_SIZE), [instanceCount]);
+  const darkMatrices = useMemo(() => new Float32Array(instanceCount * INSTANCE_MATRIX_ITEM_SIZE), [instanceCount]);
 
   useFrame((_, delta) => {
     const animation = animationRef.current;
-    const currentFrame = frameRef.current;
 
-    if (!isCornerAnimationRunning(animation) || currentFrame === undefined) {
+    if (!isCornerAnimationRunning(animation)) {
       return;
     }
 
-    writeSelectionCorners(currentFrame, stepCornerAnimation(animation, delta), lightMatrices, darkMatrices);
+    writeSelectionFrames(framesRef.current, stepCornerAnimation(animation, delta), lightMatrices, darkMatrices);
     markInstanceMatricesUpdated(groupRef.current);
 
     if (isCornerAnimationRunning(animation)) {
@@ -88,9 +86,9 @@ export const NetworkSelectionCorners = ({
   });
 
   useLayoutEffect(() => {
-    frameRef.current = frame;
+    framesRef.current = frames;
 
-    if (frame === undefined) {
+    if (frames.length === 0) {
       animationRef.current = createCornerAnimation(false);
 
       return;
@@ -99,24 +97,24 @@ export const NetworkSelectionCorners = ({
     const isMotionReduced = readPrefersReducedMotion();
 
     animationRef.current = createCornerAnimation(!isMotionReduced);
-    writeSelectionCorners(
-      frame,
+    writeSelectionFrames(
+      frames,
       isMotionReduced ? 0 : CORNER_APPEAR_OFFSET_METERS,
       lightMatrices,
       darkMatrices,
     );
     markInstanceMatricesUpdated(groupRef.current);
     invalidate();
-  }, [darkMatrices, frame, invalidate, lightMatrices]);
+  }, [darkMatrices, frames, invalidate, lightMatrices]);
 
-  if (frame === undefined) {
+  if (frames.length === 0) {
     return null;
   }
 
   return (
     <group ref={groupRef}>
       <InstancedLayer
-        count={SELECTION_CORNER_INSTANCE_COUNT}
+        count={instanceCount}
         delays={undefined}
         geometry={boxGeometry}
         hasShadowCast={false}
@@ -126,7 +124,7 @@ export const NetworkSelectionCorners = ({
         tints={undefined}
       />
       <InstancedLayer
-        count={SELECTION_CORNER_INSTANCE_COUNT}
+        count={instanceCount}
         delays={undefined}
         geometry={boxGeometry}
         hasShadowCast={false}

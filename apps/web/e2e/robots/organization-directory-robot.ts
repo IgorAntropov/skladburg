@@ -37,6 +37,8 @@ export interface OrganizationDirectoryRobotValue {
   expectNoViolationsOfAccessibility: () => Promise<void>;
   expectOwnCard: (organization: DirectoryOrganizationValue) => Promise<void>;
   expectOwnMarkOnlyOn: (organization: DirectoryOrganizationValue) => Promise<void>;
+  expectRowHovered: (organization: DirectoryOrganizationValue) => Promise<void>;
+  expectRowNotHovered: (organization: DirectoryOrganizationValue) => Promise<void>;
   expectRows: (organizations: readonly DirectoryOrganizationValue[]) => Promise<void>;
   expectRowSelected: (organization: DirectoryOrganizationValue) => Promise<void>;
   expectSummary: (text: string) => Promise<void>;
@@ -45,6 +47,7 @@ export interface OrganizationDirectoryRobotValue {
   expectTableOpen: () => Promise<void>;
   expectTableRows: (organizations: readonly DirectoryOrganizationValue[]) => Promise<void>;
   expectTableRowSelected: (organization: DirectoryOrganizationValue) => Promise<void>;
+  hoverRow: (organization: DirectoryOrganizationValue) => Promise<void>;
   openCompaniesTab: () => Promise<void>;
   openRow: (organization: DirectoryOrganizationValue) => Promise<void>;
   openTable: () => Promise<void>;
@@ -178,6 +181,12 @@ export const createOrganizationDirectoryRobot = (page: Page): OrganizationDirect
       await expect(marks).toHaveCount(1);
       await expect(getListRow(organization).getByText(OWN_MARK_TEXT, { exact: true })).toBeVisible();
     },
+    async expectRowHovered(organization: DirectoryOrganizationValue): Promise<void> {
+      await expect(getListRow(organization)).toHaveAttribute('data-hovered', 'true');
+    },
+    async expectRowNotHovered(organization: DirectoryOrganizationValue): Promise<void> {
+      await expect(getListRow(organization)).not.toHaveAttribute('data-hovered', 'true');
+    },
     async expectRows(organizations: readonly DirectoryOrganizationValue[]): Promise<void> {
       await expect.poll(() => readOrganizationIds(listRows)).toEqual(organizations.map(({ id }) => id));
 
@@ -220,6 +229,9 @@ export const createOrganizationDirectoryRobot = (page: Page): OrganizationDirect
     },
     async expectTableRowSelected(organization: DirectoryOrganizationValue): Promise<void> {
       await expect(getTableRow(organization).getByRole('link')).toHaveAttribute('aria-current', 'true');
+    },
+    async hoverRow(organization: DirectoryOrganizationValue): Promise<void> {
+      await getListRow(organization).hover();
     },
     async openCompaniesTab(): Promise<void> {
       await companiesTab.click();

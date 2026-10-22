@@ -9,16 +9,24 @@ import { useIsSceneCameraReady } from '@/widgets/scene-viewport';
 import { useNetworkMapStore } from '../../model/useNetworkMapStore';
 
 interface ShowOnMapButtonProps {
+  isOrganization?: boolean | undefined;
   objectId: string;
 }
 
-export const ShowOnMapButton = ({ objectId }: ShowOnMapButtonProps): null | ReactElement => {
+export const ShowOnMapButton = ({ isOrganization, objectId }: ShowOnMapButtonProps): null | ReactElement => {
   const { t } = useI18n();
   const isCameraReady = useIsSceneCameraReady();
   const requestFocus = useNetworkMapStore(state => state.requestFocus);
+  const requestOrganizationFocus = useNetworkMapStore(state => state.requestOrganizationFocus);
 
   const handleClick = (): void => {
-    console.log('> ShowOnMapButton -> handleClick:', { objectId });
+    console.log('> ShowOnMapButton -> handleClick:', { isOrganization, objectId });
+
+    if (isOrganization) {
+      requestOrganizationFocus(objectId);
+      return;
+    }
+
     requestFocus(objectId);
   };
 

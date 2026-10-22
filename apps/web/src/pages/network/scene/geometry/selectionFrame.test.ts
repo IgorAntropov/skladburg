@@ -9,7 +9,10 @@ import type {
   NetworkSceneCityValue,
 } from '../layout';
 
-import { resolveSelectionFrame } from './selectionFrame';
+import {
+  listSelectedIds,
+  resolveSelectionFrames,
+} from './selectionFrame';
 
 const createWarehouse = (overrides: Partial<NetworkSceneBuildingValue>): NetworkSceneBuildingValue => ({
   cityId: 'city-a',
@@ -38,6 +41,14 @@ const CITY: NetworkSceneCityValue = {
   x: 8,
   z: 18,
 };
+
+const resolveSelectionFrame = (
+  buildings: readonly NetworkSceneBuildingValue[],
+  cities: readonly NetworkSceneCityValue[],
+  id: string | undefined,
+): ReturnType<typeof resolveSelectionFrames>[number] | undefined => (
+  resolveSelectionFrames(buildings, cities, id === undefined ? [] : [id])[0]
+);
 
 describe('resolveSelectionFrame', () => {
   const buildings = [
@@ -90,5 +101,65 @@ describe('resolveSelectionFrame', () => {
     expect(resolveSelectionFrame(buildings, [CITY], 'house')).toBeUndefined();
     expect(resolveSelectionFrame(buildings, [CITY], 'nobody')).toBeUndefined();
     expect(resolveSelectionFrame(buildings, [CITY], undefined)).toBeUndefined();
+  });
+});
+
+describe('resolveSelectionFrames', () => {
+  const OTHER_CITY: NetworkSceneCityValue = { ...CITY, cityId: 'kazan', hiddenSiteIds: ['hidden-3'], id: 'city-b', x: -30, z: 5 };
+  const buildings = [
+    createWarehouse({}),
+    createWarehouse({ id: 'site-b', siteId: 'site-b', x: -4, z: 6 }),
+    createWarehouse({ cityId: 'city-b', id: 'site-c', siteId: 'site-c', x: -31, z: 4 }),
+  ];
+
+  it('gives a frame to every site of the list, in the order of the list', () => {
+    const frames = resolveSelectionFrames(buildings, [CITY, OTHER_CITY], ['site-c', 'site-a', 'site-b']);
+
+    expect(frames.map(frame => [frame.centerX, frame.centerZ])).toEqual([[-31, 4], [10, 20], [-4, 6]]);
+    expect(frames.every(frame => frame.barWidth === 0.3)).toBe(true);
+  });
+
+  it('does not frame the same site twice', () => {
+    expect(resolveSelectionFrames(buildings, [CITY], ['site-a', 'site-a', 'site-b'])).toHaveLength(2);
+  });
+
+  it('gives a hidden site the frame of its city and draws it once for several hidden sites of one city', () => {
+    const frames = resolveSelectionFrames(buildings, [CITY, OTHER_CITY], ['hidden-1', 'hidden-2', 'hidden-3']);
+
+    expect(frames).toHaveLength(2);
+    expect(frames.map(frame => [frame.centerX, frame.centerZ])).toEqual([[8, 18], [-30, 5]]);
+    expect(frames.every(frame => frame.barWidth === 0.4)).toBe(true);
+  });
+
+  it('draws the frame of a city once when a hidden site and the city itself are in the list', () => {
+    expect(resolveSelectionFrames(buildings, [CITY], ['hidden-1', 'city-a', 'site-a'])).toHaveLength(2);
+  });
+
+  it('mixes visible sites with hidden ones and skips the unknown ids', () => {
+    const frames = resolveSelectionFrames(buildings, [CITY], ['site-a', 'ghost', 'hidden-1']);
+
+    expect(frames.map(frame => frame.barWidth)).toEqual([0.3, 0.4]);
+  });
+
+  it('gives no frames for an empty list', () => {
+    expect(resolveSelectionFrames(buildings, [CITY], [])).toEqual([]);
+  });
+});
+
+describe('listSelectedIds', () => {
+  it('gives no ids without a selection, always the same empty list', () => {
+    expect(listSelectedIds(undefined)).toEqual([]);
+    expect(listSelectedIds(undefined)).toBe(listSelectedIds(undefined));
+  });
+
+  it('gives the id of a selected site or city', () => {
+    expect(listSelectedIds({ id: 'site-a', kind: 'site' })).toEqual(['site-a']);
+    expect(listSelectedIds({ id: 'city-a', kind: 'city' })).toEqual(['city-a']);
+  });
+
+  it('gives the sites of a selected group and not its own id', () => {
+    const siteIds = ['site-a', 'site-b'];
+
+    expect(listSelectedIds({ id: 'organization', kind: 'sites', siteIds })).toBe(siteIds);
   });
 });

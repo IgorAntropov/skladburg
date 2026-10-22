@@ -1,8 +1,10 @@
+import type { NetworkMapSelectionValue } from '../../model/networkSceneInteraction';
 import type {
   NetworkSceneBuildingValue,
   NetworkSceneCityValue,
 } from '../layout';
 
+import { EMPTY_ID_LIST } from '../../model/networkSceneInteraction';
 import { CITY_RESERVE_RADIUS_METERS } from '../layout';
 import {
   CITY_CORNER_BAR_WIDTH_METERS,
@@ -52,22 +54,42 @@ const createCityFrame = (city: NetworkSceneCityValue): SelectionFrameValue => {
   };
 };
 
-export const resolveSelectionFrame = (
+export const listSelectedIds = (selected: NetworkMapSelectionValue | undefined): readonly string[] => {
+  if (selected === undefined) {
+    return EMPTY_ID_LIST;
+  }
+
+  return selected.kind === 'sites' ? selected.siteIds : [selected.id];
+};
+
+export const resolveSelectionFrames = (
   buildings: readonly NetworkSceneBuildingValue[],
   cities: readonly NetworkSceneCityValue[],
-  id: string | undefined,
-): SelectionFrameValue | undefined => {
-  if (id === undefined) {
-    return undefined;
+  ids: readonly string[],
+): readonly SelectionFrameValue[] => {
+  const frames: SelectionFrameValue[] = [];
+  const framedSiteIds = new Set<string>();
+  const framedCityIds = new Set<string>();
+
+  for (const id of ids) {
+    const building = buildings.find(candidate => candidate.isCompany && candidate.siteId === id);
+
+    if (building !== undefined) {
+      if (!framedSiteIds.has(id)) {
+        framedSiteIds.add(id);
+        frames.push(createSiteFrame(building));
+      }
+
+      continue;
+    }
+
+    const city = cities.find(candidate => candidate.id === id || candidate.hiddenSiteIds.includes(id));
+
+    if (city !== undefined && !framedCityIds.has(city.id)) {
+      framedCityIds.add(city.id);
+      frames.push(createCityFrame(city));
+    }
   }
 
-  const building = buildings.find(candidate => candidate.isCompany && candidate.siteId === id);
-
-  if (building !== undefined) {
-    return createSiteFrame(building);
-  }
-
-  const city = cities.find(candidate => candidate.id === id || candidate.hiddenSiteIds.includes(id));
-
-  return city === undefined ? undefined : createCityFrame(city);
+  return frames;
 };

@@ -62,6 +62,35 @@ export const findChipSlot = (sets: readonly ChipSetValue[], siteId: string | und
   return undefined;
 };
 
+export const createChipHoverMasks = (sets: readonly ChipSetValue[]): readonly Uint8Array[] => (
+  sets.map(set => new Uint8Array(set.count))
+);
+
+export const fillChipHoverMasks = (
+  masks: readonly Uint8Array[],
+  sets: readonly ChipSetValue[],
+  hoveredId: string | undefined,
+  hoveredSiteIds: readonly string[],
+): void => {
+  for (const mask of masks) {
+    mask.fill(0);
+  }
+
+  const hoveredSlot = findChipSlot(sets, hoveredId);
+
+  if (hoveredSlot !== undefined) {
+    masks[hoveredSlot.setIndex]?.fill(1, hoveredSlot.index, hoveredSlot.index + 1);
+  }
+
+  for (const siteId of hoveredSiteIds) {
+    const slot = findChipSlot(sets, siteId);
+
+    if (slot !== undefined) {
+      masks[slot.setIndex]?.fill(1, slot.index, slot.index + 1);
+    }
+  }
+};
+
 export const writeChipMarkerMatrices = (markers: ChipMarkersValue, sets: readonly ChipSetValue[]): void => {
   const target = markers.matrices;
 

@@ -44,8 +44,16 @@ import { NetworkSiteChips } from './NetworkSiteChips';
 
 interface LayersPropsValue {
   hoveredId: string | undefined;
-  selectedId: string | undefined;
+  hoveredSiteIds: readonly string[];
+  selectedIds: readonly string[];
 }
+
+const createProps = (overrides: Partial<LayersPropsValue>): LayersPropsValue => ({
+  hoveredId: undefined,
+  hoveredSiteIds: [],
+  selectedIds: [],
+  ...overrides,
+});
 
 const PALETTE = readWorldPalette(() => '#808080');
 
@@ -114,12 +122,17 @@ const renderLayers = async (
     >
       <Probe />
       <WorldMaterialsProvider palette={PALETTE}>
-        <NetworkSiteChips boxGeometry={boxGeometry} buildings={BUILDINGS} hoveredId={props.hoveredId} />
+        <NetworkSiteChips
+          boxGeometry={boxGeometry}
+          buildings={BUILDINGS}
+          hoveredId={props.hoveredId}
+          hoveredSiteIds={props.hoveredSiteIds}
+        />
         <NetworkSelectionCorners
           boxGeometry={boxGeometry}
           buildings={BUILDINGS}
           cities={[CITY]}
-          selectedId={props.selectedId}
+          selectedIds={props.selectedIds}
         />
       </WorldMaterialsProvider>
     </Canvas>
@@ -193,7 +206,7 @@ describe('selection and own site layers', () => {
   });
 
   it('draws the chips, the posts, the house marks and the corners with materials that no light touches', async () => {
-    const { state } = await renderLayers({ hoveredId: undefined, selectedId: 'own' });
+    const { state } = await renderLayers(createProps({ selectedIds: ['own'] }));
     const materials = readMaterials(state());
 
     expect(materials).toHaveLength(readMeshes(state()).length);
@@ -206,28 +219,28 @@ describe('selection and own site layers', () => {
   });
 
   it('draws no corners while nothing is selected', async () => {
-    const { state } = await renderLayers({ hoveredId: undefined, selectedId: undefined });
+    const { state } = await renderLayers(createProps({}));
 
     expect(readCornerMeshes(state())).toHaveLength(0);
   });
 
   it('draws two layers of eight bars for a selected site, a hidden site and a city, and none for an unknown id', async () => {
-    const { state, update } = await renderLayers({ hoveredId: undefined, selectedId: 'own' });
+    const { state, update } = await renderLayers(createProps({ selectedIds: ['own'] }));
 
     expect(readCornerMeshes(state())).toHaveLength(2);
 
-    update({ hoveredId: undefined, selectedId: 'hidden' });
+    update(createProps({ selectedIds: ['hidden'] }));
     expect(readCornerMeshes(state())).toHaveLength(2);
 
-    update({ hoveredId: undefined, selectedId: 'city' });
+    update(createProps({ selectedIds: ['city'] }));
     expect(readCornerMeshes(state())).toHaveLength(2);
 
-    update({ hoveredId: undefined, selectedId: 'nobody' });
+    update(createProps({ selectedIds: ['nobody'] }));
     expect(readCornerMeshes(state())).toHaveLength(0);
   });
 
   it('brings the corners in over 140 ms and then stops asking for frames', async () => {
-    const { invalidate, state } = await renderLayers({ hoveredId: undefined, selectedId: 'own' });
+    const { invalidate, state } = await renderLayers(createProps({ selectedIds: ['own'] }));
     const light = (): MeshReadingValue | undefined => readCornerMeshes(state())[1];
     const startReach = readCornerReach(light());
 
@@ -258,7 +271,7 @@ describe('selection and own site layers', () => {
   it('puts the corners on the place at once when the motion is reduced', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce') }));
 
-    const { invalidate, state } = await renderLayers({ hoveredId: undefined, selectedId: 'own' });
+    const { invalidate, state } = await renderLayers(createProps({ selectedIds: ['own'] }));
     const light = readCornerMeshes(state())[1];
 
     invalidate.mockClear();
@@ -270,7 +283,7 @@ describe('selection and own site layers', () => {
   });
 
   it('gives a house mark only to the chip of an own site', async () => {
-    const { state } = await renderLayers({ hoveredId: undefined, selectedId: undefined });
+    const { state } = await renderLayers(createProps({}));
     const meshes = readMeshes(state());
 
     expect(meshes.filter(mesh => mesh.count === 1)).toHaveLength(6);
@@ -278,7 +291,7 @@ describe('selection and own site layers', () => {
   });
 
   it('grows the hovered chip with its mark, lifts it and puts it back', async () => {
-    const { state, update } = await renderLayers({ hoveredId: undefined, selectedId: undefined });
+    const { state, update } = await renderLayers(createProps({}));
     const readHeights = (): number[] => readMeshes(state())
       .filter(mesh => mesh.count === 1)
       .map(mesh => mesh.array[13] ?? 0);
@@ -291,16 +304,101 @@ describe('selection and own site layers', () => {
     expect(countNear(readHeights(), 3.7)).toBe(4);
     expect(countNear(readHeights(), calmMark)).toBe(2);
 
-    update({ hoveredId: 'own', selectedId: undefined });
+    update(createProps({ hoveredId: 'own' }));
     expect(countNear(readHeights(), 4.1)).toBe(2);
     expect(countNear(readHeights(), 3.7)).toBe(2);
     expect(countNear(readHeights(), liftedMark)).toBe(2);
 
-    update({ hoveredId: 'other', selectedId: undefined });
+    update(createProps({ hoveredId: 'other' }));
     expect(countNear(readHeights(), 4.1)).toBe(2);
     expect(countNear(readHeights(), calmMark)).toBe(2);
 
-    update({ hoveredId: 'city', selectedId: undefined });
+    update(createProps({ hoveredId: 'city' }));
+    expect(countNear(readHeights(), 4.1)).toBe(0);
+    expect(countNear(readHeights(), 3.7)).toBe(4);
+  });
+
+  it('draws two layers of sixteen bars for two selected sites and one pair for two hidden sites of one city', async () => {
+    const { state, update } = await renderLayers(createProps({ selectedIds: ['own', 'other'] }));
+
+    expect(readMeshes(state()).filter(mesh => mesh.count === 16)).toHaveLength(2);
+    expect(readCornerMeshes(state())).toHaveLength(0);
+
+    update(createProps({ selectedIds: ['hidden', 'hidden', 'city'] }));
+    expect(readCornerMeshes(state())).toHaveLength(2);
+
+    update(createProps({ selectedIds: ['own', 'hidden', 'ghost'] }));
+    expect(readMeshes(state()).filter(mesh => mesh.count === 16)).toHaveLength(2);
+
+    update(createProps({ selectedIds: ['ghost'] }));
+    expect(readMeshes(state()).filter(mesh => mesh.count === 8 || mesh.count === 16)).toHaveLength(0);
+  });
+
+  it('puts the second frame around the second site and moves both with the same spread', async () => {
+    const { state } = await renderLayers(createProps({ selectedIds: ['own', 'other'] }));
+    const light = readMeshes(state()).filter(mesh => mesh.count === 16)[1];
+    const centerOf = (frameIndex: number): number => {
+      let sum = 0;
+
+      for (let index = 0; index < 8; index += 1) {
+        sum += light?.array[(frameIndex * 8 + index) * 16 + 12] ?? 0;
+      }
+
+      return sum / 8;
+    };
+
+    expect(centerOf(0)).toBeCloseTo(-3.2, 3);
+    expect(centerOf(1)).toBeCloseTo(3.2, 3);
+  });
+
+  it('restarts the appearance of the corners and stops asking for frames when the group changes', async () => {
+    const { invalidate, state, update } = await renderLayers(createProps({ selectedIds: ['own'] }));
+
+    for (let frame = 0; frame < 14; frame += 1) {
+      drawFrame(state, 1000 + frame * 16);
+    }
+
+    const calmCalls = invalidate.mock.calls.length;
+
+    drawFrame(state, 2000);
+    expect(invalidate.mock.calls.length).toBe(calmCalls);
+
+    update(createProps({ selectedIds: ['own', 'other'] }));
+    expect(invalidate.mock.calls.length).toBeGreaterThan(calmCalls);
+
+    for (let frame = 0; frame < 14; frame += 1) {
+      drawFrame(state, 3000 + frame * 16);
+    }
+
+    const settledCalls = invalidate.mock.calls.length;
+
+    drawFrame(state, 4000);
+    drawFrame(state, 4016);
+
+    expect(invalidate.mock.calls.length).toBe(settledCalls);
+  });
+
+  it('grows the chips of all the hovered sites together with the hovered id, and puts them back', async () => {
+    const { state, update } = await renderLayers(createProps({}));
+    const readHeights = (): number[] => readMeshes(state())
+      .filter(mesh => mesh.count === 1)
+      .map(mesh => mesh.array[13] ?? 0);
+    const countNear = (heights: readonly number[], target: number): number => (
+      heights.filter(value => Math.abs(value - target) < 0.01).length
+    );
+
+    update(createProps({ hoveredSiteIds: ['own', 'other'] }));
+    expect(countNear(readHeights(), 4.1)).toBe(4);
+    expect(countNear(readHeights(), 3.7)).toBe(0);
+
+    update(createProps({ hoveredId: 'other', hoveredSiteIds: ['own'] }));
+    expect(countNear(readHeights(), 4.1)).toBe(4);
+
+    update(createProps({ hoveredSiteIds: ['own', 'ghost', 'city'] }));
+    expect(countNear(readHeights(), 4.1)).toBe(2);
+    expect(countNear(readHeights(), 3.7)).toBe(2);
+
+    update(createProps({}));
     expect(countNear(readHeights(), 4.1)).toBe(0);
     expect(countNear(readHeights(), 3.7)).toBe(4);
   });

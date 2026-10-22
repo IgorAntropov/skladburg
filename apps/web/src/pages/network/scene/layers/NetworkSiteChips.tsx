@@ -22,14 +22,14 @@ import type { MapSideValue } from '@/entities/network';
 import { SIDE_SHAPES } from '@/entities/organization';
 import { useWorldGlowMaterial } from '@/shared/3d';
 
-import type { ChipSlotValue } from '../geometry/buildChipSets';
 import type { ChipGeometriesValue } from '../geometry/createChipGeometry';
 import type { OwnMarkerGeometriesValue } from '../geometry/createOwnMarkerGeometry';
 import type { NetworkSceneBuildingValue } from '../layout';
 
 import {
   buildChipSets,
-  findChipSlot,
+  createChipHoverMasks,
+  fillChipHoverMasks,
   writeChipMarkerMatrices,
 } from '../geometry/buildChipSets';
 import {
@@ -52,6 +52,7 @@ interface NetworkSiteChipsProps {
   boxGeometry: BufferGeometry;
   buildings: readonly NetworkSceneBuildingValue[];
   hoveredId: string | undefined;
+  hoveredSiteIds: readonly string[];
 }
 
 const createAllChipGeometries = (): Record<MapSideValue, ChipGeometriesValue> => ({
@@ -60,7 +61,12 @@ const createAllChipGeometries = (): Record<MapSideValue, ChipGeometriesValue> =>
   supplier: createChipGeometries(SIDE_SHAPES.supplier.outline),
 });
 
-export const NetworkSiteChips = ({ boxGeometry, buildings, hoveredId }: NetworkSiteChipsProps): ReactElement => {
+export const NetworkSiteChips = ({
+  boxGeometry,
+  buildings,
+  hoveredId,
+  hoveredSiteIds,
+}: NetworkSiteChipsProps): ReactElement => {
   const camera = useThree(state => state.camera);
   const invalidate = useThree(state => state.invalidate);
 
@@ -72,9 +78,9 @@ export const NetworkSiteChips = ({ boxGeometry, buildings, hoveredId }: NetworkS
 
   const groupRef = useRef<Group>(null);
   const azimuthRef = useRef(0);
-  const hoveredSlotRef = useRef<ChipSlotValue | undefined>(undefined);
 
   const chipSets = useMemo(() => buildChipSets(buildings), [buildings]);
+  const hoverMasks = useMemo(() => createChipHoverMasks(chipSets.sets), [chipSets]);
   const chipGeometries = useMemo(() => createAllChipGeometries(), []);
   const markerGeometries = useMemo((): OwnMarkerGeometriesValue => createOwnMarkerGeometries(), []);
   const sideMaterials = useMemo(
@@ -83,8 +89,6 @@ export const NetworkSiteChips = ({ boxGeometry, buildings, hoveredId }: NetworkS
   );
 
   const turnChips = useCallback((azimuth: number): void => {
-    const hoveredSlot = hoveredSlotRef.current;
-
     for (let setIndex = 0; setIndex < chipSets.sets.length; setIndex += 1) {
       const set = chipSets.sets[setIndex];
 
@@ -93,14 +97,14 @@ export const NetworkSiteChips = ({ boxGeometry, buildings, hoveredId }: NetworkS
           set.matrices,
           set.count,
           azimuth,
-          hoveredSlot?.setIndex === setIndex ? hoveredSlot.index : undefined,
+          hoverMasks[setIndex],
         );
       }
     }
 
     writeChipMarkerMatrices(chipSets.markers, chipSets.sets);
     markInstanceMatricesUpdated(groupRef.current);
-  }, [chipSets]);
+  }, [chipSets, hoverMasks]);
 
   useFrame((state) => {
     const azimuth = getCameraAzimuth(state.camera.quaternion);
@@ -116,11 +120,11 @@ export const NetworkSiteChips = ({ boxGeometry, buildings, hoveredId }: NetworkS
   useLayoutEffect(() => {
     const azimuth = getCameraAzimuth(camera.quaternion);
 
-    hoveredSlotRef.current = findChipSlot(chipSets.sets, hoveredId);
+    fillChipHoverMasks(hoverMasks, chipSets.sets, hoveredId, hoveredSiteIds);
     azimuthRef.current = azimuth;
     turnChips(azimuth);
     invalidate();
-  }, [camera, chipSets, hoveredId, invalidate, turnChips]);
+  }, [camera, chipSets, hoverMasks, hoveredId, hoveredSiteIds, invalidate, turnChips]);
 
   useEffect(() => {
     return () => {

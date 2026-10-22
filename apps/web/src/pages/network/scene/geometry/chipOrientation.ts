@@ -24,14 +24,14 @@ export const applyChipAzimuth = (
   matrices: Float32Array,
   count: number,
   azimuth: number,
-  hoveredIndex: number | undefined,
+  hoverMask: Uint8Array | undefined,
 ): void => {
   const cosine = Math.cos(azimuth);
   const sine = Math.sin(azimuth);
 
   for (let index = 0; index < count; index += 1) {
     const offset = index * INSTANCE_MATRIX_ITEM_SIZE;
-    const isHovered = index === hoveredIndex;
+    const isHovered = hoverMask?.[index] === 1;
     const scale = isHovered ? CHIP_HOVER_SCALE : 1;
 
     matrices[offset] = cosine * scale;

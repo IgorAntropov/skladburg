@@ -14,6 +14,11 @@ import {
   vi,
 } from 'vitest';
 
+import type {
+  NetworkMapModelValue,
+  NetworkMapSiteValue,
+} from '@/entities/network';
+
 import type { NetworkSceneInteractionValue } from '../model/networkSceneInteraction';
 
 import { useNetworkMapStore } from '../model/useNetworkMapStore';
@@ -43,6 +48,23 @@ vi.mock('@/widgets/scene-viewport', () => ({
 
 const LABEL = 'scene';
 
+const createSite = (id: string, organizationId: string): NetworkMapSiteValue => ({
+  cityId: 'city',
+  id,
+  isOwn: false,
+  label: id,
+  nodeId: 'node',
+  organizationId,
+  organizationName: 'Организация',
+  side: 'supplier',
+});
+
+const SCENE_DATA: NetworkMapModelValue = {
+  cities: [],
+  roads: [],
+  sites: [createSite('a', 'org-1'), createSite('b', 'org-2'), createSite('c', 'org-1')],
+};
+
 const readInteraction = (): NetworkSceneInteractionValue => {
   const { interaction } = mocks;
 
@@ -59,7 +81,11 @@ describe('NetworkSceneViewport', () => {
   beforeEach(() => {
     mocks.navigate.mockReset();
     onWorldSiteSelect.mockReset();
-    useNetworkMapStore.setState({ focusRequest: undefined, hoveredId: undefined });
+    useNetworkMapStore.setState({
+      focusCommand: undefined,
+      hoveredId: undefined,
+      hoveredOrganizationId: undefined,
+    });
   });
 
   it('takes the selected target from the focus', () => {
@@ -74,6 +100,50 @@ describe('NetworkSceneViewport', () => {
 
     expect(screen.getByTestId('scene-viewport-mock')).toBeDefined();
     expect(readInteraction().selected).toEqual({ id: 'city-1', kind: 'city' });
+  });
+
+  it('selects every site of the organization from the focus', () => {
+    render(
+      <NetworkSceneViewport
+        focus={{ id: 'org-1', type: 'organization' }}
+        label={LABEL}
+        onWorldSiteSelect={onWorldSiteSelect}
+        sceneData={SCENE_DATA}
+      />,
+    );
+
+    expect(readInteraction().selected).toEqual({ id: 'org-1', kind: 'sites', siteIds: ['a', 'c'] });
+  });
+
+  it('turns an organization focus command into a request with its site ids', () => {
+    render(<NetworkSceneViewport focus={undefined} label={LABEL} onWorldSiteSelect={onWorldSiteSelect} sceneData={SCENE_DATA} />);
+    expect(readInteraction().focusRequest).toBeUndefined();
+
+    act(() => {
+      useNetworkMapStore.getState().requestOrganizationFocus('org-2');
+    });
+    expect(readInteraction().focusRequest).toEqual({ id: 'org-2', sequence: 1, siteIds: ['b'] });
+
+    act(() => {
+      useNetworkMapStore.getState().requestFocus('a');
+    });
+    expect(readInteraction().focusRequest).toEqual({ id: 'a', sequence: 2, siteIds: undefined });
+  });
+
+  it('gives the sites of the hovered organization and a shared empty list otherwise', () => {
+    render(<NetworkSceneViewport focus={undefined} label={LABEL} onWorldSiteSelect={onWorldSiteSelect} sceneData={SCENE_DATA} />);
+    const emptyList = readInteraction().hoveredSiteIds;
+    expect(emptyList).toEqual([]);
+
+    act(() => {
+      useNetworkMapStore.getState().setHoveredOrganizationId('org-1');
+    });
+    expect(readInteraction().hoveredSiteIds).toEqual(['a', 'c']);
+
+    act(() => {
+      useNetworkMapStore.getState().clearHoveredOrganizationId('org-1');
+    });
+    expect(readInteraction().hoveredSiteIds).toBe(emptyList);
   });
 
   it('opens the site address and tells the page about a site selected in the world', () => {

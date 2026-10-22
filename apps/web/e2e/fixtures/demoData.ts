@@ -110,6 +110,11 @@ export const DIRECTORY_ORGANIZATIONS = {
   supplier4: { id: '10000007-0000-4000-8000-000000000000', inn: '0000001076', name: 'Поставщик 4' },
 } as const satisfies Record<string, DirectoryOrganizationValue>;
 
+export const MULTI_CITY_ORGANIZATION = {
+  cityNodeIds: OWN_NETWORK_SITES.map(site => site.cityNodeId),
+  organization: DIRECTORY_ORGANIZATIONS.customer1,
+} as const;
+
 export const DIRECTORY_VISIBLE_ORGANIZATIONS: readonly DirectoryOrganizationValue[] = [
   DIRECTORY_ORGANIZATIONS.customer1,
   DIRECTORY_ORGANIZATIONS.customer2,

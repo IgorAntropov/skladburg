@@ -21,7 +21,9 @@ import {
 import type { NetworkSceneInteractionValue } from '../model/networkSceneInteraction';
 import type { NetworkSceneLayoutValue } from './layout';
 
+import { EMPTY_ID_LIST } from '../model/networkSceneInteraction';
 import { createUnitBoxGeometry } from './geometry/createUnitBoxGeometry';
+import { listSelectedIds } from './geometry/selectionFrame';
 import { useNetworkCameraFocus } from './interaction/useNetworkCameraFocus';
 import { useNetworkPointerPicking } from './interaction/useNetworkPointerPicking';
 import { NetworkBuildings } from './layers/NetworkBuildings';
@@ -64,6 +66,10 @@ const NetworkWorldScene = ({
   const boxGeometry = useMemo((): BufferGeometry => createUnitBoxGeometry(), []);
   const windows = useMemo(() => buildWindowInstances(layout.buildings, layout.cities), [layout.buildings, layout.cities]);
   const lamps = useMemo(() => buildStreetLamps(layout.roads, layout.cities), [layout.cities, layout.roads]);
+  const selected = interaction?.selected;
+  const selectedIds = useMemo(() => listSelectedIds(selected), [selected]);
+  const hoveredId = interaction?.hoveredId;
+  const hoveredSiteIds = interaction?.hoveredSiteIds ?? EMPTY_ID_LIST;
 
   useNetworkCameraFocus(layout, interaction);
   useNetworkPointerPicking(layout, interaction);
@@ -91,11 +97,21 @@ const NetworkWorldScene = ({
         boxGeometry={boxGeometry}
         buildings={layout.buildings}
         cities={layout.cities}
-        selectedId={interaction?.selected?.id}
+        selectedIds={selectedIds}
       />
-      <NetworkSiteChips boxGeometry={boxGeometry} buildings={layout.buildings} hoveredId={interaction?.hoveredId} />
+      <NetworkSiteChips
+        boxGeometry={boxGeometry}
+        buildings={layout.buildings}
+        hoveredId={hoveredId}
+        hoveredSiteIds={hoveredSiteIds}
+      />
       <NetworkLampLight lamps={lamps} level={level} />
-      <NetworkCityLabels cities={layout.cities} hoveredId={interaction?.hoveredId} selectedId={interaction?.selected?.id} />
+      <NetworkCityLabels
+        cities={layout.cities}
+        hoveredId={hoveredId}
+        hoveredSiteIds={hoveredSiteIds}
+        selectedIds={selectedIds}
+      />
     </>
   );
 };

@@ -58,6 +58,7 @@ const createCamera = (): OrthographicCamera => {
 const createInteraction = (): NetworkSceneInteractionValue => ({
   focusRequest: undefined,
   hoveredId: undefined,
+  hoveredSiteIds: [],
   onHoverEnd: vi.fn(),
   onHoverStart: vi.fn(),
   onSelect: vi.fn(),

@@ -16,6 +16,7 @@ import {
 interface PendingFocusValue {
   id: string;
   isRequested: boolean;
+  siteIds: readonly string[] | undefined;
 }
 
 export const useNetworkCameraFocus = (
@@ -38,11 +39,13 @@ export const useNetworkCameraFocus = (
     if (!isInitializedRef.current) {
       isInitializedRef.current = true;
       handledSequenceRef.current = focusRequest?.sequence;
-      pendingRef.current = selected === undefined ? undefined : { id: selected.id, isRequested: false };
+      pendingRef.current = selected === undefined
+        ? undefined
+        : { id: selected.id, isRequested: false, siteIds: selected.kind === 'sites' ? selected.siteIds : undefined };
     }
     else if (focusRequest !== undefined && focusRequest.sequence !== handledSequenceRef.current) {
       handledSequenceRef.current = focusRequest.sequence;
-      pendingRef.current = { id: focusRequest.id, isRequested: true };
+      pendingRef.current = { id: focusRequest.id, isRequested: true, siteIds: focusRequest.siteIds };
     }
 
     const pending = pendingRef.current;
@@ -58,7 +61,7 @@ export const useNetworkCameraFocus = (
     }
 
     const rig = rigRef.current;
-    const target = resolveNetworkFocusTarget(layout, pending.id);
+    const target = resolveNetworkFocusTarget(layout, pending.id, pending.siteIds);
 
     if (rig === null || target === undefined) {
       return;
@@ -68,7 +71,12 @@ export const useNetworkCameraFocus = (
 
     const zoom = resolveFocusZoomFactor(layout.world.home.radius, target.radius);
 
-    console.log('> useNetworkCameraFocus -> focus:', { id: pending.id, isRequested: pending.isRequested, zoom });
+    console.log('> useNetworkCameraFocus -> focus:', {
+      id: pending.id,
+      isRequested: pending.isRequested,
+      siteCount: pending.siteIds?.length,
+      zoom,
+    });
     rig.flyTo(target.point, { zoom });
   }, [interaction, layout, rigRef]);
 };

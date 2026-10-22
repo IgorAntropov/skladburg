@@ -12,6 +12,8 @@ import type { NetworkSceneBuildingValue } from '../layout';
 
 import {
   buildChipSets,
+  createChipHoverMasks,
+  fillChipHoverMasks,
   findChipSlot,
   writeChipMarkerMatrices,
 } from './buildChipSets';
@@ -98,6 +100,55 @@ describe('buildChipSets', () => {
   });
 });
 
+describe('chip hover masks', () => {
+  const buildings = [
+    createBuilding({ id: 'a', side: 'customer', siteId: 'a', x: 5, z: -4 }),
+    createBuilding({ id: 'b', side: 'supplier', siteId: 'b', x: 8.2, z: -4 }),
+    createBuilding({ id: 'c', side: 'customer', siteId: 'c', x: 5, z: 3 }),
+    createBuilding({ id: 'd', side: 'supplier', siteId: 'd', x: 8, z: 3 }),
+  ];
+
+  it('makes one zeroed mask per set, as long as the set', () => {
+    const { sets } = buildChipSets(buildings);
+    const masks = createChipHoverMasks(sets);
+
+    expect(masks.map(mask => Array.from(mask))).toEqual([[0, 0], [0, 0], []]);
+  });
+
+  it('marks the hovered id together with every hovered site across the sets', () => {
+    const { sets } = buildChipSets(buildings);
+    const masks = createChipHoverMasks(sets);
+
+    fillChipHoverMasks(masks, sets, 'a', ['d']);
+
+    expect(masks.map(mask => Array.from(mask))).toEqual([[1, 0], [0, 1], []]);
+
+    fillChipHoverMasks(masks, sets, undefined, ['b', 'c', 'b']);
+
+    expect(masks.map(mask => Array.from(mask))).toEqual([[0, 1], [1, 0], []]);
+  });
+
+  it('ignores cities, unknown ids and hidden sites and clears the previous marks', () => {
+    const { sets } = buildChipSets(buildings);
+    const masks = createChipHoverMasks(sets);
+
+    fillChipHoverMasks(masks, sets, 'a', ['b']);
+    fillChipHoverMasks(masks, sets, 'city', ['ghost']);
+
+    expect(masks.map(mask => Array.from(mask))).toEqual([[0, 0], [0, 0], []]);
+  });
+
+  it('writes the same buffer in place without replacing the masks', () => {
+    const { sets } = buildChipSets(buildings);
+    const masks = createChipHoverMasks(sets);
+    const first = masks[0];
+
+    fillChipHoverMasks(masks, sets, 'c', []);
+
+    expect(masks[0]).toBe(first);
+  });
+});
+
 describe('own site markers', () => {
   const buildings = [
     createBuilding({ id: 'a', isOwn: true, side: 'customer', x: 5, z: -4 }),
@@ -140,7 +191,7 @@ describe('own site markers', () => {
     const { markers, sets } = buildChipSets(buildings);
     const customer = sets[0]?.matrices ?? new Float32Array();
 
-    applyChipAzimuth(customer, 2, 0, 0);
+    applyChipAzimuth(customer, 2, 0, Uint8Array.of(1, 0));
     writeChipMarkerMatrices(markers, sets);
 
     const plate = new Matrix4().fromArray(customer, 0);

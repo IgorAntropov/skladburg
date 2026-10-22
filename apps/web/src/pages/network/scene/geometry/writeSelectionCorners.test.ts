@@ -9,6 +9,7 @@ import type { SelectionFrameValue } from './selectionFrame';
 import {
   SELECTION_CORNER_INSTANCE_COUNT,
   writeSelectionCorners,
+  writeSelectionFrames,
 } from './writeSelectionCorners';
 
 interface BarRectValue {
@@ -66,7 +67,7 @@ const write = (frame: SelectionFrameValue, spread: number): { dark: BarRectValue
   const light = new Float32Array(SELECTION_CORNER_INSTANCE_COUNT * 16);
   const dark = new Float32Array(SELECTION_CORNER_INSTANCE_COUNT * 16);
 
-  writeSelectionCorners(frame, spread, light, dark);
+  writeSelectionCorners(frame, spread, light, dark, 0);
 
   return { dark: readBars(dark), light: readBars(light) };
 };
@@ -153,5 +154,44 @@ describe('writeSelectionCorners', () => {
 
     expect(extent.x).toBeCloseTo(getExtent(calm, SITE_FRAME).x + 0.3, 6);
     expect(extent.z).toBeCloseTo(getExtent(calm, SITE_FRAME).z + 0.3, 6);
+  });
+
+  it('writes the frame at its index after the instances of the earlier frames', () => {
+    const light = new Float32Array(SELECTION_CORNER_INSTANCE_COUNT * 2 * 16);
+    const dark = new Float32Array(SELECTION_CORNER_INSTANCE_COUNT * 2 * 16);
+
+    writeSelectionCorners(SITE_FRAME, 0, light, dark, 1);
+
+    expect(light.subarray(0, SELECTION_CORNER_INSTANCE_COUNT * 16).every(value => value === 0)).toBe(true);
+    expect(dark.subarray(0, SELECTION_CORNER_INSTANCE_COUNT * 16).every(value => value === 0)).toBe(true);
+
+    const second = readBars(light.subarray(SELECTION_CORNER_INSTANCE_COUNT * 16));
+
+    expect(getExtent(second, SITE_FRAME).x * 2).toBeCloseTo(3.6, 6);
+  });
+});
+
+describe('writeSelectionFrames', () => {
+  it('writes a set of eight bars for every frame, each around its own center and with the same spread', () => {
+    const light = new Float32Array(SELECTION_CORNER_INSTANCE_COUNT * 2 * 16);
+    const dark = new Float32Array(SELECTION_CORNER_INSTANCE_COUNT * 2 * 16);
+
+    writeSelectionFrames([SITE_FRAME, CITY_FRAME], 0.3, light, dark);
+
+    const first = readBars(light);
+    const second = readBars(light.subarray(SELECTION_CORNER_INSTANCE_COUNT * 16));
+
+    expect(getExtent(first, SITE_FRAME).x).toBeCloseTo(1.8 + 0.3, 6);
+    expect(getExtent(second, CITY_FRAME).x).toBeCloseTo(5.52 + 0.3, 6);
+    expect(readBars(dark.subarray(SELECTION_CORNER_INSTANCE_COUNT * 16))).toHaveLength(8);
+  });
+
+  it('writes nothing for no frames', () => {
+    const light = new Float32Array(16);
+    const dark = new Float32Array(16);
+
+    writeSelectionFrames([], 0, light, dark);
+
+    expect(light.every(value => value === 0)).toBe(true);
   });
 });

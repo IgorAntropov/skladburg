@@ -27,6 +27,7 @@ import {
   INSPECTOR_KICKER_CLASS_NAME,
   INSPECTOR_LINK_CLASS_NAME,
 } from '../inspector/inspectorStyles';
+import { ShowOnMapButton } from '../inspector/ShowOnMapButton';
 import { NetworkInspectorSkeleton } from '../NetworkInspectorSkeleton';
 import { OrganizationProfileCard } from './OrganizationProfileCard';
 import { OrganizationRequisites } from './OrganizationRequisites';
@@ -105,6 +106,11 @@ const OrganizationCardBody = ({ card, cities, isOwn, sites }: OrganizationCardBo
               )}
         </InspectorProperty>
       </dl>
+      {isSitesListShown && (
+        <div className="flex flex-wrap gap-2 empty:hidden">
+          <ShowOnMapButton isOrganization objectId={card.id} />
+        </div>
+      )}
       <section className="flex flex-col gap-2">
         <h3 className="text-sm leading-5 font-semibold text-on-panel-muted" id={sitesHeadingId}>
           {t('organization.card.sites')}

@@ -58,10 +58,11 @@ const readLabels = (container: HTMLElement): HTMLElement[] => {
 interface LabelPropsValue {
   cities: readonly NetworkSceneCityValue[];
   hoveredId: string | undefined;
-  selectedId: string | undefined;
+  hoveredSiteIds: readonly string[];
+  selectedIds: readonly string[];
 }
 
-const DEFAULT_PROPS: LabelPropsValue = { cities: CITIES, hoveredId: undefined, selectedId: undefined };
+const DEFAULT_PROPS: LabelPropsValue = { cities: CITIES, hoveredId: undefined, hoveredSiteIds: [], selectedIds: [] };
 
 const renderLabels = async (
   isStrict: boolean,
@@ -87,7 +88,12 @@ const renderLabels = async (
         orthographic
       >
         <Probe />
-        <NetworkCityLabels cities={props.cities} hoveredId={props.hoveredId} selectedId={props.selectedId} />
+        <NetworkCityLabels
+          cities={props.cities}
+          hoveredId={props.hoveredId}
+          hoveredSiteIds={props.hoveredSiteIds}
+          selectedIds={props.selectedIds}
+        />
       </Canvas>
     );
 
@@ -177,7 +183,7 @@ describe('NetworkCityLabels', () => {
   it('puts the hovered and the selected state on the labels and takes it away again', async () => {
     const { container, update } = await renderLabels(false);
 
-    update({ ...DEFAULT_PROPS, hoveredId: 'node-1', selectedId: 'node-3' });
+    update({ ...DEFAULT_PROPS, hoveredId: 'node-1', selectedIds: ['node-3'] });
 
     const marked = readLabels(container).map(label => [label.dataset.hovered, label.dataset.selected]);
 
@@ -196,7 +202,7 @@ describe('NetworkCityLabels', () => {
 
   it('selects the label of the city whose hidden site is selected', async () => {
     const cities = CITIES.map((city, index) => (index === 4 ? { ...city, hiddenSiteIds: ['hidden-site'] } : city));
-    const { container } = await renderLabels(false, { cities, hoveredId: undefined, selectedId: 'hidden-site' });
+    const { container } = await renderLabels(false, { ...DEFAULT_PROPS, cities, selectedIds: ['hidden-site'] });
 
     expect(readLabels(container).map(label => label.dataset.selected)).toEqual([
       undefined,
@@ -207,10 +213,44 @@ describe('NetworkCityLabels', () => {
     ]);
   });
 
-  it('keeps the states when the labels are recreated for another list of cities', async () => {
-    const { container, update } = await renderLabels(false, { ...DEFAULT_PROPS, selectedId: 'node-0' });
+  it('selects the labels of the cities that hold any of several selected sites', async () => {
+    const cities = CITIES.map((city, index) => (index === 4 ? { ...city, hiddenSiteIds: ['hidden-a', 'hidden-b'] } : city));
+    const { container, update } = await renderLabels(false, { ...DEFAULT_PROPS, cities });
 
-    update({ cities: CITIES.map(city => ({ ...city })), hoveredId: 'node-1', selectedId: 'node-0' });
+    update({ ...DEFAULT_PROPS, cities, selectedIds: ['not-a-city', 'hidden-b', 'node-1'] });
+
+    expect(readLabels(container).map(label => label.dataset.selected)).toEqual([
+      undefined,
+      'true',
+      undefined,
+      undefined,
+      'true',
+    ]);
+  });
+
+  it('marks the label of a city as hovered when a hovered site is hidden in it', async () => {
+    const cities = CITIES.map((city, index) => (index === 3 ? { ...city, hiddenSiteIds: ['hidden-a'] } : city));
+    const { container, update } = await renderLabels(false, { ...DEFAULT_PROPS, cities });
+
+    update({ ...DEFAULT_PROPS, cities, hoveredSiteIds: ['visible', 'hidden-a'] });
+
+    expect(readLabels(container).map(label => label.dataset.hovered)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      'true',
+      undefined,
+    ]);
+
+    update({ ...DEFAULT_PROPS, cities });
+
+    expect(readLabels(container).every(label => label.dataset.hovered === undefined)).toBe(true);
+  });
+
+  it('keeps the states when the labels are recreated for another list of cities', async () => {
+    const { container, update } = await renderLabels(false, { ...DEFAULT_PROPS, selectedIds: ['node-0'] });
+
+    update({ ...DEFAULT_PROPS, cities: CITIES.map(city => ({ ...city })), hoveredId: 'node-1', selectedIds: ['node-0'] });
 
     expect(readLabels(container).map(label => [label.dataset.hovered, label.dataset.selected])).toEqual([
       [undefined, 'true'],

@@ -54,7 +54,9 @@ export const writeSelectionCorners = (
   spread: number,
   light: Float32Array,
   dark: Float32Array,
+  frameIndex: number,
 ): void => {
+  const firstInstance = frameIndex * SELECTION_CORNER_INSTANCE_COUNT;
   const { barLength, barWidth, centerX, centerZ, innerHalfX, innerHalfZ } = frame;
   const outerHalfX = innerHalfX + barWidth;
 
@@ -68,12 +70,27 @@ export const writeSelectionCorners = (
     scratchBar.centerZ = shiftZ + directionZ * (innerHalfZ + barWidth / 2);
     scratchBar.sizeX = barLength;
     scratchBar.sizeZ = barWidth;
-    writeBarPair(light, dark, corner * 2, scratchBar);
+    writeBarPair(light, dark, firstInstance + corner * 2, scratchBar);
 
     scratchBar.centerX = shiftX + directionX * (innerHalfX + barWidth / 2);
     scratchBar.centerZ = shiftZ + directionZ * (innerHalfZ - (barLength - barWidth) / 2);
     scratchBar.sizeX = barWidth;
     scratchBar.sizeZ = barLength - barWidth;
-    writeBarPair(light, dark, corner * 2 + 1, scratchBar);
+    writeBarPair(light, dark, firstInstance + corner * 2 + 1, scratchBar);
+  }
+};
+
+export const writeSelectionFrames = (
+  frames: readonly SelectionFrameValue[],
+  spread: number,
+  light: Float32Array,
+  dark: Float32Array,
+): void => {
+  for (let frameIndex = 0; frameIndex < frames.length; frameIndex += 1) {
+    const frame = frames[frameIndex];
+
+    if (frame !== undefined) {
+      writeSelectionCorners(frame, spread, light, dark, frameIndex);
+    }
   }
 };

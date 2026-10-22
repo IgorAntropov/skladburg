@@ -28,7 +28,7 @@ const createCityTarget = (
   radius: city.radius + FOCUS_MARGIN_METERS,
 });
 
-export const resolveNetworkFocusTarget = (layout: NetworkSceneLayoutValue, id: string): NetworkFocusTargetValue | undefined => {
+const resolveSingleTarget = (layout: NetworkSceneLayoutValue, id: string): NetworkFocusTargetValue | undefined => {
   const building = layout.buildings.find(candidate => candidate.isCompany && candidate.siteId === id);
 
   if (building !== undefined) {
@@ -47,6 +47,53 @@ export const resolveNetworkFocusTarget = (layout: NetworkSceneLayoutValue, id: s
 
   return city === undefined ? undefined : createCityTarget(city, city, 'city');
 };
+
+const mergeTargets = (current: NetworkFocusTargetValue, next: NetworkFocusTargetValue): NetworkFocusTargetValue => {
+  const distance = Math.hypot(next.point.x - current.point.x, next.point.z - current.point.z);
+
+  if (distance + next.radius <= current.radius) {
+    return current;
+  }
+
+  if (distance + current.radius <= next.radius) {
+    return next;
+  }
+
+  const radius = (distance + current.radius + next.radius) / 2;
+  const share = (radius - current.radius) / distance;
+
+  return {
+    kind: 'site',
+    point: {
+      x: current.point.x + (next.point.x - current.point.x) * share,
+      y: FOCUS_HEIGHT_METERS,
+      z: current.point.z + (next.point.z - current.point.z) * share,
+    },
+    radius,
+  };
+};
+
+const resolveSitesTarget = (layout: NetworkSceneLayoutValue, siteIds: readonly string[]): NetworkFocusTargetValue | undefined => {
+  let enclosing: NetworkFocusTargetValue | undefined;
+
+  for (const siteId of siteIds) {
+    const target = resolveSingleTarget(layout, siteId);
+
+    if (target !== undefined) {
+      enclosing = enclosing === undefined ? { ...target, kind: 'site' } : mergeTargets(enclosing, target);
+    }
+  }
+
+  return enclosing;
+};
+
+export const resolveNetworkFocusTarget = (
+  layout: NetworkSceneLayoutValue,
+  id: string,
+  siteIds: readonly string[] | undefined,
+): NetworkFocusTargetValue | undefined => (
+  siteIds === undefined ? resolveSingleTarget(layout, id) : resolveSitesTarget(layout, siteIds)
+);
 
 export const resolveFocusZoomFactor = (homeRadius: number, focusRadius: number): number => {
   const ratio = focusRadius > 0 ? homeRadius / focusRadius : MAX_FOCUS_ZOOM_FACTOR;

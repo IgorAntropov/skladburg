@@ -21,7 +21,8 @@ import { resolveCityLabelState } from '../geometry/resolveCityLabelState';
 
 interface CityLabelStatesValue {
   hoveredId: string | undefined;
-  selectedId: string | undefined;
+  hoveredSiteIds: readonly string[];
+  selectedIds: readonly string[];
 }
 
 interface CityLabelValue {
@@ -36,7 +37,8 @@ interface CityLabelValue {
 interface NetworkCityLabelsProps {
   cities: readonly NetworkSceneCityValue[];
   hoveredId: string | undefined;
-  selectedId: string | undefined;
+  hoveredSiteIds: readonly string[];
+  selectedIds: readonly string[];
 }
 
 const MOVE_EPSILON_PX = 0.01;
@@ -67,7 +69,12 @@ const setBooleanAttribute = (element: HTMLElement, name: string, isOn: boolean):
 
 const applyCityLabelStates = (labels: readonly CityLabelValue[], states: CityLabelStatesValue): void => {
   for (const label of labels) {
-    const { isHovered, isSelected } = resolveCityLabelState(label.city, states.hoveredId, states.selectedId);
+    const { isHovered, isSelected } = resolveCityLabelState(
+      label.city,
+      states.hoveredId,
+      states.hoveredSiteIds,
+      states.selectedIds,
+    );
 
     setBooleanAttribute(label.element, 'data-hovered', isHovered);
     setBooleanAttribute(label.element, 'data-selected', isSelected);
@@ -104,13 +111,18 @@ const createCityLabel = (city: NetworkSceneCityValue): CityLabelValue => {
   };
 };
 
-export const NetworkCityLabels = ({ cities, hoveredId, selectedId }: NetworkCityLabelsProps): null | ReactElement => {
+export const NetworkCityLabels = ({
+  cities,
+  hoveredId,
+  hoveredSiteIds,
+  selectedIds,
+}: NetworkCityLabelsProps): null | ReactElement => {
   const canvas = useThree(state => state.gl.domElement);
   const invalidate = useThree(state => state.invalidate);
 
   const labelsRef = useRef<readonly CityLabelValue[]>([]);
   const screenPointRef = useRef<ScreenPointValue>(createScreenPoint());
-  const statesRef = useRef<CityLabelStatesValue>({ hoveredId, selectedId });
+  const statesRef = useRef<CityLabelStatesValue>({ hoveredId, hoveredSiteIds, selectedIds });
 
   useFrame(({ camera, size }) => {
     const labels = labelsRef.current;
@@ -164,9 +176,9 @@ export const NetworkCityLabels = ({ cities, hoveredId, selectedId }: NetworkCity
   }, [canvas, cities, invalidate]);
 
   useLayoutEffect(() => {
-    statesRef.current = { hoveredId, selectedId };
+    statesRef.current = { hoveredId, hoveredSiteIds, selectedIds };
     applyCityLabelStates(labelsRef.current, statesRef.current);
-  }, [cities, hoveredId, selectedId]);
+  }, [cities, hoveredId, hoveredSiteIds, selectedIds]);
 
   return null;
 };

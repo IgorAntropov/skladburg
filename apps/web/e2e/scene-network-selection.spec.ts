@@ -1,5 +1,6 @@
 import type { ObjectRouteValue } from './fixtures/routes.ts';
 import type { NetworkRobotValue } from './robots/network-robot.ts';
+import type { OrganizationDirectoryRobotValue } from './robots/organization-directory-robot.ts';
 import type {
   CityLabelPlacementValue,
   SceneRobotValue,
@@ -8,10 +9,13 @@ import type {
 import {
   FAR_NETWORK_SITE,
   FOREIGN_NETWORK_SITE,
+  MULTI_CITY_ORGANIZATION,
+  OWN_NETWORK_SITES,
 } from './fixtures/demoData.ts';
 import {
   toCityRoute,
   toObjectHash,
+  toOrganizationRoute,
   toSectionHash,
   toSiteRoute,
 } from './fixtures/routes.ts';
@@ -22,6 +26,7 @@ import {
 import { DESKTOP_VIEWPORT } from './fixtures/viewports.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';
 import { createNetworkRobot } from './robots/network-robot.ts';
+import { createOrganizationDirectoryRobot } from './robots/organization-directory-robot.ts';
 import { createSceneRobot } from './robots/scene-robot.ts';
 
 const SCENE_TEST_TIMEOUT_MS = 90_000;
@@ -45,6 +50,11 @@ const CITY_LABEL_PLACEMENT: CityLabelPlacementValue = {
 
 const FAR_SITE_ROUTE = toSiteRoute(FAR_NETWORK_SITE.id);
 const FAR_CITY_ROUTE = toCityRoute(FAR_NETWORK_SITE.cityNodeId);
+const { cityNodeIds: COMPANY_CITY_IDS, organization: MULTI_CITY_COMPANY } = MULTI_CITY_ORGANIZATION;
+const [, , KAZAN_SITE] = OWN_NETWORK_SITES;
+const COMPANY_PANNED_CITY_ID = KAZAN_SITE.cityNodeId;
+const COMPANY_ROUTE = toOrganizationRoute(MULTI_CITY_COMPANY.id);
+
 const FAR_SITE_HASH = toObjectHash(FAR_SITE_ROUTE);
 
 interface ColdEntryValue {
@@ -88,6 +98,19 @@ const flyToFarSiteByRow = async (
   await network.expectRowSelected(FAR_NETWORK_SITE.id);
   await expectFlightThenRest(scene, framesBefore);
   await scene.expectCityLabelAtFreeAreaCenter(FAR_NETWORK_SITE.cityNodeId, SITE_LABEL_PLACEMENT);
+};
+
+const flyToCompanyByRow = async (
+  scene: SceneRobotValue,
+  directory: OrganizationDirectoryRobotValue,
+): Promise<void> => {
+  const framesBefore = await scene.readDrawFrames();
+
+  await directory.openRow(MULTI_CITY_COMPANY);
+  await directory.expectOwnCard(MULTI_CITY_COMPANY);
+  await directory.expectRowSelected(MULTI_CITY_COMPANY);
+  await expectFlightThenRest(scene, framesBefore);
+  await scene.expectCityLabelsInsideFreeArea(COMPANY_CITY_IDS);
 };
 
 test.describe.configure({ timeout: SCENE_TEST_TIMEOUT_MS });
@@ -228,6 +251,92 @@ test.describe('selection on the network map', () => {
     await scene.waitForDrawFramesToExceed(framesBeforeLeave, 'leaving the row did not redraw the scene');
     await scene.waitForIdle();
     await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
+  });
+
+  test('a tap on the row of a company in several cities flies the camera over all its sites after a manual pan', async ({ page }) => {
+    const scene = createSceneRobot(page);
+    const directory = createOrganizationDirectoryRobot(page);
+
+    await openReadyNetwork(scene);
+    await directory.openCompaniesTab();
+
+    await scene.dragWorld('left');
+    await scene.waitForIdle();
+    await scene.expectSomeCityLabelOutsideFreeArea(COMPANY_CITY_IDS);
+
+    await flyToCompanyByRow(scene, directory);
+  });
+
+  test('"show on map" of a company card brings the camera back over all its sites after a manual pan', async ({ page }) => {
+    const scene = createSceneRobot(page);
+    const directory = createOrganizationDirectoryRobot(page);
+    const network = createNetworkRobot(page);
+
+    await openReadyNetwork(scene);
+    await directory.openCompaniesTab();
+    await flyToCompanyByRow(scene, directory);
+
+    const offsetBefore = await scene.readCityLabelOffset(COMPANY_PANNED_CITY_ID);
+
+    await scene.dragWorld('left');
+    await scene.waitForIdle();
+
+    const offsetAfter = await scene.readCityLabelOffset(COMPANY_PANNED_CITY_ID);
+
+    expect(offsetBefore).toBeDefined();
+    expect(Math.abs((offsetAfter?.dx ?? 0) - (offsetBefore?.dx ?? 0))).toBeGreaterThan(MIN_PANNED_DISTANCE_PX);
+    await scene.expectSomeCityLabelOutsideFreeArea(COMPANY_CITY_IDS);
+
+    const framesBefore = await scene.readDrawFrames();
+
+    await network.expectShowOnMapShown();
+    await network.showOnMap();
+
+    await expectFlightThenRest(scene, framesBefore);
+    await scene.expectCityLabelsInsideFreeArea(COMPANY_CITY_IDS);
+  });
+
+  test('the mouse over the row of a company redraws the scene once, settles and leaving the row clears the highlight', async ({ page }) => {
+    const scene = createSceneRobot(page);
+    const directory = createOrganizationDirectoryRobot(page);
+
+    await openReadyNetwork(scene);
+    await directory.openCompaniesTab();
+
+    const framesBefore = await scene.readDrawFrames();
+
+    await directory.hoverRow(MULTI_CITY_COMPANY);
+    await directory.expectRowHovered(MULTI_CITY_COMPANY);
+
+    await scene.waitForDrawFramesToExceed(framesBefore, 'the hover over the company did not redraw the scene');
+    await scene.waitForIdle();
+    await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
+
+    const framesBeforeLeave = await scene.readDrawFrames();
+
+    await scene.moveMouseToWorldCorner();
+    await directory.expectRowNotHovered(MULTI_CITY_COMPANY);
+
+    await scene.waitForDrawFramesToExceed(framesBeforeLeave, 'leaving the company row did not redraw the scene');
+    await scene.waitForIdle();
+    await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
+  });
+
+  test('a direct entry by the address of the own company keeps all its sites in the free area when ready', async ({ page }) => {
+    const scene = createSceneRobot(page);
+    const directory = createOrganizationDirectoryRobot(page);
+
+    await scene.openObject(COMPANY_ROUTE);
+    await scene.expectSceneState('ready');
+    await scene.waitForCameraControls();
+
+    await directory.expectOwnCard(MULTI_CITY_COMPANY);
+    await scene.expectCityLabelsInsideFreeArea(COMPANY_CITY_IDS);
+    await scene.waitForIdle();
+    await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
+    await scene.expectCityLabelsInsideFreeArea(COMPANY_CITY_IDS);
+
+    expect(new URL(page.url()).hash).toBe(toObjectHash(COMPANY_ROUTE));
   });
 
   for (const { name, placement, route } of COLD_ENTRIES) {

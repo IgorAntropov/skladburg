@@ -23,6 +23,8 @@ export { DropdownMenuRadioGroup } from './dropdown-menu/DropdownMenuRadioGroup';
 export { DropdownMenuRadioItem } from './dropdown-menu/DropdownMenuRadioItem';
 export { DropdownMenuSeparator } from './dropdown-menu/DropdownMenuSeparator';
 export { DropdownMenuTrigger } from './dropdown-menu/DropdownMenuTrigger';
+export type { FileButtonProps } from './file-button/FileButton';
+export { FileButton } from './file-button/FileButton';
 export { FocusHandoffProvider } from './focus-handoff/FocusHandoffProvider';
 export type { FocusHandoffValue } from './focus-handoff/useFocusHandoff';
 export { useFocusHandoff } from './focus-handoff/useFocusHandoff';

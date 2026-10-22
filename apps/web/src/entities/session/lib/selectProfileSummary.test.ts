@@ -68,6 +68,7 @@ describe('selectProfileSummary', () => {
       organizationId: ACTING_ORGANIZATION_ID,
       organizationName: 'Заказчик 1',
       sides: [ProfileKind.CUSTOMER],
+      userAvatarUrl: '',
       userDisplayName: 'Анна Смирнова',
       userId: 'user-1',
     });
@@ -103,5 +104,15 @@ describe('selectProfileSummary', () => {
     });
 
     expect(selectProfileSummary(session)?.sides).toEqual([]);
+  });
+
+  it('passes the photo of the user as it is', () => {
+    const session = create(GetSessionResponseSchema, {
+      actingOrganizationId: ACTING_ORGANIZATION_ID,
+      organizations: [createOrganization(ACTING_ORGANIZATION_ID, 'Заказчик 1', [ProfileKind.CUSTOMER])],
+      user: { ...USER, avatarUrl: 'data:image/jpeg;base64,AAAA' },
+    });
+
+    expect(selectProfileSummary(session)?.userAvatarUrl).toBe('data:image/jpeg;base64,AAAA');
   });
 });

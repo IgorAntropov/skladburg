@@ -133,6 +133,8 @@ describe('parseEngineHostMessage', () => {
     { personas: [{ ...PERSONA, group: undefined }], requestId: 'c1', type: 'control_result' },
     { personas: [{ ...PERSONA, roleName: 7 }], requestId: 'c1', type: 'control_result' },
     { personas: [{ ...PERSONA, roleName: undefined }], requestId: 'c1', type: 'control_result' },
+    { personas: [{ ...PERSONA, userAvatarUrl: 7 }], requestId: 'c1', type: 'control_result' },
+    { personas: [{ ...PERSONA, userAvatarUrl: null }], requestId: 'c1', type: 'control_result' },
     { personas: [{ ...PERSONA, userDisplayName: null }], requestId: 'c1', type: 'control_result' },
     { personas: [{ ...PERSONA, userDisplayName: undefined }], requestId: 'c1', type: 'control_result' },
     { personas: {}, requestId: 'c1', type: 'control_result' },
@@ -162,6 +164,19 @@ describe('parseEngineHostMessage', () => {
     for (const group of Object.values(DemoPersonaGroup)) {
       expect(parseEngineHostMessage({ personas: [{ ...PERSONA, group }], requestId: 'c1', type: 'control_result' })).toBeDefined();
     }
+  });
+
+  it('accepts a persona with and without an avatar address', () => {
+    const avatarUrl = 'data:image/webp;base64,AAAA';
+    const withAvatar = parseEngineHostMessage({
+      personas: [{ ...PERSONA, userAvatarUrl: avatarUrl }],
+      requestId: 'c1',
+      type: 'control_result',
+    });
+    const withoutAvatar = parseEngineHostMessage({ personas: [PERSONA], requestId: 'c1', type: 'control_result' });
+
+    expect(withAvatar).toStrictEqual({ personas: [{ ...PERSONA, userAvatarUrl: avatarUrl }], requestId: 'c1', type: 'control_result' });
+    expect(withoutAvatar).toStrictEqual({ personas: [PERSONA], requestId: 'c1', type: 'control_result' });
   });
 
   it('accepts an empty role name', () => {

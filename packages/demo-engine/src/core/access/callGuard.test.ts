@@ -12,6 +12,10 @@ import {
   RoleSchema,
   UserSchema,
 } from '@skladburg/contracts/access/v1/access';
+import {
+  RemoveMyAvatarRequestSchema,
+  UserProfileService,
+} from '@skladburg/contracts/access/v1/profile';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import {
   ErrorCode,
@@ -166,6 +170,45 @@ describe('createCallGuard: session', () => {
     const error = catchError(() => guard.guardCall(read, method, sphereRequest, headersOf(SeedUserId.ADMIN_1, UNKNOWN_ID)));
 
     expect(detailOf(error).code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
+  });
+});
+
+describe('createCallGuard: self', () => {
+  const method = UserProfileService.method.removeMyAvatar;
+  const request = create(RemoveMyAvatarRequestSchema, { idempotencyKey: '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153' });
+
+  it('lets a known user through without an organization', () => {
+    const caller = guard.guardCall(read, method, request, headersOf(SeedUserId.ADMIN_1));
+
+    expect(caller.user.id).toBe(SeedUserId.ADMIN_1);
+    expect(caller.organizationId).toBeUndefined();
+    expect(caller.membership).toBeUndefined();
+    expect(caller.permissions).toEqual([]);
+    expect(caller.scope).toBeUndefined();
+  });
+
+  it('does not require a membership in the passed organization', () => {
+    const foreign = guard.guardCall(read, method, request, headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.SUPPLIER_1));
+    const unknown = guard.guardCall(read, method, request, headersOf(SeedUserId.ADMIN_1, UNKNOWN_ID));
+
+    expect(foreign.user.id).toBe(SeedUserId.ADMIN_1);
+    expect(foreign.organizationId).toBeUndefined();
+    expect(unknown.user.id).toBe(SeedUserId.ADMIN_1);
+  });
+
+  it('answers session_required without a user or for an unknown user', () => {
+    const withoutUser = catchError(() => guard.guardCall(read, method, request, headersOf(undefined, SeedOrganizationId.CUSTOMER_1)));
+    const unknownUser = catchError(() => guard.guardCall(read, method, request, headersOf(UNKNOWN_ID)));
+
+    expect(detailOf(withoutUser).code).toBe(ErrorCode.SESSION_REQUIRED);
+    expect(detailOf(unknownUser).code).toBe(ErrorCode.SESSION_REQUIRED);
+  });
+
+  it('still validates the body of the request', () => {
+    const invalid = create(RemoveMyAvatarRequestSchema, { idempotencyKey: 'not-a-uuid' });
+    const error = catchError(() => guard.guardCall(read, method, invalid, headersOf(SeedUserId.ADMIN_1)));
+
+    expect(detailOf(error).code).toBe(ErrorCode.VALIDATION_FAILED);
   });
 });
 

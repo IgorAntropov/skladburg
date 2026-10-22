@@ -56,7 +56,10 @@ interface RuleMessageValue {
 
 const EXTERNAL_FILE_PREFIXES: readonly string[] = ['buf/validate/', 'google/'];
 
-const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [];
+const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
+  'access.v1.SetMyAvatarRequest.image',
+  'access.v1.SetMyAvatarRequest.mediaType',
+];
 const EXPECTED_SERVER_ONLY_MESSAGES: readonly string[] = ['common.v1.MethodAccess'];
 
 const VALID_UUID = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';

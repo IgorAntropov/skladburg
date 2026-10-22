@@ -33,6 +33,11 @@ message Permission {
 message User {
   string id = 1;
   string display_name = 2;
+  string avatar_url = 3;
+}
+
+message UserChanged {
+  string user_id = 1;
 }
 
 message RoleAssignment {

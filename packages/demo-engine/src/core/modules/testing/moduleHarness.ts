@@ -17,6 +17,7 @@ import {
   RoleSchema,
   UserSchema,
 } from '@skladburg/contracts/access/v1/access';
+import { UserProfileService } from '@skladburg/contracts/access/v1/profile';
 import { ClockService } from '@skladburg/contracts/clock/v1/clock';
 import {
   ErrorCode,
@@ -35,6 +36,7 @@ import { createClockService } from '../clock/index';
 import {
   createAccessService,
   createOrganizationShowcaseService,
+  createUserProfileService,
 } from '../identity/index';
 import { createNetworkService } from '../network/index';
 import { createOrganizationService } from '../organizationService';
@@ -110,6 +112,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(NetworkService, createNetworkService(testRuntime.runtime));
     service(OrganizationService, createOrganizationService(testRuntime.runtime));
     service(OrganizationShowcaseService, createOrganizationShowcaseService(testRuntime.runtime));
+    service(UserProfileService, createUserProfileService(testRuntime.runtime));
   });
 
   return {

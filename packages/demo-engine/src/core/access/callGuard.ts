@@ -140,6 +140,10 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
       throw errors.internal();
     }
 
+    if (requirement.case === 'self') {
+      return { organization: undefined, scopeCheck: undefined };
+    }
+
     if (organizationId === undefined) {
       if (requirement.case !== 'session') {
         throw errors.membershipRequired();

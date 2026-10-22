@@ -22,7 +22,9 @@ export const ProfileButtonIcon = ({ state }: ProfileButtonIconProps): ReactEleme
   const isSkeletonFilled = useDelayedVisibility(isPending);
 
   if (state.kind === 'ready') {
-    return <Avatar name={state.summary.userDisplayName} seed={state.summary.userId} size="md" />;
+    const { userAvatarUrl, userDisplayName, userId } = state.summary;
+
+    return <Avatar imageUrl={userAvatarUrl} name={userDisplayName} seed={userId} size="md" />;
   }
 
   if (state.kind === 'error') {

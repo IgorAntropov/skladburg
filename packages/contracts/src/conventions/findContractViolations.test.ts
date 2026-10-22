@@ -33,6 +33,7 @@ import {
   type MethodAccess,
   MethodAccessSchema,
   PermissionRequirementSchema,
+  SelfRequirementSchema,
   SessionRequirementSchema,
 } from '../gen/common/v1/method_options_pb';
 import { ProfileKind } from '../gen/organization/v1/organization_pb';
@@ -59,6 +60,11 @@ const SERVICE_NAME = `${PACKAGE_NAME}.ProbeService`;
 const createSessionAccess = (): MethodAccess =>
   create(MethodAccessSchema, {
     requirement: { case: 'session', value: create(SessionRequirementSchema) },
+  });
+
+const createSelfAccess = (): MethodAccess =>
+  create(MethodAccessSchema, {
+    requirement: { case: 'self', value: create(SelfRequirementSchema) },
   });
 
 const createMemberAccess = (): MethodAccess =>
@@ -236,6 +242,10 @@ describe('catalog rules for methods', () => {
     expect(findViolationsOf([createCommand({ access: createSessionAccess() })])).toEqual([
       violationOf('CreateThing', ContractRule.COMMAND_PERMISSION_MISSING),
     ]);
+  });
+
+  it('accepts a command that changes only the caller own record', () => {
+    expect(findViolationsOf([createCommand({ access: createSelfAccess() })])).toEqual([]);
   });
 
   it('reports a command that requires only a membership', () => {

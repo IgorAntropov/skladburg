@@ -54,6 +54,8 @@ const MAX_NETWORK_COMPANIES_GZIP_KILOBYTES = 95.5;
 
 const MAX_ORGANIZATION_TABLE_GZIP_KILOBYTES = 97.5;
 
+const MAX_MY_PROFILE_GZIP_KILOBYTES = 129.5;
+
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
 const PRECACHE_GLOB_PATTERNS = ['**/*.{js,css,html,woff2,svg,png}'];
@@ -151,6 +153,12 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_ORGANIZATION_TABLE_GZIP_KILOBYTES,
     name: 'organization-table',
+  },
+  {
+    entries: ['src/widgets/profile-menu/ui/my-profile/ProfileMyProfile.tsx'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_MY_PROFILE_GZIP_KILOBYTES,
+    name: 'my-profile',
   },
 ];
 

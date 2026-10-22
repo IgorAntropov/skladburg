@@ -3,7 +3,10 @@ import type {
   Ref,
 } from 'react';
 
-import { RotateCcw } from 'lucide-react';
+import {
+  RotateCcw,
+  UserRound,
+} from 'lucide-react';
 import {
   useEffect,
   useRef,
@@ -40,6 +43,7 @@ import { ProfileMenuHeader } from './ProfileMenuHeader';
 import { ProfileSections } from './ProfileSections';
 
 export { ProfileInstallInstructionsLayer } from './ProfileInstallInstructionsLayer';
+export { ProfileMyProfileLayer } from './ProfileMyProfileLayer';
 export { ProfileResetConfirmLayer } from './ProfileResetConfirmLayer';
 
 const MENU_ITEM_SELECTOR = '[role^="menuitem"]';
@@ -62,6 +66,7 @@ export interface ProfileMenuProps {
   isFirstItemFocused: boolean;
   isOpen: boolean;
   onInstallInstructionsRequest: () => void;
+  onMyProfileRequest: () => void;
   onOpenChange: (isOpen: boolean) => void;
   onResetRequest: () => void;
   sections: readonly AppSectionValue[];
@@ -83,6 +88,7 @@ const ProfileMenuItems = ({
   currentSection,
   isFirstItemFocused,
   onInstallInstructionsRequest,
+  onMyProfileRequest,
   onResetRequest,
   sections,
 }: ProfileMenuItemsProps): ReactElement => {
@@ -99,6 +105,11 @@ const ProfileMenuItems = ({
   const isSectionsSeparatorShown = isSectionsShown && isDemoActive;
   const isServicePartShown = isInstallAppAvailable || isDemoResetAvailable;
 
+  const handleMyProfileSelect = (): void => {
+    console.log('> ProfileMenu -> handleMyProfileSelect:', {});
+    onMyProfileRequest();
+  };
+
   const handleResetSelect = (): void => {
     console.log('> ProfileMenu -> handleResetSelect:', {});
     onResetRequest();
@@ -114,6 +125,11 @@ const ProfileMenuItems = ({
     <div className={MENU_ROOT_CLASS_NAME} ref={rootRef}>
       <div className={MENU_FIXED_PART_CLASS_NAME}>
         <ProfileMenuHeader />
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={handleMyProfileSelect} testId="profile-menu-my-profile">
+          <UserRound aria-hidden className="size-4 shrink-0 text-on-panel-muted" />
+          {t('profile.myProfile.menuItem')}
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
       </div>
       {isScrollPartShown && (

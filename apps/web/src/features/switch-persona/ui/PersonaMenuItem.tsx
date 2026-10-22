@@ -28,7 +28,13 @@ export const PersonaMenuItem = ({ isDisabled, label, persona, secondLine }: Pers
       testId={`profile-menu-persona-${persona.id}`}
       value={persona.id}
     >
-      <Avatar className={CURRENT_AVATAR_CLASS_NAME} name={persona.userDisplayName} seed={persona.userId} size="sm" />
+      <Avatar
+        className={CURRENT_AVATAR_CLASS_NAME}
+        imageUrl={persona.userAvatarUrl}
+        name={persona.userDisplayName}
+        seed={persona.userId}
+        size="sm"
+      />
       <span className="flex min-w-0 flex-col text-left" translate="no">
         <span className="truncate leading-5">{persona.userDisplayName}</span>
         <span className="truncate text-sm leading-4 text-on-panel-muted in-data-highlighted:text-on-panel">{secondLine}</span>

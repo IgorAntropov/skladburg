@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react';
 
 import { useProfileSummary } from '@/entities/session';
-import { useCurrentPersona } from '@/features/switch-persona';
 import { useI18n } from '@/shared/i18n';
 import {
   Avatar,
@@ -9,6 +8,7 @@ import {
 } from '@/shared/ui';
 
 import { SideBadges } from './SideBadges';
+import { useProfileSecondLine } from './useProfileSecondLine';
 
 const HEADER_CLASS_NAME = 'flex items-center gap-3 px-3 py-3 text-left';
 
@@ -19,7 +19,7 @@ const HEADER_TEXT_CLASS_NAME = 'flex min-w-0 flex-1 flex-col items-start gap-0.5
 export const ProfileMenuHeader = (): ReactElement => {
   const { t } = useI18n();
   const summaryState = useProfileSummary();
-  const { isPending: isPersonaPending, persona } = useCurrentPersona();
+  const secondLine = useProfileSecondLine();
 
   if (summaryState.kind === 'pending') {
     return (
@@ -47,23 +47,20 @@ export const ProfileMenuHeader = (): ReactElement => {
     );
   }
 
-  const { organizationName, sides, userDisplayName, userId } = summaryState.summary;
-  const roleName = persona?.roleName ?? '';
-  const hasRole = roleName !== '';
-  const secondLine = hasRole ? t('profile.role', { organization: organizationName, role: roleName }) : organizationName;
+  const { sides, userAvatarUrl, userDisplayName, userId } = summaryState.summary;
 
   return (
-    <div className={HEADER_CLASS_NAME}>
-      <Avatar name={userDisplayName} seed={userId} size="lg" />
+    <div className={HEADER_CLASS_NAME} data-testid="profile-menu-header">
+      <Avatar imageUrl={userAvatarUrl} name={userDisplayName} seed={userId} size="lg" />
       <div className={HEADER_TEXT_CLASS_NAME}>
         <p className={NAME_CLASS_NAME}>{userDisplayName}</p>
-        {isPersonaPending
+        {secondLine.isPending
           ? (
               <div className="flex h-5 items-center">
                 <Skeleton className="h-3.5 w-48" />
               </div>
             )
-          : <p className="max-w-full text-sm leading-5 break-words text-on-panel-muted">{secondLine}</p>}
+          : <p className="max-w-full text-sm leading-5 break-words text-on-panel-muted">{secondLine.text}</p>}
         <SideBadges sides={sides} />
       </div>
     </div>

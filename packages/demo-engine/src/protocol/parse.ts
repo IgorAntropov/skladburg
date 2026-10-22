@@ -77,9 +77,11 @@ const readPersona = (value: unknown): DemoPersonaListItemValue | undefined => {
     return undefined;
   }
 
-  const { group, id, kind, organizationId, organizationName, roleName, userDisplayName, userId } = value;
+  const { group, id, kind, organizationId, organizationName, roleName, userAvatarUrl, userDisplayName, userId } = value;
+  const isAvatarValid = userAvatarUrl === undefined || isString(userAvatarUrl);
 
-  return isPersonaGroup(group)
+  return isAvatarValid
+    && isPersonaGroup(group)
     && isString(id)
     && isPersonaKind(kind)
     && isString(organizationId)
@@ -87,7 +89,17 @@ const readPersona = (value: unknown): DemoPersonaListItemValue | undefined => {
     && isString(roleName)
     && isString(userDisplayName)
     && isString(userId)
-    ? { group, id, kind, organizationId, organizationName, roleName, userDisplayName, userId }
+    ? {
+        group,
+        id,
+        kind,
+        organizationId,
+        organizationName,
+        roleName,
+        ...(isString(userAvatarUrl) ? { userAvatarUrl } : {}),
+        userDisplayName,
+        userId,
+      }
     : undefined;
 };
 

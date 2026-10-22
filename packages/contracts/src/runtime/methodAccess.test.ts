@@ -4,6 +4,7 @@ import {
   it,
 } from 'vitest';
 
+import { UserProfileService } from '../gen/access/v1/profile_pb';
 import { OrganizationService } from '../gen/organization/v1/organization_pb';
 import { getMethodAccess } from './methodAccess';
 
@@ -31,6 +32,10 @@ describe('getMethodAccess', () => {
 
   it('reads a session requirement', () => {
     expect(getMethodAccess(findMethod('ListSpheres'))?.requirement.case).toBe('session');
+  });
+
+  it('reads a self requirement', () => {
+    expect(getMethodAccess(UserProfileService.method.setMyAvatar)?.requirement.case).toBe('self');
   });
 
   it('returns a requirement for every method of the service', () => {

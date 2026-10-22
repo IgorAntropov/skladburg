@@ -4,6 +4,11 @@ import type {
 } from 'react';
 
 import {
+  useEffect,
+  useRef,
+} from 'react';
+
+import {
   AnimatePresence,
   m,
   MotionScope,
@@ -26,17 +31,41 @@ const PLATE_CLASS_NAME = 'rounded-panel border border-line bg-panel-solid p-4 te
 export interface ProfilePlateLayerProps {
   children: ReactNode;
   isShown: boolean;
+  onDismiss?: (() => void) | undefined;
   plateKey: string;
 }
 
-type PlatePresenceProps = Pick<ProfilePlateLayerProps, 'children'>;
+type PlatePresenceProps = Pick<ProfilePlateLayerProps, 'children' | 'onDismiss'>;
 
-const PlatePresence = ({ children }: PlatePresenceProps): ReactElement => {
+const PlatePresence = ({ children, onDismiss }: PlatePresenceProps): ReactElement => {
   const isPresent = useIsPresent();
   const isReducedMotion = useReducedMotion() === true;
   const areFeaturesLoaded = useAreMotionFeaturesLoaded();
+  const plateRef = useRef<HTMLDivElement>(null);
 
   const isEntranceSkipped = isReducedMotion || !areFeaturesLoaded;
+
+  useEffect(() => {
+    if (!isPresent || onDismiss === undefined) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event: PointerEvent): void => {
+      const plate = plateRef.current;
+
+      if (plate === null || !(event.target instanceof Node) || plate.contains(event.target)) {
+        return;
+      }
+      console.log('> PlatePresence -> handlePointerDown:', {});
+      onDismiss();
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [isPresent, onDismiss]);
 
   return (
     <m.div
@@ -48,16 +77,16 @@ const PlatePresence = ({ children }: PlatePresenceProps): ReactElement => {
       initial={isEntranceSkipped ? false : PLATE_HIDDEN_STATE}
       transition={isReducedMotion ? PLATE_INSTANT_TRANSITION : PLATE_TRANSITION}
     >
-      <div className={PLATE_CLASS_NAME}>{children}</div>
+      <div className={PLATE_CLASS_NAME} ref={plateRef}>{children}</div>
     </m.div>
   );
 };
 
-export const ProfilePlateLayer = ({ children, isShown, plateKey }: ProfilePlateLayerProps): ReactElement => {
+export const ProfilePlateLayer = ({ children, isShown, onDismiss, plateKey }: ProfilePlateLayerProps): ReactElement => {
   return (
     <MotionScope>
       <AnimatePresence>
-        {isShown && <PlatePresence key={plateKey}>{children}</PlatePresence>}
+        {isShown && <PlatePresence key={plateKey} onDismiss={onDismiss}>{children}</PlatePresence>}
       </AnimatePresence>
     </MotionScope>
   );

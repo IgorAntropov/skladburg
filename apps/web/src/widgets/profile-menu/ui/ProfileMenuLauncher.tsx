@@ -26,6 +26,7 @@ import {
 
 import type { ProfileInstallInstructionsLayerProps } from './menu/ProfileInstallInstructionsLayer';
 import type { ProfileMenuProps } from './menu/ProfileMenu';
+import type { ProfileMyProfileLayerProps } from './menu/ProfileMyProfileLayer';
 import type { ProfileResetConfirmLayerProps } from './menu/ProfileResetConfirmLayer';
 
 import { PROFILE_MENU_FOCUS_KEY } from '../lib/profileMenuFocusKey';
@@ -47,10 +48,12 @@ type ProfileMenuLaunchStateValue
       kind: 'ready';
       ProfileInstallInstructionsLayer: ProfileInstallInstructionsLayerComponent;
       ProfileMenu: ProfileMenuComponent;
+      ProfileMyProfileLayer: ProfileMyProfileLayerComponent;
       ProfileResetConfirmLayer: ProfileResetConfirmLayerComponent;
     };
 type ProfileMenuModuleValue = Awaited<ReturnType<typeof loadProfileMenu>>;
-type ProfilePlateValue = 'install' | 'reset';
+type ProfileMyProfileLayerComponent = ComponentType<ProfileMyProfileLayerProps>;
+type ProfilePlateValue = 'install' | 'myProfile' | 'reset';
 
 type ProfileResetConfirmLayerComponent = ComponentType<ProfileResetConfirmLayerProps>;
 
@@ -96,6 +99,7 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
       kind: 'ready',
       ProfileInstallInstructionsLayer: loadedModule.ProfileInstallInstructionsLayer,
       ProfileMenu: loadedModule.ProfileMenu,
+      ProfileMyProfileLayer: loadedModule.ProfileMyProfileLayer,
       ProfileResetConfirmLayer: loadedModule.ProfileResetConfirmLayer,
     });
     setIsOpenedByLaunch(true);
@@ -136,6 +140,11 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
     }
   };
 
+  const handleMyProfileRequest = (): void => {
+    console.log('> ProfileMenuLauncher -> handleMyProfileRequest:', {});
+    setRequestedPlate('myProfile');
+  };
+
   const handleResetRequest = (): void => {
     console.log('> ProfileMenuLauncher -> handleResetRequest:', {});
     setRequestedPlate('reset');
@@ -151,6 +160,11 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
     setShownPlate(undefined);
     requestFocus();
     buttonRef.current?.focus();
+  };
+
+  const handlePlateDismiss = (): void => {
+    console.log('> ProfileMenuLauncher -> handlePlateDismiss:', { shownPlate });
+    setShownPlate(undefined);
   };
 
   useEffect(() => {
@@ -172,6 +186,7 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
     const {
       ProfileInstallInstructionsLayer,
       ProfileMenu,
+      ProfileMyProfileLayer,
       ProfileResetConfirmLayer,
     } = launchState;
 
@@ -183,12 +198,14 @@ export const ProfileMenuLauncher = ({ currentSection, sections }: ProfileMenuLau
           isFirstItemFocused={isOpenedByLaunch}
           isOpen={isOpen}
           onInstallInstructionsRequest={handleInstallInstructionsRequest}
+          onMyProfileRequest={handleMyProfileRequest}
           onOpenChange={handleOpenChange}
           onResetRequest={handleResetRequest}
           sections={sections}
         />
         <ProfileResetConfirmLayer isShown={shownPlate === 'reset'} onClose={handlePlateClose} />
         <ProfileInstallInstructionsLayer isShown={shownPlate === 'install'} onClose={handlePlateClose} />
+        <ProfileMyProfileLayer isShown={shownPlate === 'myProfile'} onClose={handlePlateClose} onDismiss={handlePlateDismiss} />
       </div>
     );
   }

@@ -9,6 +9,7 @@ export interface ProfileSummaryValue {
   organizationId: string;
   organizationName: string;
   sides: readonly ProfileKind[];
+  userAvatarUrl: string;
   userDisplayName: string;
   userId: string;
 }

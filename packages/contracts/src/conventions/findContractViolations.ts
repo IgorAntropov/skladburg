@@ -168,7 +168,7 @@ const findAccessViolations = (method: DescMethod, catalog: PermissionCatalogValu
   }
 
   if (methodAccess.requirement.case !== 'permission') {
-    if (!isSideEffectFree(method)) {
+    if (!isSideEffectFree(method) && methodAccess.requirement.case !== 'self') {
       violations.push(createViolation(element, ContractRule.COMMAND_PERMISSION_MISSING));
     }
 

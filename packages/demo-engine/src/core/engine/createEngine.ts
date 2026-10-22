@@ -28,6 +28,7 @@ import {
   createNetworkService,
   createOrganizationService,
   createOrganizationShowcaseService,
+  createUserProfileService,
 } from '../modules/index';
 import {
   createRandom,
@@ -152,6 +153,7 @@ export const createEngineWithTasks = async (
     networkService: createNetworkService(runtime),
     organizationService: createOrganizationService(runtime),
     organizationShowcaseService: createOrganizationShowcaseService(runtime),
+    userProfileService: createUserProfileService(runtime),
   });
   const scheduler = createScheduler({
     command,
@@ -197,6 +199,7 @@ export const createEngineWithTasks = async (
           organizationId: persona.organizationId,
           organizationName: organization.name,
           roleName: readRoleName(state.read, persona.organizationId, persona.userId),
+          ...(user.avatarUrl === '' ? {} : { userAvatarUrl: user.avatarUrl }),
           userDisplayName: user.displayName,
           userId: persona.userId,
         });

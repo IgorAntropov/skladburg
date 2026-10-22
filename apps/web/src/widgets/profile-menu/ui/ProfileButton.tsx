@@ -30,16 +30,14 @@ export const ProfileButton = ({ busyReason, buttonRef, className, ref, ...rest }
 
   const mergedRef = useMemo(() => mergeRefs(ref, buttonRef, handoffRef), [buttonRef, handoffRef, ref]);
 
-  const isResetting = busyReason === 'resetting';
   const isSummaryReady = summaryState.kind === 'ready';
 
-  const readyLabel = isSummaryReady
+  const label = isSummaryReady
     ? t('profile.button.label', {
         name: summaryState.summary.userDisplayName,
         organization: summaryState.summary.organizationName,
       })
     : t('profile.button.loading');
-  const label = isResetting ? t('profile.button.resetting') : readyLabel;
 
   return (
     <IconButton

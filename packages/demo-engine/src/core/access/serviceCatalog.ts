@@ -1,6 +1,7 @@
 import type { DescService } from '@bufbuild/protobuf';
 
 import { AccessService } from '@skladburg/contracts/access/v1/access';
+import { UserProfileService } from '@skladburg/contracts/access/v1/profile';
 import { ClockService } from '@skladburg/contracts/clock/v1/clock';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
@@ -12,4 +13,5 @@ export const ENGINE_SERVICES: readonly DescService[] = [
   NetworkService,
   OrganizationService,
   OrganizationShowcaseService,
+  UserProfileService,
 ];

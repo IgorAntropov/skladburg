@@ -70,6 +70,12 @@ const profileMenuChunkFilePath = fileURLToPath(
 const profileMenuChunkTestFilePath = fileURLToPath(
   new URL('../../apps/web/src/widgets/profile-menu/ui/menu/ProfileMenu.test.tsx', import.meta.url),
 );
+const profilePlateChunkFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/profile-menu/ui/my-profile/ProfileMyProfile.tsx', import.meta.url),
+);
+const profilePlateChunkTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/profile-menu/ui/my-profile/ProfileMyProfile.test.tsx', import.meta.url),
+);
 const motionSegmentFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/motion/probe-scope.ts', import.meta.url));
 const motionSegmentTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/motion/probe-scope.test.tsx', import.meta.url));
 const formSegmentFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/form/probe-form.ts', import.meta.url));
@@ -129,6 +135,15 @@ const networkDirectoryApiFilePath = fileURLToPath(
 );
 const networkDirectoryApiTestFilePath = fileURLToPath(
   new URL('../../apps/web/src/pages/network/api/directory/useOrganizationShowcasesQuery.test.tsx', import.meta.url),
+);
+const changeAvatarApiFilePath = fileURLToPath(
+  new URL('../../apps/web/src/features/change-avatar/api/useSetMyAvatar.ts', import.meta.url),
+);
+const changeAvatarApiTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/features/change-avatar/api/useSetMyAvatar.test.tsx', import.meta.url),
+);
+const changeAvatarUiFilePath = fileURLToPath(
+  new URL('../../apps/web/src/features/change-avatar/ui/ChangeAvatarActions.tsx', import.meta.url),
 );
 const scriptsProbeFilePath = fileURLToPath(new URL('./probe-tool.ts', import.meta.url));
 
@@ -2112,6 +2127,115 @@ describe('eslint.config.ts with the local rules', () => {
 
       it('does not restrict a directory folder outside of the network page', async () => {
         expect(await readLazyMessages(toValueImport('./directory/ProbeDirectory'), widgetFilePath)).toEqual([]);
+      });
+    });
+
+    describe('the lazy chunk of the profile plate', () => {
+      const avatarFeatureSpecifiers: readonly (readonly [string, string])[] = [
+        ['the avatar feature', '@/features/change-avatar'],
+        ['a nested path of the avatar feature', '@/features/change-avatar/ui/ChangeAvatarActions'],
+      ];
+      const plateChunkSpecifiers: readonly (readonly [string, string])[] = [
+        ['a sibling folder', './my-profile/ProfileMyProfile'],
+        ['the folder itself', './my-profile'],
+        ['an alias path', '@/widgets/profile-menu/ui/my-profile/ProfileMyProfile'],
+      ];
+
+      it.each([
+        ['app', applicationScriptFilePath],
+        ['a widget', widgetFilePath],
+        ['widgets/profile-menu', profileMenuFilePath],
+        ['the lazy chunk of the profile menu', profileMenuChunkFilePath],
+      ])('reports a value import of the avatar feature in %s', async (_name, filePath) => {
+        for (const [, specifier] of avatarFeatureSpecifiers) {
+          const messages = await readLazyMessages(toValueImport(specifier), filePath);
+
+          expect(messages, specifier).toHaveLength(1);
+          expect(messages[0], specifier).toContain('features/change-avatar');
+          expect(messages[0], specifier).toContain(lazyMessagePart);
+        }
+      });
+
+      it.each([
+        ['import type', toTypeImport],
+        ['import()', toDynamicImport],
+        ['an import type query', toTypeQuery],
+      ])('allows %s of the avatar feature in the lazy chunk of the profile menu', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode('@/features/change-avatar'), profileMenuChunkFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['the chunk of the profile plate', profilePlateChunkFilePath],
+        ['a test of the chunk of the profile plate', profilePlateChunkTestFilePath],
+        ['a test in widgets/profile-menu', profileMenuTestFilePath],
+        ['a page', pageFilePath],
+      ])('allows a value import of the avatar feature in %s', async (_name, filePath) => {
+        for (const [, specifier] of avatarFeatureSpecifiers) {
+          expect(await readLazyMessages(toValueImport(specifier), filePath), specifier).toEqual([]);
+        }
+      });
+
+      it.each(plateChunkSpecifiers)('reports a value import of %s in widgets/profile-menu', async (_name, specifier) => {
+        const messages = await readLazyMessages(toValueImport(specifier), profileMenuFilePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('profile plate chunk');
+        expect(messages[0]).toContain(lazyMessagePart);
+      });
+
+      it.each(plateChunkSpecifiers)('reports a value import of %s in the lazy chunk of the profile menu', async (_name, specifier) => {
+        expect(await readLazyMessages(toValueImport(specifier), profileMenuChunkFilePath)).toHaveLength(1);
+      });
+
+      it.each(plateChunkSpecifiers)('allows import() of %s in widgets/profile-menu', async (_name, specifier) => {
+        expect(await readLazyMessages(toDynamicImport(specifier), profileMenuFilePath)).toEqual([]);
+      });
+
+      it('applies the boundaries of the lazy chunk to the chunk of the profile plate', async () => {
+        const code = `${toValueImport('motion/react')}${toValueImport('@skladburg/demo-engine/client')}`;
+        const outcome = await lint(untypedEslint, code, profilePlateChunkFilePath);
+
+        expect(isRestricted(outcome.ruleIds)).toBe(true);
+      });
+    });
+
+    describe('the profile descriptor of the avatar feature', () => {
+      const profileSpecifier = '@skladburg/contracts/access/v1/profile';
+      const showcaseSpecifier = '@skladburg/contracts/organization/v1/showcase';
+
+      it.each([
+        ['the ui folder of the feature', changeAvatarUiFilePath],
+        ['a widget', widgetFilePath],
+        ['a page', pageFilePath],
+        ['the tab of the network page', networkTabFilePath],
+      ])('reports a value import of the profile descriptor in %s', async (_name, filePath) => {
+        const messages = await readLazyMessages(toValueImport(profileSpecifier), filePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('features/change-avatar/api');
+        expect(messages[0]).toContain('use import type');
+      });
+
+      it.each([
+        ['import type', toTypeImport],
+        ['an import with only inline types', toNamedTypeImport],
+        ['an import type query', toTypeQuery],
+      ])('allows %s of the profile descriptor in the ui folder of the feature', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode(profileSpecifier), changeAvatarUiFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['the api folder of the feature', changeAvatarApiFilePath],
+        ['a test of the api folder', changeAvatarApiTestFilePath],
+      ])('allows a value import of the profile descriptor in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport(profileSpecifier), filePath)).toEqual([]);
+      });
+
+      it('keeps the restriction of the showcase descriptor in the api folder of the feature', async () => {
+        const messages = await readLazyMessages(toValueImport(showcaseSpecifier), changeAvatarApiFilePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('pages/network/api/directory');
       });
     });
 

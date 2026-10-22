@@ -13,6 +13,7 @@ import {
   uResponseNotFound,
 } from '@connectrpc/connect/protocol';
 import { AccessService } from '@skladburg/contracts/access/v1/access';
+import { UserProfileService } from '@skladburg/contracts/access/v1/profile';
 import { ClockService } from '@skladburg/contracts/clock/v1/clock';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
@@ -27,6 +28,7 @@ export interface CreateEngineHandlerOptionsValue {
   networkService: ServiceImpl<typeof NetworkService>;
   organizationService: ServiceImpl<typeof OrganizationService>;
   organizationShowcaseService: ServiceImpl<typeof OrganizationShowcaseService>;
+  userProfileService: ServiceImpl<typeof UserProfileService>;
 }
 
 export type EngineRequestHandler = (request: Request) => Promise<Response>;
@@ -63,6 +65,7 @@ export const createEngineHandler = (options: CreateEngineHandlerOptionsValue): E
   router.service(NetworkService, options.networkService);
   router.service(OrganizationService, options.organizationService);
   router.service(OrganizationShowcaseService, options.organizationShowcaseService);
+  router.service(UserProfileService, options.userProfileService);
 
   return createFetchHandler(createPathDispatcher(router.handlers));
 };

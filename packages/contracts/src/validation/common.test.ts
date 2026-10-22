@@ -10,6 +10,7 @@ import {
   type MethodAccess,
   MethodAccessSchema,
   PermissionRequirementSchema,
+  SelfRequirementSchema,
   SessionRequirementSchema,
 } from '../gen/common/v1/method_options_pb';
 import { MoneySchema } from '../gen/common/v1/money_pb';
@@ -110,6 +111,14 @@ describe('MethodAccess', () => {
   it('accepts the session requirement', () => {
     const access = create(MethodAccessSchema, {
       requirement: { case: 'session', value: create(SessionRequirementSchema) },
+    });
+
+    expect(collectViolations(MethodAccessSchema, access)).toEqual([]);
+  });
+
+  it('accepts the self requirement', () => {
+    const access = create(MethodAccessSchema, {
+      requirement: { case: 'self', value: create(SelfRequirementSchema) },
     });
 
     expect(collectViolations(MethodAccessSchema, access)).toEqual([]);

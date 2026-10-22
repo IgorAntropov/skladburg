@@ -93,6 +93,7 @@ describe('useProfileSummary', () => {
         organizationId: TEST_ORGANIZATION_ID,
         organizationName: 'Заказчик 1',
         sides: [ProfileKind.CUSTOMER],
+        userAvatarUrl: '',
         userDisplayName: 'Анна Смирнова',
         userId: 'user-1',
       },

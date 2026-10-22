@@ -62,6 +62,7 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
       listWarehouses: unused,
     },
     organizationShowcaseService: { getOrganizationShowcase: unused, listOrganizationShowcases: unused },
+    userProfileService: { removeMyAvatar: unused, setMyAvatar: unused },
   });
 
   return createClient(AccessService, createConnectTransport({

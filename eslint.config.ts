@@ -30,12 +30,17 @@ const lazyAppFiles: string[] = ['apps/web/src/app/**/*.{ts,tsx}'];
 const lazyMountAppFiles: string[] = ['apps/web/src/app/bootstrap/mountApp.tsx'];
 const lazyWidgetFiles: string[] = ['apps/web/src/widgets/**/*.{ts,tsx}'];
 const lazyProfileMenuFiles: string[] = ['apps/web/src/widgets/profile-menu/**/*.{ts,tsx}'];
-const lazyProfileMenuChunkFiles: string[] = ['apps/web/src/widgets/profile-menu/ui/menu/**/*.{ts,tsx}'];
+const lazyProfileMenuOnlyChunkFiles: string[] = ['apps/web/src/widgets/profile-menu/ui/menu/**/*.{ts,tsx}'];
+const lazyProfilePlateChunkFiles: string[] = ['apps/web/src/widgets/profile-menu/ui/my-profile/**/*.{ts,tsx}'];
+const lazyProfileMenuChunkFiles: string[] = [...lazyProfileMenuOnlyChunkFiles, ...lazyProfilePlateChunkFiles];
 const motionSegmentFiles: string[] = ['apps/web/src/shared/lib/motion/**/*.{ts,tsx}'];
 const motionSegmentTestFiles: string[] = ['apps/web/src/shared/lib/motion/**/*.test.{ts,tsx}'];
 const formSegmentFiles: string[] = ['apps/web/src/shared/lib/form/**/*.{ts,tsx}'];
 const formSegmentTestFiles: string[] = ['apps/web/src/shared/lib/form/**/*.test.{ts,tsx}'];
-const lazyProfileMenuChunkTestFiles: string[] = ['apps/web/src/widgets/profile-menu/ui/menu/**/*.test.{ts,tsx}'];
+const lazyProfileMenuChunkTestFiles: string[] = [
+  'apps/web/src/widgets/profile-menu/ui/menu/**/*.test.{ts,tsx}',
+  'apps/web/src/widgets/profile-menu/ui/my-profile/**/*.test.{ts,tsx}',
+];
 const lazyCreateWarehouseFormFiles: string[] = [
   'apps/web/src/features/create-warehouse/api/form/**/*.{ts,tsx}',
   'apps/web/src/features/create-warehouse/ui/form/**/*.{ts,tsx}',
@@ -61,6 +66,7 @@ const lazyNetworkPageChunkFiles: string[] = [
   'apps/web/src/pages/network/ui/organization-card/**/*.{ts,tsx}',
 ];
 const networkDirectoryApiFiles: string[] = ['apps/web/src/pages/network/api/directory/**/*.{ts,tsx}'];
+const changeAvatarApiFiles: string[] = ['apps/web/src/features/change-avatar/api/**/*.{ts,tsx}'];
 const apiClientFiles: string[] = ['apps/web/src/shared/api/client/**/*.{ts,tsx}'];
 const sceneSegmentFiles: string[] = ['apps/web/src/**/scene/**', 'apps/web/src/shared/3d/**'];
 const lazyWidgetSceneFiles: string[] = ['apps/web/src/widgets/**/scene/**/*.{ts,tsx}'];
@@ -181,9 +187,16 @@ const showcaseDescriptorImportRestriction: SceneImportRestrictionValue = {
   regex: '^@skladburg/contracts/organization/v1/showcase$',
 };
 
+const profileDescriptorImportRestriction: SceneImportRestrictionValue = {
+  message: 'The user profile descriptor is imported only by features/change-avatar/api, which the lazy chunk of the profile '
+    + 'plate loads; a descriptor imported elsewhere lands in the startup chunk; use import type',
+  regex: '^@skladburg/contracts/access/v1/profile$',
+};
+
 const sourceBoundaryImportRestrictions: SceneImportRestrictionValue[] = [
   ...sceneBoundaryImportRestrictions,
   showcaseDescriptorImportRestriction,
+  profileDescriptorImportRestriction,
 ];
 
 const lazyModuleMessageSuffix = 'is loaded lazily through import(); a static value import pulls it into the initial bundle; '
@@ -212,6 +225,16 @@ const sectionPagesLazyRestriction: LazyModuleRestrictionValue = {
 const profileMenuChunkLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'the profile menu chunk',
   regex: '(^|/)menu(/|$)',
+};
+
+const changeAvatarLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'features/change-avatar',
+  regex: '^@/features/change-avatar(/|$)',
+};
+
+const profileMyProfileChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the profile plate chunk',
+  regex: '(^|/)my-profile(/|$)',
 };
 
 const createWarehouseFormChunkLazyRestriction: LazyModuleRestrictionValue = {
@@ -268,9 +291,14 @@ const appLazyRestrictions: LazyModuleRestrictionValue[] = [
   personaSwitcherLazyRestriction,
   themeSwitcherLazyRestriction,
   demoResetLazyRestriction,
+  changeAvatarLazyRestriction,
   sectionPagesLazyRestriction,
 ];
-const profileMenuLazyRestrictions: LazyModuleRestrictionValue[] = [...appLazyRestrictions, profileMenuChunkLazyRestriction];
+const profileMenuLazyRestrictions: LazyModuleRestrictionValue[] = [
+  ...appLazyRestrictions,
+  profileMenuChunkLazyRestriction,
+  profileMyProfileChunkLazyRestriction,
+];
 const startLazyRestrictions: LazyModuleRestrictionValue[] = [
   ...appLazyRestrictions,
   mountAppLazyRestriction,
@@ -753,6 +781,11 @@ export default defineConfig(
     rules: createLazyModuleRules(profileMenuLazyRestrictions, sourceBoundaryImportRestrictions),
   },
   {
+    files: lazyProfileMenuOnlyChunkFiles,
+    ignores: webTestFiles,
+    rules: createLazyModuleRules([profileMyProfileChunkLazyRestriction, changeAvatarLazyRestriction]),
+  },
+  {
     files: lazyCreateWarehouseFeatureFiles,
     ignores: [...webTestFiles, ...lazyCreateWarehouseFormFiles, ...sceneSegmentFiles],
     rules: createLazyModuleRules([createWarehouseFormChunkLazyRestriction], sourceBoundaryImportRestrictions),
@@ -792,6 +825,11 @@ export default defineConfig(
       [networkInspectorChunkLazyRestriction, networkSitesChunkLazyRestriction, networkMiniMapChunkLazyRestriction],
       sceneBoundaryImportRestrictions,
     ),
+  },
+  {
+    files: changeAvatarApiFiles,
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([], [...sceneBoundaryImportRestrictions, showcaseDescriptorImportRestriction]),
   },
   {
     files: lazySceneViewportFiles,

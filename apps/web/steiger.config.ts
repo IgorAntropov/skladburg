@@ -6,6 +6,7 @@ export default defineConfig([
   {
     files: [
       './src/entities/network/**',
+      './src/features/change-avatar/**',
       './src/features/create-warehouse/**',
       './src/features/reset-demo/**',
       './src/features/switch-persona/**',

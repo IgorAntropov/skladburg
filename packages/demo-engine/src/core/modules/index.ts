@@ -2,6 +2,7 @@ export { createClockService } from './clock/index';
 export {
   createAccessService,
   createOrganizationShowcaseService,
+  createUserProfileService,
 } from './identity/index';
 export {
   type IEventOutbox,

@@ -16,6 +16,7 @@ export const selectProfileSummary = (session: GetSessionResponse): ProfileSummar
     organizationId: actingOrganization.id,
     organizationName: actingOrganization.name,
     sides: actingOrganization.profiles.map(profile => profile.kind).filter(kind => kind !== ProfileKind.UNSPECIFIED),
+    userAvatarUrl: user.avatarUrl,
     userDisplayName: user.displayName,
     userId: user.id,
   };

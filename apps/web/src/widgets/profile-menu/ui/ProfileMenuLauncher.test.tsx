@@ -36,7 +36,6 @@ const RESET_PROMPT_NAME = defaultLocaleCatalog['demo.reset.confirm.prompt'];
 const READY_BUTTON_NAME = defaultLocaleCatalog['profile.button.label']
   .replace('{name}', 'Анна Смирнова')
   .replace('{organization}', 'Заказчик 1');
-const RESETTING_BUTTON_NAME = defaultLocaleCatalog['profile.button.resetting'];
 const CHUNK_ERROR_MESSAGE = defaultLocaleCatalog['profile.menu.loadError.message'];
 const CHUNK_ERROR_REPEATED = defaultLocaleCatalog['profile.menu.loadError.repeated'];
 const RETRY_NAME = defaultLocaleCatalog['common.retry'];
@@ -432,7 +431,7 @@ describe('ProfileMenuLauncher', () => {
       expect(await screen.findByRole('menu', { name: MENU_NAME })).toBeDefined();
     });
 
-    it('shows the button of the profile busy under its own name while the reset runs', async () => {
+    it('shows the button of the profile busy under the same name while the reset runs', async () => {
       const response = createGate();
       const { demoControl } = await renderLauncher({ hasDemo: true });
       vi.mocked(demoControl.reset).mockImplementation(() => response.promise);
@@ -446,8 +445,8 @@ describe('ProfileMenuLauncher', () => {
       await within(group).findByRole('button', { name: defaultLocaleCatalog['demo.reset.pending'] });
 
       expect(button.getAttribute('aria-busy')).toBe('true');
-      expect(button.getAttribute('aria-label')).toBe(RESETTING_BUTTON_NAME);
-      expect(screen.getByRole('button', { hidden: true, name: RESETTING_BUTTON_NAME })).toBe(button);
+      expect(button.getAttribute('aria-label')).toBe(READY_BUTTON_NAME);
+      expect(screen.getByRole('button', { hidden: true, name: READY_BUTTON_NAME })).toBe(button);
 
       await act(async () => {
         response.open();

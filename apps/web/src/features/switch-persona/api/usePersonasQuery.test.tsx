@@ -4,6 +4,7 @@ import type {
   ReactNode,
 } from 'react';
 
+import { userChannel } from '@skladburg/contracts/runtime';
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
   cleanup,
@@ -27,7 +28,10 @@ import {
   ApiRuntimeProvider,
   createQueryClient,
 } from '@/shared/api';
-import { createTestRuntime } from '@/shared/api/index.testing';
+import {
+  createTestRuntime,
+  TEST_USER_ID,
+} from '@/shared/api/index.testing';
 
 import {
   FRESH_CARRIER_FIXTURE,
@@ -90,6 +94,18 @@ describe('usePersonasQuery', () => {
     });
 
     expect(queryClient.getQueryCache().findAll().map(query => query.queryKey)).toEqual([['demo', 'personas']]);
+  });
+
+  it('listens to the channel of the acting user so that its photo changes reach the list', async () => {
+    const { queryClient, result } = renderPersonasHook(createDemoControl(() => Promise.resolve(PERSONAS)));
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(queryClient.getQueryCache().find({ exact: true, queryKey: personaKeys.list })?.meta).toEqual({
+      channels: [userChannel(TEST_USER_ID)],
+    });
   });
 
   it('does not request anything without the demo control', async () => {

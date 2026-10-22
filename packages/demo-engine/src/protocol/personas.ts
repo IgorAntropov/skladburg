@@ -10,6 +10,7 @@ export interface DemoPersonaListItemValue {
   organizationId: string;
   organizationName: string;
   roleName: string;
+  userAvatarUrl?: string;
   userDisplayName: string;
   userId: string;
 }

@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package event.v1;
 
+import "access/v1/access.proto";
 import "google/protobuf/timestamp.proto";
 import "organization/v1/organization.proto";
 
@@ -13,5 +14,6 @@ message Event {
   oneof payload {
     organization.v1.WarehouseCreated warehouse_created = 10;
     organization.v1.WarehouseChanged warehouse_changed = 11;
+    access.v1.UserChanged user_changed = 12;
   }
 }

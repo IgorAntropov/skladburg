@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package access.v1;
+
+import "access/v1/access.proto";
+import "buf/validate/validate.proto";
+import "common/v1/method_options.proto";
+
+message SetMyAvatarRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  bytes image = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).bytes.min_len = 12,
+    (buf.validate.field).bytes.max_len = 65536
+  ];
+  string media_type = 3 [(buf.validate.field).string = {
+    in: [
+      "image/webp",
+      "image/jpeg",
+      "image/png"
+    ]
+  }];
+}
+
+message SetMyAvatarResponse {
+  User user = 1;
+}
+
+message RemoveMyAvatarRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message RemoveMyAvatarResponse {
+  User user = 1;
+}
+
+service UserProfileService {
+  rpc SetMyAvatar(SetMyAvatarRequest) returns (SetMyAvatarResponse) {
+    option (common.v1.access).self = {};
+  }
+
+  rpc RemoveMyAvatar(RemoveMyAvatarRequest) returns (RemoveMyAvatarResponse) {
+    option (common.v1.access).self = {};
+  }
+}

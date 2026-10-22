@@ -20,7 +20,7 @@ const NAV_CLASS_NAME = 'hidden gap-0.5 sm:flex';
 
 const NAV_ITEM_CLASS_NAME = 'flex h-11 items-center px-2 lg:px-3';
 
-const PHONE_SEARCH_CLASS_NAME = 'ml-auto flex size-11 shrink-0 items-center justify-center sm:hidden';
+const PHONE_SEARCH_CLASS_NAME = 'flex size-11 shrink-0 items-center justify-center sm:hidden';
 
 const SEARCH_CLASS_NAME = 'h-11 min-w-28 max-w-72 flex-1 max-sm:hidden';
 

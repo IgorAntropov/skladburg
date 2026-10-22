@@ -6,6 +6,7 @@ import type {
 import type { TabsItemValue } from '@/shared/ui';
 
 export interface HudLayoutProps {
+  canCollapsePanels?: boolean | undefined;
   defaultListTabId?: string | undefined;
   inspector: ReactNode;
   inspectorKey?: string | undefined;

@@ -21,6 +21,8 @@ import {
 import type { IFakeViewport } from '@/shared/lib/viewport/index.testing';
 import type { TabsItemValue } from '@/shared/ui';
 
+import { CollapseHudPanelsButton } from '@/features/collapse-hud-panels';
+import { resetHudPanelsStore } from '@/features/collapse-hud-panels/index.testing';
 import { withTestLocalizer } from '@/shared/i18n/index.testing';
 import { installFakeViewport } from '@/shared/lib/viewport/index.testing';
 
@@ -105,6 +107,15 @@ const createProps = (overrides: Partial<HudLayoutProps> = {}): HudLayoutProps =>
 const renderLayout = (props: HudLayoutProps): void => {
   render(withTestLocalizer(<HudLayout {...props} />));
 };
+
+const withPanelsToggle = (props: HudLayoutProps): ReactElement => (
+  withTestLocalizer(
+    <>
+      <CollapseHudPanelsButton />
+      <HudLayout {...props} />
+    </>,
+  )
+);
 
 describe('HudLayout', () => {
   let viewport: IFakeViewport;
@@ -244,6 +255,100 @@ describe('HudLayout', () => {
         expect(onListsMount).toHaveBeenCalledTimes(1);
         expect(onSceneMount).toHaveBeenCalledTimes(1);
       });
+    });
+  });
+
+  describe('on a phone with collapsible panels', () => {
+    const panelsToggleName = catalog['hud.panels.mapView'];
+
+    const pressPanelsToggle = (): void => {
+      fireEvent.click(screen.getByRole('button', { name: panelsToggleName }));
+    };
+
+    const readListsZone = (): HTMLElement => {
+      const zone = document.querySelector<HTMLElement>(`section[aria-label="${catalog['hud.lists.label']}"]`);
+
+      if (zone === null) {
+        throw new Error('The lists zone is not rendered');
+      }
+
+      return zone;
+    };
+
+    beforeEach(() => {
+      resetHudPanelsStore();
+      viewport.setViewportClass('phone');
+    });
+
+    afterEach(() => {
+      resetHudPanelsStore();
+    });
+
+    it('hides the main zone without mounting it again and keeps the pressed tab', () => {
+      const onTripsMount = vi.fn();
+      const onTripsUnmount = vi.fn();
+      const props = createProps({
+        canCollapsePanels: true,
+        listTabs: [
+          { content: <p>{SLOT_TEXT.lists}</p>, id: 'deals', label: DEALS_TAB_LABEL },
+          { content: <MountProbe onMount={onTripsMount} onUnmount={onTripsUnmount} />, id: 'trips', label: TRIPS_TAB_LABEL },
+        ],
+        panel: undefined,
+      });
+      render(withPanelsToggle(props));
+      fireEvent.mouseDown(screen.getByRole('tab', { name: TRIPS_TAB_LABEL }));
+      const zone = readListsZone();
+
+      pressPanelsToggle();
+
+      expect(readListsZone()).toBe(zone);
+      expect(zone.hidden).toBe(true);
+
+      pressPanelsToggle();
+
+      expect(readListsZone()).toBe(zone);
+      expect(zone.hidden).toBe(false);
+      expect(screen.getByRole('tab', { name: TRIPS_TAB_LABEL }).getAttribute('aria-selected')).toBe('true');
+      expect(onTripsMount).toHaveBeenCalledTimes(1);
+      expect(onTripsUnmount).not.toHaveBeenCalled();
+    });
+
+    it('opens a new inspector collapsed while the panels are hidden and expanded while they are shown', () => {
+      const baseProps = createProps({ canCollapsePanels: true, inspectorKey: 'site:first', isInspectorOpen: false, panel: undefined });
+      const { rerender } = render(withPanelsToggle(baseProps));
+
+      rerender(withPanelsToggle({ ...baseProps, inspectorKey: 'site:first', isInspectorOpen: true }));
+
+      expect(screen.getByRole('button', { name: catalog['hud.inspector.collapse'] }).getAttribute('aria-expanded')).toBe('true');
+
+      pressPanelsToggle();
+      rerender(withPanelsToggle({ ...baseProps, inspectorKey: 'site:second', isInspectorOpen: true }));
+
+      expect(screen.getByRole('button', { name: catalog['hud.inspector.expand'] }).getAttribute('aria-expanded')).toBe('false');
+
+      pressPanelsToggle();
+      rerender(withPanelsToggle({ ...baseProps, inspectorKey: 'site:third', isInspectorOpen: true }));
+
+      expect(screen.getByRole('button', { name: catalog['hud.inspector.collapse'] }).getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('collapses an expanded inspector when the panels hide and leaves it alone when they return', () => {
+      render(withPanelsToggle(createProps({
+        canCollapsePanels: true,
+        inspectorKey: 'site:first',
+        isInspectorOpen: true,
+        panel: undefined,
+      })));
+
+      expect(screen.getByRole('button', { name: catalog['hud.inspector.collapse'] }).getAttribute('aria-expanded')).toBe('true');
+
+      pressPanelsToggle();
+
+      expect(screen.getByRole('button', { name: catalog['hud.inspector.expand'] }).getAttribute('aria-expanded')).toBe('false');
+
+      pressPanelsToggle();
+
+      expect(screen.getByRole('button', { name: catalog['hud.inspector.expand'] }).getAttribute('aria-expanded')).toBe('false');
     });
   });
 

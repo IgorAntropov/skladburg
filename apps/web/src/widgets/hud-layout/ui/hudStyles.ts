@@ -62,6 +62,11 @@ export const HUD_PHONE_MAIN_CLASS_NAME = cn(
   HUD_SIDE_MARGIN_CLASS_NAME,
 );
 
+export const HUD_PHONE_RISE_CLASS_NAME = [
+  'motion-safe:transition-[translate,opacity] motion-safe:duration-(--duration-panel) motion-safe:ease-out',
+  'motion-safe:starting:translate-y-6 motion-safe:starting:opacity-0',
+].join(' ');
+
 export const HUD_ROOT_CLASS_NAMES: Readonly<Record<ViewportClassValue, string>> = {
   desktop: cn(HUD_ROOT_BASE_CLASS_NAME, 'overflow-hidden'),
   phone: cn(HUD_ROOT_BASE_CLASS_NAME, 'flex flex-col'),

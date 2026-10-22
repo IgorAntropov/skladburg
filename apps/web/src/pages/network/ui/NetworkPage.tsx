@@ -102,6 +102,7 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
       <h1 className="sr-only">{t('section.network.title')}</h1>
       <HudLayout
         {...inspectorFocus}
+        canCollapsePanels
         defaultListTabId={SITES_TAB_ID}
         inspector={<NetworkInspector focus={focus} onClose={inspectorFocus.onInspectorClose} state={modelState} />}
         kpi={<ZoneEmptyState icon={ChartNoAxesColumn} text={t('hud.kpi.empty')} />}

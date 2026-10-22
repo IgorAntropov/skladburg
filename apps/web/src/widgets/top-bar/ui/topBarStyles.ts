@@ -3,9 +3,9 @@ export const TOP_BAR_PANEL_CLASS_NAME = [
   'pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]',
 ].join(' ');
 
-export const TOP_BAR_PRODUCT_CLASS_NAME = 'flex shrink-0 items-center gap-2.5';
+export const TOP_BAR_PRODUCT_CLASS_NAME = 'flex shrink-0 items-center gap-2.5 max-sm:mr-auto';
 
-export const TOP_BAR_PRODUCT_NAME_CLASS_NAME = 'text-lg font-bold tracking-tight max-[359px]:sr-only';
+export const TOP_BAR_PRODUCT_NAME_CLASS_NAME = 'text-lg font-bold tracking-tight max-[399px]:sr-only';
 
 export const TOP_BAR_ROW_CLASS_NAME = [
   'flex min-h-(--top-bar-row-min-height) flex-wrap items-center gap-x-2 gap-y-2 px-4 py-2',

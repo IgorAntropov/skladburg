@@ -24,15 +24,23 @@ import { WorldClock } from './WorldClock';
 
 const TRAILING_GROUP_CLASS_NAME = 'flex shrink-0 items-center gap-2 sm:ml-auto sm:gap-3';
 
+const PANELS_TOGGLE_SLOT_CLASS_NAME = 'flex shrink-0 empty:hidden sm:hidden';
+
 const HIDDEN_ON_PHONE_CLASS_NAME = 'max-sm:hidden';
 
 export interface TopBarProps {
   currentSection: AppSectionValue | undefined;
+  panelsToggle?: ReactNode | undefined;
   profileMenu: ReactNode;
   sections: readonly AppSectionValue[];
 }
 
-export const TopBar = ({ currentSection, profileMenu, sections }: TopBarProps): ReactElement => {
+export const TopBar = ({
+  currentSection,
+  panelsToggle,
+  profileMenu,
+  sections,
+}: TopBarProps): ReactElement => {
   const { t } = useI18n();
   const [isPhoneSearchOpen, setIsPhoneSearchOpen] = useState(false);
 
@@ -46,6 +54,7 @@ export const TopBar = ({ currentSection, profileMenu, sections }: TopBarProps): 
           </p>
         </div>
         <SectionNav currentSection={currentSection} sections={sections} />
+        <div className={cn(PANELS_TOGGLE_SLOT_CLASS_NAME, isPhoneSearchOpen && HIDDEN_ON_PHONE_CLASS_NAME)}>{panelsToggle}</div>
         <SearchField isPhoneFieldOpen={isPhoneSearchOpen} onPhoneFieldOpenChange={setIsPhoneSearchOpen} />
         <div className={cn(TRAILING_GROUP_CLASS_NAME, isPhoneSearchOpen && HIDDEN_ON_PHONE_CLASS_NAME)}>
           <WorldClock />

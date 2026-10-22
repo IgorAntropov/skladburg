@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 
+import { CollapseHudPanelsButton } from '@/features/collapse-hud-panels';
 import {
   getAddressSection,
   useAddress,
@@ -21,6 +22,7 @@ export const AppTopBar = (): ReactElement => {
   return (
     <TopBar
       currentSection={currentSection}
+      panelsToggle={<CollapseHudPanelsButton />}
       profileMenu={<ProfileMenuLauncher currentSection={currentSection} sections={sections} />}
       sections={sections}
     />

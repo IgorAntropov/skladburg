@@ -174,7 +174,7 @@ export const SearchField = ({ isPhoneFieldOpen, onPhoneFieldOpenChange }: Search
       <IconButton
         aria-controls={fieldId}
         aria-expanded={isPhoneFieldOpen}
-        className={cn('ml-auto sm:hidden', isPhoneFieldOpen && 'max-sm:hidden')}
+        className={cn('sm:hidden', isPhoneFieldOpen && 'max-sm:hidden')}
         icon={<Search className="size-5" />}
         label={t('search.open')}
         onClick={handleToggleClick}

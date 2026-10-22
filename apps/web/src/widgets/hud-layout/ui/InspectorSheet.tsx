@@ -19,17 +19,18 @@ import { cn } from '@/shared/lib/cn';
 import { Button } from '@/shared/ui';
 
 import { HUD_EDGE_SURFACE_CLASS_NAME } from './edgeSurfaceStyles';
+import { HUD_PHONE_RISE_CLASS_NAME } from './hudStyles';
 
 interface InspectorSheetProps {
   children: ReactNode;
+  isCollapseRequested: boolean;
 }
 
 const SHEET_CLASS_NAME = cn(
   HUD_EDGE_SURFACE_CLASS_NAME,
   'sticky bottom-0 z-30 mt-auto flex max-h-[70dvh] flex-col rounded-t-panel border-t',
   'pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]',
-  'motion-safe:transition-[translate,opacity] motion-safe:duration-(--duration-panel) motion-safe:ease-out',
-  'motion-safe:starting:translate-y-6 motion-safe:starting:opacity-0',
+  HUD_PHONE_RISE_CLASS_NAME,
 );
 
 const TOGGLE_CLASS_NAME = 'relative m-1.5 shrink-0 aria-expanded:bg-transparent';
@@ -38,11 +39,20 @@ const HANDLE_CLASS_NAME = 'absolute top-1 left-1/2 h-1 w-9 -translate-x-1/2 roun
 
 const CONTENT_CLASS_NAME = 'flex min-h-0 flex-col overflow-y-auto px-4 pt-2 pb-4 @container';
 
-export const InspectorSheet = ({ children }: InspectorSheetProps): ReactElement => {
+export const InspectorSheet = ({ children, isCollapseRequested }: InspectorSheetProps): ReactElement => {
   const { t } = useI18n();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const contentId = useId();
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(!isCollapseRequested);
+  const [prevIsCollapseRequested, setPrevIsCollapseRequested] = useState(isCollapseRequested);
+
+  if (prevIsCollapseRequested !== isCollapseRequested) {
+    setPrevIsCollapseRequested(isCollapseRequested);
+
+    if (isCollapseRequested) {
+      setIsExpanded(false);
+    }
+  }
 
   const toggleLabel = isExpanded ? t('hud.inspector.collapse') : t('hud.inspector.expand');
   const ToggleIcon = isExpanded ? ChevronDown : ChevronUp;

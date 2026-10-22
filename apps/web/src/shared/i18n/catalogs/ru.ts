@@ -74,6 +74,7 @@ export const catalog = {
   'hud.lists.trips': 'Рейсы',
   'hud.lists.warehouses': 'Склады',
   'hud.panel.label': 'Рабочая область',
+  'hud.panels.mapView': 'Только карта',
   'hud.scene.placeholder': 'Карта сети появится здесь',
   'hud.tracker.empty': 'Шаги появятся, когда начнётся первая сделка',
   'hud.tracker.label': 'Трекер сделки',

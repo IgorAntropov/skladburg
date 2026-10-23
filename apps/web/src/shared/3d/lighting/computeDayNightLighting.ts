@@ -16,6 +16,7 @@ import {
 
 export interface DayNightLightingValue {
   background: Color;
+  exposure: number;
   hemisphereGround: Color;
   hemisphereIntensity: number;
   hemisphereSky: Color;
@@ -34,6 +35,7 @@ const TO_COLOR = new Color();
 export const createDayNightLightingValue = (): DayNightLightingValue => {
   return {
     background: new Color(),
+    exposure: 1,
     hemisphereGround: new Color(),
     hemisphereIntensity: 0,
     hemisphereSky: new Color(),
@@ -71,6 +73,7 @@ export const computeDayNightLighting = (value: number, palette: WorldPaletteValu
   const from = isBeforeSunset ? DAY_NIGHT_KEYFRAMES.day : DAY_NIGHT_KEYFRAMES.sunset;
   const to = isBeforeSunset ? DAY_NIGHT_KEYFRAMES.sunset : DAY_NIGHT_KEYFRAMES.night;
 
+  out.exposure = MathUtils.lerp(from.exposure, to.exposure, segmentAmount);
   out.hemisphereIntensity = MathUtils.lerp(from.hemisphereIntensity, to.hemisphereIntensity, segmentAmount);
   out.lightIntensity = MathUtils.lerp(from.lightIntensity, to.lightIntensity, segmentAmount);
   out.shadowIntensity = MathUtils.lerp(from.shadowIntensity, to.shadowIntensity, segmentAmount);

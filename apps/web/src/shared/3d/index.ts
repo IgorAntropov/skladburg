@@ -16,6 +16,11 @@ export {
 export { DayNightRig } from './lighting/DayNightRig';
 export { useShadowMapRefresh } from './lighting/shadowMapRefresh';
 export type { ShadowMapSizeValue } from './lighting/shadowSettings';
+export type { LinearRgbValue } from './lighting/worldToneCurve';
+export {
+  applyWorldToneCurve,
+  WORLD_TONE_CURVE,
+} from './lighting/worldToneCurve';
 export {
   computeGlowIntensity,
   WORLD_GLOW_RAMP,
@@ -34,13 +39,16 @@ export { QUALITY_LEVEL_SETTINGS } from './quality/qualityLevel';
 export type { SceneContentProps } from './scene/sceneContentTypes';
 export {
   EMPTY_TERRAIN_RESERVED,
+  getDecorCountForDensity,
   loadWorldTerrain,
   WorldTerrain,
 } from './terrain';
 export type {
   TerrainCorridorValue,
+  TerrainDecorValue,
   TerrainReservedAreaValue,
   TerrainReservedValue,
+  WorldTerrainValue,
 } from './terrain';
 export type { SceneBoundsValue } from './world/sceneBounds';
 export type {

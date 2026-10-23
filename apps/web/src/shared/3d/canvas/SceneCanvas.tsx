@@ -7,6 +7,8 @@ import type { WebGLShadowMap } from 'three';
 import { Canvas } from '@react-three/fiber';
 import { PCFShadowMap } from 'three';
 
+import { installWorldToneCurve } from '../lighting/installWorldToneCurve';
+import { RENDERER_SETTINGS } from './rendererSettings';
 import { SceneReadySignal } from './SceneReadySignal';
 import { WebglContextRecovery } from './WebglContextRecovery';
 
@@ -22,6 +24,8 @@ const STATIC_SHADOW_MAP: Partial<WebGLShadowMap> = {
   type: PCFShadowMap,
 };
 
+installWorldToneCurve();
+
 export const SceneCanvas = ({
   children,
   dpr,
@@ -31,9 +35,8 @@ export const SceneCanvas = ({
   return (
     <Canvas
       dpr={dpr}
-      flat
       frameloop="demand"
-      gl={{ antialias: true }}
+      gl={RENDERER_SETTINGS}
       orthographic
       shadows={STATIC_SHADOW_MAP}
     >

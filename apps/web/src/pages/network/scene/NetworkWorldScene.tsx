@@ -32,6 +32,7 @@ import { NetworkCityPlazas } from './layers/NetworkCityPlazas';
 import { NetworkLampLight } from './layers/NetworkLampLight';
 import { NetworkRoads } from './layers/NetworkRoads';
 import { NetworkSelectionCorners } from './layers/NetworkSelectionCorners';
+import { NetworkShadowBlobs } from './layers/NetworkShadowBlobs';
 import { NetworkSiteChips } from './layers/NetworkSiteChips';
 import { NetworkStreetLamps } from './layers/NetworkStreetLamps';
 import { NetworkWindows } from './layers/NetworkWindows';
@@ -91,6 +92,7 @@ const NetworkWorldScene = ({
       <NetworkRoads hasShadowReceive={hasShadows} roads={layout.roads} />
       <NetworkStreetLamps boxGeometry={boxGeometry} lamps={lamps} level={level} />
       <NetworkCityPlazas cities={layout.cities} hasShadowReceive={hasShadows} />
+      <NetworkShadowBlobs buildings={layout.buildings} level={level} terrain={terrain} />
       <NetworkBuildings boxGeometry={boxGeometry} buildings={layout.buildings} level={level} />
       <NetworkWindows level={level} windows={windows} />
       <NetworkSelectionCorners

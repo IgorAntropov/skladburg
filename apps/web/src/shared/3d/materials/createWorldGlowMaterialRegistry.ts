@@ -57,7 +57,7 @@ const getSpecCacheKey = (spec: WorldGlowMaterialSpecValue): string => {
 };
 
 const createUnlitEntry = (key: WorldPaletteKeyValue): GlowEntryValue => {
-  const material = new MeshBasicMaterial();
+  const material = new MeshBasicMaterial({ toneMapped: false });
 
   return {
     applyPalette: (palette): void => {
@@ -72,7 +72,7 @@ const createOpaqueEntry = (
   offKey: WorldPaletteKeyValue,
   dayNight: DayNightUniformValue,
 ): GlowEntryValue => {
-  const material = new MeshBasicMaterial();
+  const material = new MeshBasicMaterial({ toneMapped: false });
   const offColor = { value: new Color() };
 
   material.onBeforeCompile = (shader): void => {
@@ -97,6 +97,7 @@ const createAdditiveEntry = (
   const material = new MeshBasicMaterial({
     blending: AdditiveBlending,
     depthWrite: false,
+    toneMapped: false,
     transparent: true,
   });
   const strengthUniform = { value: strength };

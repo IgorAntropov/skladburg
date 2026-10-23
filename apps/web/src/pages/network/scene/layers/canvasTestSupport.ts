@@ -47,6 +47,7 @@ export const createFakeRenderer = (domElement: unknown): Record<string, unknown>
   setSize: (): void => undefined,
   shadowMap: {},
   toneMapping: 0,
+  toneMappingExposure: 1,
   xr: {
     addEventListener: (): void => undefined,
     enabled: false,

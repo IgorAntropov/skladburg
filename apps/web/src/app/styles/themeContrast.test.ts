@@ -4,6 +4,7 @@ import {
   it,
 } from 'vitest';
 
+import type { LinearRgbValue } from '@/shared/3d';
 import type { RgbaColorValue } from '@/shared/lib/color';
 
 import {
@@ -47,7 +48,11 @@ const BARE_STATUS_ICON_THEMES: readonly ThemeNameValue[] = ['dark'];
 
 const { darkOverrideNames, tokens } = readThemeTokens(themeCss);
 
-const { DAY_NIGHT_KEYFRAMES, MIN_LIGHT_ELEVATION_RADIANS } = await import('@/shared/3d');
+const {
+  applyWorldToneCurve,
+  DAY_NIGHT_KEYFRAMES,
+  MIN_LIGHT_ELEVATION_RADIANS,
+} = await import('@/shared/3d');
 
 const WORLD_TOKEN_PREFIX = '--world-';
 
@@ -579,8 +584,6 @@ describe('world city surfaces', () => {
 
 type FaceNormalValue = readonly [number, number, number];
 
-type LinearColorValue = readonly [number, number, number];
-
 interface WorldPhasePaletteValue {
   ground: string;
   light: string;
@@ -637,6 +640,8 @@ const ROAD_NIGHT_CONTRAST = 1.7;
 const CORNER_GROUND_CONTRAST = 3;
 const CORNER_LAYERS_CONTRAST = 5;
 const RIM_NIGHT_CONTRAST = 4.5;
+const DAY_OPEN_GROUND_LIGHTENING_LIMIT = 0.032;
+const SCREEN_MODEL_TOLERANCE = 2;
 
 const delinearizeChannel = (linear: number): number => {
   const clamped = Math.min(1, Math.max(0, linear));
@@ -645,11 +650,11 @@ const delinearizeChannel = (linear: number): number => {
   return unit * 255;
 };
 
-const toLinearColor = (color: RgbaColorValue): LinearColorValue => {
+const toLinearColor = (color: RgbaColorValue): LinearRgbValue => {
   return [linearizeChannel(color.red), linearizeChannel(color.green), linearizeChannel(color.blue)];
 };
 
-const fromLinearColor = (linear: LinearColorValue): RgbaColorValue => {
+const fromLinearColor = (linear: LinearRgbValue): RgbaColorValue => {
   return {
     alpha: 1,
     blue: delinearizeChannel(linear[2]),
@@ -683,12 +688,33 @@ const lightFace = (albedo: RgbaColorValue, phase: WorldPhaseValue, normal: FaceN
     return (albedoLinear[channel] * irradiance) / Math.PI;
   };
 
-  return fromLinearColor([lightChannel(0), lightChannel(1), lightChannel(2)]);
+  const lit: LinearRgbValue = [lightChannel(0), lightChannel(1), lightChannel(2)];
+
+  return fromLinearColor(applyWorldToneCurve(lit, keyframe.exposure));
 };
 
 const lightFlatSurface = (name: string, phase: WorldPhaseValue): RgbaColorValue => {
   return lightFace(readWorldColor(name), phase, UP_NORMAL);
 };
+
+type MeasuredScreenColorValue = readonly [number, number, number];
+
+const MEASURED_NIGHT_SURFACES: readonly (readonly [string, MeasuredScreenColorValue])[] = [
+  ['ground', [59, 82, 100]],
+  ['ground-alt', [50, 74, 85]],
+  ['field', [77, 93, 105]],
+  ['sand', [87, 99, 125]],
+];
+
+const MEASURED_DAY_SURFACES: readonly (readonly [string, MeasuredScreenColorValue])[] = [
+  ['ground', [161, 177, 140]],
+  ['ground-alt', [139, 162, 120]],
+  ['field', [204, 200, 147]],
+];
+
+const DAY_OPEN_GROUND_TOKEN_NAMES: readonly string[] = ['ground', 'ground-alt', 'field', 'field-alt'];
+
+const readScreenChannels = (color: RgbaColorValue): number[] => [color.red, color.green, color.blue];
 
 const readNightSurfaces = (): RgbaColorValue[] => {
   const flat = WORLD_POOL_GROUND_TOKEN_NAMES.map(name => lightFlatSurface(name, 'night'));
@@ -721,10 +747,18 @@ describe('world night glow', () => {
     expect(missingNames).toEqual([]);
   });
 
-  it('models the night ground as the measured lit meadow', () => {
-    const meadow = lightFlatSurface('ground', 'night');
+  it('models the night ground exactly as the measured lit meadow', () => {
+    const meadow = readScreenChannels(lightFlatSurface('ground', 'night'));
 
-    expect([meadow.red, meadow.green, meadow.blue].map(Math.round)).toEqual([0x3b, 0x52, 0x64]);
+    expect(meadow.map(Math.round)).toEqual([0x3b, 0x52, 0x64]);
+  });
+
+  it.each(MEASURED_NIGHT_SURFACES)('models the night %s as the surface measured on the screenshot of the build', (name, measured) => {
+    const modeled = readScreenChannels(lightFlatSurface(name, 'night'));
+
+    modeled.forEach((channel, index) => {
+      expect(Math.abs(channel - (measured[index] ?? 0))).toBeLessThanOrEqual(SCREEN_MODEL_TOLERANCE);
+    });
   });
 
   it.each(['window-glow', 'lamp-glow'])('keeps %s at 3:1 on every surface lit by the night', (name) => {
@@ -788,6 +822,24 @@ describe('world night glow', () => {
 
     expect(relativeLuminance(road)).toBeLessThan(relativeLuminance(surface));
     expect(contrastRatio(road, surface)).toBeGreaterThanOrEqual(ROAD_NIGHT_CONTRAST);
+  });
+});
+
+describe('world open ground by day', () => {
+  it.each(MEASURED_DAY_SURFACES)('models the day %s as the surface measured on the screenshot of the build', (name, measured) => {
+    const modeled = readScreenChannels(lightFlatSurface(name, 'day'));
+
+    modeled.forEach((channel, index) => {
+      expect(Math.abs(channel - (measured[index] ?? 0))).toBeLessThanOrEqual(SCREEN_MODEL_TOLERANCE);
+    });
+  });
+
+  it.each(DAY_OPEN_GROUND_TOKEN_NAMES)('keeps the %s by day no lighter than its token by more than 3.2 percent', (name) => {
+    const token = readWorldColor(name);
+    const lit = lightFlatSurface(name, 'day');
+    const lightening = Math.max(lit.red / token.red, lit.green / token.green, lit.blue / token.blue) - 1;
+
+    expect(lightening).toBeLessThanOrEqual(DAY_OPEN_GROUND_LIGHTENING_LIMIT);
   });
 });
 

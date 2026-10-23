@@ -39,6 +39,10 @@ import {
   useShadowMapRefresh,
 } from './shadowMapRefresh';
 import { SHADOW_SETTINGS_BY_MAP_SIZE } from './shadowSettings';
+import {
+  readToneExposure,
+  writeToneExposure,
+} from './toneExposure';
 
 interface DayNightRigProps {
   isNight: boolean;
@@ -80,6 +84,7 @@ export const DayNightRig = ({
   const applyLighting = useCallback((): void => {
     computeDayNightLighting(tween.value, palette, lighting);
     glow.applyDayNight(tween.value);
+    writeToneExposure(gl, lighting.exposure);
 
     const light = lightRef.current;
     const hemisphere = hemisphereRef.current;
@@ -99,7 +104,7 @@ export const DayNightRig = ({
       frustum.centerY + lighting.lightDirection.y * frustum.distance,
       frustum.centerZ + lighting.lightDirection.z * frustum.distance,
     );
-  }, [frustum, glow, lighting, palette, tween]);
+  }, [frustum, gl, glow, lighting, palette, tween]);
 
   useLayoutEffect(() => {
     const light = lightRef.current;
@@ -155,6 +160,14 @@ export const DayNightRig = ({
     camera.far = frustum.far;
     camera.updateProjectionMatrix();
   }, [frustum, shadowTarget]);
+
+  useLayoutEffect(() => {
+    const previousExposure = readToneExposure(gl);
+
+    return () => {
+      writeToneExposure(gl, previousExposure);
+    };
+  }, [gl]);
 
   useLayoutEffect(() => {
     applyLighting();

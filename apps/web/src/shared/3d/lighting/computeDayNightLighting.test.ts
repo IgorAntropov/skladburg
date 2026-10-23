@@ -85,6 +85,7 @@ describe('computeDayNightLighting', () => {
   it('matches the day keyframe at zero', () => {
     const out = compute(0);
 
+    expect(out.exposure).toBe(DAY_NIGHT_KEYFRAMES.day.exposure);
     expect(out.hemisphereIntensity).toBe(DAY_NIGHT_KEYFRAMES.day.hemisphereIntensity);
     expect(out.lightIntensity).toBe(DAY_NIGHT_KEYFRAMES.day.lightIntensity);
     expect(out.shadowIntensity).toBe(DAY_NIGHT_KEYFRAMES.day.shadowIntensity);
@@ -97,6 +98,7 @@ describe('computeDayNightLighting', () => {
   it('matches the sunset keyframe at one half', () => {
     const out = compute(0.5);
 
+    expect(out.exposure).toBe(DAY_NIGHT_KEYFRAMES.sunset.exposure);
     expect(out.hemisphereIntensity).toBe(DAY_NIGHT_KEYFRAMES.sunset.hemisphereIntensity);
     expect(out.lightIntensity).toBe(DAY_NIGHT_KEYFRAMES.sunset.lightIntensity);
     expect(out.shadowIntensity).toBe(DAY_NIGHT_KEYFRAMES.sunset.shadowIntensity);
@@ -116,6 +118,7 @@ describe('computeDayNightLighting', () => {
   it('matches the night keyframe at one', () => {
     const out = compute(1);
 
+    expect(out.exposure).toBe(DAY_NIGHT_KEYFRAMES.night.exposure);
     expect(out.hemisphereIntensity).toBe(DAY_NIGHT_KEYFRAMES.night.hemisphereIntensity);
     expect(out.lightIntensity).toBe(DAY_NIGHT_KEYFRAMES.night.lightIntensity);
     expect(out.shadowIntensity).toBe(DAY_NIGHT_KEYFRAMES.night.shadowIntensity);
@@ -123,6 +126,27 @@ describe('computeDayNightLighting', () => {
     expect(out.hemisphereSky.equals(toColor(PALETTE.skyNight))).toBe(true);
     expect(out.hemisphereGround.equals(toColor(PALETTE.groundNight))).toBe(true);
     expect(out.background.equals(toColor(PALETTE.backgroundNight))).toBe(true);
+  });
+
+  it('mixes the exposure halfway along each segment', () => {
+    const { day, night, sunset } = DAY_NIGHT_KEYFRAMES;
+
+    expect(compute(0.25).exposure).toBeCloseTo((day.exposure + sunset.exposure) / 2, 9);
+    expect(compute(0.75).exposure).toBeCloseTo((sunset.exposure + night.exposure) / 2, 9);
+  });
+
+  it('keeps the exposure between the keyframe values and never lowers it on the way to the night', () => {
+    const { day, night } = DAY_NIGHT_KEYFRAMES;
+    let previousExposure = Number.NEGATIVE_INFINITY;
+
+    for (let step = 0; step <= STEPS; step += 1) {
+      const { exposure } = compute(step / STEPS);
+
+      expect(exposure).toBeGreaterThanOrEqual(Math.min(day.exposure, night.exposure) - EPSILON);
+      expect(exposure).toBeLessThanOrEqual(Math.max(day.exposure, night.exposure) + EPSILON);
+      expect(exposure).toBeGreaterThanOrEqual(previousExposure - EPSILON);
+      previousExposure = exposure;
+    }
   });
 
   it('points the light along the keyframe angles at the keyframes', () => {
@@ -178,6 +202,7 @@ describe('computeDayNightLighting', () => {
       const out = compute(value);
 
       expect(out.lightIntensity).toBe(day.lightIntensity);
+      expect(out.exposure).toBe(day.exposure);
       expect(out.lightDirection.equals(day.lightDirection)).toBe(true);
       expect(out.background.equals(day.background)).toBe(true);
     });
@@ -185,6 +210,7 @@ describe('computeDayNightLighting', () => {
       const out = compute(value);
 
       expect(out.lightIntensity).toBe(night.lightIntensity);
+      expect(out.exposure).toBe(night.exposure);
       expect(out.lightDirection.equals(night.lightDirection)).toBe(true);
       expect(out.background.equals(night.background)).toBe(true);
     });

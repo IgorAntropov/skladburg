@@ -118,6 +118,21 @@ describe('createWorldGlowMaterialRegistry', () => {
     });
   });
 
+  describe('tone mapping', () => {
+    it('keeps every kind of material out of the tone mapping', () => {
+      const registry = createWorldGlowMaterialRegistry(createPalette(FIRST_COLORS));
+      const materials = [
+        registry.get({ key: 'road', kind: 'unlit' }),
+        registry.get({ key: 'road', kind: 'nightOpaque', offKey: 'plaza' }),
+        registry.get({ key: 'road', kind: 'nightAdditive', strength: 0.5 }),
+      ];
+
+      materials.forEach((material) => {
+        expect(material.toneMapped).toBe(false);
+      });
+    });
+  });
+
   describe('unlit', () => {
     it('keeps the key color without a shader patch', () => {
       const registry = createWorldGlowMaterialRegistry(createPalette(FIRST_COLORS));

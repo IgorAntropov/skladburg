@@ -98,6 +98,14 @@ describe('createWorldMaterialRegistry', () => {
     expect(readChannels(material)).toEqual([10, 20, 30]);
   });
 
+  it('keeps the lit materials inside the tone mapping', () => {
+    const registry = createWorldMaterialRegistry(createUniformPalette(FIRST_COLOR));
+
+    (['ground', 'background', 'buildingWall', 'road'] as const).forEach((key) => {
+      expect(registry.get(key).toneMapped).toBe(true);
+    });
+  });
+
   it('recolors existing materials in place when the palette changes', () => {
     const registry = createWorldMaterialRegistry(createUniformPalette(FIRST_COLOR));
     const material = registry.get('ground');

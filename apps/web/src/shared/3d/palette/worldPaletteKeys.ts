@@ -3,6 +3,7 @@ import type { RgbaColorValue } from '@/shared/lib/color';
 export const WORLD_PALETTE_KEYS = {
   background: '--world-background',
   backgroundNight: '--world-background-night',
+  buildingBrick: '--world-building-brick',
   buildingRoof: '--world-building-roof',
   buildingRoofAlt: '--world-building-roof-alt',
   buildingWall: '--world-building-wall',

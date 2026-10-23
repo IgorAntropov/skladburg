@@ -14,6 +14,8 @@ export interface MapGridPointValue {
 
 export type MapSideValue = OrganizationSideValue;
 
+export type NetworkCityTierValue = 'large' | 'medium' | 'small';
+
 export interface NetworkDirectoryValue {
   cities: readonly City[];
   mapNodes: readonly MapNode[];
@@ -26,6 +28,7 @@ export interface NetworkMapCityValue {
   name: string;
   position: MapGridPointValue;
   siteIds: readonly string[];
+  tier: NetworkCityTierValue;
   timeZone: string;
 }
 

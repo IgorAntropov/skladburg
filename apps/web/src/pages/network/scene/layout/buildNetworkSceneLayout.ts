@@ -66,6 +66,7 @@ const createLayout = (model: NetworkMapModelValue): NetworkSceneLayoutValue => {
         id: city.id,
         name: city.name,
         radius: miniCity.radius,
+        tier: city.tier,
         x: center.x,
         z: center.z,
       });

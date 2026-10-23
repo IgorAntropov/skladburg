@@ -39,6 +39,16 @@ describe('buildNetworkSceneLayout', () => {
     expect(layout.world.bounds.maxX).toBe(NETWORK_WORLD_SIZE_METERS / 2);
   });
 
+  it('carries the tier of the map node to the city of the scene', () => {
+    const layout = buildNetworkSceneLayout(createTestModel([
+      createTestCity('a', 4, 2, 'large'),
+      createTestCity('b', 7, 3, 'small'),
+      createTestCity('c', 5, 6),
+    ]));
+
+    expect(layout.cities.map(city => [city.id, city.tier])).toEqual([['a', 'large'], ['b', 'small'], ['c', 'medium']]);
+  });
+
   it('skips a road with an unknown end, in the roads and in the corridors', () => {
     const layout = buildNetworkSceneLayout(createTestModel(CITIES, [...ROADS, createTestRoad('r3', 'c', 'ghost')]));
 

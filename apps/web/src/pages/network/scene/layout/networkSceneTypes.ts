@@ -1,4 +1,7 @@
-import type { MapSideValue } from '@/entities/network';
+import type {
+  MapSideValue,
+  NetworkCityTierValue,
+} from '@/entities/network';
 import type {
   SceneWorldValue,
   TerrainReservedValue,
@@ -34,6 +37,7 @@ export interface NetworkSceneCityValue {
   id: string;
   name: string;
   radius: number;
+  tier: NetworkCityTierValue;
   x: number;
   z: number;
 }

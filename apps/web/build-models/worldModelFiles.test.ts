@@ -27,6 +27,8 @@ const BUDGET_KILOBYTES = 300;
 
 const KITS = ['commercial', 'industrial'] as const;
 
+const FOOTPRINT_TOLERANCE = 0.01;
+
 const listBinFiles = (): string[] => readdirSync(modelsRoot, { recursive: true, withFileTypes: true })
   .filter(entry => entry.isFile() && entry.name.endsWith('.bin'))
   .map(entry => join(entry.parentPath, entry.name));
@@ -44,6 +46,14 @@ describe('world model files', () => {
 
     expect(data.triangleCount).toBeGreaterThan(0);
     expect(data.bounds.min[1]).toBe(0);
+  });
+
+  it.each(WORLD_MODEL_CATALOG)('keeps the footprint of $id equal to the bounds of its file', (entry) => {
+    const { bounds } = readWorldModel(Uint8Array.from(readFileSync(join(appRoot, 'public', buildWorldModelPath(entry)))).buffer);
+    const { footprint } = entry;
+
+    expect(Math.abs(footprint[0] - (bounds.max[0] - bounds.min[0]))).toBeLessThanOrEqual(FOOTPRINT_TOLERANCE);
+    expect(Math.abs(footprint[1] - (bounds.max[2] - bounds.min[2]))).toBeLessThanOrEqual(FOOTPRINT_TOLERANCE);
   });
 
   it('has no other .bin files than the catalog', () => {

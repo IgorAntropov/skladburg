@@ -45,8 +45,10 @@ export const OFFICE_SIZE_RANGE_METERS = {
 } as const;
 
 export const LAYOUT_SALT = {
+  buildingStyle: 12,
   decorCount: 1,
   decorKind: 2,
+  decorModel: 13,
   decorRank: 3,
   decorRotation: 4,
   decorSize: 5,

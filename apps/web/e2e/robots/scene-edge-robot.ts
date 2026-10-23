@@ -9,7 +9,7 @@ import type { SceneRobotValue } from './scene-robot.ts';
 
 import {
   ADD_VOID_PROBE_SCRIPT,
-  createCountLightPixelsScript,
+  createCompareLightFramesScript,
   createScanVoidPixelsScript,
   createVoidColorInitScript,
   HIDE_HUD_SCRIPT,
@@ -23,18 +23,26 @@ import {
 
 export type DragDirectionValue = 'down' | 'left' | 'right' | 'up';
 
-export interface LightPixelCountsValue {
+export interface LightFrameComparisonValue {
   glowCount: number;
-  warmSpotCount: number;
+  newWarmSpotCount: number;
+  rawWarmSpotCount: number;
+  sharedWarmSpotCount: number;
+}
+
+export interface LightFrameValue {
+  snapshot: Buffer;
+  viewSignature: string;
 }
 
 export interface SceneEdgeRobotValue {
+  captureLightFrame: () => Promise<LightFrameValue>;
+  compareLightFrames: (frame: LightFrameValue, reference: LightFrameValue) => Promise<LightFrameComparisonValue>;
   dragToLimit: (direction: DragDirectionValue) => Promise<void>;
   expectNoVoid: (label: string) => Promise<void>;
   expectVoidColorReachesScene: () => Promise<void>;
   expectVoidDetectedInSnapshot: () => Promise<void>;
   paintVoidBeforeLoad: () => Promise<void>;
-  readLightPixelCounts: () => Promise<LightPixelCountsValue>;
   readViewSignature: () => Promise<string>;
   turnCamera: (direction: TurnDirectionValue) => Promise<void>;
   zoomOutToLimit: () => Promise<void>;
@@ -42,8 +50,9 @@ export interface SceneEdgeRobotValue {
 
 export type TurnDirectionValue = 'left' | 'right';
 
-interface LightCountScanValue extends LightPixelCountsValue {
+interface LightFrameScanValue extends LightFrameComparisonValue {
   height: number;
+  isSameSize: boolean;
   width: number;
 }
 
@@ -135,6 +144,25 @@ export const createSceneEdgeRobot = (page: Page, scene: SceneRobotValue): SceneE
   };
 
   return {
+    async captureLightFrame(): Promise<LightFrameValue> {
+      const snapshot = await captureSnapshot();
+
+      return { snapshot, viewSignature: await readViewSignature() };
+    },
+    async compareLightFrames(frame: LightFrameValue, reference: LightFrameValue): Promise<LightFrameComparisonValue> {
+      const scan = await page.evaluate<LightFrameScanValue>(
+        createCompareLightFramesScript(frame.snapshot.toString('base64'), reference.snapshot.toString('base64')),
+      );
+
+      expect(scan.isSameSize, 'the compared frames differ in size').toBe(true);
+
+      return {
+        glowCount: scan.glowCount,
+        newWarmSpotCount: scan.newWarmSpotCount,
+        rawWarmSpotCount: scan.rawWarmSpotCount,
+        sharedWarmSpotCount: scan.sharedWarmSpotCount,
+      };
+    },
     async dragToLimit(direction: DragDirectionValue): Promise<void> {
       await moveUntilViewStops(async () => dragAcrossFreeArea(direction), `drags ${direction}`);
     },
@@ -185,14 +213,6 @@ export const createSceneEdgeRobot = (page: Page, scene: SceneRobotValue): SceneE
     },
     async paintVoidBeforeLoad(): Promise<void> {
       await page.addInitScript({ content: createVoidColorInitScript() });
-    },
-    async readLightPixelCounts(): Promise<LightPixelCountsValue> {
-      const snapshot = await captureSnapshot();
-      const { glowCount, warmSpotCount } = await page.evaluate<LightCountScanValue>(
-        createCountLightPixelsScript(snapshot.toString('base64')),
-      );
-
-      return { glowCount, warmSpotCount };
     },
     readViewSignature,
     async turnCamera(direction: TurnDirectionValue): Promise<void> {

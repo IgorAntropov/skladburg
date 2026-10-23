@@ -2,6 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import {
   type City,
   CitySchema,
+  CityTier,
   type MapNode,
   MapNodeSchema,
   type MapSite,
@@ -23,9 +24,10 @@ import { buildNetworkMapModel } from './buildNetworkMapModel';
 const OWN_ORGANIZATION_ID = 'org-own';
 const OTHER_ORGANIZATION_ID = 'org-other';
 
-const createCity = (id: string, name: string): City => create(CitySchema, {
+const createCity = (id: string, name: string, tier = CityTier.UNSPECIFIED): City => create(CitySchema, {
   id,
   name,
+  tier,
   timeZone: 'Europe/Moscow',
 });
 
@@ -72,8 +74,8 @@ const createSite = ({
 const createSource = (overrides: Partial<NetworkMapSourceValue> = {}): NetworkMapSourceValue => ({
   directory: {
     cities: [
-      createCity('city-yar', 'Ярославль'),
-      createCity('city-vor', 'Воронеж'),
+      createCity('city-yar', 'Ярославль', CityTier.LARGE),
+      createCity('city-vor', 'Воронеж', CityTier.SMALL),
       createCity('city-yel', 'Ёлкино'),
     ],
     mapNodes: [
@@ -103,8 +105,19 @@ describe('buildNetworkMapModel cities', () => {
       name: 'Воронеж',
       position: { column: 1, row: 2 },
       siteIds: [],
+      tier: 'small',
       timeZone: 'Europe/Moscow',
     });
+  });
+
+  it('passes the tier through and treats an unspecified tier as medium', () => {
+    const { cities } = buildNetworkMapModel(createSource());
+
+    expect(cities.map(city => [city.id, city.tier])).toEqual([
+      ['node-vor', 'small'],
+      ['node-yel', 'medium'],
+      ['node-yar', 'large'],
+    ]);
   });
 
   it('sorts the cities by name in the locale order', () => {

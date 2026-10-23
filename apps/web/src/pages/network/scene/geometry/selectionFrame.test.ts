@@ -38,6 +38,7 @@ const CITY: NetworkSceneCityValue = {
   id: 'city-a',
   name: 'Москва',
   radius: 6.4,
+  tier: 'medium',
   x: 8,
   z: 18,
 };

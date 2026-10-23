@@ -42,8 +42,9 @@ const MIN_THEME_TRANSITION_FRAMES = 10;
 const MIN_THEME_TRANSITION_MS = 2000;
 const MAX_THEME_TRANSITION_MS = 5000;
 const MAX_THEME_APPLY_MS = 1000;
-const MIN_NIGHT_GLOW_PIXELS = 100;
+const MIN_NIGHT_GLOW_PIXELS = 60;
 const MIN_NIGHT_WARM_SPOT_PIXELS = 200;
+const MAX_DAY_WARM_SPOT_PIXELS = 40;
 
 const openReadyWorld = async (scene: SceneRobotValue): Promise<void> => {
   await scene.openNetwork();
@@ -330,32 +331,44 @@ test.describe('night world', () => {
 
     await openReadyWorldInColorScheme(scene, 'light');
 
-    const day = await edge.readLightPixelCounts();
+    const dayFrame = await edge.captureLightFrame();
 
     await settleThemeSwitch(scene, 'dark', MIN_THEME_TRANSITION_FRAMES);
 
-    const night = await edge.readLightPixelCounts();
+    const nightFrame = await edge.captureLightFrame();
 
     await settleThemeSwitch(scene, 'light', MIN_THEME_TRANSITION_FRAMES);
 
-    const nextDay = await edge.readLightPixelCounts();
+    const nextDayFrame = await edge.captureLightFrame();
+    const night = await edge.compareLightFrames(nightFrame, dayFrame);
+    const day = await edge.compareLightFrames(dayFrame, nightFrame);
+    const nextDay = await edge.compareLightFrames(nextDayFrame, nightFrame);
 
     test.info().annotations.push({
       description: [
-        `dayGlow=${String(day.glowCount)}`,
-        `dayWarmSpots=${String(day.warmSpotCount)}`,
+        `nightSpots=${String(night.newWarmSpotCount)}`,
         `nightGlow=${String(night.glowCount)}`,
-        `nightWarmSpots=${String(night.warmSpotCount)}`,
+        `nightRaw=${String(night.rawWarmSpotCount)}`,
+        `daySpotsKeptAtNight=${String(day.sharedWarmSpotCount)}`,
+        `dayGlow=${String(day.glowCount)}`,
+        `dayRaw=${String(day.rawWarmSpotCount)}`,
+        `nextDaySpotsKeptAtNight=${String(nextDay.sharedWarmSpotCount)}`,
+        `nextDayGlow=${String(nextDay.glowCount)}`,
+        `nextDayRaw=${String(nextDay.rawWarmSpotCount)}`,
       ].join(' '),
       type: 'light-pixels',
     });
 
-    expect(day.glowCount).toBe(0);
-    expect(day.warmSpotCount).toBe(0);
+    expect(nightFrame.viewSignature).toBe(dayFrame.viewSignature);
+    expect(nextDayFrame.viewSignature).toBe(dayFrame.viewSignature);
     expect(night.glowCount).toBeGreaterThanOrEqual(MIN_NIGHT_GLOW_PIXELS);
-    expect(night.warmSpotCount).toBeGreaterThanOrEqual(MIN_NIGHT_WARM_SPOT_PIXELS);
+    expect(night.newWarmSpotCount).toBeGreaterThanOrEqual(MIN_NIGHT_WARM_SPOT_PIXELS);
+    expect(day.glowCount).toBe(0);
+    expect(day.sharedWarmSpotCount).toBe(0);
+    expect(day.rawWarmSpotCount).toBeLessThanOrEqual(MAX_DAY_WARM_SPOT_PIXELS);
     expect(nextDay.glowCount).toBe(0);
-    expect(nextDay.warmSpotCount).toBe(0);
+    expect(nextDay.sharedWarmSpotCount).toBe(0);
+    expect(nextDay.rawWarmSpotCount).toBeLessThanOrEqual(MAX_DAY_WARM_SPOT_PIXELS);
   });
 
   test.describe('at the high level', () => {

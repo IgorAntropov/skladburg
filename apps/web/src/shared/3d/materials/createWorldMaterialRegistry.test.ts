@@ -18,6 +18,7 @@ const createUniformPalette = (color: RgbaColorValue): WorldPaletteValue => {
   return {
     background: color,
     backgroundNight: color,
+    buildingBrick: color,
     buildingRoof: color,
     buildingRoofAlt: color,
     buildingWall: color,

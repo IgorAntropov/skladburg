@@ -32,7 +32,10 @@ import {
   WorldMaterialsProvider,
 } from '@/shared/3d';
 
-import type { NetworkSceneBuildingValue } from '../layout';
+import type {
+  NetworkSceneBuildingValue,
+  NetworkSceneCityValue,
+} from '../layout';
 
 import {
   createFakeRenderer,
@@ -57,7 +60,16 @@ const createProps = (overrides: Partial<LayersPropsValue>): LayersPropsValue => 
 
 const PALETTE = readWorldPalette(() => '#808080');
 
-const CITY = { cityId: 'moscow', hiddenSiteIds: ['hidden'], id: 'city', name: 'Москва', radius: 6.4, x: 0, z: 0 };
+const CITY: NetworkSceneCityValue = {
+  cityId: 'moscow',
+  hiddenSiteIds: ['hidden'],
+  id: 'city',
+  name: 'Москва',
+  radius: 6.4,
+  tier: 'medium',
+  x: 0,
+  z: 0,
+};
 
 const createWarehouse = (id: string, isOwn: boolean, x: number, side: 'customer' | 'supplier'): NetworkSceneBuildingValue => ({
   cityId: 'city',

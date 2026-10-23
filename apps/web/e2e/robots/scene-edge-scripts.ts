@@ -157,8 +157,10 @@ export const WARM_SPOT_MIN_RED_MINUS_BLUE = 38;
 
 export const WARM_SPOT_MIN_RED_MINUS_GREEN = 27;
 
-export const createCountLightPixelsScript = (base64: string): string => `
-(async (base64) => {
+export const WARM_SPOT_NEIGHBOUR_RADIUS_PX = 1;
+
+const DECODE_LIGHT_FRAME_SCRIPT = `
+const decodeFrame = async (base64) => {
   const image = new Image();
 
   image.src = 'data:image/png;base64,' + base64;
@@ -173,31 +175,73 @@ export const createCountLightPixelsScript = (base64: string): string => `
 
   context.drawImage(image, 0, 0);
 
-  const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height);
+  return context.getImageData(0, 0, canvas.width, canvas.height);
+};
+
+const isGlowPixel = (data, offset) => data[offset] >= ${String(GLOW_MIN_RED)}
+  && data[offset + 1] >= ${String(GLOW_MIN_GREEN)}
+  && data[offset + 2] <= ${String(GLOW_MAX_BLUE)};
+
+const isWarmSpotPixel = (data, offset) => data[offset] >= ${String(WARM_SPOT_MIN_RED)}
+  && data[offset] <= ${String(WARM_SPOT_MAX_RED)}
+  && data[offset] - data[offset + 2] >= ${String(WARM_SPOT_MIN_RED_MINUS_BLUE)}
+  && data[offset] - data[offset + 1] >= ${String(WARM_SPOT_MIN_RED_MINUS_GREEN)};
+`;
+
+export const createCompareLightFramesScript = (frameBase64: string, referenceBase64: string): string => `
+(async (frameBase64, referenceBase64) => {
+  ${DECODE_LIGHT_FRAME_SCRIPT}
+
+  const frame = await decodeFrame(frameBase64);
+  const reference = await decodeFrame(referenceBase64);
+
+  if (frame.width !== reference.width || frame.height !== reference.height) {
+    return { isSameSize: false };
+  }
+
+  const { width, height } = frame;
+  const radius = ${String(WARM_SPOT_NEIGHBOUR_RADIUS_PX)};
   let glowCount = 0;
-  let warmSpotCount = 0;
+  let rawWarmSpotCount = 0;
+  let newWarmSpotCount = 0;
+  let sharedWarmSpotCount = 0;
 
-  for (let offset = 0; offset < data.length; offset += 4) {
-    const red = data[offset];
-    const green = data[offset + 1];
-    const blue = data[offset + 2];
-    const isGlow = red >= ${String(GLOW_MIN_RED)}
-      && green >= ${String(GLOW_MIN_GREEN)}
-      && blue <= ${String(GLOW_MAX_BLUE)};
-    const isWarmSpot = red >= ${String(WARM_SPOT_MIN_RED)}
-      && red <= ${String(WARM_SPOT_MAX_RED)}
-      && red - blue >= ${String(WARM_SPOT_MIN_RED_MINUS_BLUE)}
-      && red - green >= ${String(WARM_SPOT_MIN_RED_MINUS_GREEN)};
+  const isWarmSpotNear = (data, x, y) => {
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        const nearX = x + dx;
+        const nearY = y + dy;
 
-    if (isGlow) {
-      glowCount += 1;
+        if (nearX >= 0 && nearX < width && nearY >= 0 && nearY < height && isWarmSpotPixel(data, (nearY * width + nearX) * 4)) {
+          return true;
+        }
+      }
     }
 
-    if (isWarmSpot) {
-      warmSpotCount += 1;
+    return false;
+  };
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 4;
+
+      if (isGlowPixel(frame.data, offset)) {
+        glowCount += 1;
+      }
+
+      if (isWarmSpotPixel(frame.data, offset)) {
+        rawWarmSpotCount += 1;
+
+        if (isWarmSpotNear(reference.data, x, y)) {
+          sharedWarmSpotCount += 1;
+        }
+        else {
+          newWarmSpotCount += 1;
+        }
+      }
     }
   }
 
-  return { glowCount, height, warmSpotCount, width };
-})(${JSON.stringify(base64)})
+  return { glowCount, height, isSameSize: true, newWarmSpotCount, rawWarmSpotCount, sharedWarmSpotCount, width };
+})(${JSON.stringify(frameBase64)}, ${JSON.stringify(referenceBase64)})
 `;

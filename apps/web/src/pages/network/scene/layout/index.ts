@@ -21,6 +21,8 @@ export {
   WAREHOUSE_SIZE_METERS,
 } from './layoutConstants';
 export {
+  compareIds,
+  hashIndex,
   hashUnit,
   lerpRange,
 } from './layoutHash';

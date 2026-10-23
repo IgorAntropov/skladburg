@@ -44,6 +44,7 @@ const createCity = (id: string, x: number, z: number, radius = 6.4): NetworkScen
   id,
   name: id,
   radius,
+  tier: 'medium',
   x,
   z,
 });

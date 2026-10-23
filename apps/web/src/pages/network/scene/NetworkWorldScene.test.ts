@@ -14,13 +14,19 @@ import {
   createTestSite,
 } from './layout/layoutTestSupport';
 import { loadWorldModels } from './models/loadWorldModels';
-import { COMPANY_WAREHOUSE_MODEL_ID } from './models/worldModelCatalog';
+import {
+  buildWorldModelPath,
+  WORLD_MODEL_CATALOG,
+} from './models/worldModelCatalog';
 import { createTestWorldModelBytes } from './models/worldModelTestSupport';
 import { NETWORK_WORLD_SIZE_METERS } from './networkWorldConstants';
 import {
   prepare,
   resolveWorld,
 } from './NetworkWorldScene';
+
+const FAILING_MODEL_ID = 'commercial/building-a';
+const FAILING_MODEL_PATH = 'models/commercial/building-a.bin';
 
 const createModel = (): ReturnType<typeof createTestModel> => createTestModel(
   [createTestCity('a', 4, 2), createTestCity('b', 7, 3)],
@@ -65,17 +71,47 @@ describe('NetworkWorldScene module', () => {
     await expect(prepare(model)).resolves.toBeUndefined();
   });
 
-  it('leaves the warehouses as boxes while the models are not available and keeps the model once it loads', async () => {
+  it('asks for every model once, keeps loading the others when one fails and loads the failed one on the next prepare', async () => {
+    const requested: string[] = [];
+
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      requested.push(url);
+
+      return Promise.resolve(Response.error());
+    }));
+
     await expect(prepare(createModel())).resolves.toBeUndefined();
-    expect(loadWorldModels.peek(COMPANY_WAREHOUSE_MODEL_ID)).toBeUndefined();
+
+    const requestedUrls = requested.toSorted();
+
+    expect(requestedUrls).toHaveLength(WORLD_MODEL_CATALOG.length);
+    expect(requestedUrls).toEqual(WORLD_MODEL_CATALOG.map(entry => `${import.meta.env.BASE_URL}${buildWorldModelPath(entry)}`).toSorted());
+
+    for (const { id } of WORLD_MODEL_CATALOG) {
+      expect(loadWorldModels.peek(id)).toBeUndefined();
+    }
+
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
+      url.endsWith(FAILING_MODEL_PATH) ? Response.error() : new Response(createTestWorldModelBytes()),
+    )));
+
+    await expect(prepare(createModel())).resolves.toBeUndefined();
+
+    expect(fetch).toHaveBeenCalledTimes(WORLD_MODEL_CATALOG.length);
+    expect(loadWorldModels.peek(FAILING_MODEL_ID)).toBeUndefined();
+
+    for (const { id } of WORLD_MODEL_CATALOG.filter(entry => entry.id !== FAILING_MODEL_ID)) {
+      expect(loadWorldModels.peek(id)?.triangleCount).toBeGreaterThan(0);
+    }
 
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(createTestWorldModelBytes()))));
 
     await expect(prepare(createModel())).resolves.toBeUndefined();
 
-    const warehouse = loadWorldModels.peek(COMPANY_WAREHOUSE_MODEL_ID);
-
-    expect(warehouse?.triangleCount).toBeGreaterThan(0);
     expect(fetch).toHaveBeenCalledTimes(1);
+
+    for (const { id } of WORLD_MODEL_CATALOG) {
+      expect(loadWorldModels.peek(id)?.triangleCount).toBeGreaterThan(0);
+    }
   });
 });

@@ -37,6 +37,7 @@ export const createCity = (id: string, x: number, z: number, radius = 6.4): Netw
   id,
   name: id,
   radius,
+  tier: 'medium',
   x,
   z,
 });

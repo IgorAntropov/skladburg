@@ -290,6 +290,7 @@ const WORLD_CITY_TOKEN_NAMES: readonly string[] = [
   'road',
   'plaza',
   'building-wall',
+  'building-brick',
   'building-roof',
   'building-roof-alt',
   'warehouse-wall',
@@ -311,6 +312,7 @@ const WORLD_OPEN_GROUND_TOKEN_NAMES: readonly string[] = [
 ];
 
 const WORLD_ROOF_TOKEN_NAMES: readonly string[] = [
+  'building-brick',
   'building-roof',
   'building-roof-alt',
   'warehouse-roof',
@@ -565,6 +567,7 @@ describe('world city surfaces', () => {
   });
 
   it.each([
+    ['building-wall', 'building-brick'],
     ['building-wall', 'building-roof'],
     ['building-wall', 'building-roof-alt'],
     ['warehouse-wall', 'warehouse-roof'],
@@ -573,6 +576,7 @@ describe('world city surfaces', () => {
   });
 
   it('keeps the warehouse roof apart from the roofs of the houses', () => {
+    expect(measureColorDistance('warehouse-roof', 'building-brick')).toBeGreaterThanOrEqual(WALL_COLOR_DISTANCE);
     expect(measureColorDistance('warehouse-roof', 'building-roof')).toBeGreaterThanOrEqual(WALL_COLOR_DISTANCE);
     expect(measureColorDistance('warehouse-roof', 'building-roof-alt')).toBeGreaterThanOrEqual(WALL_COLOR_DISTANCE);
   });

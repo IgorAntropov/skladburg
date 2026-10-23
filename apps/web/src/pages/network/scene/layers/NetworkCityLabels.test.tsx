@@ -47,6 +47,7 @@ const CITIES: readonly NetworkSceneCityValue[] = [
   id: `node-${String(index)}`,
   name: String(name),
   radius: 6.4,
+  tier: 'medium',
   x: Number(x),
   z: Number(z),
 }));

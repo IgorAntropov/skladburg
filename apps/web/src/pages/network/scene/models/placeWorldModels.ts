@@ -14,12 +14,18 @@ import {
   WALL_TINT_RANGE,
 } from '../geometry/networkSceneMetrics';
 import {
+  compareIds,
   hashUnit,
   LAYOUT_SALT,
   lerpRange,
 } from '../layout';
 import { NETWORK_WORLD_SEED } from '../networkWorldConstants';
 import { fitWorldModelToFootprint } from './fitWorldModelToFootprint';
+
+export interface WorldModelPlacementsValue {
+  placements: readonly WorldModelPlacementValue[];
+  rest: readonly NetworkSceneBuildingValue[];
+}
 
 export interface WorldModelPlacementValue {
   group: WorldModelGroupValue;
@@ -49,8 +55,9 @@ export const placeWorldModels = (
   buildings: readonly NetworkSceneBuildingValue[],
   pickModel: (building: NetworkSceneBuildingValue) => undefined | WorldModelEntryValue,
   models: ReadonlyMap<string, WorldModelDataValue>,
-): readonly WorldModelPlacementValue[] => {
+): WorldModelPlacementsValue => {
   const draftsByModel = new Map<string, PlacementDraftValue>();
+  const rest: NetworkSceneBuildingValue[] = [];
 
   for (const building of buildings) {
     const entry = pickModel(building);
@@ -62,10 +69,13 @@ export const placeWorldModels = (
       draft.items.push(building);
       draftsByModel.set(entry.id, draft);
     }
+    else {
+      rest.push(building);
+    }
   }
 
-  return [...draftsByModel.entries()]
-    .toSorted(([currentId], [prevId]) => currentId.localeCompare(prevId))
+  const placements = [...draftsByModel.entries()]
+    .toSorted(([currentId], [prevId]) => compareIds(currentId, prevId))
     .map(([modelId, { entry, items, model }]): WorldModelPlacementValue => {
       const matrices = new Float32Array(items.length * INSTANCE_MATRIX_ITEM_SIZE);
       const tints = new Float32Array(items.length * TINT_ITEM_SIZE);
@@ -85,4 +95,6 @@ export const placeWorldModels = (
 
       return { group: entry.group, items, matrices, modelId, tints };
     });
+
+  return { placements, rest };
 };

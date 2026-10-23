@@ -10,6 +10,15 @@ const QUARTER_TURN = Math.PI / 2;
 
 const measureStretch = (scaleX: number, scaleZ: number): number => Math.max(scaleX, scaleZ) / Math.min(scaleX, scaleZ);
 
+export const measureFootprintStretch = (
+  modelWidth: number,
+  modelDepth: number,
+  building: Pick<NetworkSceneBuildingValue, 'depth' | 'width'>,
+): number => Math.min(
+  measureStretch(building.width / modelWidth, building.depth / modelDepth),
+  measureStretch(building.depth / modelWidth, building.width / modelDepth),
+);
+
 export const fitWorldModelToFootprint = (
   bounds: WorldModelBoundsValue,
   building: Pick<NetworkSceneBuildingValue, 'depth' | 'height' | 'rotation' | 'width'>,

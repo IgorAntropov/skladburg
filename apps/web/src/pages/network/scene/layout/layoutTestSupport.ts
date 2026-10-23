@@ -1,4 +1,5 @@
 import type {
+  NetworkCityTierValue,
   NetworkMapCityValue,
   NetworkMapModelValue,
   NetworkMapRoadValue,
@@ -14,12 +15,18 @@ import { getBuildingFootprint } from './buildingFootprint';
 
 const SEPARATION_EPSILON = 1e-9;
 
-export const createTestCity = (id: string, column: number, row: number): NetworkMapCityValue => ({
+export const createTestCity = (
+  id: string,
+  column: number,
+  row: number,
+  tier: NetworkCityTierValue = 'medium',
+): NetworkMapCityValue => ({
   cityId: `${id}-city`,
   id,
   name: `City ${id}`,
   position: { column, row },
   siteIds: [],
+  tier,
   timeZone: 'Europe/Moscow',
 });
 

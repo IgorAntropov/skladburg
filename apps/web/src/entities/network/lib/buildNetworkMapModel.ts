@@ -10,6 +10,8 @@ import type {
   NetworkMapSourceValue,
 } from '../model/networkMapTypes';
 
+import { toNetworkCityTier } from './toNetworkCityTier';
+
 const buildCities = (source: NetworkMapSourceValue, collator: Intl.Collator): Map<string, NetworkMapCityValue> => {
   const cityById = new Map(source.directory.cities.map(city => [city.id, city]));
   const cities: NetworkMapCityValue[] = [];
@@ -24,6 +26,7 @@ const buildCities = (source: NetworkMapSourceValue, collator: Intl.Collator): Ma
         name: city.name,
         position: { column: node.position?.column ?? 0, row: node.position?.row ?? 0 },
         siteIds: [],
+        tier: toNetworkCityTier(city.tier),
         timeZone: city.timeZone,
       });
     }

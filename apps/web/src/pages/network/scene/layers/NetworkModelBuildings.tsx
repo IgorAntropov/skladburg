@@ -13,34 +13,37 @@ import {
   useShadowMapRefresh,
 } from '@/shared/3d';
 
-import type { NetworkSceneBuildingValue } from '../layout';
 import type { WorldModelDataValue } from '../models/format/worldModelFormat';
-import type { WorldModelEntryValue } from '../models/worldModelCatalog';
+import type { WorldModelPlacementValue } from '../models/placeWorldModels';
 
 import { getVisibleBuildingCount } from '../layout';
 import { createWorldModelGeometry } from '../models/createWorldModelGeometry';
-import { placeWorldModels } from '../models/placeWorldModels';
 import { useWorldModelMaterials } from '../models/useWorldModelMaterials';
 import { InstancedLayer } from './InstancedLayer';
 
 interface NetworkModelBuildingsProps {
-  buildings: readonly NetworkSceneBuildingValue[];
   level: QualityLevelValue;
   models: ReadonlyMap<string, WorldModelDataValue>;
-  pickModel: (building: NetworkSceneBuildingValue) => undefined | WorldModelEntryValue;
+  placements: readonly WorldModelPlacementValue[];
 }
 
-const createGeometries = (models: ReadonlyMap<string, WorldModelDataValue>): ReadonlyMap<string, BufferGeometry> => new Map(
-  [...models.entries()].map(([id, data]): [string, BufferGeometry] => [id, createWorldModelGeometry(data)]),
+const createGeometries = (
+  placements: readonly WorldModelPlacementValue[],
+  models: ReadonlyMap<string, WorldModelDataValue>,
+): ReadonlyMap<string, BufferGeometry> => new Map(
+  placements.flatMap(({ modelId }): [string, BufferGeometry][] => {
+    const data = models.get(modelId);
+
+    return data === undefined ? [] : [[modelId, createWorldModelGeometry(data)]];
+  }),
 );
 
-export const NetworkModelBuildings = ({ buildings, level, models, pickModel }: NetworkModelBuildingsProps): ReactElement => {
+export const NetworkModelBuildings = ({ level, models, placements }: NetworkModelBuildingsProps): ReactElement => {
   const { decorDensity, hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const refreshShadowMap = useShadowMapRefresh();
   const materials = useWorldModelMaterials();
 
-  const geometries = useMemo(() => createGeometries(models), [models]);
-  const placements = useMemo(() => placeWorldModels(buildings, pickModel, models), [buildings, models, pickModel]);
+  const geometries = useMemo(() => createGeometries(placements, models), [models, placements]);
 
   useEffect(() => {
     refreshShadowMap();

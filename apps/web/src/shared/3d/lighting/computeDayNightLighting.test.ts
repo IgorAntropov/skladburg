@@ -32,6 +32,7 @@ const rgb = (red: number, green: number, blue: number): RgbaColorValue => {
 const PALETTE: WorldPaletteValue = {
   background: rgb(200, 210, 120),
   backgroundNight: rgb(20, 30, 70),
+  buildingBrick: rgb(181, 105, 79),
   buildingRoof: rgb(181, 105, 79),
   buildingRoofAlt: rgb(196, 154, 88),
   buildingWall: rgb(236, 228, 212),

@@ -18,6 +18,7 @@ const createCity = (id: string, column: number, row: number): NetworkMapCityValu
   name: id,
   position: { column, row },
   siteIds: [],
+  tier: 'medium',
   timeZone: 'Europe/Moscow',
 });
 

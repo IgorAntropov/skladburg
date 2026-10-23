@@ -11,10 +11,18 @@ message MapPosition {
   int32 row = 2;
 }
 
+enum CityTier {
+  CITY_TIER_UNSPECIFIED = 0;
+  CITY_TIER_SMALL = 1;
+  CITY_TIER_MEDIUM = 2;
+  CITY_TIER_LARGE = 3;
+}
+
 message City {
   string id = 1;
   string name = 2;
   string time_zone = 3;
+  CityTier tier = 4;
 }
 
 message MapNode {

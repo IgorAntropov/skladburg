@@ -77,7 +77,7 @@ describe('placeWorldModels', () => {
   ];
 
   it('groups buildings by the model that was picked for them in the order of the input', () => {
-    const placements = placeWorldModels(buildings, pickByKind, MODELS);
+    const { placements } = placeWorldModels(buildings, pickByKind, MODELS);
 
     expect(placements.map(placement => [placement.modelId, placement.group, placement.items.map(item => item.id)])).toEqual([
       [HOUSE_ENTRY.id, 'house', ['h1', 'o1']],
@@ -86,16 +86,30 @@ describe('placeWorldModels', () => {
     ]);
   });
 
-  it('skips buildings without a model and models that are not loaded', () => {
+  it('hands buildings without a model and with a model that is not loaded to the rest in the order of the input', () => {
     const onlyWarehouse = placeWorldModels(buildings, pickByKind, new Map([[WAREHOUSE_ENTRY.id, WAREHOUSE_MODEL]]));
     const nothingPicked = placeWorldModels(buildings, () => undefined, MODELS);
 
-    expect(onlyWarehouse.map(placement => placement.modelId)).toEqual([WAREHOUSE_ENTRY.id]);
-    expect(nothingPicked).toEqual([]);
+    expect(onlyWarehouse.placements.map(placement => placement.modelId)).toEqual([WAREHOUSE_ENTRY.id]);
+    expect(onlyWarehouse.rest.map(building => building.id)).toEqual(['h1', 'h2b', 'o1']);
+    expect(nothingPicked.placements).toEqual([]);
+    expect(nothingPicked.rest).toEqual(buildings);
+  });
+
+  it('loses no building and repeats none between the placements and the rest', () => {
+    const { placements, rest } = placeWorldModels(buildings, pickByKind, new Map([
+      [HOUSE_ENTRY.id, createTestWorldModel()],
+      [WAREHOUSE_ENTRY.id, WAREHOUSE_MODEL],
+    ]));
+    const ids = [...placements.flatMap(placement => placement.items), ...rest].map(building => building.id);
+
+    expect(ids.toSorted()).toEqual(buildings.map(building => building.id).toSorted());
+    expect(new Set(ids).size).toBe(buildings.length);
+    expect(rest.map(building => building.id)).toEqual(['h2b']);
   });
 
   it('puts the model at the center of the building on the plaza with the fit of its footprint', () => {
-    const [placement] = placeWorldModels([createBuilding('w1', { x: 7, z: -2 })], pickByKind, MODELS);
+    const [placement] = placeWorldModels([createBuilding('w1', { x: 7, z: -2 })], pickByKind, MODELS).placements;
     const fit = fitWorldModelToFootprint(WAREHOUSE_MODEL.bounds, createBuilding('w1'));
     const matrix = new Matrix4().fromArray(placement?.matrices ?? []);
     const elements = matrix.elements;
@@ -108,17 +122,17 @@ describe('placeWorldModels', () => {
   });
 
   it('turns the building by a quarter when its footprint is the other way round', () => {
-    const [straight] = placeWorldModels([createBuilding('w1', { rotation: 0 })], pickByKind, MODELS);
-    const [turned] = placeWorldModels([createBuilding('w1', { depth: 2.4, rotation: 0, width: 1.5 })], pickByKind, MODELS);
+    const [straight] = placeWorldModels([createBuilding('w1', { rotation: 0 })], pickByKind, MODELS).placements;
+    const [turned] = placeWorldModels([createBuilding('w1', { depth: 2.4, rotation: 0, width: 1.5 })], pickByKind, MODELS).placements;
 
     expect(straight?.matrices[2]).toBeCloseTo(0, 5);
     expect(Math.abs(turned?.matrices[2] ?? 0)).toBeGreaterThan(1);
   });
 
   it('is deterministic and does not depend on the order of the buildings', () => {
-    const first = placeWorldModels(buildings, pickByKind, MODELS);
-    const again = placeWorldModels(buildings, pickByKind, MODELS);
-    const reversed = placeWorldModels(buildings.toReversed(), pickByKind, MODELS);
+    const first = placeWorldModels(buildings, pickByKind, MODELS).placements;
+    const again = placeWorldModels(buildings, pickByKind, MODELS).placements;
+    const reversed = placeWorldModels(buildings.toReversed(), pickByKind, MODELS).placements;
 
     expect(again).toEqual(first);
 
@@ -136,7 +150,7 @@ describe('placeWorldModels', () => {
   });
 
   it('keeps the warehouses untinted and tints houses and offices by their id', () => {
-    const placements = placeWorldModels(buildings, pickByKind, MODELS);
+    const { placements } = placeWorldModels(buildings, pickByKind, MODELS);
     const warehouse = placements.find(placement => placement.group === 'warehouse');
     const houses = placements.filter(placement => placement.group === 'house');
 
@@ -154,7 +168,7 @@ describe('placeWorldModels', () => {
   });
 
   it('writes one matrix and one tint triple per building', () => {
-    const [placement] = placeWorldModels(buildings, pickByKind, MODELS);
+    const [placement] = placeWorldModels(buildings, pickByKind, MODELS).placements;
 
     expect(placement?.matrices).toHaveLength((placement?.items.length ?? 0) * 16);
     expect(placement?.tints).toHaveLength((placement?.items.length ?? 0) * 3);

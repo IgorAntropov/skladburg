@@ -6,6 +6,7 @@ export { buildNetworkMapModel } from './lib/buildNetworkMapModel';
 export type {
   MapGridPointValue,
   MapSideValue,
+  NetworkCityTierValue,
   NetworkDirectoryValue,
   NetworkMapCityValue,
   NetworkMapModelValue,

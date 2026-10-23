@@ -15,13 +15,14 @@ const UV_ITEM_SIZE = 2;
 const COLOR_ITEM_SIZE = 3;
 const TEXEL_CENTER = 0.5;
 const SHADE_GAMMA = 2.2;
+const MAX_VERTEX_SHADE = 1;
 
 export const createWorldModelGeometry = (data: WorldModelDataValue): BufferGeometry => {
   const uvs = new Float32Array(data.vertexCount * UV_ITEM_SIZE);
   const colors = new Float32Array(data.vertexCount * COLOR_ITEM_SIZE);
 
   for (let vertex = 0; vertex < data.vertexCount; vertex += 1) {
-    const brightness = decodeWorldModelShade(data.shades[vertex] ?? 0) ** SHADE_GAMMA;
+    const brightness = Math.min(decodeWorldModelShade(data.shades[vertex] ?? 0), MAX_VERTEX_SHADE) ** SHADE_GAMMA;
 
     uvs[vertex * UV_ITEM_SIZE] = ((data.roles[vertex] ?? 0) + TEXEL_CENTER) / WORLD_MODEL_ROLES.length;
     uvs[vertex * UV_ITEM_SIZE + 1] = TEXEL_CENTER;

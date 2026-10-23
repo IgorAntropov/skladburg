@@ -34,7 +34,7 @@ describe('createWorldModelGeometry', () => {
 
   it('writes the linear brightness of the shade into all three channels of the color', () => {
     const color = geometry.getAttribute('color');
-    const expected = [0, 128, 255].map(byte => decodeWorldModelShade(byte) ** 2.2);
+    const expected = [0, 128, 255].map(byte => Math.min(decodeWorldModelShade(byte), 1) ** 2.2);
 
     expect(color.itemSize).toBe(3);
 
@@ -45,10 +45,10 @@ describe('createWorldModelGeometry', () => {
     }
   });
 
-  it('makes the dimmest shade darker and the brightest lighter than the neutral one', () => {
+  it('makes the dimmest shade darker than the neutral one and never brightens above it', () => {
     const color = geometry.getAttribute('color');
 
     expect(color.getX(0)).toBeLessThan(1);
-    expect(color.getX(2)).toBeGreaterThan(1);
+    expect(color.getX(2)).toBe(1);
   });
 });

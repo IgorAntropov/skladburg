@@ -13,6 +13,13 @@ import {
   WORLD_MODEL_MAGIC,
 } from './format/worldModelFormat';
 
+export type TestCornerValue = readonly [number, number, number];
+
+export interface TestTriangleValue {
+  corners: readonly [TestCornerValue, TestCornerValue, TestCornerValue];
+  role: number;
+}
+
 interface TestWorldModelOptionsValue {
   bounds?: WorldModelBoundsValue;
   roles?: readonly number[];
@@ -38,6 +45,23 @@ export const createTestWorldModel = (options: TestWorldModelOptionsValue = {}): 
     shades,
     triangleCount: 1,
     vertexCount: roles.length,
+  };
+};
+
+export const createTrianglesWorldModel = (
+  triangles: readonly TestTriangleValue[],
+  bounds: WorldModelBoundsValue = DEFAULT_BOUNDS,
+): WorldModelDataValue => {
+  const corners = triangles.flatMap(triangle => triangle.corners);
+
+  return {
+    bounds,
+    indices: Uint16Array.from(corners, (_, index) => index),
+    positions: Float32Array.from(corners.flat()),
+    roles: Uint8Array.from(triangles.flatMap(triangle => triangle.corners.map(() => triangle.role))),
+    shades: new Uint8Array(corners.length).fill(128),
+    triangleCount: triangles.length,
+    vertexCount: corners.length,
   };
 };
 

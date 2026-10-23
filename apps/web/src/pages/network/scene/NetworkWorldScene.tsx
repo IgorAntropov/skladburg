@@ -43,7 +43,7 @@ import { NetworkStreetLamps } from './layers/NetworkStreetLamps';
 import { NetworkWindows } from './layers/NetworkWindows';
 import { useGlowProgramWarmup } from './layers/useGlowProgramWarmup';
 import { buildNetworkSceneLayout } from './layout';
-import { listWindowBuildings } from './mix/listWindowBuildings';
+import { createModelWindowSources } from './mix/createModelWindowSources';
 import { partitionNetworkBuildings } from './mix/partitionNetworkBuildings';
 import { loadWorldModels } from './models/loadWorldModels';
 import { useLoadedWorldModels } from './models/useLoadedWorldModels';
@@ -96,8 +96,11 @@ const NetworkWorldScene = ({
     [layout.buildings, level, models, tierByCityId],
   );
   const boxGeometry = useMemo((): BufferGeometry => createUnitBoxGeometry(), []);
-  const windowBuildings = useMemo(() => listWindowBuildings(layout.buildings, placements), [layout.buildings, placements]);
-  const windows = useMemo(() => buildWindowInstances(windowBuildings, layout.cities), [layout.cities, windowBuildings]);
+  const modelWindows = useMemo(() => createModelWindowSources(placements, models), [models, placements]);
+  const windows = useMemo(
+    () => buildWindowInstances(layout.buildings, layout.cities, modelWindows),
+    [layout.buildings, layout.cities, modelWindows],
+  );
   const lamps = useMemo(() => buildStreetLamps(layout.roads, layout.cities), [layout.cities, layout.roads]);
   const selected = interaction?.selected;
   const selectedIds = useMemo(() => listSelectedIds(selected), [selected]);

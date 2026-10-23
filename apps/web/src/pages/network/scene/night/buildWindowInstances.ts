@@ -3,6 +3,7 @@ import type {
   NetworkSceneBuildingValue,
   NetworkSceneCityValue,
 } from '../layout';
+import type { ModelWindowSourcesValue } from '../mix/createModelWindowSources';
 
 import { BUILDING_PART_RULES } from '../geometry/buildBuildingParts';
 import {
@@ -22,22 +23,14 @@ import {
   getFarthestCityDistance,
   toDistanceUnit,
 } from './glowDelays';
+import { listModelWindowTransforms } from './listModelWindowTransforms';
 import {
   DARK_WINDOW_DELAY,
   DARK_WINDOW_SHARE,
-  HOUSE_WINDOW_ROW_FRACTIONS,
-  HOUSE_WINDOW_SIZE_METERS,
   NIGHT_SALT,
-  OFFICE_WINDOW_ROW_FRACTIONS,
-  WAREHOUSE_LONG_WALL_MIN_METERS,
-  WAREHOUSE_LONG_WALL_OFFSETS_METERS,
-  WAREHOUSE_SHORT_WALL_OFFSETS_METERS,
-  WAREHOUSE_WINDOW_CENTER_HEIGHT_METERS,
-  WAREHOUSE_WINDOW_SIZE_METERS,
-  WINDOW_PAIR_OFFSET_METERS,
-  WINDOW_SINGLE_WALL_MAX_METERS,
   WINDOW_STANDOFF_METERS,
 } from './nightConstants';
+import { getWallSlots } from './wallWindowSlots';
 
 export interface WindowInstancesValue {
   buildings: readonly NetworkSceneBuildingValue[];
@@ -46,6 +39,11 @@ export interface WindowInstancesValue {
   getVisibleCount: (density: number) => number;
   matrices: Float32Array;
   windowEnds: Uint32Array;
+}
+
+interface BuildingGlowFrameValue {
+  city: CityFrameValue;
+  cityUnit: number;
 }
 
 interface CityFrameValue {
@@ -64,12 +62,7 @@ interface WindowDraftValue {
   transform: InstanceTransformValue;
 }
 
-interface WindowSlotValue {
-  height: number;
-  offset: number;
-  rise: number;
-  width: number;
-}
+const EMPTY_MODEL_WINDOWS: ModelWindowSourcesValue = new Map();
 
 const WALL_FACES: readonly WallFaceValue[] = [
   { isAlongWidth: true, yaw: 0 },
@@ -79,29 +72,6 @@ const WALL_FACES: readonly WallFaceValue[] = [
 ];
 
 const WALL_RULES = BUILDING_PART_RULES.filter(rule => rule.key === 'buildingWall' || rule.key === 'warehouseWall');
-
-const PAIR_OFFSETS: readonly number[] = [-WINDOW_PAIR_OFFSET_METERS, WINDOW_PAIR_OFFSET_METERS];
-
-const SINGLE_OFFSETS: readonly number[] = [0];
-
-const getWallSlots = (building: NetworkSceneBuildingValue, wallLength: number, wallHeight: number): WindowSlotValue[] => {
-  if (building.kind === 'warehouse') {
-    const offsets = wallLength >= WAREHOUSE_LONG_WALL_MIN_METERS
-      ? WAREHOUSE_LONG_WALL_OFFSETS_METERS
-      : WAREHOUSE_SHORT_WALL_OFFSETS_METERS;
-
-    return offsets.map(offset => ({ ...WAREHOUSE_WINDOW_SIZE_METERS, offset, rise: WAREHOUSE_WINDOW_CENTER_HEIGHT_METERS }));
-  }
-
-  const fractions = building.kind === 'office' ? OFFICE_WINDOW_ROW_FRACTIONS : HOUSE_WINDOW_ROW_FRACTIONS;
-  const offsets = wallLength < WINDOW_SINGLE_WALL_MAX_METERS ? SINGLE_OFFSETS : PAIR_OFFSETS;
-
-  return fractions.flatMap(fraction => offsets.map(offset => ({
-    ...HOUSE_WINDOW_SIZE_METERS,
-    offset,
-    rise: fraction * wallHeight,
-  })));
-};
 
 const getWallTransform = (building: NetworkSceneBuildingValue): InstanceTransformValue => {
   const rule = WALL_RULES.find(candidate => candidate.kinds.includes(building.kind));
@@ -118,15 +88,9 @@ const resolveCityFrame = (
   cityById: ReadonlyMap<string, NetworkSceneCityValue>,
 ): CityFrameValue => cityById.get(building.cityId) ?? { radius: MINI_CITY_RADIUS_METERS, x: building.x, z: building.z };
 
-const draftBuildingWindows = (
-  building: NetworkSceneBuildingValue,
-  cityById: ReadonlyMap<string, NetworkSceneCityValue>,
-  farthestCityDistance: number,
-): WindowDraftValue[] => {
+const listBoxWindowTransforms = (building: NetworkSceneBuildingValue): InstanceTransformValue[] => {
   const wall = getWallTransform(building);
-  const city = resolveCityFrame(building, cityById);
-  const cityUnit = toDistanceUnit(Math.hypot(city.x, city.z), farthestCityDistance);
-  const drafts: WindowDraftValue[] = [];
+  const transforms: InstanceTransformValue[] = [];
 
   for (const face of WALL_FACES) {
     const wallLength = face.isAlongWidth ? building.width : building.depth;
@@ -135,31 +99,59 @@ const draftBuildingWindows = (
     const sine = Math.sin(yaw);
     const cosine = Math.cos(yaw);
 
-    for (const slot of getWallSlots(building, wallLength, wall.scale[1])) {
-      const windowKey = [building.id, drafts.length].join(':');
-      const x = building.x + slot.offset * cosine + standoff * sine;
-      const z = building.z - slot.offset * sine + standoff * cosine;
-      const isDark = hashUnit(NETWORK_WORLD_SEED, windowKey, NIGHT_SALT.windowDark) < DARK_WINDOW_SHARE;
-
-      drafts.push({
-        delay: isDark
-          ? DARK_WINDOW_DELAY
-          : computeWindowDelay({
-              cityUnit,
-              hashUnit: hashUnit(NETWORK_WORLD_SEED, windowKey, NIGHT_SALT.windowDelay),
-              localUnit: clampUnit(Math.hypot(x - city.x, z - city.z) / city.radius),
-            }),
-        transform: { rotationY: yaw, scale: [slot.width, slot.height, 1], x, y: wall.y + slot.rise, z },
+    for (const slot of getWallSlots(building.kind, wallLength, wall.scale[1])) {
+      transforms.push({
+        rotationY: yaw,
+        scale: [slot.width, slot.height, 1],
+        x: building.x + slot.offset * cosine + standoff * sine,
+        y: wall.y + slot.rise,
+        z: building.z - slot.offset * sine + standoff * cosine,
       });
     }
   }
 
-  return drafts;
+  return transforms;
+};
+
+const draftWindow = (
+  building: NetworkSceneBuildingValue,
+  index: number,
+  transform: InstanceTransformValue,
+  { city, cityUnit }: BuildingGlowFrameValue,
+): WindowDraftValue => {
+  const windowKey = [building.id, index].join(':');
+  const isDark = hashUnit(NETWORK_WORLD_SEED, windowKey, NIGHT_SALT.windowDark) < DARK_WINDOW_SHARE;
+
+  return {
+    delay: isDark
+      ? DARK_WINDOW_DELAY
+      : computeWindowDelay({
+          cityUnit,
+          hashUnit: hashUnit(NETWORK_WORLD_SEED, windowKey, NIGHT_SALT.windowDelay),
+          localUnit: clampUnit(Math.hypot(transform.x - city.x, transform.z - city.z) / city.radius),
+        }),
+    transform,
+  };
+};
+
+const draftBuildingWindows = (
+  building: NetworkSceneBuildingValue,
+  cityById: ReadonlyMap<string, NetworkSceneCityValue>,
+  farthestCityDistance: number,
+  modelWindows: ModelWindowSourcesValue,
+): WindowDraftValue[] => {
+  const city = resolveCityFrame(building, cityById);
+  const frame: BuildingGlowFrameValue = { city, cityUnit: toDistanceUnit(Math.hypot(city.x, city.z), farthestCityDistance) };
+  const source = modelWindows.get(building.id);
+  const transforms = source === undefined ? listBoxWindowTransforms(building) : listModelWindowTransforms(building, source);
+
+  return transforms.map((transform, index) => draftWindow(building, index, transform, frame));
 };
 
 export const buildWindowInstances = (
   buildings: readonly NetworkSceneBuildingValue[],
   cities: readonly NetworkSceneCityValue[],
+  modelWindows: ModelWindowSourcesValue = EMPTY_MODEL_WINDOWS,
 ): WindowInstancesValue => {
   const ordered = orderBuildingsForDensity(buildings);
   const cityById = new Map(cities.map(city => [city.id, city]));
@@ -168,7 +160,7 @@ export const buildWindowInstances = (
   const windowEnds = new Uint32Array(ordered.length);
 
   for (const [index, building] of ordered.entries()) {
-    drafts.push(...draftBuildingWindows(building, cityById, farthestCityDistance));
+    drafts.push(...draftBuildingWindows(building, cityById, farthestCityDistance, modelWindows));
     windowEnds[index] = drafts.length;
   }
 

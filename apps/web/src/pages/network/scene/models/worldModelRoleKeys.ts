@@ -16,7 +16,7 @@ export const WORLD_MODEL_ROLE_KEYS: WorldModelRoleKeysValue = {
     orange: 'buildingRoofAlt',
     red: 'buildingBrick',
     terracotta: 'buildingRoofAlt',
-    yellow: 'lampGlow',
+    yellow: 'buildingRoofAlt',
   },
   office: {
     amber: 'sand',
@@ -28,7 +28,7 @@ export const WORLD_MODEL_ROLE_KEYS: WorldModelRoleKeysValue = {
     orange: 'buildingRoofAlt',
     red: 'buildingBrick',
     terracotta: 'buildingBrick',
-    yellow: 'lampGlow',
+    yellow: 'buildingRoofAlt',
   },
   warehouse: {
     amber: 'buildingRoofAlt',
@@ -40,6 +40,6 @@ export const WORLD_MODEL_ROLE_KEYS: WorldModelRoleKeysValue = {
     orange: 'buildingRoofAlt',
     red: 'buildingBrick',
     terracotta: 'buildingBrick',
-    yellow: 'lampGlow',
+    yellow: 'buildingRoofAlt',
   },
 };

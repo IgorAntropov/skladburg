@@ -4,6 +4,8 @@ import type {
   NetworkSceneLayoutValue,
   NetworkSceneRoadValue,
 } from '../layout';
+import type { ModelWindowSourceValue } from '../mix/createModelWindowSources';
+import type { WorldModelWindowValue } from '../models/listWorldModelWindows';
 
 import { buildNetworkSceneLayout } from '../layout';
 import {
@@ -73,3 +75,18 @@ const SAMPLE_SITES = SAMPLE_CITIES.map(city => createTestSite(`site-${city.id}`,
 
 export const buildSampleLayout = (): NetworkSceneLayoutValue =>
   buildNetworkSceneLayout(createTestModel(SAMPLE_CITIES, SAMPLE_ROADS, SAMPLE_SITES));
+
+export const createModelSource = (overrides: Partial<ModelWindowSourceValue> = {}): ModelWindowSourceValue => ({
+  bounds: { max: [0.5, 1, 0.25], min: [-0.5, 0, -0.25] },
+  glass: [],
+  group: 'house',
+  walls: undefined,
+  ...overrides,
+});
+
+export const createGlassWindows = (count: number): WorldModelWindowValue[] => Array.from({ length: count }, (_, index) => ({
+  center: [-0.4 + (index % 4) * 0.25, 0.2 + Math.floor(index / 4) * 0.25, 0.25],
+  face: 'positiveZ',
+  height: 0.15,
+  width: 0.1,
+}));

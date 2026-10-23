@@ -23,6 +23,7 @@ export default mergeConfig(
               'build-budget/**/*.test.ts',
               'build-theme/**/*.test.ts',
               'build-icons/**/*.test.ts',
+              'build-models/**/*.test.ts',
               'build-dev-https/**/*.test.ts',
               'build-boot-fallback/**/*.test.ts',
               'build-licenses/**/*.test.ts',

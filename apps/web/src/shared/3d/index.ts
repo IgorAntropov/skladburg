@@ -30,8 +30,13 @@ export { WORLD_GLOW_DELAY_ATTRIBUTE } from './materials/glowShader';
 export { useDayNightValue } from './materials/useDayNightValue';
 export { useWorldGlowMaterial } from './materials/useWorldGlowMaterial';
 export { useWorldMaterial } from './materials/useWorldMaterial';
+export { useWorldPalette } from './materials/useWorldPalette';
 export { WorldMaterialsProvider } from './materials/WorldMaterialsProvider';
 export { readWorldPalette } from './palette/readWorldPalette';
+export type {
+  WorldPaletteKeyValue,
+  WorldPaletteValue,
+} from './palette/worldPaletteKeys';
 export { AutoQualityMonitor } from './quality/AutoQualityMonitor';
 export type { AutoQualitySettingsValue } from './quality/createAutoQualityController';
 export type { QualityLevelValue } from './quality/qualityLevel';

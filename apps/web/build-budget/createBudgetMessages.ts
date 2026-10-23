@@ -1,4 +1,6 @@
 import type {
+  AssetBudgetMeasurementValue,
+  AssetBudgetValue,
   ChunkPackageViolationValue,
   ForbiddenPackageViolationValue,
   InitialBundleChunkValue,
@@ -100,4 +102,42 @@ export const createMissingLazyEntryMessage = (budgetName: string, entry: string)
   [
     `Lazy bundle "${budgetName}": module "${entry}" is not the entry of any dynamically imported chunk,`,
     'so its budget cannot be measured; fix the path in lazyEntryBudgets or load the module through import().',
+  ].join(' ');
+
+export interface AssetBudgetReportValue {
+  files: string[];
+  headroomKiloBytes: number;
+  kiloBytes: number;
+  maxKiloBytes: number;
+  name: string;
+}
+
+export const createAssetBudgetReport = (
+  measurement: AssetBudgetMeasurementValue,
+  limitBytes: number,
+): AssetBudgetReportValue => ({
+  files: measurement.files.map(file => `${file.fileName} ${formatKiloBytes(file.bytes)}`),
+  headroomKiloBytes: toKiloBytes(limitBytes - measurement.bytes),
+  kiloBytes: toKiloBytes(measurement.bytes),
+  maxKiloBytes: toKiloBytes(limitBytes),
+  name: measurement.budget.name,
+});
+
+export const createAssetBudgetViolationMessage = (
+  measurement: AssetBudgetMeasurementValue,
+  limitBytes: number,
+): string => {
+  const overshoot = formatKiloBytes(measurement.bytes - limitBytes);
+
+  return [
+    `Asset bundle "${measurement.budget.name}" weighs ${formatKiloBytes(measurement.bytes)} raw in "${measurement.budget.directory}",`,
+    `which exceeds the budget of ${formatKiloBytes(limitBytes)} by ${overshoot}.`,
+    `Files: ${measurement.files.map(file => `${file.fileName} ${formatKiloBytes(file.bytes)}`).join(', ')}.`,
+  ].join(' ');
+};
+
+export const createMissingAssetMessage = (budget: AssetBudgetValue): string =>
+  [
+    `Asset bundle "${budget.name}": no file with extension ${budget.extensions.join(', ')} found in "${budget.directory}" of the output,`,
+    'so its budget cannot be measured; check that the files are in public and the directory is right.',
   ].join(' ');

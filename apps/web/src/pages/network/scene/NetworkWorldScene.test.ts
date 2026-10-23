@@ -1,7 +1,10 @@
 import {
+  afterEach,
+  beforeEach,
   describe,
   expect,
   it,
+  vi,
 } from 'vitest';
 
 import {
@@ -10,6 +13,9 @@ import {
   createTestRoad,
   createTestSite,
 } from './layout/layoutTestSupport';
+import { loadWorldModels } from './models/loadWorldModels';
+import { COMPANY_WAREHOUSE_MODEL_ID } from './models/worldModelCatalog';
+import { createTestWorldModelBytes } from './models/worldModelTestSupport';
 import { NETWORK_WORLD_SIZE_METERS } from './networkWorldConstants';
 import {
   prepare,
@@ -23,6 +29,14 @@ const createModel = (): ReturnType<typeof createTestModel> => createTestModel(
 );
 
 describe('NetworkWorldScene module', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(Response.error())));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('gives the same world object for the same model and a different one for another model', () => {
     const model = createModel();
 
@@ -49,5 +63,19 @@ describe('NetworkWorldScene module', () => {
 
     await expect(prepare(model)).resolves.toBeUndefined();
     await expect(prepare(model)).resolves.toBeUndefined();
+  });
+
+  it('leaves the warehouses as boxes while the models are not available and keeps the model once it loads', async () => {
+    await expect(prepare(createModel())).resolves.toBeUndefined();
+    expect(loadWorldModels.peek(COMPANY_WAREHOUSE_MODEL_ID)).toBeUndefined();
+
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(createTestWorldModelBytes()))));
+
+    await expect(prepare(createModel())).resolves.toBeUndefined();
+
+    const warehouse = loadWorldModels.peek(COMPANY_WAREHOUSE_MODEL_ID);
+
+    expect(warehouse?.triangleCount).toBeGreaterThan(0);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

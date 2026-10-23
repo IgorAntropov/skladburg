@@ -125,13 +125,11 @@ export const buildChipSets = (buildings: readonly NetworkSceneBuildingValue[]): 
   const markerSources: ChipSlotValue[] = [];
 
   for (const [index, building] of companies.entries()) {
-    const ridgeHeight = PLAZA_HEIGHT_METERS + building.height;
-
     writeInstanceMatrix(postMatrices, index, {
       rotationY: 0,
-      scale: [CHIP_POST_WIDTH_METERS, Math.max(0, CHIP_POST_TOP_METERS - ridgeHeight), CHIP_POST_WIDTH_METERS],
+      scale: [CHIP_POST_WIDTH_METERS, CHIP_POST_TOP_METERS - PLAZA_HEIGHT_METERS, CHIP_POST_WIDTH_METERS],
       x: building.x,
-      y: ridgeHeight,
+      y: PLAZA_HEIGHT_METERS,
       z: building.z,
     });
   }

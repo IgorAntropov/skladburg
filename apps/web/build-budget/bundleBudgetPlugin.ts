@@ -1,6 +1,9 @@
 import type { Plugin } from 'vite';
 
+import { resolve } from 'node:path';
+
 import type {
+  AssetBudgetValue,
   BudgetChunkValue,
   ForbiddenPackageViolationValue,
   LazyBudgetMeasurementValue,
@@ -10,12 +13,15 @@ import type {
 import { BYTES_PER_KILOBYTE } from './bundleBudgetConstants.ts';
 import {
   createAnyChunkForbiddenPackageMessage,
+  createAssetBudgetReport,
+  createAssetBudgetViolationMessage,
   createBudgetReport,
   createBudgetViolationMessage,
   createForbiddenPackageMessage,
   createLazyBudgetForbiddenPackageMessage,
   createLazyBudgetReport,
   createLazyBudgetViolationMessage,
+  createMissingAssetMessage,
   createMissingLazyEntryMessage,
 } from './createBudgetMessages.ts';
 import {
@@ -25,6 +31,10 @@ import {
   findForbiddenPackageViolations,
 } from './forbiddenPackages.ts';
 import { gzipSizeInBytes } from './gzipSizeInBytes.ts';
+import {
+  assertValidAssetBudgets,
+  measureAssetBudget,
+} from './measureAssetBudget.ts';
 import { measureInitialBundles } from './measureInitialBundles.ts';
 import {
   assertValidLazyEntryBudgets,
@@ -48,19 +58,27 @@ export type BundleBudgetOutputValue
   | { type: 'asset' };
 
 export interface BundleBudgetPluginOptionsValue {
+  assetBudgets?: readonly AssetBudgetValue[];
   forbiddenInitialPackages: readonly string[];
   forbiddenPackages?: readonly string[];
   lazyEntryBudgets?: readonly LazyEntryBudgetValue[];
   maxInitialGzipKiloBytes: number;
 }
 
-export type BundleBudgetPluginValue = Omit<Plugin, 'generateBundle'> & {
+export type BundleBudgetPluginValue = Omit<Plugin, 'configResolved' | 'generateBundle' | 'writeBundle'> & {
+  configResolved: (config: BundleBudgetResolvedConfigValue) => void;
   generateBundle: (
     this: BundleBudgetContextValue,
     options: unknown,
     bundle: Readonly<Record<string, BundleBudgetOutputValue>>,
   ) => void;
+  writeBundle: (this: BundleBudgetContextValue) => void;
 };
+
+export interface BundleBudgetResolvedConfigValue {
+  build: { outDir: string };
+  root: string;
+}
 
 const toBudgetChunks = (bundle: Readonly<Record<string, BundleBudgetOutputValue>>): BudgetChunkValue[] =>
   Object.values(bundle).flatMap(output =>
@@ -106,11 +124,14 @@ const assertValidLimit = (maxInitialGzipKiloBytes: number): void => {
 
 export const bundleBudgetPlugin = (options: BundleBudgetPluginOptionsValue): BundleBudgetPluginValue => {
   const lazyEntryBudgets = options.lazyEntryBudgets ?? [];
+  const assetBudgets = options.assetBudgets ?? [];
+  let outDir = '';
 
   assertValidLimit(options.maxInitialGzipKiloBytes);
   assertValidForbiddenPackages(options.forbiddenInitialPackages);
   assertValidForbiddenPackages(options.forbiddenPackages ?? []);
   assertValidLazyEntryBudgets(lazyEntryBudgets);
+  assertValidAssetBudgets(assetBudgets);
 
   const limitBytes = toBytes(options.maxInitialGzipKiloBytes);
   const isForbiddenInitialPackage = createForbiddenPackageMatcher(options.forbiddenInitialPackages);
@@ -118,6 +139,9 @@ export const bundleBudgetPlugin = (options: BundleBudgetPluginOptionsValue): Bun
 
   return {
     apply: 'build',
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir);
+    },
     enforce: 'post',
     generateBundle(_options, bundle) {
       const budgetChunks = toBudgetChunks(bundle);
@@ -183,5 +207,30 @@ export const bundleBudgetPlugin = (options: BundleBudgetPluginOptionsValue): Bun
       }
     },
     name: 'skladburg:bundle-budget',
+    writeBundle() {
+      const measurements = assetBudgets.map(budget => measureAssetBudget(outDir, budget));
+      const violationMessages = measurements.flatMap((measurement) => {
+        if (measurement.files.length === 0) {
+          return measurement.budget.isRequired ? [createMissingAssetMessage(measurement.budget)] : [];
+        }
+
+        const limitBytes = toBytes(measurement.budget.maxKiloBytes);
+
+        return measurement.bytes > limitBytes ? [createAssetBudgetViolationMessage(measurement, limitBytes)] : [];
+      });
+
+      if (violationMessages.length > 0) {
+        this.error(violationMessages.join('\n'));
+      }
+
+      for (const measurement of measurements) {
+        if (measurement.files.length > 0) {
+          console.log(
+            '> bundleBudgetPlugin -> writeBundle:',
+            createAssetBudgetReport(measurement, toBytes(measurement.budget.maxKiloBytes)),
+          );
+        }
+      }
+    },
   };
 };

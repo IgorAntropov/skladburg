@@ -19,7 +19,11 @@ import {
 } from '@/shared/3d';
 
 import type { NetworkSceneInteractionValue } from '../model/networkSceneInteraction';
-import type { NetworkSceneLayoutValue } from './layout';
+import type {
+  NetworkSceneBuildingValue,
+  NetworkSceneLayoutValue,
+} from './layout';
+import type { WorldModelDataValue } from './models/format/worldModelFormat';
 
 import { createUnitBoxGeometry } from './geometry/createUnitBoxGeometry';
 import { EMPTY_ID_LIST } from './geometry/emptyIdList';
@@ -30,6 +34,7 @@ import { NetworkBuildings } from './layers/NetworkBuildings';
 import { NetworkCityLabels } from './layers/NetworkCityLabels';
 import { NetworkCityPlazas } from './layers/NetworkCityPlazas';
 import { NetworkLampLight } from './layers/NetworkLampLight';
+import { NetworkModelBuildings } from './layers/NetworkModelBuildings';
 import { NetworkRoads } from './layers/NetworkRoads';
 import { NetworkSelectionCorners } from './layers/NetworkSelectionCorners';
 import { NetworkShadowBlobs } from './layers/NetworkShadowBlobs';
@@ -38,6 +43,9 @@ import { NetworkStreetLamps } from './layers/NetworkStreetLamps';
 import { NetworkWindows } from './layers/NetworkWindows';
 import { useGlowProgramWarmup } from './layers/useGlowProgramWarmup';
 import { buildNetworkSceneLayout } from './layout';
+import { loadWorldModels } from './models/loadWorldModels';
+import { pickCompanyWarehouseModel } from './models/pickCompanyWarehouseModel';
+import { COMPANY_WAREHOUSE_MODEL_ID } from './models/worldModelCatalog';
 import { NETWORK_WORLD_SEED } from './networkWorldConstants';
 import {
   buildStreetLamps,
@@ -50,8 +58,21 @@ const createTerrainParams = (layout: NetworkSceneLayoutValue): Parameters<typeof
   world: layout.world,
 });
 
+const COMPANY_WAREHOUSE_MODEL_IDS: readonly string[] = [COMPANY_WAREHOUSE_MODEL_ID];
+
+const isModelBuilding = (building: NetworkSceneBuildingValue): boolean => pickCompanyWarehouseModel(building) !== undefined;
+
+const loadCompanyModels = async (): Promise<void> => {
+  try {
+    await loadWorldModels(COMPANY_WAREHOUSE_MODEL_IDS);
+  }
+  catch (error) {
+    console.log('> NetworkWorldScene -> prepare:', { error, ids: COMPANY_WAREHOUSE_MODEL_IDS });
+  }
+};
+
 export const prepare = async (data: NetworkMapModelValue): Promise<void> => {
-  await loadWorldTerrain(createTerrainParams(buildNetworkSceneLayout(data)));
+  await Promise.all([loadWorldTerrain(createTerrainParams(buildNetworkSceneLayout(data))), loadCompanyModels()]);
 };
 
 export const resolveWorld = (data: NetworkMapModelValue): SceneWorldValue => buildNetworkSceneLayout(data).world;
@@ -64,6 +85,22 @@ const NetworkWorldScene = ({
   const layout = buildNetworkSceneLayout(data);
   const terrain = loadWorldTerrain.peek(createTerrainParams(layout));
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
+  const warehouseModel = loadWorldModels.peek(COMPANY_WAREHOUSE_MODEL_ID);
+  const models = useMemo(
+    (): ReadonlyMap<string, WorldModelDataValue> => (
+      warehouseModel === undefined ? new Map() : new Map([[COMPANY_WAREHOUSE_MODEL_ID, warehouseModel]])
+    ),
+    [warehouseModel],
+  );
+  const hasWarehouseModel = warehouseModel !== undefined;
+  const modelBuildings = useMemo(
+    () => warehouseModel === undefined ? [] : layout.buildings.filter(isModelBuilding),
+    [layout.buildings, warehouseModel],
+  );
+  const boxBuildings = useMemo(
+    () => warehouseModel === undefined ? layout.buildings : layout.buildings.filter(building => !isModelBuilding(building)),
+    [layout.buildings, warehouseModel],
+  );
   const boxGeometry = useMemo((): BufferGeometry => createUnitBoxGeometry(), []);
   const windows = useMemo(() => buildWindowInstances(layout.buildings, layout.cities), [layout.buildings, layout.cities]);
   const lamps = useMemo(() => buildStreetLamps(layout.roads, layout.cities), [layout.cities, layout.roads]);
@@ -93,7 +130,15 @@ const NetworkWorldScene = ({
       <NetworkStreetLamps boxGeometry={boxGeometry} lamps={lamps} level={level} />
       <NetworkCityPlazas cities={layout.cities} hasShadowReceive={hasShadows} />
       <NetworkShadowBlobs buildings={layout.buildings} level={level} terrain={terrain} />
-      <NetworkBuildings boxGeometry={boxGeometry} buildings={layout.buildings} level={level} />
+      <NetworkBuildings boxGeometry={boxGeometry} buildings={boxBuildings} level={level} />
+      {hasWarehouseModel && (
+        <NetworkModelBuildings
+          buildings={modelBuildings}
+          level={level}
+          models={models}
+          pickModel={pickCompanyWarehouseModel}
+        />
+      )}
       <NetworkWindows level={level} windows={windows} />
       <NetworkSelectionCorners
         boxGeometry={boxGeometry}

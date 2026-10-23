@@ -56,11 +56,23 @@ const MAX_ORGANIZATION_TABLE_GZIP_KILOBYTES = 97.5;
 
 const MAX_MY_PROFILE_GZIP_KILOBYTES = 129.5;
 
+const MAX_WORLD_MODELS_KILOBYTES = 300;
+
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
-const PRECACHE_GLOB_PATTERNS = ['**/*.{js,css,html,woff2,svg,png}'];
+const PRECACHE_GLOB_PATTERNS = ['**/*.{js,css,html,woff2,svg,png,bin}'];
 
 const NAVIGATE_FALLBACK_DENYLIST = [/^[^?]*\/[^/?]*\.(?!html(?:\?|$))[^/.?]+(?:\?|$)/];
+
+const ASSET_BUDGETS = [
+  {
+    directory: 'models',
+    extensions: ['.bin'],
+    isRequired: true,
+    maxKiloBytes: MAX_WORLD_MODELS_KILOBYTES,
+    name: 'world-models',
+  },
+];
 
 const FORBIDDEN_PACKAGES = ['stats-gl', 'stats.js'];
 
@@ -286,6 +298,7 @@ export default defineConfig({
       },
     }),
     bundleBudgetPlugin({
+      assetBudgets: ASSET_BUDGETS,
       forbiddenInitialPackages: FORBIDDEN_INITIAL_PACKAGES,
       forbiddenPackages: FORBIDDEN_PACKAGES,
       lazyEntryBudgets: LAZY_ENTRY_BUDGETS,

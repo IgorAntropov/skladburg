@@ -65,15 +65,22 @@ describe('buildChipSets', () => {
     expect([second.x, second.y, second.z]).toEqual([5, expect.closeTo(3.7, 5), 3]);
   });
 
-  it('puts a post from the ridge to 2.5 m under every plate and none under decor', () => {
+  it('puts a post from the plaza to 2.5 m under every plate and none under decor', () => {
     const { postMatrices } = buildChipSets(buildings);
     const position = new Vector3().fromArray(postMatrices, 12);
 
     expect(postMatrices).toHaveLength(3 * 16);
     expect(position.x).toBeCloseTo(5, 5);
-    expect(position.y).toBeCloseTo(1.6, 5);
-    expect(postMatrices[5]).toBeCloseTo(0.9, 5);
+    expect(position.y).toBeCloseTo(0.1, 5);
+    expect(postMatrices[5]).toBeCloseTo(2.4, 5);
     expect(postMatrices[0]).toBeCloseTo(0.16, 5);
+  });
+
+  it('starts the post at the plaza whatever the height of the building is', () => {
+    const { postMatrices } = buildChipSets([createBuilding({ height: 3.2 })]);
+
+    expect(postMatrices[13]).toBeCloseTo(0.1, 5);
+    expect(postMatrices[5]).toBeCloseTo(2.4, 5);
   });
 
   it('returns empty buffers when there are no company buildings', () => {

@@ -1,3 +1,22 @@
+export interface AssetBudgetFileValue {
+  bytes: number;
+  fileName: string;
+}
+
+export interface AssetBudgetMeasurementValue {
+  budget: AssetBudgetValue;
+  bytes: number;
+  files: readonly AssetBudgetFileValue[];
+}
+
+export interface AssetBudgetValue {
+  directory: string;
+  extensions: readonly string[];
+  isRequired: boolean;
+  maxKiloBytes: number;
+  name: string;
+}
+
 export interface BudgetChunkValue {
   fileName: string;
   gzipBytes: number;

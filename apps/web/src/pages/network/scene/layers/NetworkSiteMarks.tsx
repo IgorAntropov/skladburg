@@ -44,13 +44,13 @@ import {
   resolveSiteMarkIsFar,
   writeSiteMarkModeIsFar,
 } from '../banner/siteMarkMetrics';
-import {
-  applyChipAzimuth,
-  getCameraAzimuth,
-} from '../geometry/chipOrientation';
 import { INSTANCE_MATRIX_ITEM_SIZE } from '../geometry/composeInstanceMatrix';
 import { createOwnMarkerGeometries } from '../geometry/createOwnMarkerGeometry';
-import { CHIP_AZIMUTH_EPSILON_RADIANS } from '../geometry/networkSceneMetrics';
+import { SITE_MARK_AZIMUTH_EPSILON_RADIANS } from '../geometry/networkSceneMetrics';
+import {
+  applySiteMarkAzimuth,
+  getCameraAzimuth,
+} from '../geometry/siteMarkOrientation';
 import {
   UNLIT_RIM_SPEC,
   UNLIT_ROAD_SPEC,
@@ -110,7 +110,7 @@ export const NetworkSiteMarks = ({
   const applyView = useCallback((azimuth: number, isFar: boolean): void => {
     writeSiteMarkModeIsFar(markMode, isFar);
     writeSiteBannerFar(uniforms, isFar);
-    applyChipAzimuth(set.matrices, set.count, azimuth, set.hoverMask);
+    applySiteMarkAzimuth(set.matrices, set.count, azimuth, set.hoverMask);
     writeSiteMarkMarkerMatrices(set, isFar);
     markInstanceMatricesUpdated(groupRef.current);
   }, [markMode, set, uniforms]);
@@ -119,7 +119,7 @@ export const NetworkSiteMarks = ({
     const azimuth = getCameraAzimuth(state.camera.quaternion);
     const isFar = resolveSiteMarkIsFar(readCameraZoom(state.camera), markMode.isFar);
 
-    if (Math.abs(azimuth - azimuthRef.current) < CHIP_AZIMUTH_EPSILON_RADIANS && isFar === markMode.isFar) {
+    if (Math.abs(azimuth - azimuthRef.current) < SITE_MARK_AZIMUTH_EPSILON_RADIANS && isFar === markMode.isFar) {
       return;
     }
 

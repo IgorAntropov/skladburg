@@ -23,6 +23,7 @@ export const listSiteBannerEntries = (
 
     if (site !== undefined && !entryByOrganizationId.has(site.organizationId)) {
       entryByOrganizationId.set(site.organizationId, {
+        logoPath: site.organizationLogo?.lightPath ?? '',
         monogram: buildMonogramParts(site.organizationName),
         organizationId: site.organizationId,
         side: site.side,

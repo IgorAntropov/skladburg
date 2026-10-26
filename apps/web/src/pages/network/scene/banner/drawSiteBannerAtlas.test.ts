@@ -7,6 +7,7 @@ import {
 import { SIDE_SHAPES } from '@/entities/organization';
 
 import type { SiteBannerEntryValue } from './siteBannerEntry';
+import type { SiteBannerLogoImageValue } from './siteBannerLogos';
 
 import { drawSiteBannerAtlas } from './drawSiteBannerAtlas';
 import {
@@ -29,10 +30,19 @@ const ENTRIES: readonly SiteBannerEntryValue[] = [
   createTestEntry('p1', 'carrier', { index: '7', letters: '' }),
 ];
 
-const drawEntries = (entries: readonly SiteBannerEntryValue[]): ReturnType<typeof createRecordingContext> => {
+const createLogoImage = (width: number, height: number): SiteBannerLogoImageValue => ({
+  height,
+  image: { close: () => undefined } as unknown as CanvasImageSource,
+  width,
+});
+
+const drawEntries = (
+  entries: readonly SiteBannerEntryValue[],
+  logos: ReadonlyMap<string, SiteBannerLogoImageValue> = new Map(),
+): ReturnType<typeof createRecordingContext> => {
   const context = createRecordingContext();
 
-  drawSiteBannerAtlas(context, computeSiteBannerAtlasLayout(entries.length), entries, COLORS);
+  drawSiteBannerAtlas(context, computeSiteBannerAtlasLayout(entries.length), entries, COLORS, path => logos.get(path));
 
   return context;
 };
@@ -167,5 +177,90 @@ describe('drawSiteBannerAtlas', () => {
 
     expect(context.countOf('roundRect')).toBe(53 + 3);
     expect(context.countOf('fillText')).toBe(53 * 2);
+  });
+
+  describe('with logos', () => {
+    const LOGO_ENTRIES: readonly SiteBannerEntryValue[] = [
+      createTestEntry('c1', 'customer', { index: '1', letters: 'Зак' }, 'logos/c1.svg'),
+      createTestEntry('s1', 'supplier', { index: '1', letters: 'Пос' }, 'logos/s1.svg'),
+      createTestEntry('s2', 'supplier', { index: '2', letters: 'Пос' }, 'logos/s2.svg'),
+    ];
+
+    it('draws the picture once into the logo field of the cell and no monogram for an organization with a ready logo', () => {
+      const image = createLogoImage(124, 76);
+      const context = drawEntries(LOGO_ENTRIES.slice(0, 1), new Map([['logos/c1.svg', image]]));
+      const cell = readNearCellPixels(computeSiteBannerAtlasLayout(1), 0);
+
+      expect(context.countOf('drawImage')).toBe(1);
+      expect(context.drawnImages).toEqual([image.image]);
+      expect(context.calls.find(call => call.op === 'drawImage')?.args).toEqual([cell.x + 60, cell.y + 30, 124, 76]);
+      expect(context.countOf('fillText')).toBe(0);
+      expect(context.countOf('arc')).toBe(0);
+    });
+
+    it('keeps the frame and the glyph of the side for an organization with a logo', () => {
+      const withLogo = drawEntries(LOGO_ENTRIES.slice(0, 1), new Map([['logos/c1.svg', createLogoImage(124, 76)]]));
+      const withMonogram = drawEntries(LOGO_ENTRIES.slice(0, 1));
+
+      for (const op of ['roundRect', 'closePath', 'moveTo', 'lineTo', 'stroke']) {
+        expect(withLogo.countOf(op)).toBe(withMonogram.countOf(op));
+      }
+
+      expect(withLogo.countOf('roundRect')).toBe(1 + 3);
+      expect(withLogo.calls.filter(call => call.op === 'stroke' && call.strokeStyle === COLORS.customer)).toHaveLength(2);
+      expect(withLogo.calls.filter(call => call.op === 'fill' && call.fillStyle === COLORS.customer)).toHaveLength(3);
+    });
+
+    it('draws one picture for each organization whose logo is ready and the monogram for the others', () => {
+      const logos = new Map([
+        ['logos/c1.svg', createLogoImage(124, 76)],
+        ['logos/s2.svg', createLogoImage(140, 76)],
+      ]);
+      const context = drawEntries(LOGO_ENTRIES, logos);
+
+      expect(context.countOf('drawImage')).toBe(2);
+      expect(context.calls.filter(call => call.op === 'fillText').map(call => call.args[0])).toEqual(['Пос', '1']);
+    });
+
+    it('draws the monogram when the logo is not ready or the entry has no path', () => {
+      const entries = [
+        createTestEntry('a', 'customer', { index: '1', letters: 'Зак' }, 'logos/a.svg'),
+        createTestEntry('b', 'customer', { index: '2', letters: 'Зак' }),
+      ];
+      const context = drawEntries(entries);
+
+      expect(context.countOf('drawImage')).toBe(0);
+      expect(context.countOf('fillText')).toBe(4);
+    });
+
+    it('draws the monogram when the picture has no size', () => {
+      const context = drawEntries(
+        LOGO_ENTRIES.slice(0, 1),
+        new Map([['logos/c1.svg', createLogoImage(0, 76)]]),
+      );
+
+      expect(context.countOf('drawImage')).toBe(0);
+      expect(context.countOf('fillText')).toBe(2);
+    });
+
+    it('shrinks a picture that is bigger than the field and never makes a small one bigger', () => {
+      const context = drawEntries(
+        LOGO_ENTRIES.slice(0, 2),
+        new Map([
+          ['logos/c1.svg', createLogoImage(284, 152)],
+          ['logos/s1.svg', createLogoImage(60, 30)],
+        ]),
+      );
+      const [big, small] = context.calls.filter(call => call.op === 'drawImage');
+
+      expect(big?.args.slice(2)).toEqual([142, 76]);
+      expect(small?.args.slice(2)).toEqual([60, 30]);
+    });
+
+    it('draws no picture in the shared cells of the sides', () => {
+      const context = drawEntries([], new Map([['logos/c1.svg', createLogoImage(124, 76)]]));
+
+      expect(context.countOf('drawImage')).toBe(0);
+    });
   });
 });

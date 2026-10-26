@@ -48,6 +48,12 @@ export interface CityLabelPlacementValue {
 
 export type DragDirectionValue = 'down' | 'left' | 'right' | 'up';
 
+export interface LogoResponseValue {
+  origin: string;
+  pathname: string;
+  status: number;
+}
+
 export interface SceneRobotValue {
   chooseGraphicsPreference: (preference: GraphicsPreferenceValue) => Promise<void>;
   countBannerPlatePixels: (snapshot: Buffer) => Promise<number>;
@@ -80,7 +86,10 @@ export interface SceneRobotValue {
   readCityLabelOffset: (cityId: string) => Promise<CityLabelOffsetValue | undefined>;
   readDrawCalls: () => Promise<number>;
   readDrawFrames: () => Promise<number>;
+  readLogoRequestPaths: () => string[];
+  readLogoResponses: () => LogoResponseValue[];
   readLongTaskDurations: () => Promise<number[]>;
+  readPageErrors: () => string[];
   readSettleOffsetMs: () => Promise<number>;
   readThemeChangeDelayMs: () => Promise<number>;
   readTransitionLongTaskDurations: () => Promise<number[]>;
@@ -92,6 +101,8 @@ export interface SceneRobotValue {
   waitForDrawCallsToExceed: (count: number) => Promise<void>;
   waitForDrawFramesToExceed: (count: number, message: string) => Promise<void>;
   waitForIdle: () => Promise<void>;
+  watchLogoRequests: () => void;
+  watchPageErrors: () => void;
   watchSceneChunkRequests: () => void;
 }
 
@@ -116,6 +127,7 @@ const SCENE_STATE_TIMEOUT_MS = 40_000;
 const DRAG_STEPS = 6;
 const DRAG_SPAN_RATIO = 0.4;
 const LABEL_POLL_TIMEOUT_MS = 20_000;
+const LOGO_PATH_PATTERN = /\/logos\/[^/]+\.svg$/;
 const SCENE_CHUNK_PATTERN = /\/assets\/(?:NetworkWorldScene|SceneRoot)-[^/]+\.js$/;
 
 export const createSceneRobot = (page: Page): SceneRobotValue => {
@@ -130,6 +142,9 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
   const freeArea = page.getByTestId('hud-free-area');
   const cityLabels = page.getByTestId('network-city-label');
   const requestedSceneChunks: string[] = [];
+  const logoRequestPaths: string[] = [];
+  const logoResponses: LogoResponseValue[] = [];
+  const pageErrors: string[] = [];
   let isInitScriptAdded = false;
 
   const ensureDrawCounter = async (): Promise<void> => {
@@ -372,9 +387,12 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     readCityLabelOffset,
     readDrawCalls,
     readDrawFrames,
+    readLogoRequestPaths: () => [...logoRequestPaths],
+    readLogoResponses: () => [...logoResponses],
     async readLongTaskDurations(): Promise<number[]> {
       return page.evaluate<number[]>(READ_LONG_TASK_DURATIONS_SCRIPT);
     },
+    readPageErrors: () => [...pageErrors],
     async readSettleOffsetMs(): Promise<number> {
       return page.evaluate<number>(READ_SETTLE_OFFSET_SCRIPT);
     },
@@ -419,6 +437,27 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
           + `frames=${String(result.frames)}`,
         );
       }
+    },
+    watchLogoRequests(): void {
+      page.on('request', (request) => {
+        const { pathname } = new URL(request.url());
+
+        if (LOGO_PATH_PATTERN.test(pathname)) {
+          logoRequestPaths.push(pathname);
+        }
+      });
+      page.on('response', (response) => {
+        const { origin, pathname } = new URL(response.url());
+
+        if (LOGO_PATH_PATTERN.test(pathname)) {
+          logoResponses.push({ origin, pathname, status: response.status() });
+        }
+      });
+    },
+    watchPageErrors(): void {
+      page.on('pageerror', (error) => {
+        pageErrors.push(error.message);
+      });
     },
     watchSceneChunkRequests(): void {
       page.on('request', (request) => {

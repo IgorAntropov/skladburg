@@ -11,8 +11,8 @@ import {
   SITE_MARK_NEAR_PICK_RADIUS_METERS,
 } from '../banner/siteMarkMetrics';
 import {
-  CHIP_CENTER_HEIGHT_METERS,
   PLAZA_HEIGHT_METERS,
+  SITE_MARK_CENTER_HEIGHT_METERS,
 } from '../geometry/networkSceneMetrics';
 import {
   createScreenPoint,
@@ -58,7 +58,7 @@ const scratch: ProjectionScratchValue = {
   basePoint: createScreenPoint(),
   origin: { x: 0, y: 0, z: 0 },
   originPoint: createScreenPoint(),
-  tip: { x: 0, y: CHIP_CENTER_HEIGHT_METERS, z: 0 },
+  tip: { x: 0, y: SITE_MARK_CENTER_HEIGHT_METERS, z: 0 },
   tipPoint: createScreenPoint(),
   unitRight: new Vector3(),
   unitRightPoint: createScreenPoint(),

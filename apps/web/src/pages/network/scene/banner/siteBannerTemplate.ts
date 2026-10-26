@@ -50,6 +50,13 @@ export const SITE_BANNER_INDEX_WEIGHT = 600;
 
 export const SITE_BANNER_MAX_TEXT_WIDTH_PX = 142;
 
+export const SITE_BANNER_LOGO_FIELD = {
+  centerXPx: 122,
+  centerYPx: 68,
+  heightPx: 76,
+  widthPx: 142,
+} as const;
+
 export const SITE_BANNER_SIZE_LADDER_PX: readonly number[] = Array.from(
   { length: 22 },
   (_, position) => 72 - position * 2,

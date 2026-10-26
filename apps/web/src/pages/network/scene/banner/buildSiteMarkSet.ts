@@ -7,15 +7,15 @@ import type { NetworkSceneBuildingValue } from '../layout';
 import type { ISiteBannerCellLookup } from './createSiteBannerCellLookup';
 import type { SiteBannerCellUvValue } from './siteBannerAtlasLayout';
 
-import { applyChipAzimuth } from '../geometry/chipOrientation';
 import {
   INSTANCE_MATRIX_ITEM_SIZE,
   writeInstanceMatrix,
 } from '../geometry/composeInstanceMatrix';
 import {
-  CHIP_CENTER_HEIGHT_METERS,
   PLAZA_HEIGHT_METERS,
+  SITE_MARK_CENTER_HEIGHT_METERS,
 } from '../geometry/networkSceneMetrics';
+import { applySiteMarkAzimuth } from '../geometry/siteMarkOrientation';
 import {
   SITE_MARK_OWN_FAR_RIGHT_METERS,
   SITE_MARK_OWN_FAR_UP_METERS,
@@ -128,7 +128,7 @@ export const buildSiteMarkSet = (
       rotationY: 0,
       scale: [1, 1, 1],
       x: building.x,
-      y: CHIP_CENTER_HEIGHT_METERS,
+      y: SITE_MARK_CENTER_HEIGHT_METERS,
       z: building.z,
     });
     writeInstanceMatrix(postMatrices, slot, {
@@ -147,7 +147,7 @@ export const buildSiteMarkSet = (
     }
   }
 
-  applyChipAzimuth(matrices, companies.length, 0, undefined);
+  applySiteMarkAzimuth(matrices, companies.length, 0, undefined);
 
   const set: SiteMarkSetValue = {
     count: companies.length,

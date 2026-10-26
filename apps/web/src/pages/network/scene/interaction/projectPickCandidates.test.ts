@@ -78,7 +78,7 @@ describe('projectPickCandidates', () => {
     expect(candidates.cities).toHaveLength(2);
   });
 
-  it('puts the chip of a site over its base on the screen', () => {
+  it('puts the site mark of a site over its base on the screen', () => {
     const layout = createLayout();
     const targets = buildPickTargets(layout);
     const candidates = projectPickCandidates(targets, createCamera(Math.PI / 4), SIZE, createPickCandidates(targets), true);

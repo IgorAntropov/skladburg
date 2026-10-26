@@ -50,13 +50,15 @@ const MAX_NETWORK_MINI_MAP_GZIP_KILOBYTES = 69;
 
 const MAX_NETWORK_SITES_GZIP_KILOBYTES = 95;
 
-const MAX_NETWORK_COMPANIES_GZIP_KILOBYTES = 96.3;
+const MAX_NETWORK_COMPANIES_GZIP_KILOBYTES = 96.5;
 
 const MAX_ORGANIZATION_TABLE_GZIP_KILOBYTES = 97.5;
 
 const MAX_MY_PROFILE_GZIP_KILOBYTES = 129.5;
 
 const MAX_WORLD_MODELS_KILOBYTES = 300;
+
+const MAX_ORGANIZATION_LOGOS_KILOBYTES = 40;
 
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
@@ -71,6 +73,13 @@ const ASSET_BUDGETS = [
     isRequired: true,
     maxKiloBytes: MAX_WORLD_MODELS_KILOBYTES,
     name: 'world-models',
+  },
+  {
+    directory: 'logos',
+    extensions: ['.svg'],
+    isRequired: true,
+    maxKiloBytes: MAX_ORGANIZATION_LOGOS_KILOBYTES,
+    name: 'organization-logos',
   },
 ];
 

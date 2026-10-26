@@ -7,12 +7,20 @@ import type { ISiteBannerCellLookup } from './createSiteBannerCellLookup';
 import type { SiteBannerDrawContextValue } from './drawSiteBannerAtlas';
 import type { SiteBannerColorsValue } from './siteBannerColors';
 import type { SiteBannerEntryValue } from './siteBannerEntry';
+import type {
+  ISiteBannerLogoLoader,
+  SiteBannerLogoImageValue,
+} from './siteBannerLogos';
 
 import { createSiteBannerCellLookup } from './createSiteBannerCellLookup';
 import { drawSiteBannerAtlas } from './drawSiteBannerAtlas';
 import { computeSiteBannerAtlasLayout } from './siteBannerAtlasLayout';
 import { buildSiteBannerColorsSignature } from './siteBannerColors';
 import { isSiteBannerFontReady } from './siteBannerFonts';
+import {
+  listSiteBannerLogoPaths,
+  siteBannerLogoLoader,
+} from './siteBannerLogos';
 
 export interface ISiteBannerAtlas extends ISiteBannerCellLookup {
   dispose: () => void;
@@ -23,6 +31,7 @@ export interface ISiteBannerAtlas extends ISiteBannerCellLookup {
 export interface SiteBannerAtlasDependenciesValue {
   createSurface: (width: number, height: number) => SiteBannerSurfaceValue;
   isFontReady: () => boolean;
+  peekLogo: (path: string) => SiteBannerLogoImageValue | undefined;
 }
 
 export interface SiteBannerSurfaceValue {
@@ -47,10 +56,32 @@ const createDomSurface = (width: number, height: number): SiteBannerSurfaceValue
   return { canvas, context };
 };
 
-const DOM_DEPENDENCIES: SiteBannerAtlasDependenciesValue = {
+export const createDomSiteBannerAtlasDependencies = (
+  logoLoader: ISiteBannerLogoLoader,
+): SiteBannerAtlasDependenciesValue => ({
   createSurface: createDomSurface,
   isFontReady: isSiteBannerFontReady,
+  peekLogo: logoLoader.peek,
+});
+
+const DOM_DEPENDENCIES = createDomSiteBannerAtlasDependencies(siteBannerLogoLoader);
+
+const FIRST_PIXEL_SIZE_PX = 1;
+
+const isCanvasReadable = (context: SiteBannerDrawContextValue): boolean => {
+  try {
+    context.getImageData(0, 0, FIRST_PIXEL_SIZE_PX, FIRST_PIXEL_SIZE_PX);
+
+    return true;
+  }
+  catch (error: unknown) {
+    console.log('> SiteBannerAtlas -> redraw:', { error, reason: 'the canvas is not readable, logos are off' });
+
+    return false;
+  }
 };
+
+const readNoLogo = (): undefined => undefined;
 
 export const createSiteBannerAtlas = (
   entries: readonly SiteBannerEntryValue[],
@@ -58,23 +89,64 @@ export const createSiteBannerAtlas = (
   dependencies: SiteBannerAtlasDependenciesValue = DOM_DEPENDENCIES,
 ): ISiteBannerAtlas => {
   const layout = computeSiteBannerAtlasLayout(entries.length);
-  const { canvas, context } = dependencies.createSurface(layout.width, layout.height);
-  const texture = new CanvasTexture(canvas);
+  const surface = dependencies.createSurface(layout.width, layout.height);
+  const texture = new CanvasTexture(surface.canvas);
   const { getFarCell, getNearCell } = createSiteBannerCellLookup(layout, entries);
+  const logoPaths = listSiteBannerLogoPaths(entries.slice(0, layout.capacity));
+  let context = surface.context;
+  let areLogosBlocked = false;
   let drawnSignature: string | undefined;
 
   texture.colorSpace = SRGBColorSpace;
   texture.anisotropy = Math.max(1, Math.min(SITE_BANNER_MAX_ANISOTROPY, anisotropy));
 
+  const listReadyLogos = (): Map<string, SiteBannerLogoImageValue> => {
+    const readyLogos = new Map<string, SiteBannerLogoImageValue>();
+
+    if (areLogosBlocked) {
+      return readyLogos;
+    }
+
+    for (const path of logoPaths) {
+      const logo = dependencies.peekLogo(path);
+
+      if (logo !== undefined) {
+        readyLogos.set(path, logo);
+      }
+    }
+
+    return readyLogos;
+  };
+
+  const buildSignature = (colors: SiteBannerColorsValue, readyPaths: Iterable<string>): string => [
+    buildSiteBannerColorsSignature(colors),
+    dependencies.isFontReady() ? 'font' : 'fallback',
+    [...readyPaths].toSorted().join('\n'),
+  ].join('|');
+
   const redraw = (colors: SiteBannerColorsValue): boolean => {
-    const signature = `${buildSiteBannerColorsSignature(colors)}|${dependencies.isFontReady() ? 'font' : 'fallback'}`;
+    const readyLogos = listReadyLogos();
+    const signature = buildSignature(colors, readyLogos.keys());
 
     if (signature === drawnSignature) {
       return false;
     }
 
-    drawSiteBannerAtlas(context, layout, entries, colors);
-    drawnSignature = signature;
+    drawSiteBannerAtlas(context, layout, entries, colors, path => readyLogos.get(path));
+
+    if (readyLogos.size > 0 && !isCanvasReadable(context)) {
+      const cleanSurface = dependencies.createSurface(layout.width, layout.height);
+
+      areLogosBlocked = true;
+      context = cleanSurface.context;
+      texture.image = cleanSurface.canvas;
+      drawSiteBannerAtlas(context, layout, entries, colors, readNoLogo);
+      drawnSignature = buildSignature(colors, []);
+    }
+    else {
+      drawnSignature = signature;
+    }
+
     texture.needsUpdate = true;
 
     return true;

@@ -30,6 +30,10 @@ import {
 } from '@/shared/3d';
 
 import type { ISiteBannerAtlas } from './createSiteBannerAtlas';
+import type {
+  ISiteBannerLogoLoader,
+  SiteBannerLogoImageValue,
+} from './siteBannerLogos';
 import type { RecordingContextValue } from './siteBannerTestSupport';
 
 import {
@@ -43,6 +47,18 @@ import {
 } from './siteBannerTestSupport';
 import { useSiteBannerAtlas } from './useSiteBannerAtlas';
 
+interface FakeLogoLoaderValue extends ISiteBannerLogoLoader {
+  fail: () => Promise<void>;
+  loadMock: Mock<(paths: readonly string[]) => Promise<void>>;
+  readRequestedPaths: () => string[];
+  release: () => Promise<void>;
+}
+
+interface HarnessOptionsValue {
+  entries?: typeof ENTRIES;
+  logoLoader?: ISiteBannerLogoLoader;
+}
+
 interface HarnessValue {
   atlas: () => ISiteBannerAtlas | undefined;
   invalidate: Mock;
@@ -54,13 +70,59 @@ const ENTRIES = [
   createTestEntry('s1', 'supplier', { index: '1', letters: 'Пос' }),
 ];
 
+const LOGO_ENTRIES = [
+  createTestEntry('c1', 'customer', { index: '1', letters: 'Зак' }, 'logos/c1.svg'),
+  createTestEntry('s1', 'supplier', { index: '1', letters: 'Пос' }, 'logos/s1.svg'),
+];
+
+const createLogoImage = (): SiteBannerLogoImageValue => ({
+  height: 76,
+  image: { close: () => undefined } as unknown as CanvasImageSource,
+  width: 124,
+});
+
+const createFakeLogoLoader = (readyPaths: readonly string[] = []): FakeLogoLoaderValue => {
+  const logos = new Map(readyPaths.map((path): [string, SiteBannerLogoImageValue] => [path, createLogoImage()]));
+  const pending: { paths: readonly string[]; resolve: () => void }[] = [];
+  const loadMock = vi.fn((paths: readonly string[]): Promise<void> => new Promise<void>((resolve) => {
+    pending.push({ paths, resolve });
+  }));
+
+  const settle = async (isLoaded: boolean): Promise<void> => {
+    for (const { paths, resolve } of pending.splice(0)) {
+      if (isLoaded) {
+        for (const path of paths) {
+          logos.set(path, createLogoImage());
+        }
+      }
+
+      resolve();
+    }
+
+    await Promise.resolve();
+  };
+
+  return {
+    fail: async (): Promise<void> => { await settle(false); },
+    load: loadMock,
+    loadMock,
+    peek: (path): SiteBannerLogoImageValue | undefined => logos.get(path),
+    readRequestedPaths: (): string[] => [...new Set(loadMock.mock.calls.flatMap(call => call[0]))].toSorted(),
+    release: async (): Promise<void> => { await settle(true); },
+  };
+};
+
 const PALETTE = readWorldPalette(() => '#808080');
 
 const OTHER_PALETTE: WorldPaletteValue = { ...PALETTE, bannerPlate: { alpha: 1, blue: 10, green: 20, red: 30 } };
 
 const SAME_COLORS_PALETTE: WorldPaletteValue = { ...PALETTE, ground: { alpha: 1, blue: 1, green: 2, red: 3 } };
 
-const renderHarness = async (context: RecordingContextValue): Promise<HarnessValue> => {
+const renderHarness = async (
+  context: RecordingContextValue,
+  options: HarnessOptionsValue = {},
+): Promise<HarnessValue> => {
+  const initialEntries = options.entries ?? ENTRIES;
   let latest: RootState | undefined;
   let atlas: ISiteBannerAtlas | undefined;
   const invalidate = vi.fn();
@@ -71,7 +133,7 @@ const renderHarness = async (context: RecordingContextValue): Promise<HarnessVal
     const get = useThree(current => current.get);
     const set = useThree(current => current.set);
 
-    atlas = useSiteBannerAtlas(entries);
+    atlas = useSiteBannerAtlas(entries, options.logoLoader);
 
     useEffect(() => {
       set({ invalidate });
@@ -96,7 +158,7 @@ const renderHarness = async (context: RecordingContextValue): Promise<HarnessVal
     </Canvas>
   );
 
-  const result = render(createScene(PALETTE, ENTRIES));
+  const result = render(createScene(PALETTE, initialEntries));
 
   await waitFor(() => {
     expect(latest).toBeDefined();
@@ -105,7 +167,7 @@ const renderHarness = async (context: RecordingContextValue): Promise<HarnessVal
   return {
     atlas: (): ISiteBannerAtlas | undefined => atlas,
     invalidate,
-    update: (palette, entries = ENTRIES): void => {
+    update: (palette, entries = initialEntries): void => {
       act(() => {
         result.rerender(createScene(palette, entries));
       });
@@ -229,5 +291,94 @@ describe('useSiteBannerAtlas', () => {
     });
 
     expect(invalidate).toHaveBeenCalled();
+  });
+
+  describe('with logos', () => {
+    const LOGO_PATHS = ['logos/c1.svg', 'logos/s1.svg'];
+
+    it('draws the logos that were ready before the mount in the one first draw and loads nothing', async () => {
+      const context = createRecordingContext();
+      const logoLoader = createFakeLogoLoader(LOGO_PATHS);
+
+      await renderHarness(context, { entries: LOGO_ENTRIES, logoLoader });
+
+      expect(context.countOf('clearRect')).toBe(1);
+      expect(context.countOf('drawImage')).toBe(2);
+      expect(context.countOf('fillText')).toBe(0);
+      expect(logoLoader.loadMock).not.toHaveBeenCalled();
+    });
+
+    it('asks for the logos that are not ready and redraws once with one more frame when they come', async () => {
+      const context = createRecordingContext();
+      const logoLoader = createFakeLogoLoader(['logos/c1.svg']);
+      const { invalidate } = await renderHarness(context, { entries: LOGO_ENTRIES, logoLoader });
+
+      expect(logoLoader.readRequestedPaths()).toEqual(['logos/s1.svg']);
+      expect(context.countOf('clearRect')).toBe(1);
+
+      const invalidatesBefore = invalidate.mock.calls.length;
+
+      await act(async () => {
+        await logoLoader.release();
+      });
+
+      await waitFor(() => {
+        expect(context.countOf('clearRect')).toBe(2);
+      });
+
+      expect(invalidate.mock.calls.length).toBe(invalidatesBefore + 1);
+      expect(context.calls.filter(call => call.op === 'drawImage')).toHaveLength(1 + 2);
+    });
+
+    it('does not redraw and does not ask for a frame when the logos fail to load', async () => {
+      const context = createRecordingContext();
+      const logoLoader = createFakeLogoLoader();
+      const { invalidate } = await renderHarness(context, { entries: LOGO_ENTRIES, logoLoader });
+      const invalidatesBefore = invalidate.mock.calls.length;
+
+      expect(logoLoader.readRequestedPaths()).toEqual(LOGO_PATHS);
+
+      await act(async () => {
+        await logoLoader.fail();
+      });
+
+      expect(context.countOf('clearRect')).toBe(1);
+      expect(context.countOf('fillText')).toBe(4);
+      expect(invalidate.mock.calls.length).toBe(invalidatesBefore);
+    });
+
+    it('does not redraw for a theme that gives the same colors of the banners', async () => {
+      const context = createRecordingContext();
+      const logoLoader = createFakeLogoLoader(LOGO_PATHS);
+      const { update } = await renderHarness(context, { entries: LOGO_ENTRIES, logoLoader });
+
+      update(readWorldPalette(() => '#808080'));
+      update(SAME_COLORS_PALETTE);
+
+      expect(context.countOf('clearRect')).toBe(1);
+      expect(logoLoader.loadMock).not.toHaveBeenCalled();
+    });
+
+    it('drops the wait for the logos when the atlas is replaced', async () => {
+      const context = createRecordingContext();
+      const logoLoader = createFakeLogoLoader();
+      const { atlas, invalidate, update } = await renderHarness(context, { entries: LOGO_ENTRIES, logoLoader });
+      const first = atlas();
+      const versionBefore = first?.texture.version;
+
+      update(PALETTE, ENTRIES);
+
+      const invalidatesBefore = invalidate.mock.calls.length;
+      const clearsBefore = context.countOf('clearRect');
+
+      await act(async () => {
+        await logoLoader.release();
+      });
+
+      expect(atlas()).not.toBe(first);
+      expect(first?.texture.version).toBe(versionBefore);
+      expect(context.countOf('clearRect')).toBe(clearsBefore);
+      expect(invalidate.mock.calls.length).toBe(invalidatesBefore);
+    });
   });
 });

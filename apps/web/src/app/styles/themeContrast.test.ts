@@ -875,7 +875,7 @@ describe('world selection corners without lighting', () => {
     expect(measureLuminanceContrast('side-rim', 'road')).toBeGreaterThanOrEqual(CORNER_LAYERS_CONTRAST);
   });
 
-  it('holds the white rim of a chip against every lit surface by night', () => {
+  it('holds the white rim of a site mark against every lit surface by night', () => {
     expect(readWorstContrast(readWorldColor('side-rim'), readNightSurfaces())).toBeGreaterThanOrEqual(RIM_NIGHT_CONTRAST);
   });
 });

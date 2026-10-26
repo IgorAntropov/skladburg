@@ -12,7 +12,10 @@ import {
 import type { IStateReader } from '../state/index';
 
 import { compareIds } from '../state/index';
-import { isOrganizationVerified } from './organizationVisibility';
+import {
+  cloneOrganizationLogo,
+  isOrganizationVerified,
+} from './organizationVisibility';
 
 const PROFILE_KIND_PRIORITY: readonly ProfileKind[] = [ProfileKind.SUPPLIER, ProfileKind.CUSTOMER, ProfileKind.CARRIER];
 
@@ -37,6 +40,7 @@ export const listVisibleMapSites = (read: IStateReader, viewerOrganizationId: st
         mapNodeId: warehouse.mapNodeId,
         name: isOwn ? warehouse.name : '',
         organizationId: owner.id,
+        organizationLogo: cloneOrganizationLogo(owner),
         organizationName: owner.name,
         profileKind: resolveMapSiteProfileKind(owner),
       }));

@@ -11,10 +11,15 @@ import { buildMonogramParts } from '@/entities/organization';
 import {
   estimateMonogramWidth,
   readBannerTextBlock,
+  SITE_BANNER_FRAME_WIDTH_PX,
   SITE_BANNER_INDEX_WEIGHT,
   SITE_BANNER_LETTERS_WEIGHT,
+  SITE_BANNER_LOGO_FIELD,
   SITE_BANNER_MAX_TEXT_WIDTH_PX,
+  SITE_BANNER_NEAR_GLYPH,
+  SITE_BANNER_NEAR_HEIGHT_PX,
   SITE_BANNER_NEAR_WIDTH_PX,
+  SITE_BANNER_PLATE_INSET_PX,
   SITE_BANNER_SIZE_LADDER_PX,
 } from './siteBannerTemplate';
 
@@ -29,6 +34,35 @@ describe('size ladder', () => {
     for (const [position, size] of SITE_BANNER_SIZE_LADDER_PX.entries()) {
       expect(size).toBe(72 - position * 2);
     }
+  });
+});
+
+describe('logo field', () => {
+  const left = SITE_BANNER_LOGO_FIELD.centerXPx - SITE_BANNER_LOGO_FIELD.widthPx / 2;
+  const right = SITE_BANNER_LOGO_FIELD.centerXPx + SITE_BANNER_LOGO_FIELD.widthPx / 2;
+  const top = SITE_BANNER_LOGO_FIELD.centerYPx - SITE_BANNER_LOGO_FIELD.heightPx / 2;
+  const bottom = SITE_BANNER_LOGO_FIELD.centerYPx + SITE_BANNER_LOGO_FIELD.heightPx / 2;
+
+  it('is 142 by 76 px around (122, 68)', () => {
+    expect([left, right, top, bottom]).toEqual([51, 193, 30, 106]);
+  });
+
+  it('keeps 6 px from the rim of the side glyph', () => {
+    const glyphLeft = SITE_BANNER_NEAR_GLYPH.xPx - SITE_BANNER_NEAR_GLYPH.rimPx;
+
+    expect(glyphLeft - right).toBe(6);
+  });
+
+  it('stays inside the plate frame', () => {
+    const frameInner = SITE_BANNER_PLATE_INSET_PX + SITE_BANNER_FRAME_WIDTH_PX / 2;
+
+    expect(left).toBeGreaterThanOrEqual(frameInner);
+    expect(top).toBeGreaterThanOrEqual(frameInner);
+    expect(bottom).toBeLessThanOrEqual(SITE_BANNER_NEAR_HEIGHT_PX - frameInner);
+  });
+
+  it('is the place of the monogram text width', () => {
+    expect(SITE_BANNER_LOGO_FIELD.widthPx).toBe(SITE_BANNER_MAX_TEXT_WIDTH_PX);
   });
 });
 

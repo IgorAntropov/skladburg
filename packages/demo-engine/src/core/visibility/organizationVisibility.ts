@@ -4,6 +4,8 @@ import {
 } from '@bufbuild/protobuf';
 import {
   type Organization,
+  type OrganizationLogo,
+  OrganizationLogoSchema,
   OrganizationProfileSchema,
   OrganizationSchema,
 } from '@skladburg/contracts/organization/v1/organization';
@@ -15,8 +17,12 @@ export const MIN_SHOWCASE_VERIFICATION_LEVEL = 1;
 export const isOrganizationVerified = (organization: Organization): boolean =>
   organization.profiles.some(profile => profile.verificationLevel >= MIN_SHOWCASE_VERIFICATION_LEVEL);
 
+export const cloneOrganizationLogo = (organization: Organization): OrganizationLogo | undefined =>
+  organization.logo === undefined ? undefined : clone(OrganizationLogoSchema, organization.logo);
+
 export const projectOrganizationForShowcase = (organization: Organization): Organization => create(OrganizationSchema, {
   id: organization.id,
+  logo: cloneOrganizationLogo(organization),
   name: organization.name,
   profiles: organization.profiles.map(profile => clone(OrganizationProfileSchema, profile)),
   sphereIds: [...organization.sphereIds],

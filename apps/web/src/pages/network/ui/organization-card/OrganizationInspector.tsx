@@ -29,6 +29,7 @@ import {
 } from '../inspector/inspectorStyles';
 import { ShowOnMapButton } from '../inspector/ShowOnMapButton';
 import { NetworkInspectorSkeleton } from '../NetworkInspectorSkeleton';
+import { OrganizationCardLogo } from './OrganizationCardLogo';
 import { OrganizationProfileCard } from './OrganizationProfileCard';
 import { OrganizationRequisites } from './OrganizationRequisites';
 
@@ -71,6 +72,7 @@ const OrganizationCardBody = ({ card, cities, isOwn, sites }: OrganizationCardBo
         {isOwn && <InspectorOwnBadge label={t('organization.directory.ownLabel')} />}
       </div>
       {isNameShown && <p className="text-base leading-6 font-semibold text-on-panel" translate="no">{card.name}</p>}
+      <OrganizationCardLogo logo={card.logo} />
       <section className="flex flex-col gap-2">
         <h3 className={INSPECTOR_KICKER_CLASS_NAME} id={profilesHeadingId}>
           {t('organization.directory.column.profiles')}

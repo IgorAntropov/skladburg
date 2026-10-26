@@ -12,6 +12,7 @@ import {
   FAR_NETWORK_SITE,
   FOREIGN_NETWORK_SITE,
   MULTI_CITY_ORGANIZATION,
+  NETWORK_MAP_LOGO_ORGANIZATIONS,
   OWN_NETWORK_SITES,
 } from './fixtures/demoData.ts';
 import {
@@ -173,6 +174,36 @@ test.describe('selection on the network map', () => {
     await scene.expectCityLabelAwayFromFreeAreaCenter(FAR_NETWORK_SITE.cityNodeId, BUILDING_OFFSET_BOUND_PX);
 
     await flyToFarSiteByRow(scene, network);
+  });
+
+  test('the map loads the light logos of its six companies from its own origin and requests no dark ones', async ({ page }) => {
+    const scene = createSceneRobot(page);
+    const expectedPaths = NETWORK_MAP_LOGO_ORGANIZATIONS.map(({ logoKey }) => `/logos/${logoKey}-light.svg`);
+
+    scene.watchLogoRequests();
+    scene.watchPageErrors();
+
+    await scene.openNetworkInColorScheme('light');
+    await scene.expectSceneState('ready');
+    await scene.waitForCameraControls();
+    await scene.waitForIdle();
+
+    await expect.poll(() => scene.readLogoResponses().length, { message: 'the logos did not all answer' })
+      .toBeGreaterThanOrEqual(expectedPaths.length);
+
+    const toLogoName = (pathname: string): string => pathname.slice(pathname.lastIndexOf('/logos/'));
+    const readAnsweredNames = (): string[] => scene.readLogoResponses().map(({ pathname }) => toLogoName(pathname)).sort();
+    const sortedExpectedPaths = [...expectedPaths].sort();
+
+    expect(readAnsweredNames()).toEqual(sortedExpectedPaths);
+    expect(scene.readLogoResponses().map(({ status }) => status)).toEqual(expectedPaths.map(() => 200));
+    expect(new Set(scene.readLogoResponses().map(({ origin }) => origin))).toEqual(new Set([new URL(page.url()).origin]));
+
+    await switchColorSchemeAndSettle(scene, 'dark');
+
+    expect(scene.readLogoRequestPaths().map(toLogoName).sort()).toEqual(sortedExpectedPaths);
+    expect(scene.readLogoRequestPaths().filter(pathname => pathname.endsWith('-dark.svg'))).toEqual([]);
+    expect(scene.readPageErrors()).toEqual([]);
   });
 
   test('a flight to a site shows the plate of the mark by day and by night and the overview shows only flags', async ({ page }) => {

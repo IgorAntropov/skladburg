@@ -16,7 +16,10 @@ import {
 import type { IStateReader } from '../state/index';
 
 import { compareIds } from '../state/index';
-import { isOrganizationVisibleToViewer } from './organizationVisibility';
+import {
+  cloneOrganizationLogo,
+  isOrganizationVisibleToViewer,
+} from './organizationVisibility';
 
 export interface OrganizationShowcaseFilterValue {
   minVerificationLevel: number;
@@ -28,6 +31,7 @@ const NAME_COLLATOR = new Intl.Collator('ru', { sensitivity: 'base' });
 
 export const projectOrganizationShowcase = (organization: Organization): OrganizationShowcase => create(OrganizationShowcaseSchema, {
   id: organization.id,
+  logo: cloneOrganizationLogo(organization),
   name: organization.name,
   profiles: organization.profiles.map(profile => clone(OrganizationProfileSchema, profile)),
   sphereIds: [...organization.sphereIds],

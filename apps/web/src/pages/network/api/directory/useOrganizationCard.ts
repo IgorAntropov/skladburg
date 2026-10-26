@@ -5,7 +5,10 @@ import {
   useState,
 } from 'react';
 
-import { useSpheresQuery } from '@/entities/organization';
+import {
+  toOrganizationLogo,
+  useSpheresQuery,
+} from '@/entities/organization';
 import { parseApiError } from '@/shared/api';
 
 import type { OrganizationCardValue } from '../../lib/organizationCardTypes';
@@ -41,6 +44,7 @@ export const useOrganizationCard = (organizationId: string): OrganizationCardSta
 
     return {
       id: showcase.id,
+      logo: toOrganizationLogo(showcase.logo),
       name: showcase.name,
       profiles: sortOrganizationProfiles(showcase.profiles),
       sphereNames: resolveSphereNames(showcase.sphereIds, new Map(spheres.map(sphere => [sphere.id, sphere.name]))),

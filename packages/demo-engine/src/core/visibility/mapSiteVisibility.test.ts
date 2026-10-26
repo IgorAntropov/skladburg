@@ -73,6 +73,36 @@ describe('listVisibleMapSites', () => {
     });
   });
 
+  it('carries the logo of the owner of a foreign verified site', () => {
+    const site = listVisibleMapSites(read, SeedOrganizationId.CUSTOMER_1).find(
+      candidate => candidate.id === SeedWarehouseId.SUPPLIER_1_WAREHOUSE_1,
+    );
+
+    expect(site?.organizationLogo?.lightUrl).toBe('logos/supplier-1-light.svg');
+    expect(site?.organizationLogo?.darkUrl).toBe('logos/supplier-1-dark.svg');
+  });
+
+  it('carries the logo of an unverified owner on its own sites', () => {
+    const [site] = listVisibleMapSites(read, SeedOrganizationId.SUPPLIER_5);
+
+    expect(site?.organizationLogo?.lightUrl).toBe('logos/supplier-5-light.svg');
+    expect(site?.organizationLogo?.darkUrl).toBe('logos/supplier-5-dark.svg');
+  });
+
+  it('gives every visible site the logo of its owner', () => {
+    const sites = listVisibleMapSites(read, SeedOrganizationId.CUSTOMER_1);
+
+    for (const site of sites) {
+      expect(site.organizationLogo, site.organizationName).toEqual(read.get('organizations', site.organizationId)?.logo);
+    }
+  });
+
+  it('shows no site, and so no logo, of an unverified owner to others', () => {
+    const logos = listVisibleMapSites(read, SeedOrganizationId.CUSTOMER_1).map(site => site.organizationLogo?.lightUrl);
+
+    expect(logos).not.toContain('logos/supplier-5-light.svg');
+  });
+
   it('hides the sites of an unverified owner from everyone but the owner', () => {
     const foreign = listVisibleMapSites(read, SeedOrganizationId.CUSTOMER_1).map(site => site.id);
     const own = listVisibleMapSites(read, SeedOrganizationId.SUPPLIER_5);

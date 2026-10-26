@@ -2,7 +2,10 @@ import type {
   MapSideValue,
   NetworkMapSiteValue,
 } from '@/entities/network';
-import type { MonogramPartsValue } from '@/entities/organization';
+import type {
+  MonogramPartsValue,
+  OrganizationLogoValue,
+} from '@/entities/organization';
 
 import type { SiteBannerDrawContextValue } from './drawSiteBannerAtlas';
 import type { SiteBannerColorsValue } from './siteBannerColors';
@@ -20,6 +23,8 @@ export interface RecordedCallValue {
 export interface RecordingContextValue extends SiteBannerDrawContextValue {
   calls: RecordedCallValue[];
   countOf: (op: string) => number;
+  drawnImages: CanvasImageSource[];
+  isReadbackBlocked: boolean;
 }
 
 export const TEST_BANNER_COLORS: SiteBannerColorsValue = {
@@ -49,10 +54,25 @@ export const createRecordingContext = (): RecordingContextValue => {
     clearRect: (...args): void => { record('clearRect', args); },
     closePath: (): void => { record('closePath', []); },
     countOf: (op): number => calls.filter(call => call.op === op).length,
+    drawImage: (image, ...args): void => {
+      context.drawnImages.push(image);
+      record('drawImage', args);
+    },
+    drawnImages: [],
     fill: (): void => { record('fill', []); },
     fillStyle: '',
     fillText: (...args): void => { record('fillText', args); },
     font: '',
+    getImageData: (...args): unknown => {
+      record('getImageData', args);
+
+      if (context.isReadbackBlocked) {
+        throw new DOMException('The canvas has been tainted by cross-origin data', 'SecurityError');
+      }
+
+      return undefined;
+    },
+    isReadbackBlocked: false,
     lineJoin: 'miter',
     lineTo: (...args): void => { record('lineTo', args); },
     lineWidth: 0,
@@ -85,11 +105,13 @@ export const createTestEntry = (
   organizationId: string,
   side: MapSideValue,
   monogram: MonogramPartsValue,
-): SiteBannerEntryValue => ({ monogram, organizationId, side });
+  logoPath = '',
+): SiteBannerEntryValue => ({ logoPath, monogram, organizationId, side });
 
 export interface TestMapSiteOptionsValue {
   isOwn?: boolean;
   nodeId?: string;
+  organizationLogo?: OrganizationLogoValue;
   organizationName: string;
   side: MapSideValue;
 }
@@ -110,5 +132,6 @@ export const createTestMapSite = (
     organizationId,
     organizationName: options.organizationName,
     side: options.side,
+    ...options.organizationLogo === undefined ? {} : { organizationLogo: options.organizationLogo },
   };
 };

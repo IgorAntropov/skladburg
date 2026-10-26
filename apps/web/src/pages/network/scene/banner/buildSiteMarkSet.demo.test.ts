@@ -30,6 +30,13 @@ import {
   computeSiteBannerAtlasLayout,
   SITE_BANNER_ATLAS_CAPACITY,
 } from './siteBannerAtlasLayout';
+import { listSiteBannerLogoPaths } from './siteBannerLogos';
+
+const LOGO_FILES = import.meta.glob('/public/logos/*.svg');
+
+const LOGO_FILE_NAMES: ReadonlySet<string> = new Set(
+  Object.keys(LOGO_FILES).map(path => `logos/${path.slice(path.lastIndexOf('/') + 1)}`),
+);
 
 describe('site banners built from the demo engine', () => {
   const inProcess = createInProcessEngineConnection();
@@ -131,5 +138,23 @@ describe('site banners built from the demo engine', () => {
       expect(set.nearCells[slot * 4]).toBeCloseTo(cell.u0, 6);
       expect(set.nearCells[slot * 4 + 2]).toBeCloseTo(cell.v0, 6);
     }
+  });
+
+  it('gives each of the six organizations on the map the path of a light logo that is a file of the app', async () => {
+    const model = await buildModelAs(SeedOrganizationId.CUSTOMER_1, SeedUserId.ADMIN_1);
+    const layout = buildNetworkSceneLayout(model);
+    const entries = listSiteBannerEntries(layout.buildings, model.sites);
+    const paths = entries.map(entry => entry.logoPath);
+
+    expect(entries).toHaveLength(6);
+    expect(paths.filter(path => path !== '')).toHaveLength(6);
+    expect(new Set(paths).size).toBe(6);
+
+    for (const path of paths) {
+      expect(path).toMatch(/^logos\/[a-z]+-\d-light\.svg$/u);
+      expect(LOGO_FILE_NAMES.has(path), path).toBe(true);
+    }
+
+    expect(listSiteBannerLogoPaths(entries).toSorted()).toEqual(paths.toSorted());
   });
 });

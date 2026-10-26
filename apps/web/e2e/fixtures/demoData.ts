@@ -96,18 +96,19 @@ export const NETWORK_CITY_COUNT = 9;
 export interface DirectoryOrganizationValue {
   id: string;
   inn: string;
+  logoKey: string;
   name: string;
 }
 
 export const DIRECTORY_ORGANIZATIONS = {
-  carrier1: { id: '10000004-0000-4000-8000-000000000000', inn: '0000001044', name: 'Перевозчик 1' },
-  carrier2: { id: '10000008-0000-4000-8000-000000000000', inn: '0000001083', name: 'Перевозчик 2' },
-  customer1: { id: '10000001-0000-4000-8000-000000000000', inn: '0000001012', name: 'Заказчик 1' },
-  customer2: { id: '10000005-0000-4000-8000-000000000000', inn: '0000001051', name: 'Заказчик 2' },
-  supplier1: { id: '10000002-0000-4000-8000-000000000000', inn: '0000001020', name: 'Поставщик 1' },
-  supplier2: { id: '10000003-0000-4000-8000-000000000000', inn: '0000001037', name: 'Поставщик 2' },
-  supplier3: { id: '10000006-0000-4000-8000-000000000000', inn: '0000001069', name: 'Поставщик 3' },
-  supplier4: { id: '10000007-0000-4000-8000-000000000000', inn: '0000001076', name: 'Поставщик 4' },
+  carrier1: { id: '10000004-0000-4000-8000-000000000000', inn: '0000001044', logoKey: 'carrier-1', name: 'Перевозчик 1' },
+  carrier2: { id: '10000008-0000-4000-8000-000000000000', inn: '0000001083', logoKey: 'carrier-2', name: 'Перевозчик 2' },
+  customer1: { id: '10000001-0000-4000-8000-000000000000', inn: '0000001012', logoKey: 'customer-1', name: 'Заказчик 1' },
+  customer2: { id: '10000005-0000-4000-8000-000000000000', inn: '0000001051', logoKey: 'customer-2', name: 'Заказчик 2' },
+  supplier1: { id: '10000002-0000-4000-8000-000000000000', inn: '0000001020', logoKey: 'supplier-1', name: 'Поставщик 1' },
+  supplier2: { id: '10000003-0000-4000-8000-000000000000', inn: '0000001037', logoKey: 'supplier-2', name: 'Поставщик 2' },
+  supplier3: { id: '10000006-0000-4000-8000-000000000000', inn: '0000001069', logoKey: 'supplier-3', name: 'Поставщик 3' },
+  supplier4: { id: '10000007-0000-4000-8000-000000000000', inn: '0000001076', logoKey: 'supplier-4', name: 'Поставщик 4' },
 } as const satisfies Record<string, DirectoryOrganizationValue>;
 
 export const MULTI_CITY_ORGANIZATION = {
@@ -127,3 +128,12 @@ export const DIRECTORY_VISIBLE_ORGANIZATIONS: readonly DirectoryOrganizationValu
 ];
 
 export const DAIRY_SPHERE_ID = '50000002-0000-4000-8000-000000000000';
+
+export const NETWORK_MAP_LOGO_ORGANIZATIONS: readonly DirectoryOrganizationValue[] = [
+  DIRECTORY_ORGANIZATIONS.customer1,
+  DIRECTORY_ORGANIZATIONS.customer2,
+  DIRECTORY_ORGANIZATIONS.supplier1,
+  DIRECTORY_ORGANIZATIONS.supplier2,
+  DIRECTORY_ORGANIZATIONS.supplier3,
+  DIRECTORY_ORGANIZATIONS.supplier4,
+];

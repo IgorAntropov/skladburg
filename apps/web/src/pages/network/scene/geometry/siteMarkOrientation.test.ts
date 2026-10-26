@@ -11,9 +11,9 @@ import {
 } from 'vitest';
 
 import {
-  applyChipAzimuth,
+  applySiteMarkAzimuth,
   getCameraAzimuth,
-} from './chipOrientation';
+} from './siteMarkOrientation';
 
 const ELEVATION = Math.atan(1 / Math.SQRT2);
 
@@ -41,7 +41,7 @@ describe('getCameraAzimuth', () => {
   });
 });
 
-describe('applyChipAzimuth', () => {
+describe('applySiteMarkAzimuth', () => {
   const createMatrices = (): Float32Array => {
     const matrices = new Float32Array(32);
 
@@ -54,7 +54,7 @@ describe('applyChipAzimuth', () => {
   it('turns the front of the plate to the camera and stretches it upright', () => {
     const matrices = createMatrices();
 
-    applyChipAzimuth(matrices, 2, Math.PI / 4, undefined);
+    applySiteMarkAzimuth(matrices, 2, Math.PI / 4, undefined);
 
     const matrix = new Matrix4().fromArray(matrices, 0);
     const front = new Vector3(0, 0, 1).transformDirection(matrix);
@@ -71,8 +71,8 @@ describe('applyChipAzimuth', () => {
   it('keeps the position of every plate while it turns', () => {
     const matrices = createMatrices();
 
-    applyChipAzimuth(matrices, 2, 1.1, undefined);
-    applyChipAzimuth(matrices, 2, -2.3, undefined);
+    applySiteMarkAzimuth(matrices, 2, 1.1, undefined);
+    applySiteMarkAzimuth(matrices, 2, -2.3, undefined);
 
     [4, 3.7, -9].forEach((value, axis) => {
       expect(matrices[12 + axis]).toBeCloseTo(value, 5);
@@ -87,7 +87,7 @@ describe('applyChipAzimuth', () => {
   it('touches only the first count plates', () => {
     const matrices = createMatrices();
 
-    applyChipAzimuth(matrices, 1, 0.5, undefined);
+    applySiteMarkAzimuth(matrices, 1, 0.5, undefined);
 
     expect(matrices[16]).toBe(0);
   });
@@ -95,7 +95,7 @@ describe('applyChipAzimuth', () => {
   it('grows only the hovered plate 1.25 times around its center and lifts it by 0.4 m', () => {
     const matrices = createMatrices();
 
-    applyChipAzimuth(matrices, 2, 0.7, Uint8Array.of(0, 1));
+    applySiteMarkAzimuth(matrices, 2, 0.7, Uint8Array.of(0, 1));
 
     const calm = new Matrix4().fromArray(matrices, 0);
     const hovered = new Matrix4().fromArray(matrices, 16);
@@ -113,8 +113,8 @@ describe('applyChipAzimuth', () => {
   it('returns the plate to its size and height when it is no longer hovered', () => {
     const matrices = createMatrices();
 
-    applyChipAzimuth(matrices, 2, 0.7, Uint8Array.of(0, 1));
-    applyChipAzimuth(matrices, 2, 0.7, undefined);
+    applySiteMarkAzimuth(matrices, 2, 0.7, Uint8Array.of(0, 1));
+    applySiteMarkAzimuth(matrices, 2, 0.7, undefined);
 
     expect(matrices[29]).toBeCloseTo(3.7, 6);
     expect(new Vector3().setFromMatrixScale(new Matrix4().fromArray(matrices, 16)).x).toBeCloseTo(1, 6);
@@ -123,14 +123,14 @@ describe('applyChipAzimuth', () => {
   it('grows every plate marked in the mask and leaves the others calm', () => {
     const matrices = createMatrices();
 
-    applyChipAzimuth(matrices, 2, 0.7, Uint8Array.of(1, 1));
+    applySiteMarkAzimuth(matrices, 2, 0.7, Uint8Array.of(1, 1));
 
     expect(new Vector3().setFromMatrixScale(new Matrix4().fromArray(matrices, 0)).x).toBeCloseTo(1.25, 6);
     expect(new Vector3().setFromMatrixScale(new Matrix4().fromArray(matrices, 16)).x).toBeCloseTo(1.25, 6);
     expect(matrices[13]).toBeCloseTo(4.1, 6);
     expect(matrices[29]).toBeCloseTo(4.1, 6);
 
-    applyChipAzimuth(matrices, 2, 0.7, Uint8Array.of(1, 0));
+    applySiteMarkAzimuth(matrices, 2, 0.7, Uint8Array.of(1, 0));
 
     expect(matrices[13]).toBeCloseTo(4.1, 6);
     expect(matrices[29]).toBeCloseTo(3.7, 6);

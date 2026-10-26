@@ -12,6 +12,7 @@ message OrganizationShowcase {
   string name = 2;
   repeated OrganizationProfile profiles = 3;
   repeated string sphere_ids = 4;
+  OrganizationLogo logo = 5;
 }
 
 message ListOrganizationShowcasesRequest {

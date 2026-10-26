@@ -53,7 +53,7 @@ describe('pickNetworkObject', () => {
     expect(pickNetworkObject({ x: 204, y: 304 }, candidates, 12)).toEqual({ id: 's1', kind: 'site' });
   });
 
-  it('picks a site by its chip and by any point of the segment between them', () => {
+  it('picks a site by its site mark and by any point of the segment between them', () => {
     const candidates = createCandidates([createSite('s1', 200, 300)]);
 
     expect(pickNetworkObject({ x: 200, y: 262 }, candidates, 12)).toEqual({ id: 's1', kind: 'site' });
@@ -68,7 +68,7 @@ describe('pickNetworkObject', () => {
     expect(pickNetworkObject({ x: 0, y: 0 }, candidates, 12)).toBeUndefined();
   });
 
-  it('widens the capture by the reach of the chip', () => {
+  it('widens the capture by the reach of the site mark', () => {
     const candidates = createCandidates([createSite('s1', 200, 300, 30)]);
 
     expect(pickNetworkObject({ x: 240, y: 300 }, candidates, 12)).toEqual({ id: 's1', kind: 'site' });

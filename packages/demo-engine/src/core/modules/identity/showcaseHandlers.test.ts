@@ -76,6 +76,13 @@ describe('OrganizationShowcaseService.listOrganizationShowcases', () => {
     expect(names).not.toContain('Поставщик 5');
   });
 
+  it('gives every listed organization its logo paths', async () => {
+    const { organizations } = await createShowcaseClient().listOrganizationShowcases({}, FRESH_CUSTOMER);
+
+    expect(organizations.every(organization => organization.logo?.lightUrl !== '' && organization.logo?.darkUrl !== '')).toBe(true);
+    expect(organizations.map(organization => organization.logo?.lightUrl)).toContain('logos/supplier-2-light.svg');
+  });
+
   it('passes the side, the sphere and the level of the request to the filter', async () => {
     const { organizations } = await createShowcaseClient().listOrganizationShowcases(
       { minVerificationLevel: 1, profileKind: ProfileKind.CARRIER, sphereId: SeedSphereId.FOOD },
@@ -152,6 +159,8 @@ describe('OrganizationShowcaseService.getOrganizationShowcase', () => {
     );
 
     expect(organization?.name).toBe('Поставщик 1');
+    expect(organization?.logo?.lightUrl).toBe('logos/supplier-1-light.svg');
+    expect(organization?.logo?.darkUrl).toBe('logos/supplier-1-dark.svg');
     expect(organization?.sphereIds).toEqual([SeedSphereId.DAIRY, SeedSphereId.FRUIT_AND_VEGETABLES]);
   });
 

@@ -13,6 +13,7 @@ import {
 import { createNavigationRobot } from './robots/navigation-robot.ts';
 import { createOrganizationDirectoryRobot } from './robots/organization-directory-robot.ts';
 import { createPersonaRobot } from './robots/persona-robot.ts';
+import { createTopBarRobot } from './robots/top-bar-robot.ts';
 
 const {
   carrier1,
@@ -98,6 +99,26 @@ test.describe('organization directory on a desktop', () => {
     await directory.openRow(customer1);
     await directory.expectOwnCard(customer1);
     await directory.expectRowSelected(customer1);
+  });
+
+  test('shows the loaded logo of a foreign company in the card and swaps it with the theme', async ({ page }) => {
+    const directory = createOrganizationDirectoryRobot(page);
+    const navigation = createNavigationRobot(page);
+    const topBar = createTopBarRobot(page);
+
+    await directory.followSystemTheme();
+    await navigation.openObject(toOrganizationRoute(supplier1.id));
+    await directory.expectForeignCard(supplier1);
+    await topBar.expectDocumentTheme('light');
+    await directory.expectCardLogo(supplier1, 'light');
+
+    await directory.switchColorScheme('dark');
+    await topBar.expectDocumentTheme('dark');
+    await directory.expectCardLogo(supplier1, 'dark');
+
+    await directory.switchColorScheme('light');
+    await topBar.expectDocumentTheme('light');
+    await directory.expectCardLogo(supplier1, 'light');
   });
 
   test('opens the card on a direct entry and after a reload', async ({ page }) => {

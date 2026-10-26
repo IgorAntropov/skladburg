@@ -27,6 +27,10 @@ import type { NetworkSceneLayoutValue } from './layout';
 
 import { listSiteBannerEntries } from './banner/listSiteBannerEntries';
 import { loadSiteBannerFonts } from './banner/siteBannerFonts';
+import {
+  listSiteBannerLogoPaths,
+  siteBannerLogoLoader,
+} from './banner/siteBannerLogos';
 import { createSiteMarkMode } from './banner/siteMarkMetrics';
 import { useSiteBannerAtlas } from './banner/useSiteBannerAtlas';
 import { createUnitBoxGeometry } from './geometry/createUnitBoxGeometry';
@@ -77,11 +81,23 @@ const loadCatalogModels = async (): Promise<void> => {
   }
 };
 
+const loadSiteLogos = async (data: NetworkMapModelValue): Promise<void> => {
+  try {
+    const entries = listSiteBannerEntries(buildNetworkSceneLayout(data).buildings, data.sites);
+
+    await siteBannerLogoLoader.load(listSiteBannerLogoPaths(entries));
+  }
+  catch (error: unknown) {
+    console.log('> NetworkWorldScene -> prepare:', { error });
+  }
+};
+
 export const prepare = async (data: NetworkMapModelValue): Promise<void> => {
   await Promise.all([
     loadWorldTerrain(createTerrainParams(buildNetworkSceneLayout(data))),
     loadCatalogModels(),
     loadSiteBannerFonts(),
+    loadSiteLogos(data),
   ]);
 };
 

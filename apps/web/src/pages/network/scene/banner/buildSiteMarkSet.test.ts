@@ -8,8 +8,8 @@ import type { NetworkMapSiteValue } from '@/entities/network';
 
 import type { SiteMarkSetValue } from './buildSiteMarkSet';
 
-import { applyChipAzimuth } from '../geometry/chipOrientation';
 import { INSTANCE_MATRIX_ITEM_SIZE } from '../geometry/composeInstanceMatrix';
+import { applySiteMarkAzimuth } from '../geometry/siteMarkOrientation';
 import { buildNetworkSceneLayout } from '../layout';
 import {
   createTestCity,
@@ -206,7 +206,7 @@ describe('writeSiteMarkMarkerMatrices', () => {
     const { set } = buildScene(SITES);
     const base = readMatrix(set.matrices, set.ownSlots[0] ?? 0);
 
-    applyChipAzimuth(set.matrices, set.count, Math.PI / 2, set.hoverMask);
+    applySiteMarkAzimuth(set.matrices, set.count, Math.PI / 2, set.hoverMask);
     writeSiteMarkMarkerMatrices(set, false);
 
     expect(set.markerMatrices[12]).toBeCloseTo(base[12] ?? 0, 6);
@@ -220,7 +220,7 @@ describe('writeSiteMarkMarkerMatrices', () => {
     const { set } = buildScene(SITES);
 
     fillSiteMarkHoverMask(set, 's1', []);
-    applyChipAzimuth(set.matrices, set.count, 0, set.hoverMask);
+    applySiteMarkAzimuth(set.matrices, set.count, 0, set.hoverMask);
     writeSiteMarkMarkerMatrices(set, false);
 
     expect(set.markerMatrices[0]).toBeCloseTo(1.25, 6);

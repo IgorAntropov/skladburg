@@ -12,17 +12,17 @@ export const WALL_TINT_RANGE = [0.94, 1] as const;
 
 export const ROOF_TINT_RANGE = [0.92, 1] as const;
 
-export const CHIP_CENTER_HEIGHT_METERS = 3.7;
+export const SITE_MARK_CENTER_HEIGHT_METERS = 3.7;
 
-export const CHIP_VERTICAL_STRETCH = Math.sqrt(1.5);
+export const SITE_MARK_VERTICAL_STRETCH = Math.sqrt(1.5);
 
-export const CHIP_AZIMUTH_EPSILON_RADIANS = 1e-4;
+export const SITE_MARK_AZIMUTH_EPSILON_RADIANS = 1e-4;
 
 export const CITY_LABEL_HEIGHT_METERS = 8;
 
-export const CHIP_HOVER_SCALE = 1.25;
+export const SITE_MARK_HOVER_SCALE = 1.25;
 
-export const CHIP_HOVER_LIFT_METERS = 0.4;
+export const SITE_MARK_HOVER_LIFT_METERS = 0.4;
 
 export const CORNER_BASE_HEIGHT_METERS = 0.12;
 

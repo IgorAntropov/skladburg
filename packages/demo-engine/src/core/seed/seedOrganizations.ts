@@ -1,6 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import {
   type Organization,
+  OrganizationLogoSchema,
   OrganizationSchema,
   type OrganizationSettings,
   OrganizationSettingsSchema,
@@ -18,6 +19,7 @@ interface SeedOrganizationDefinitionValue {
   id: string;
   inn: string;
   kpp: string;
+  logoKey: string;
   name: string;
   ogrn: string;
   profiles: readonly SeedProfileValue[];
@@ -34,6 +36,7 @@ const SEED_ORGANIZATION_DEFINITIONS: readonly SeedOrganizationDefinitionValue[] 
     id: SeedOrganizationId.CUSTOMER_1,
     inn: '0000001012',
     kpp: '000001001',
+    logoKey: 'customer-1',
     name: 'Заказчик 1',
     ogrn: '1000000010011',
     profiles: [{ kind: ProfileKind.CUSTOMER, verificationLevel: 2 }],
@@ -43,6 +46,7 @@ const SEED_ORGANIZATION_DEFINITIONS: readonly SeedOrganizationDefinitionValue[] 
     id: SeedOrganizationId.SUPPLIER_1,
     inn: '0000001020',
     kpp: '000001002',
+    logoKey: 'supplier-1',
     name: 'Поставщик 1',
     ogrn: '1000000010021',
     profiles: [{ kind: ProfileKind.SUPPLIER, verificationLevel: 2 }],
@@ -52,6 +56,7 @@ const SEED_ORGANIZATION_DEFINITIONS: readonly SeedOrganizationDefinitionValue[] 
     id: SeedOrganizationId.SUPPLIER_2,
     inn: '0000001037',
     kpp: '000001003',
+    logoKey: 'supplier-2',
     name: 'Поставщик 2',
     ogrn: '1000000010032',
     profiles: [{ kind: ProfileKind.SUPPLIER, verificationLevel: 3 }],
@@ -61,6 +66,7 @@ const SEED_ORGANIZATION_DEFINITIONS: readonly SeedOrganizationDefinitionValue[] 
     id: SeedOrganizationId.CARRIER_1,
     inn: '0000001044',
     kpp: '000001004',
+    logoKey: 'carrier-1',
     name: 'Перевозчик 1',
     ogrn: '1000000010043',
     profiles: [{ kind: ProfileKind.CARRIER, verificationLevel: 1 }],
@@ -70,6 +76,7 @@ const SEED_ORGANIZATION_DEFINITIONS: readonly SeedOrganizationDefinitionValue[] 
     id: SeedOrganizationId.CUSTOMER_2,
     inn: '0000001051',
     kpp: '000001005',
+    logoKey: 'customer-2',
     name: 'Заказчик 2',
     ogrn: '1000000010054',
     profiles: [{ kind: ProfileKind.CUSTOMER, verificationLevel: 2 }],
@@ -79,6 +86,7 @@ const SEED_ORGANIZATION_DEFINITIONS: readonly SeedOrganizationDefinitionValue[] 
     id: SeedOrganizationId.SUPPLIER_3,
     inn: '0000001069',
     kpp: '000001006',
+    logoKey: 'supplier-3',
     name: 'Поставщик 3',
     ogrn: '1000000010065',
     profiles: [{ kind: ProfileKind.SUPPLIER, verificationLevel: 3 }],
@@ -88,6 +96,7 @@ const SEED_ORGANIZATION_DEFINITIONS: readonly SeedOrganizationDefinitionValue[] 
     id: SeedOrganizationId.SUPPLIER_4,
     inn: '0000001076',
     kpp: '000001007',
+    logoKey: 'supplier-4',
     name: 'Поставщик 4',
     ogrn: '1000000010076',
     profiles: [
@@ -100,6 +109,7 @@ const SEED_ORGANIZATION_DEFINITIONS: readonly SeedOrganizationDefinitionValue[] 
     id: SeedOrganizationId.CARRIER_2,
     inn: '0000001083',
     kpp: '000001008',
+    logoKey: 'carrier-2',
     name: 'Перевозчик 2',
     ogrn: '1000000010087',
     profiles: [{ kind: ProfileKind.CARRIER, verificationLevel: 3 }],
@@ -109,6 +119,7 @@ const SEED_ORGANIZATION_DEFINITIONS: readonly SeedOrganizationDefinitionValue[] 
     id: SeedOrganizationId.SUPPLIER_5,
     inn: '0000001091',
     kpp: '000001009',
+    logoKey: 'supplier-5',
     name: 'Поставщик 5',
     ogrn: '1000000010098',
     profiles: [{ kind: ProfileKind.SUPPLIER, verificationLevel: 0 }],
@@ -121,6 +132,10 @@ export const createSeedOrganizations = (): Organization[] => SEED_ORGANIZATION_D
   inn: definition.inn,
   kpp: definition.kpp,
   legalName: `ООО «${definition.name}»`,
+  logo: create(OrganizationLogoSchema, {
+    darkUrl: `logos/${definition.logoKey}-dark.svg`,
+    lightUrl: `logos/${definition.logoKey}-light.svg`,
+  }),
   name: definition.name,
   ogrn: definition.ogrn,
   profiles: definition.profiles.map(profile => ({ kind: profile.kind, verificationLevel: profile.verificationLevel })),

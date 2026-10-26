@@ -1,6 +1,9 @@
 import { compareCodeUnits } from '@skladburg/contracts/runtime';
 
-import { toOrganizationSide } from '@/entities/organization/@x/network';
+import {
+  toOrganizationLogo,
+  toOrganizationSide,
+} from '@/entities/organization/@x/network';
 
 import type {
   NetworkMapCityValue,
@@ -60,6 +63,7 @@ const buildSites = (
         label: isOwn ? site.name : site.organizationName,
         nodeId: site.mapNodeId,
         organizationId: site.organizationId,
+        organizationLogo: toOrganizationLogo(site.organizationLogo),
         organizationName: site.organizationName,
         side,
       });

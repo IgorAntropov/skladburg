@@ -8,8 +8,10 @@ import type {
 } from './siteBannerAtlasLayout';
 import type { SiteBannerColorsValue } from './siteBannerColors';
 import type { SiteBannerEntryValue } from './siteBannerEntry';
+import type { SiteBannerLogoImageValue } from './siteBannerLogos';
 
 import { NETWORK_SIDES } from '../geometry/networkSides';
+import { fitSiteBannerLogo } from './fitSiteBannerLogo';
 import {
   readFarCellPixels,
   readNearCellPixels,
@@ -31,10 +33,12 @@ export interface SiteBannerDrawContextValue {
   beginPath: () => void;
   clearRect: (x: number, y: number, width: number, height: number) => void;
   closePath: () => void;
+  drawImage: (image: CanvasImageSource, x: number, y: number, width: number, height: number) => void;
   fill: () => void;
   fillStyle: CanvasRenderingContext2D['fillStyle'];
   fillText: (text: string, x: number, y: number) => void;
   font: string;
+  getImageData: (x: number, y: number, width: number, height: number) => unknown;
   lineJoin: CanvasLineJoin;
   lineTo: (x: number, y: number) => void;
   lineWidth: number;
@@ -155,11 +159,28 @@ const drawMonogram = (
   }
 };
 
+const drawLogo = (
+  context: SiteBannerDrawContextValue,
+  logo: SiteBannerLogoImageValue | undefined,
+  cell: SiteBannerCellPixelsValue,
+): boolean => {
+  const placement = logo === undefined ? undefined : fitSiteBannerLogo(logo.width, logo.height);
+
+  if (logo === undefined || placement === undefined) {
+    return false;
+  }
+
+  context.drawImage(logo.image, cell.x + placement.x, cell.y + placement.y, placement.width, placement.height);
+
+  return true;
+};
+
 export const drawSiteBannerAtlas = (
   context: SiteBannerDrawContextValue,
   layout: SiteBannerAtlasLayoutValue,
   entries: readonly SiteBannerEntryValue[],
   colors: SiteBannerColorsValue,
+  readLogo: (path: string) => SiteBannerLogoImageValue | undefined,
 ): void => {
   context.clearRect(0, 0, layout.width, layout.height);
 
@@ -177,6 +198,9 @@ export const drawSiteBannerAtlas = (
 
     drawNearFrame(context, entry.side, cell, colors);
     drawSideGlyph(context, entry.side, cell, SITE_BANNER_NEAR_GLYPH, colors);
-    drawMonogram(context, entry, cell, colors);
+
+    if (!drawLogo(context, readLogo(entry.logoPath), cell)) {
+      drawMonogram(context, entry, cell, colors);
+    }
   }
 };

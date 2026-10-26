@@ -23,6 +23,13 @@ export {
   MAX_VERIFICATION_LEVEL,
   normalizeVerificationLevel,
 } from './lib/normalizeVerificationLevel';
+export type {
+  OrganizationLogoBackgroundValue,
+  OrganizationLogoValue,
+} from './lib/organizationLogo';
+export { toOrganizationLogo } from './lib/organizationLogo';
+export { pickOrganizationLogoPath } from './lib/pickOrganizationLogoPath';
+export { resolveOrganizationLogoUrl } from './lib/resolveOrganizationLogoUrl';
 export { toTenantSettings } from './lib/toTenantSettings';
 export { ProfileBadge } from './ui/ProfileBadge';
 export { SideBadge } from './ui/SideBadge';

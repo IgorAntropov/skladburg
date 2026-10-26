@@ -18,6 +18,11 @@ message OrganizationProfile {
   int32 verification_level = 2;
 }
 
+message OrganizationLogo {
+  string light_url = 1;
+  string dark_url = 2;
+}
+
 message Organization {
   string id = 1;
   string name = 2;
@@ -27,6 +32,7 @@ message Organization {
   string ogrn = 6;
   repeated OrganizationProfile profiles = 7;
   repeated string sphere_ids = 8;
+  OrganizationLogo logo = 9;
 }
 
 message Sphere {

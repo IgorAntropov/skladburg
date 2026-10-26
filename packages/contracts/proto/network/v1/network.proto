@@ -53,6 +53,7 @@ message MapSite {
   string city_id = 6;
   string map_node_id = 7;
   string name = 8;
+  organization.v1.OrganizationLogo organization_logo = 9;
 }
 
 message ListCitiesRequest {

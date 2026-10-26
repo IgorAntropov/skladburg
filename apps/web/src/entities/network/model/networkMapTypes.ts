@@ -5,7 +5,10 @@ import type {
   RouteLeg,
 } from '@skladburg/contracts/network/v1/network';
 
-import type { OrganizationSideValue } from '@/entities/organization/@x/network';
+import type {
+  OrganizationLogoValue,
+  OrganizationSideValue,
+} from '@/entities/organization/@x/network';
 
 export interface MapGridPointValue {
   column: number;
@@ -53,6 +56,7 @@ export interface NetworkMapSiteValue {
   label: string;
   nodeId: string;
   organizationId: string;
+  organizationLogo?: OrganizationLogoValue | undefined;
   organizationName: string;
   side: MapSideValue;
 }

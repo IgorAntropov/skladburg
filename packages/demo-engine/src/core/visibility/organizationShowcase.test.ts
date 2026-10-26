@@ -1,5 +1,6 @@
 import { create } from '@bufbuild/protobuf';
 import {
+  OrganizationLogoSchema,
   OrganizationSchema,
   ProfileKind,
   SphereSchema,
@@ -62,6 +63,27 @@ describe('projectOrganizationShowcase', () => {
       [ProfileKind.CARRIER, 0],
     ]);
     expect(projection.sphereIds).toEqual([SeedSphereId.CEMENT_AND_CONCRETE, SeedSphereId.TIMBER]);
+  });
+
+  it('copies the logo of the organization without sharing the object', () => {
+    const organization = read.get('organizations', SeedOrganizationId.SUPPLIER_4);
+    const projection = projectOrganizationShowcase(create(OrganizationSchema, organization));
+
+    expect(projection.logo?.lightUrl).toBe('logos/supplier-4-light.svg');
+    expect(projection.logo?.darkUrl).toBe('logos/supplier-4-dark.svg');
+    expect(projection.logo).not.toBe(organization?.logo);
+  });
+
+  it('has no logo when the organization has none', () => {
+    expect(projectOrganizationShowcase(create(OrganizationSchema)).logo).toBeUndefined();
+  });
+
+  it('keeps the logo urls as they are stored', () => {
+    const organization = create(OrganizationSchema, {
+      logo: create(OrganizationLogoSchema, { darkUrl: '', lightUrl: 'light.svg' }),
+    });
+
+    expect(projectOrganizationShowcase(organization).logo).toEqual(organization.logo);
   });
 
   it('does not share the profile objects with the source', () => {

@@ -10,6 +10,7 @@ import {
 } from 'vitest';
 
 import type { SiteBannerAtlasDependenciesValue } from './createSiteBannerAtlas';
+import type { SiteBannerLogoImageValue } from './siteBannerLogos';
 import type { RecordingContextValue } from './siteBannerTestSupport';
 
 import { createSiteBannerAtlas } from './createSiteBannerAtlas';
@@ -27,29 +28,55 @@ const ENTRIES = [
   createTestEntry('s1', 'supplier', { index: '1', letters: 'Пос' }),
 ];
 
+const LOGO_ENTRIES = [
+  createTestEntry('c1', 'customer', { index: '1', letters: 'Зак' }, 'logos/c1.svg'),
+  createTestEntry('c2', 'customer', { index: '2', letters: 'Зак' }, 'logos/c2.svg'),
+  createTestEntry('s1', 'supplier', { index: '1', letters: 'Пос' }, 'logos/c1.svg'),
+];
+
+const createLogoImage = (): SiteBannerLogoImageValue => ({
+  height: 76,
+  image: { close: () => undefined } as unknown as CanvasImageSource,
+  width: 124,
+});
+
 interface HarnessValue {
+  canvases: HTMLCanvasElement[];
   context: RecordingContextValue;
   dependencies: SiteBannerAtlasDependenciesValue;
   fontState: { isReady: boolean };
+  logos: Map<string, SiteBannerLogoImageValue>;
+  replacementContext: RecordingContextValue;
   surfaceSizes: [number, number][];
 }
 
 const createHarness = (): HarnessValue => {
   const context = createRecordingContext();
+  const replacementContext = createRecordingContext();
   const fontState = { isReady: true };
+  const logos = new Map<string, SiteBannerLogoImageValue>();
   const surfaceSizes: [number, number][] = [];
+  const canvases: HTMLCanvasElement[] = [];
 
   return {
+    canvases,
     context,
     dependencies: {
       createSurface: (width, height) => {
         surfaceSizes.push([width, height]);
 
-        return { canvas: document.createElement('canvas'), context };
+        const canvas = document.createElement('canvas');
+
+        canvases.push(canvas);
+
+        return { canvas, context: canvases.length === 1 ? context : replacementContext };
       },
       isFontReady: (): boolean => fontState.isReady,
+      peekLogo: (path): SiteBannerLogoImageValue | undefined => logos.get(path),
     },
     fontState,
+    logos,
+    replacementContext,
     surfaceSizes,
   };
 };
@@ -131,6 +158,143 @@ describe('createSiteBannerAtlas', () => {
     expect(atlas.redraw(TEST_BANNER_COLORS)).toBe(true);
     expect(atlas.redraw(TEST_BANNER_COLORS)).toBe(false);
     expect(context.countOf('clearRect')).toBe(2);
+  });
+
+  describe('with logos', () => {
+    it('draws the ready logos once and checks that the canvas can be read', () => {
+      const { context, dependencies, logos } = createHarness();
+      const atlas = createSiteBannerAtlas(LOGO_ENTRIES, 4, dependencies);
+
+      logos.set('logos/c1.svg', createLogoImage());
+
+      expect(atlas.redraw(TEST_BANNER_COLORS)).toBe(true);
+      expect(context.countOf('drawImage')).toBe(2);
+      expect(context.countOf('fillText')).toBe(2);
+
+      const readbacks = context.calls.filter(call => call.op === 'getImageData');
+
+      expect(readbacks.map(call => call.args)).toEqual([[0, 0, 1, 1]]);
+      expect(context.calls.findIndex(call => call.op === 'getImageData')).toBe(context.calls.length - 1);
+    });
+
+    it('does not read the canvas when no logo is ready', () => {
+      const { context, dependencies } = createHarness();
+      const atlas = createSiteBannerAtlas(LOGO_ENTRIES, 4, dependencies);
+
+      atlas.redraw(TEST_BANNER_COLORS);
+
+      expect(context.countOf('getImageData')).toBe(0);
+      expect(context.countOf('drawImage')).toBe(0);
+      expect(context.countOf('fillText')).toBe(6);
+    });
+
+    it('does not redraw for the same set of ready logos and redraws once for each new one', () => {
+      const { context, dependencies, logos } = createHarness();
+      const atlas = createSiteBannerAtlas(LOGO_ENTRIES, 4, dependencies);
+
+      logos.set('logos/c1.svg', createLogoImage());
+
+      expect(atlas.redraw(TEST_BANNER_COLORS)).toBe(true);
+      expect(atlas.redraw(TEST_BANNER_COLORS)).toBe(false);
+      expect(atlas.redraw({ ...TEST_BANNER_COLORS })).toBe(false);
+      expect(context.countOf('clearRect')).toBe(1);
+
+      logos.set('logos/c2.svg', createLogoImage());
+
+      expect(atlas.redraw(TEST_BANNER_COLORS)).toBe(true);
+      expect(atlas.redraw(TEST_BANNER_COLORS)).toBe(false);
+      expect(context.countOf('clearRect')).toBe(2);
+    });
+
+    it('redraws once more for a logo that comes after a draw with monograms', () => {
+      const { context, dependencies, logos } = createHarness();
+      const atlas = createSiteBannerAtlas(LOGO_ENTRIES, 4, dependencies);
+      const versionBefore = atlas.texture.version;
+
+      atlas.redraw(TEST_BANNER_COLORS);
+      logos.set('logos/c2.svg', createLogoImage());
+
+      expect(atlas.redraw(TEST_BANNER_COLORS)).toBe(true);
+      expect(context.countOf('drawImage')).toBe(1);
+      expect(atlas.texture.version).toBe(versionBefore + 2);
+    });
+
+    it('ignores a logo that does not belong to any organization of the atlas', () => {
+      const { context, dependencies, logos } = createHarness();
+      const atlas = createSiteBannerAtlas(LOGO_ENTRIES, 4, dependencies);
+
+      atlas.redraw(TEST_BANNER_COLORS);
+      logos.set('logos/other.svg', createLogoImage());
+
+      expect(atlas.redraw(TEST_BANNER_COLORS)).toBe(false);
+      expect(context.countOf('clearRect')).toBe(1);
+    });
+
+    it('keeps the canvas of the texture when it can be read', () => {
+      const { canvases, dependencies, logos } = createHarness();
+      const atlas = createSiteBannerAtlas(LOGO_ENTRIES, 4, dependencies);
+      const { image } = atlas.texture;
+
+      logos.set('logos/c1.svg', createLogoImage());
+      atlas.redraw(TEST_BANNER_COLORS);
+
+      expect(canvases).toHaveLength(1);
+      expect(atlas.texture.image).toBe(image);
+    });
+
+    describe('when the canvas turns out to be unreadable', () => {
+      const createBlockedAtlas = (): ReturnType<typeof createHarness> & {
+        atlas: ReturnType<typeof createSiteBannerAtlas>;
+      } => {
+        const harness = createHarness();
+        const atlas = createSiteBannerAtlas(LOGO_ENTRIES, 4, harness.dependencies);
+
+        harness.context.isReadbackBlocked = true;
+        harness.logos.set('logos/c1.svg', createLogoImage());
+        harness.logos.set('logos/c2.svg', createLogoImage());
+        vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+        return { ...harness, atlas };
+      };
+
+      it('draws the monograms on a clean canvas, gives it to the texture and writes a log', () => {
+        const { atlas, canvases, context, replacementContext } = createBlockedAtlas();
+        const versionBefore = atlas.texture.version;
+
+        expect(atlas.redraw(TEST_BANNER_COLORS)).toBe(true);
+        expect(canvases).toHaveLength(2);
+        expect(atlas.texture.image).toBe(canvases[1]);
+        expect(atlas.texture.version).toBe(versionBefore + 1);
+        expect(context.countOf('drawImage')).toBe(3);
+        expect(replacementContext.countOf('drawImage')).toBe(0);
+        expect(replacementContext.countOf('clearRect')).toBe(1);
+        expect(replacementContext.countOf('fillText')).toBe(6);
+        expect(replacementContext.countOf('roundRect')).toBe(LOGO_ENTRIES.length + 3);
+        expect(vi.mocked(console.log)).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(console.log).mock.calls[0]?.[0]).toBe('> SiteBannerAtlas -> redraw:');
+        expect(vi.mocked(console.log).mock.calls[0]?.[1]).toMatchObject({ error: { name: 'SecurityError' } });
+      });
+
+      it('takes no logos in the redraws that follow, for the same colors and for new ones', () => {
+        const {
+          atlas,
+          logos,
+          replacementContext,
+        } = createBlockedAtlas();
+
+        atlas.redraw(TEST_BANNER_COLORS);
+
+        expect(atlas.redraw(TEST_BANNER_COLORS)).toBe(false);
+
+        logos.set('logos/other.svg', createLogoImage());
+
+        expect(atlas.redraw(TEST_BANNER_COLORS)).toBe(false);
+        expect(atlas.redraw({ ...TEST_BANNER_COLORS, plate: 'rgb(9, 9, 9)' })).toBe(true);
+        expect(replacementContext.countOf('drawImage')).toBe(0);
+        expect(replacementContext.countOf('getImageData')).toBe(0);
+        expect(replacementContext.countOf('clearRect')).toBe(2);
+      });
+    });
   });
 
   it('answers the cell lookups of the layout', () => {

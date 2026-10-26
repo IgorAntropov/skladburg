@@ -40,8 +40,8 @@ describe('listSiteBannerEntries', () => {
     const entries = listSiteBannerEntries(buildLayout().buildings, SITES);
 
     expect(entries).toEqual([
-      { monogram: { index: '1', letters: 'Пос' }, organizationId: 'org-a', side: 'supplier' },
-      { monogram: { index: '2', letters: 'Зак' }, organizationId: 'org-b', side: 'customer' },
+      { logoPath: '', monogram: { index: '1', letters: 'Пос' }, organizationId: 'org-a', side: 'supplier' },
+      { logoPath: '', monogram: { index: '2', letters: 'Зак' }, organizationId: 'org-b', side: 'customer' },
     ]);
   });
 
@@ -80,7 +80,42 @@ describe('listSiteBannerEntries', () => {
     const layout = buildNetworkSceneLayout(createTestModel([createTestCity('a', 4, 2)], [], sites));
 
     expect(listSiteBannerEntries(layout.buildings, sites)).toEqual([
-      { monogram: { index: '', letters: '' }, organizationId: 'org', side: 'carrier' },
+      { logoPath: '', monogram: { index: '', letters: '' }, organizationId: 'org', side: 'carrier' },
     ]);
+  });
+
+  it('takes the light logo path of the organization and an empty path when it has none', () => {
+    const sites = [
+      createTestMapSite('s1', 'org-a', {
+        organizationLogo: { darkPath: 'logos/a-dark.svg', lightPath: 'logos/a-light.svg' },
+        organizationName: 'Поставщик 1',
+        side: 'supplier',
+      }),
+      createTestMapSite('s2', 'org-b', { organizationName: 'Заказчик 2', side: 'customer' }),
+      createTestMapSite('s3', 'org-c', {
+        organizationLogo: { darkPath: 'logos/c-dark.svg', lightPath: '' },
+        organizationName: 'Заказчик 3',
+        side: 'customer',
+      }),
+    ];
+    const layout = buildNetworkSceneLayout(createTestModel([createTestCity('a', 4, 2)], [], sites));
+    const entries = listSiteBannerEntries(layout.buildings, sites);
+
+    expect(entries.map(entry => [entry.organizationId, entry.logoPath])).toEqual([
+      ['org-a', 'logos/a-light.svg'],
+      ['org-b', ''],
+      ['org-c', ''],
+    ]);
+  });
+
+  it('takes the logo from the first site of the organization that the city shows', () => {
+    const logo = { darkPath: '', lightPath: 'logos/shared-light.svg' };
+    const sites = [
+      createTestMapSite('s1', 'org-a', { organizationLogo: logo, organizationName: 'Поставщик 1', side: 'supplier' }),
+      createTestMapSite('s2', 'org-a', { organizationLogo: logo, organizationName: 'Поставщик 1', side: 'supplier' }),
+    ];
+    const layout = buildNetworkSceneLayout(createTestModel([createTestCity('a', 4, 2)], [], sites));
+
+    expect(listSiteBannerEntries(layout.buildings, sites).map(entry => entry.logoPath)).toEqual(['logos/shared-light.svg']);
   });
 });

@@ -77,7 +77,7 @@ describe('layoutMiniCity', () => {
     }
   });
 
-  it('keeps houses and offices inside their size ranges and under the chip level', () => {
+  it('keeps houses and offices inside their size ranges and under the site mark level', () => {
     const decor = [
       ...layout([], 'city-a').buildings,
       ...layout([], 'city-b').buildings,

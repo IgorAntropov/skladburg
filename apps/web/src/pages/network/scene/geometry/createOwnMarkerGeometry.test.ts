@@ -41,7 +41,7 @@ describe('createOwnMarkerGeometries', () => {
     expect(topY).toBeCloseTo(0.47 * 1.1, 6);
   });
 
-  it('puts the front of the house at 0.30 m and the front of the outline at 0.26 m, both over the chip', () => {
+  it('puts the front of the house at 0.30 m and the front of the outline at 0.26 m, both over the site mark', () => {
     const { house, outline } = createOwnMarkerGeometries();
 
     house.computeBoundingBox();

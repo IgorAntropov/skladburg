@@ -10,7 +10,10 @@ import {
   type RouteLeg,
   RouteLegSchema,
 } from '@skladburg/contracts/network/v1/network';
-import { ProfileKind } from '@skladburg/contracts/organization/v1/organization';
+import {
+  OrganizationLogoSchema,
+  ProfileKind,
+} from '@skladburg/contracts/organization/v1/organization';
 import {
   describe,
   expect,
@@ -50,6 +53,7 @@ interface SiteInitValue {
   mapNodeId: string;
   name?: string;
   organizationId?: string;
+  organizationLogo?: MapSite['organizationLogo'];
   organizationName?: string;
   profileKind?: ProfileKind;
 }
@@ -59,6 +63,7 @@ const createSite = ({
   mapNodeId,
   name = '',
   organizationId = OTHER_ORGANIZATION_ID,
+  organizationLogo,
   organizationName = 'Чужая организация',
   profileKind = ProfileKind.SUPPLIER,
 }: SiteInitValue): MapSite => create(MapSiteSchema, {
@@ -67,6 +72,7 @@ const createSite = ({
   mapNodeId,
   name,
   organizationId,
+  organizationLogo,
   organizationName,
   profileKind,
 });
@@ -213,6 +219,30 @@ describe('buildNetworkMapModel sites', () => {
         organizationName: 'Поставщик 2',
         side: 'supplier',
       },
+    ]);
+  });
+
+  it('carries the organization logo of the site and leaves it out when the logo is empty', () => {
+    const { sites } = buildNetworkMapModel(createSource({
+      sites: [
+        createSite({
+          id: 'with-logo',
+          mapNodeId: 'node-vor',
+          organizationLogo: create(OrganizationLogoSchema, {
+            darkUrl: 'logos/supplier-1-dark.svg',
+            lightUrl: 'logos/supplier-1-light.svg',
+          }),
+          organizationName: 'А',
+        }),
+        createSite({ id: 'empty-logo', mapNodeId: 'node-vor', organizationLogo: create(OrganizationLogoSchema), organizationName: 'Б' }),
+        createSite({ id: 'no-logo', mapNodeId: 'node-vor', organizationName: 'В' }),
+      ],
+    }));
+
+    expect(sites.map(site => [site.id, site.organizationLogo])).toEqual([
+      ['with-logo', { darkPath: 'logos/supplier-1-dark.svg', lightPath: 'logos/supplier-1-light.svg' }],
+      ['empty-logo', undefined],
+      ['no-logo', undefined],
     ]);
   });
 

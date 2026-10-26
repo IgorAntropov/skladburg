@@ -6,14 +6,17 @@ import type {
 import { expect } from '@playwright/test';
 
 import type { DirectoryOrganizationValue } from '../fixtures/demoData.ts';
+import type { ColorSchemeValue } from '../fixtures/themePreference.ts';
 
 import { expectNoAxeViolations } from '../fixtures/axe.ts';
 import { toOrganizationRoute } from '../fixtures/routes.ts';
+import { createStoreSystemThemeScript } from '../fixtures/themePreference.ts';
 
 const COMPANIES_TAB_NAME = 'Компании';
 const SPHERES_CELL_INDEX = 2;
 const OWN_MARK_TEXT = 'вы';
 const REQUISITES_LABELS = ['Реквизиты', 'Юридическое название', 'ИНН', 'КПП', 'ОГРН'] as const;
+const READ_NATURAL_WIDTH_SCRIPT = `document.querySelector('[data-testid="organization-card-logo"]')?.naturalWidth ?? 0`;
 const LEVEL_FOUR_HINT = 'Надёжные партнёры появятся, когда в сети закроются первые сделки';
 
 export interface DirectoryFiltersValue {
@@ -30,6 +33,7 @@ export interface DirectoryFiltersValue {
 export interface OrganizationDirectoryRobotValue {
   closeTable: () => Promise<void>;
   expectActiveFilterCount: (count: number) => Promise<void>;
+  expectCardLogo: (organization: DirectoryOrganizationValue, theme: ColorSchemeValue) => Promise<void>;
   expectCompaniesTabOpen: () => Promise<void>;
   expectForeignCard: (organization: DirectoryOrganizationValue) => Promise<void>;
   expectLevelFourHint: () => Promise<void>;
@@ -47,10 +51,12 @@ export interface OrganizationDirectoryRobotValue {
   expectTableOpen: () => Promise<void>;
   expectTableRows: (organizations: readonly DirectoryOrganizationValue[]) => Promise<void>;
   expectTableRowSelected: (organization: DirectoryOrganizationValue) => Promise<void>;
+  followSystemTheme: () => Promise<void>;
   hoverRow: (organization: DirectoryOrganizationValue) => Promise<void>;
   openCompaniesTab: () => Promise<void>;
   openRow: (organization: DirectoryOrganizationValue) => Promise<void>;
   openTable: () => Promise<void>;
+  switchColorScheme: (colorScheme: ColorSchemeValue) => Promise<void>;
   tabFilters: DirectoryFiltersValue;
   tableFilters: DirectoryFiltersValue;
   tapTableRowCell: (organization: DirectoryOrganizationValue) => Promise<void>;
@@ -143,6 +149,12 @@ export const createOrganizationDirectoryRobot = (page: Page): OrganizationDirect
     async expectActiveFilterCount(count: number): Promise<void> {
       await expect(filtersToggle).toContainText(`Включено фильтров: ${String(count)}`);
     },
+    async expectCardLogo(organization: DirectoryOrganizationValue, theme: ColorSchemeValue): Promise<void> {
+      const logo = inspectorBody.getByTestId('organization-card-logo');
+
+      await expect(logo).toHaveAttribute('src', new RegExp(`logos/${organization.logoKey}-${theme}\\.svg$`));
+      await expect.poll(() => page.evaluate<number>(READ_NATURAL_WIDTH_SCRIPT)).toBeGreaterThan(0);
+    },
     async expectCompaniesTabOpen(): Promise<void> {
       await expect(page.getByRole('tab', { name: COMPANIES_TAB_NAME, selected: true })).toBeVisible();
       await expect(tabPanel).toBeVisible();
@@ -230,6 +242,9 @@ export const createOrganizationDirectoryRobot = (page: Page): OrganizationDirect
     async expectTableRowSelected(organization: DirectoryOrganizationValue): Promise<void> {
       await expect(getTableRow(organization).getByRole('link')).toHaveAttribute('aria-current', 'true');
     },
+    async followSystemTheme(): Promise<void> {
+      await page.addInitScript({ content: createStoreSystemThemeScript() });
+    },
     async hoverRow(organization: DirectoryOrganizationValue): Promise<void> {
       await getListRow(organization).hover();
     },
@@ -244,6 +259,9 @@ export const createOrganizationDirectoryRobot = (page: Page): OrganizationDirect
     },
     async openTable(): Promise<void> {
       await tableButton.click();
+    },
+    async switchColorScheme(colorScheme: ColorSchemeValue): Promise<void> {
+      await page.emulateMedia({ colorScheme });
     },
     tabFilters: createFilters(tabPanel, filtersToggle),
     tableFilters: createFilters(tablePanel, undefined),

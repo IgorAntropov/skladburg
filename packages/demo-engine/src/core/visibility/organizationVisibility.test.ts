@@ -1,5 +1,6 @@
 import { create } from '@bufbuild/protobuf';
 import {
+  OrganizationLogoSchema,
   OrganizationSchema,
   ProfileKind,
 } from '@skladburg/contracts/organization/v1/organization';
@@ -55,6 +56,20 @@ describe('projectOrganizationForShowcase', () => {
     expect(projection.sphereIds).toEqual([SeedSphereId.CEMENT_AND_CONCRETE, SeedSphereId.TIMBER]);
     expect([projection.legalName, projection.inn, projection.kpp, projection.ogrn]).toEqual(['', '', '', '']);
   });
+
+  it('copies the logo without sharing the object with the source', () => {
+    const organization = create(OrganizationSchema, {
+      logo: create(OrganizationLogoSchema, { darkUrl: 'dark.svg', lightUrl: 'light.svg' }),
+    });
+    const projection = projectOrganizationForShowcase(organization);
+
+    expect(projection.logo).toEqual(organization.logo);
+    expect(projection.logo).not.toBe(organization.logo);
+  });
+
+  it('leaves the logo out when the organization has none', () => {
+    expect(projectOrganizationForShowcase(create(OrganizationSchema)).logo).toBeUndefined();
+  });
 });
 
 describe('getVisibleOrganization', () => {
@@ -68,6 +83,20 @@ describe('getVisibleOrganization', () => {
     const organization = getVisibleOrganization(read, SeedOrganizationId.SUPPLIER_5, SeedOrganizationId.SUPPLIER_5);
 
     expect(organization?.legalName).not.toBe('');
+  });
+
+  it('returns the own logo together with the own full record, even when the organization is not verified', () => {
+    const organization = getVisibleOrganization(read, SeedOrganizationId.SUPPLIER_5, SeedOrganizationId.SUPPLIER_5);
+
+    expect(organization?.logo?.lightUrl).toBe('logos/supplier-5-light.svg');
+    expect(organization?.logo?.darkUrl).toBe('logos/supplier-5-dark.svg');
+  });
+
+  it('returns the logo of another verified organization to a verified viewer', () => {
+    const organization = getVisibleOrganization(read, SeedOrganizationId.CUSTOMER_1, SeedOrganizationId.SUPPLIER_2);
+
+    expect(organization?.logo?.lightUrl).toBe('logos/supplier-2-light.svg');
+    expect(organization?.logo?.darkUrl).toBe('logos/supplier-2-dark.svg');
   });
 
   it('returns the showcase projection of another verified organization to a verified viewer', () => {

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 interface HudPanelsState {
+  collapseSignal: number;
   collapsibleCount: number;
   isCollapsed: boolean;
   registerCollapsible: () => () => void;
@@ -9,6 +10,7 @@ interface HudPanelsState {
 }
 
 export const useHudPanelsStore = create<HudPanelsState>()(set => ({
+  collapseSignal: 0,
   collapsibleCount: 0,
   isCollapsed: false,
   registerCollapsible: () => {
@@ -27,6 +29,10 @@ export const useHudPanelsStore = create<HudPanelsState>()(set => ({
   },
   savedScrollY: 0,
   toggleCollapsed: () => {
-    set(state => (state.isCollapsed ? { isCollapsed: false } : { isCollapsed: true, savedScrollY: window.scrollY }));
+    set(state => (
+      state.isCollapsed
+        ? { isCollapsed: false }
+        : { collapseSignal: state.collapseSignal + 1, isCollapsed: true, savedScrollY: window.scrollY }
+    ));
   },
 }));

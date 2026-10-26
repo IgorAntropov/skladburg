@@ -7,7 +7,10 @@ import {
   render,
   screen,
 } from '@testing-library/react';
-import { useEffect } from 'react';
+import {
+  StrictMode,
+  useEffect,
+} from 'react';
 import { defaultLocaleCatalog } from 'virtual:build-profile';
 import {
   afterEach,
@@ -21,7 +24,10 @@ import {
 import type { IFakeViewport } from '@/shared/lib/viewport/index.testing';
 import type { TabsItemValue } from '@/shared/ui';
 
-import { CollapseHudPanelsButton } from '@/features/collapse-hud-panels';
+import {
+  CollapseHudPanelsButton,
+  requestHudMapView,
+} from '@/features/collapse-hud-panels';
 import { resetHudPanelsStore } from '@/features/collapse-hud-panels/index.testing';
 import { withTestLocalizer } from '@/shared/i18n/index.testing';
 import { installFakeViewport } from '@/shared/lib/viewport/index.testing';
@@ -349,6 +355,103 @@ describe('HudLayout', () => {
       pressPanelsToggle();
 
       expect(screen.getByRole('button', { name: catalog['hud.inspector.expand'] }).getAttribute('aria-expanded')).toBe('false');
+    });
+
+    describe('when the map view is requested', () => {
+      const inspectorButtonText = 'Inspector action';
+
+      const createInspectorProps = (overrides: Partial<HudLayoutProps> = {}): HudLayoutProps => createProps({
+        canCollapsePanels: true,
+        inspector: <button type="button">{inspectorButtonText}</button>,
+        inspectorKey: 'site:first',
+        isInspectorOpen: true,
+        panel: undefined,
+        ...overrides,
+      });
+
+      const requestMapView = (): void => {
+        act(() => {
+          requestHudMapView(0);
+        });
+      };
+
+      const readSheetToggle = (): HTMLElement => {
+        const toggle = document.querySelector<HTMLElement>(`section[aria-label="${catalog['hud.inspector.title']}"] > button`);
+
+        if (toggle === null) {
+          throw new Error('The sheet handle is not rendered');
+        }
+
+        return toggle;
+      };
+
+      it('collapses the inspector the person expanded by hand while the panels are already hidden', () => {
+        render(withPanelsToggle(createInspectorProps()));
+        pressPanelsToggle();
+        fireEvent.click(screen.getByRole('button', { name: catalog['hud.inspector.expand'] }));
+
+        expect(readSheetToggle().getAttribute('aria-expanded')).toBe('true');
+
+        requestMapView();
+
+        expect(readSheetToggle().getAttribute('aria-expanded')).toBe('false');
+        expect(readListsZone().hidden).toBe(true);
+      });
+
+      it('moves the focus from the inspector body to the sheet handle', () => {
+        render(withPanelsToggle(createInspectorProps()));
+        screen.getByRole('button', { name: inspectorButtonText }).focus();
+
+        requestMapView();
+
+        expect(document.activeElement).toBe(readSheetToggle());
+      });
+
+      it('moves the focus to the sheet handle when nothing holds it', () => {
+        render(withPanelsToggle(createInspectorProps()));
+
+        requestMapView();
+
+        expect(document.activeElement).toBe(readSheetToggle());
+      });
+
+      it('keeps the focus that is outside of the sheet', () => {
+        render(withPanelsToggle(createInspectorProps()));
+        const panelsToggle = screen.getByRole('button', { name: panelsToggleName });
+        panelsToggle.focus();
+
+        pressPanelsToggle();
+
+        expect(document.activeElement).toBe(panelsToggle);
+        expect(readSheetToggle().getAttribute('aria-expanded')).toBe('false');
+      });
+
+      it('does not collapse or focus a new inspector with the signal that was raised before it opened', () => {
+        const baseProps = createInspectorProps({ isInspectorOpen: false });
+        const { rerender } = render(withPanelsToggle(baseProps));
+
+        requestMapView();
+        pressPanelsToggle();
+        rerender(withPanelsToggle({ ...baseProps, isInspectorOpen: true }));
+
+        expect(readSheetToggle().getAttribute('aria-expanded')).toBe('true');
+        expect(document.activeElement).not.toBe(readSheetToggle());
+
+        rerender(withPanelsToggle({ ...baseProps, inspectorKey: 'site:second', isInspectorOpen: true }));
+
+        expect(readSheetToggle().getAttribute('aria-expanded')).toBe('true');
+        expect(document.activeElement).not.toBe(readSheetToggle());
+      });
+
+      it('collapses the inspector once under strict mode', () => {
+        render(<StrictMode>{withPanelsToggle(createInspectorProps())}</StrictMode>);
+        screen.getByRole('button', { name: inspectorButtonText }).focus();
+
+        requestMapView();
+
+        expect(readSheetToggle().getAttribute('aria-expanded')).toBe('false');
+        expect(document.activeElement).toBe(readSheetToggle());
+      });
     });
   });
 

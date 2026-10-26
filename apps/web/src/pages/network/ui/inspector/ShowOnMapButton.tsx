@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 
 import { LocateFixed } from 'lucide-react';
 
+import { requestHudMapView } from '@/features/collapse-hud-panels';
 import { useI18n } from '@/shared/i18n';
 import { Button } from '@/shared/ui';
 import { useIsSceneCameraReady } from '@/widgets/scene-viewport';
@@ -21,6 +22,7 @@ export const ShowOnMapButton = ({ isOrganization, objectId }: ShowOnMapButtonPro
 
   const handleClick = (): void => {
     console.log('> ShowOnMapButton -> handleClick:', { isOrganization, objectId });
+    requestHudMapView(window.scrollY);
 
     if (isOrganization) {
       requestOrganizationFocus(objectId);

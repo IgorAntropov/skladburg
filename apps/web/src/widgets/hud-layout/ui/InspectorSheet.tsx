@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import {
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -23,6 +24,7 @@ import { HUD_PHONE_RISE_CLASS_NAME } from './hudStyles';
 
 interface InspectorSheetProps {
   children: ReactNode;
+  collapseSignal: number;
   isCollapseRequested: boolean;
 }
 
@@ -39,27 +41,21 @@ const HANDLE_CLASS_NAME = 'absolute top-1 left-1/2 h-1 w-9 -translate-x-1/2 roun
 
 const CONTENT_CLASS_NAME = 'flex min-h-0 flex-col overflow-y-auto px-4 pt-2 pb-4 @container';
 
-export const InspectorSheet = ({ children, isCollapseRequested }: InspectorSheetProps): ReactElement => {
+export const InspectorSheet = ({ children, collapseSignal, isCollapseRequested }: InspectorSheetProps): ReactElement => {
   const { t } = useI18n();
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const handledCollapseSignalRef = useRef(collapseSignal);
   const contentId = useId();
-  const [isExpanded, setIsExpanded] = useState(!isCollapseRequested);
-  const [prevIsCollapseRequested, setPrevIsCollapseRequested] = useState(isCollapseRequested);
-
-  if (prevIsCollapseRequested !== isCollapseRequested) {
-    setPrevIsCollapseRequested(isCollapseRequested);
-
-    if (isCollapseRequested) {
-      setIsExpanded(false);
-    }
-  }
+  const [expandedSignal, setExpandedSignal] = useState<null | number>(isCollapseRequested ? null : collapseSignal);
+  const isExpanded = expandedSignal === collapseSignal;
 
   const toggleLabel = isExpanded ? t('hud.inspector.collapse') : t('hud.inspector.expand');
   const ToggleIcon = isExpanded ? ChevronDown : ChevronUp;
 
   const handleToggleClick = (): void => {
     console.log('> InspectorSheet -> handleToggleClick:', { isExpanded });
-    setIsExpanded(current => !current);
+    setExpandedSignal(isExpanded ? null : collapseSignal);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
@@ -68,9 +64,23 @@ export const InspectorSheet = ({ children, isCollapseRequested }: InspectorSheet
     }
 
     console.log('> InspectorSheet -> handleKeyDown:', { key: event.key });
-    setIsExpanded(false);
+    setExpandedSignal(null);
     toggleRef.current?.focus();
   };
+
+  useLayoutEffect(() => {
+    if (handledCollapseSignalRef.current === collapseSignal) {
+      return;
+    }
+
+    handledCollapseSignalRef.current = collapseSignal;
+
+    const { activeElement } = document;
+
+    if (activeElement === null || activeElement === document.body || contentRef.current?.contains(activeElement)) {
+      toggleRef.current?.focus();
+    }
+  }, [collapseSignal]);
 
   return (
     <section
@@ -90,7 +100,7 @@ export const InspectorSheet = ({ children, isCollapseRequested }: InspectorSheet
         {toggleLabel}
         <ToggleIcon aria-hidden className="size-5" />
       </Button>
-      <div className={CONTENT_CLASS_NAME} hidden={!isExpanded} id={contentId}>
+      <div className={CONTENT_CLASS_NAME} hidden={!isExpanded} id={contentId} ref={contentRef}>
         {children}
       </div>
     </section>

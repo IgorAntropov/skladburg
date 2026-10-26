@@ -21,6 +21,8 @@ export const readWorldPalette = (readProperty: (name: string) => string): WorldP
   return {
     background: readWorldColor(readProperty, WORLD_PALETTE_KEYS.background),
     backgroundNight: readWorldColor(readProperty, WORLD_PALETTE_KEYS.backgroundNight),
+    bannerPlate: readWorldColor(readProperty, WORLD_PALETTE_KEYS.bannerPlate),
+    bannerText: readWorldColor(readProperty, WORLD_PALETTE_KEYS.bannerText),
     buildingBrick: readWorldColor(readProperty, WORLD_PALETTE_KEYS.buildingBrick),
     buildingRoof: readWorldColor(readProperty, WORLD_PALETTE_KEYS.buildingRoof),
     buildingRoofAlt: readWorldColor(readProperty, WORLD_PALETTE_KEYS.buildingRoofAlt),

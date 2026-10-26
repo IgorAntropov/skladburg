@@ -4,6 +4,7 @@ import type {
   NetworkMapTargetValue,
   NetworkSceneInteractionValue,
 } from '../../model/networkSceneInteraction';
+import type { SiteMarkModeValue } from '../banner/siteMarkMetrics';
 import type { ScreenSizeValue } from '../geometry/projectWorldPointToScreen';
 import type { PointerSampleValue } from './isTapGesture';
 import type { PickTargetsValue } from './projectPickCandidates';
@@ -22,6 +23,7 @@ export interface NetworkPointerPickerOptionsValue {
   element: HTMLElement;
   getInteraction: () => NetworkSceneInteractionValue | undefined;
   getView: () => PointerPickerViewValue;
+  markMode: SiteMarkModeValue;
   targets: PickTargetsValue;
 }
 
@@ -43,7 +45,7 @@ const createSample = (event: PointerEvent): PointerSampleValue => ({
 });
 
 export const createNetworkPointerPicker = (options: NetworkPointerPickerOptionsValue): (() => void) => {
-  const { element, getInteraction, getView, targets } = options;
+  const { element, getInteraction, getView, markMode, targets } = options;
   const candidates = createPickCandidates(targets);
   const activePointerIds = new Set<number>();
   let downSample: PointerSampleValue | undefined;
@@ -53,7 +55,7 @@ export const createNetworkPointerPicker = (options: NetworkPointerPickerOptionsV
     const { camera, size } = getView();
     const bounds = element.getBoundingClientRect();
 
-    projectPickCandidates(targets, camera, size, candidates);
+    projectPickCandidates(targets, camera, size, candidates, markMode.isFar);
 
     return pickNetworkObject(
       { x: event.clientX - bounds.left, y: event.clientY - bounds.top },

@@ -141,6 +141,8 @@
   --world-window-glow: #ffd27f;
   --world-lamp-glow: #fff1c2;
   --world-light-pool: #ff8000;
+  --world-banner-plate: #faf5e9;
+  --world-banner-text: #1e2a4a;
 }
 
 @utility shadow-panel {

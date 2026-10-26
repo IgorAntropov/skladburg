@@ -9,8 +9,10 @@ import {
 } from 'vitest';
 
 import type { NetworkSceneInteractionValue } from '../../model/networkSceneInteraction';
+import type { SiteMarkModeValue } from '../banner/siteMarkMetrics';
 import type { NetworkSceneLayoutValue } from '../layout';
 
+import { createSiteMarkMode } from '../banner/siteMarkMetrics';
 import { buildNetworkSceneLayout } from '../layout';
 import {
   createTestCity,
@@ -86,21 +88,24 @@ describe('createNetworkPointerPicker', () => {
   ));
   const targets = buildPickTargets(layout);
   const camera = createCamera();
-  const projected = projectPickCandidates(targets, camera, SIZE, createPickCandidates(targets));
+  const projected = projectPickCandidates(targets, camera, SIZE, createPickCandidates(targets), true);
   const site = projected.sites.find(candidate => candidate.id === 'a-site');
   const otherCity = projected.cities.find(candidate => candidate.id === 'b');
 
   let element: HTMLDivElement;
   let interaction: NetworkSceneInteractionValue;
+  let markMode: SiteMarkModeValue;
   let dispose: () => void;
 
   beforeEach(() => {
     element = document.createElement('div');
     interaction = createInteraction();
+    markMode = createSiteMarkMode();
     dispose = createNetworkPointerPicker({
       element,
       getInteraction: (): NetworkSceneInteractionValue => interaction,
       getView: () => ({ camera, size: SIZE }),
+      markMode,
       targets,
     });
   });
@@ -116,6 +121,27 @@ describe('createNetworkPointerPicker', () => {
     dispatchPointer(element, 'pointerup', point);
 
     expect(interaction.onSelect).toHaveBeenCalledExactlyOnceWith({ id: 'a-site', kind: 'site' });
+  });
+
+  it('reaches 1.6 m of the site from the near view and 1.0 m from the far view', () => {
+    const baseX = site?.baseX ?? 0;
+    const tipY = site?.tipY ?? 0;
+    const tap = (x: number): void => {
+      dispatchPointer(element, 'pointerdown', { pointerType: 'mouse', x, y: tipY });
+      dispatchPointer(element, 'pointerup', { pointerType: 'mouse', x, y: tipY });
+    };
+    const siteTarget = { id: 'a-site', kind: 'site' };
+    const betweenReachesX = baseX + 28;
+
+    markMode.isFar = true;
+    tap(betweenReachesX);
+
+    expect(interaction.onSelect).not.toHaveBeenCalledWith(siteTarget);
+
+    markMode.isFar = false;
+    tap(betweenReachesX);
+
+    expect(interaction.onSelect).toHaveBeenCalledWith(siteTarget);
   });
 
   it('selects the city under a tap on its ground', () => {

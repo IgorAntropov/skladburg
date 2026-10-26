@@ -223,6 +223,27 @@ test.describe('camera motion', () => {
     expect(home.longTaskCount).toBe(MAX_LONG_TASK_COUNT);
   });
 
+  test.describe('at the high level', () => {
+    test.use({ initialGraphicsPreference: 'high' });
+
+    test('turns with the button by day and goes quiet, the draw calls are only reported', async ({ page }) => {
+      const scene = createSceneRobot(page);
+
+      await openReadyWorld(scene);
+
+      const rotation = await measureRotation(
+        scene,
+        async () => scene.pressCameraButton('rotate-right'),
+        MIN_ROTATION_FRAMES,
+      );
+
+      annotateRotation('rotation-day-high', rotation);
+
+      expect(rotation.frames).toBeGreaterThanOrEqual(MIN_ROTATION_FRAMES);
+      expect(rotation.drawCallsPerFrame).toBeGreaterThan(0);
+    });
+  });
+
   test('turns the world with the E key like the button does', async ({ page }) => {
     const scene = createSceneRobot(page);
 

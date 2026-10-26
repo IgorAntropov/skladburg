@@ -73,6 +73,11 @@ const WORLD_GLOW_TOKEN_NAMES: readonly string[] = [
   'light-pool',
 ];
 
+const WORLD_MARK_TOKEN_NAMES: readonly string[] = [
+  'banner-plate',
+  'banner-text',
+];
+
 const WORLD_TERRAIN_TOKEN_NAMES: readonly string[] = [
   'background',
   'ground',
@@ -103,7 +108,9 @@ const readWorldTokens = (): Map<string, string> => new Map(readWorldDeclarations
 
 const readWorldSurfaceEntries = (): [string, string][] => {
   return [...readWorldTokens()].filter(([name]) => {
-    return !WORLD_LIGHT_TOKEN_NAMES.includes(name) && !WORLD_GLOW_TOKEN_NAMES.includes(name);
+    return !WORLD_LIGHT_TOKEN_NAMES.includes(name)
+      && !WORLD_GLOW_TOKEN_NAMES.includes(name)
+      && !WORLD_MARK_TOKEN_NAMES.includes(name);
   });
 };
 
@@ -870,6 +877,37 @@ describe('world selection corners without lighting', () => {
 
   it('holds the white rim of a chip against every lit surface by night', () => {
     expect(readWorstContrast(readWorldColor('side-rim'), readNightSurfaces())).toBeGreaterThanOrEqual(RIM_NIGHT_CONTRAST);
+  });
+});
+
+describe('world site marks without lighting', () => {
+  it('declares both colors of the mark once in the root block', () => {
+    const names = readWorldDeclarations().map(([name]) => name);
+
+    for (const name of WORLD_MARK_TOKEN_NAMES) {
+      expect(names.filter(declared => declared === name)).toHaveLength(1);
+      expect(darkOverrideNames).not.toContain(`${WORLD_TOKEN_PREFIX}${name}`);
+    }
+  });
+
+  it('counts the mark colors neither as a surface nor as a light of the world', () => {
+    const surfaceNames = readWorldSurfaceEntries().map(([name]) => name);
+
+    for (const name of WORLD_MARK_TOKEN_NAMES) {
+      expect(surfaceNames).not.toContain(name);
+      expect(WORLD_LIGHT_TOKEN_NAMES).not.toContain(name);
+      expect(WORLD_GLOW_TOKEN_NAMES).not.toContain(name);
+    }
+
+    expect(WORLD_BACKGROUNDS).not.toContain(readWorldTokens().get('banner-plate'));
+  });
+
+  it('keeps the monogram readable on the plate', () => {
+    expect(measureLuminanceContrast('banner-text', 'banner-plate')).toBeGreaterThanOrEqual(TEXT_THRESHOLD);
+  });
+
+  it.each(SIDE_NAMES)('keeps the %s frame of the plate at 3:1 against the plate', (name) => {
+    expect(measureLuminanceContrast(`side-${name}`, 'banner-plate')).toBeGreaterThanOrEqual(GRAPHIC_THRESHOLD);
   });
 });
 

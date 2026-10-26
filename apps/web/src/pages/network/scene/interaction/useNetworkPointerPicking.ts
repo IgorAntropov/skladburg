@@ -6,6 +6,7 @@ import {
 } from 'react';
 
 import type { NetworkSceneInteractionValue } from '../../model/networkSceneInteraction';
+import type { SiteMarkModeValue } from '../banner/siteMarkMetrics';
 import type { NetworkSceneLayoutValue } from '../layout';
 
 import { createNetworkPointerPicker } from './createNetworkPointerPicker';
@@ -14,6 +15,7 @@ import { buildPickTargets } from './projectPickCandidates';
 export const useNetworkPointerPicking = (
   layout: NetworkSceneLayoutValue,
   interaction: NetworkSceneInteractionValue | undefined,
+  markMode: SiteMarkModeValue,
 ): void => {
   const domElement = useThree(state => state.gl.domElement);
   const getState = useThree(state => state.get);
@@ -35,7 +37,8 @@ export const useNetworkPointerPicking = (
       element: domElement,
       getInteraction: (): NetworkSceneInteractionValue | undefined => interactionRef.current,
       getView: getState,
+      markMode,
       targets,
     });
-  }, [domElement, getState, isInteractive, targets]);
+  }, [domElement, getState, isInteractive, markMode, targets]);
 };

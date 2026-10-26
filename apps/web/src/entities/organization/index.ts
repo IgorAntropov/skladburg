@@ -13,6 +13,8 @@ export {
 export type { SideShapeValue } from './config/sideShapes';
 export { SIDE_SHAPES } from './config/sideShapes';
 export { VERIFICATION_LEVEL_CHECKED_KEYS } from './config/verificationLevels';
+export type { MonogramPartsValue } from './lib/buildMonogramParts';
+export { buildMonogramParts } from './lib/buildMonogramParts';
 export type { SphereOptionValue } from './lib/buildSphereTree';
 export { buildSphereTree } from './lib/buildSphereTree';
 export { hasVerifiedProfile } from './lib/hasVerifiedProfile';

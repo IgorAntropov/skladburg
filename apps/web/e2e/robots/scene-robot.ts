@@ -13,6 +13,7 @@ import { createStoreGraphicsPreferenceScript } from '../fixtures/graphicsPrefere
 import { toObjectHash } from '../fixtures/routes.ts';
 import { createStoreSystemThemeScript } from '../fixtures/themePreference.ts';
 import { createProfileMenuLocators } from './profile-menu-locators.ts';
+import { createCountPlatePixelsScript } from './scene-banner-scripts.ts';
 import {
   createSleepScript,
   createWaitForIdleScript,
@@ -49,6 +50,7 @@ export type DragDirectionValue = 'down' | 'left' | 'right' | 'up';
 
 export interface SceneRobotValue {
   chooseGraphicsPreference: (preference: GraphicsPreferenceValue) => Promise<void>;
+  countBannerPlatePixels: (snapshot: Buffer) => Promise<number>;
   countRequestedSceneChunks: () => number;
   dragFromFreeAreaCenter: (distancePx: number) => Promise<void>;
   dragWorld: (direction: DragDirectionValue) => Promise<void>;
@@ -100,6 +102,12 @@ interface IdleReportValue {
   isIdle: boolean;
   msSinceLastDraw: number;
   pendingFrames: number;
+}
+
+interface PlatePixelScanValue {
+  height: number;
+  plateCount: number;
+  width: number;
 }
 
 const IDLE_WINDOW_MS = 500;
@@ -228,6 +236,13 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
       await expect(menu).toBeVisible();
       await getGraphicsOption(preference).click();
       await expect(menu).toHaveCount(0);
+    },
+    async countBannerPlatePixels(snapshot: Buffer): Promise<number> {
+      const { plateCount } = await page.evaluate<PlatePixelScanValue>(
+        createCountPlatePixelsScript(snapshot.toString('base64')),
+      );
+
+      return plateCount;
     },
     countRequestedSceneChunks(): number {
       return requestedSceneChunks.length;

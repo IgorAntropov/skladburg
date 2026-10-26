@@ -7,9 +7,11 @@ import type { NetworkSceneLayoutValue } from '../layout';
 import type { PickCandidatesValue } from './pickNetworkObject';
 
 import {
-  CHIP_BODY_SIZE_METERS,
+  SITE_MARK_FAR_PICK_RADIUS_METERS,
+  SITE_MARK_NEAR_PICK_RADIUS_METERS,
+} from '../banner/siteMarkMetrics';
+import {
   CHIP_CENTER_HEIGHT_METERS,
-  CHIP_RIM_SCALE,
   PLAZA_HEIGHT_METERS,
 } from '../geometry/networkSceneMetrics';
 import {
@@ -46,8 +48,6 @@ interface ProjectionScratchValue {
   unitRightPoint: ReturnType<typeof createScreenPoint>;
 }
 
-const CHIP_HALF_EXTENT_METERS = (CHIP_BODY_SIZE_METERS / 2) * CHIP_RIM_SCALE;
-
 const RIGHT_COLUMN = 0;
 const BACKWARD_COLUMN = 2;
 
@@ -81,6 +81,7 @@ export const projectPickCandidates = (
   camera: Camera,
   size: ScreenSizeValue,
   out: PickCandidatesValue,
+  isFar: boolean,
 ): PickCandidatesValue => {
   camera.updateMatrixWorld();
 
@@ -95,7 +96,7 @@ export const projectPickCandidates = (
     scratch.unitRightPoint.y - scratch.originPoint.y,
   );
   const groundSquash = Math.abs(backward.y);
-  const reachPx = CHIP_HALF_EXTENT_METERS * pixelsPerMeter;
+  const reachPx = (isFar ? SITE_MARK_FAR_PICK_RADIUS_METERS : SITE_MARK_NEAR_PICK_RADIUS_METERS) * pixelsPerMeter;
 
   for (const [index, site] of targets.sites.entries()) {
     const candidate = out.sites[index];

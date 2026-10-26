@@ -7,10 +7,6 @@ import {
 
 import type { NetworkSceneLayoutValue } from '../layout';
 
-import {
-  CHIP_BODY_SIZE_METERS,
-  CHIP_RIM_SCALE,
-} from '../geometry/networkSceneMetrics';
 import { buildNetworkSceneLayout } from '../layout';
 import {
   createTestCity,
@@ -27,11 +23,11 @@ const SIZE = { height: 800, width: 1200 };
 const ZOOM_PX_PER_METER = 10;
 const ELEVATION = Math.atan(1 / Math.SQRT2);
 
-const createCamera = (azimuth: number, lookX = 0, lookZ = 0): OrthographicCamera => {
+const createCamera = (azimuth: number, lookX = 0, lookZ = 0, zoom = ZOOM_PX_PER_METER): OrthographicCamera => {
   const camera = new OrthographicCamera(-SIZE.width / 2, SIZE.width / 2, SIZE.height / 2, -SIZE.height / 2, 0.1, 2000);
   const distance = 500;
 
-  camera.zoom = ZOOM_PX_PER_METER;
+  camera.zoom = zoom;
   camera.updateProjectionMatrix();
   camera.position.set(
     lookX + distance * Math.cos(ELEVATION) * Math.sin(azimuth),
@@ -85,7 +81,7 @@ describe('projectPickCandidates', () => {
   it('puts the chip of a site over its base on the screen', () => {
     const layout = createLayout();
     const targets = buildPickTargets(layout);
-    const candidates = projectPickCandidates(targets, createCamera(Math.PI / 4), SIZE, createPickCandidates(targets));
+    const candidates = projectPickCandidates(targets, createCamera(Math.PI / 4), SIZE, createPickCandidates(targets), true);
 
     for (const site of candidates.sites) {
       expect(site.tipY).toBeLessThan(site.baseY);
@@ -98,7 +94,7 @@ describe('projectPickCandidates', () => {
     const targets = buildPickTargets(layout);
 
     for (const azimuth of [Math.PI / 4, (3 * Math.PI) / 4, -Math.PI / 4]) {
-      const candidates = projectPickCandidates(targets, createCamera(azimuth), SIZE, createPickCandidates(targets));
+      const candidates = projectPickCandidates(targets, createCamera(azimuth), SIZE, createPickCandidates(targets), true);
 
       for (const [index, city] of candidates.cities.entries()) {
         const radius = layout.cities[index]?.radius ?? 0;
@@ -118,25 +114,69 @@ describe('projectPickCandidates', () => {
       createCamera(Math.PI / 4, first?.x ?? 0, first?.z ?? 0),
       SIZE,
       createPickCandidates(targets),
+      true,
     );
 
     expect(candidates.cities[0]?.x).toBeCloseTo(SIZE.width / 2, 3);
     expect(Math.abs((candidates.cities[0]?.y ?? 0) - SIZE.height / 2)).toBeLessThan(1);
   });
 
-  it('gives the chip a reach that grows with the zoom', () => {
+  it('reaches half the width of the near banner, 1.6 m, in the near view', () => {
     const targets = buildPickTargets(createLayout());
-    const candidates = projectPickCandidates(targets, createCamera(Math.PI / 4), SIZE, createPickCandidates(targets));
 
-    for (const site of candidates.sites) {
-      expect(site.reachPx).toBeCloseTo((CHIP_BODY_SIZE_METERS / 2) * CHIP_RIM_SCALE * ZOOM_PX_PER_METER, 4);
+    for (const zoom of [22, 32, 48]) {
+      const candidates = projectPickCandidates(
+        targets,
+        createCamera(Math.PI / 4, 0, 0, zoom),
+        SIZE,
+        createPickCandidates(targets),
+        false,
+      );
+
+      for (const site of candidates.sites) {
+        expect(site.reachPx).toBeCloseTo(1.6 * zoom, 4);
+      }
     }
+  });
+
+  it('reaches half the width of the far flag, 1 m, in the far view', () => {
+    const targets = buildPickTargets(createLayout());
+
+    for (const zoom of [6.4, 9, 18]) {
+      const candidates = projectPickCandidates(
+        targets,
+        createCamera(Math.PI / 4, 0, 0, zoom),
+        SIZE,
+        createPickCandidates(targets),
+        true,
+      );
+
+      for (const site of candidates.sites) {
+        expect(site.reachPx).toBeCloseTo(1 * zoom, 4);
+      }
+    }
+  });
+
+  it('takes the reach of the view each time the projection is written', () => {
+    const targets = buildPickTargets(createLayout());
+    const out = createPickCandidates(targets);
+    const camera = createCamera(Math.PI / 4);
+
+    projectPickCandidates(targets, camera, SIZE, out, false);
+    const nearReach = out.sites[0]?.reachPx ?? 0;
+
+    projectPickCandidates(targets, camera, SIZE, out, true);
+    const farReach = out.sites[0]?.reachPx ?? 0;
+
+    expect(nearReach).toBeCloseTo(1.6 * ZOOM_PX_PER_METER, 4);
+    expect(farReach).toBeCloseTo(1 * ZOOM_PX_PER_METER, 4);
+    expect(nearReach / farReach).toBeCloseTo(1.6, 6);
   });
 
   it('writes into the given object and returns it', () => {
     const targets = buildPickTargets(createLayout());
     const out = createPickCandidates(targets);
 
-    expect(projectPickCandidates(targets, createCamera(Math.PI / 4), SIZE, out)).toBe(out);
+    expect(projectPickCandidates(targets, createCamera(Math.PI / 4), SIZE, out, true)).toBe(out);
   });
 });

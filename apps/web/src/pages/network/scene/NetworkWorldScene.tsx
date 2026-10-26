@@ -4,6 +4,7 @@ import type { BufferGeometry } from 'three';
 import {
   useEffect,
   useMemo,
+  useState,
 } from 'react';
 
 import type {
@@ -24,6 +25,10 @@ import {
 import type { NetworkSceneInteractionValue } from '../model/networkSceneInteraction';
 import type { NetworkSceneLayoutValue } from './layout';
 
+import { listSiteBannerEntries } from './banner/listSiteBannerEntries';
+import { loadSiteBannerFonts } from './banner/siteBannerFonts';
+import { createSiteMarkMode } from './banner/siteMarkMetrics';
+import { useSiteBannerAtlas } from './banner/useSiteBannerAtlas';
 import { createUnitBoxGeometry } from './geometry/createUnitBoxGeometry';
 import { EMPTY_ID_LIST } from './geometry/emptyIdList';
 import { listSelectedIds } from './geometry/selectionFrame';
@@ -38,7 +43,7 @@ import { NetworkModelBuildings } from './layers/NetworkModelBuildings';
 import { NetworkRoads } from './layers/NetworkRoads';
 import { NetworkSelectionCorners } from './layers/NetworkSelectionCorners';
 import { NetworkShadowBlobs } from './layers/NetworkShadowBlobs';
-import { NetworkSiteChips } from './layers/NetworkSiteChips';
+import { NetworkSiteMarks } from './layers/NetworkSiteMarks';
 import { NetworkStreetLamps } from './layers/NetworkStreetLamps';
 import { NetworkWindows } from './layers/NetworkWindows';
 import { useGlowProgramWarmup } from './layers/useGlowProgramWarmup';
@@ -73,7 +78,11 @@ const loadCatalogModels = async (): Promise<void> => {
 };
 
 export const prepare = async (data: NetworkMapModelValue): Promise<void> => {
-  await Promise.all([loadWorldTerrain(createTerrainParams(buildNetworkSceneLayout(data))), loadCatalogModels()]);
+  await Promise.all([
+    loadWorldTerrain(createTerrainParams(buildNetworkSceneLayout(data))),
+    loadCatalogModels(),
+    loadSiteBannerFonts(),
+  ]);
 };
 
 export const resolveWorld = (data: NetworkMapModelValue): SceneWorldValue => buildNetworkSceneLayout(data).world;
@@ -96,6 +105,12 @@ const NetworkWorldScene = ({
     [layout.buildings, level, models, tierByCityId],
   );
   const boxGeometry = useMemo((): BufferGeometry => createUnitBoxGeometry(), []);
+  const [markMode] = useState(createSiteMarkMode);
+  const bannerEntries = useMemo(
+    () => listSiteBannerEntries(layout.buildings, data.sites),
+    [data.sites, layout.buildings],
+  );
+  const bannerAtlas = useSiteBannerAtlas(bannerEntries);
   const modelWindows = useMemo(() => createModelWindowSources(placements, models), [models, placements]);
   const windows = useMemo(
     () => buildWindowInstances(layout.buildings, layout.cities, modelWindows),
@@ -108,7 +123,7 @@ const NetworkWorldScene = ({
   const hoveredSiteIds = interaction?.hoveredSiteIds ?? EMPTY_ID_LIST;
 
   useNetworkCameraFocus(layout, interaction);
-  useNetworkPointerPicking(layout, interaction);
+  useNetworkPointerPicking(layout, interaction, markMode);
   useGlowProgramWarmup();
 
   useEffect(() => {
@@ -138,11 +153,14 @@ const NetworkWorldScene = ({
         cities={layout.cities}
         selectedIds={selectedIds}
       />
-      <NetworkSiteChips
+      <NetworkSiteMarks
+        atlas={bannerAtlas}
         boxGeometry={boxGeometry}
         buildings={layout.buildings}
         hoveredId={hoveredId}
         hoveredSiteIds={hoveredSiteIds}
+        markMode={markMode}
+        sites={data.sites}
       />
       <NetworkLampLight lamps={lamps} level={level} />
       <NetworkCityLabels

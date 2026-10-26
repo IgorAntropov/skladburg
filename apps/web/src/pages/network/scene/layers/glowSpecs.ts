@@ -5,12 +5,6 @@ import {
   LAMP_POOL_DISC_STRENGTH,
 } from '../night';
 
-export const UNLIT_SIDE_SPECS = {
-  carrier: { key: 'sideCarrier', kind: 'unlit' },
-  customer: { key: 'sideCustomer', kind: 'unlit' },
-  supplier: { key: 'sideSupplier', kind: 'unlit' },
-} as const satisfies Record<string, WorldGlowMaterialSpecValue>;
-
 export const UNLIT_RIM_SPEC: WorldGlowMaterialSpecValue = { key: 'sideRim', kind: 'unlit' };
 
 export const UNLIT_ROAD_SPEC: WorldGlowMaterialSpecValue = { key: 'road', kind: 'unlit' };

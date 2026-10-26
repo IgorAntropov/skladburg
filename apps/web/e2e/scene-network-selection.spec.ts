@@ -1,6 +1,8 @@
 import type { ObjectRouteValue } from './fixtures/routes.ts';
+import type { ColorSchemeValue } from './fixtures/themePreference.ts';
 import type { NetworkRobotValue } from './robots/network-robot.ts';
 import type { OrganizationDirectoryRobotValue } from './robots/organization-directory-robot.ts';
+import type { SceneEdgeRobotValue } from './robots/scene-edge-robot.ts';
 import type {
   CityLabelPlacementValue,
   SceneRobotValue,
@@ -27,6 +29,7 @@ import { DESKTOP_VIEWPORT } from './fixtures/viewports.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';
 import { createNetworkRobot } from './robots/network-robot.ts';
 import { createOrganizationDirectoryRobot } from './robots/organization-directory-robot.ts';
+import { createSceneEdgeRobot } from './robots/scene-edge-robot.ts';
 import { createSceneRobot } from './robots/scene-robot.ts';
 
 const SCENE_TEST_TIMEOUT_MS = 90_000;
@@ -37,6 +40,15 @@ const DRAG_DISTANCE_PX = 60;
 const MIN_PANNED_DISTANCE_PX = 150;
 const CITY_LABEL_TOLERANCE_PX = 2;
 const BUILDING_OFFSET_BOUND_PX = 150;
+const MIN_NEAR_PLATE_PIXELS = 1000;
+const MAX_NIGHT_PLATE_DEVIATION = 0.1;
+const MAX_FAR_PLATE_SHARE = 0.05;
+const MIN_THEME_TRANSITION_FRAMES = 10;
+
+interface PlateFrameValue {
+  plateCount: number;
+  viewMatrices: ReadonlySet<string>;
+}
 
 const SITE_LABEL_PLACEMENT: CityLabelPlacementValue = {
   horizontalTolerancePx: BUILDING_OFFSET_BOUND_PX,
@@ -100,6 +112,36 @@ const flyToFarSiteByRow = async (
   await scene.expectCityLabelAtFreeAreaCenter(FAR_NETWORK_SITE.cityNodeId, SITE_LABEL_PLACEMENT);
 };
 
+const switchColorSchemeAndSettle = async (
+  scene: SceneRobotValue,
+  colorScheme: ColorSchemeValue,
+): Promise<void> => {
+  const framesBefore = await scene.readDrawFrames();
+
+  await scene.switchColorScheme(colorScheme);
+  await scene.expectThemeAttribute(colorScheme);
+  await scene.waitForDrawFramesToExceed(
+    framesBefore + MIN_THEME_TRANSITION_FRAMES - 1,
+    `the switch to ${colorScheme} drew fewer than ${String(MIN_THEME_TRANSITION_FRAMES)} frames`,
+  );
+  await scene.waitForIdle();
+};
+
+const countPlatePixels = async (
+  scene: SceneRobotValue,
+  edge: SceneEdgeRobotValue,
+): Promise<PlateFrameValue> => {
+  await scene.moveMouseToWorldCorner();
+  await scene.waitForIdle();
+
+  const frame = await edge.captureLightFrame();
+
+  return {
+    plateCount: await scene.countBannerPlatePixels(frame.snapshot),
+    viewMatrices: new Set(frame.viewSignature.split('|')),
+  };
+};
+
 const flyToCompanyByRow = async (
   scene: SceneRobotValue,
   directory: OrganizationDirectoryRobotValue,
@@ -131,6 +173,52 @@ test.describe('selection on the network map', () => {
     await scene.expectCityLabelAwayFromFreeAreaCenter(FAR_NETWORK_SITE.cityNodeId, BUILDING_OFFSET_BOUND_PX);
 
     await flyToFarSiteByRow(scene, network);
+  });
+
+  test('a flight to a site shows the plate of the mark by day and by night and the overview shows only flags', async ({ page }) => {
+    const scene = createSceneRobot(page);
+    const edge = createSceneEdgeRobot(page, scene);
+    const network = createNetworkRobot(page);
+
+    await edge.paintVoidBeforeLoad();
+    await scene.openNetworkInColorScheme('light');
+    await scene.expectSceneState('ready');
+    await scene.waitForCameraControls();
+    await scene.waitForIdle();
+    await flyToFarSiteByRow(scene, network);
+
+    const day = await countPlatePixels(scene, edge);
+
+    await switchColorSchemeAndSettle(scene, 'dark');
+
+    const night = await countPlatePixels(scene, edge);
+
+    await switchColorSchemeAndSettle(scene, 'light');
+
+    const framesBeforeHome = await scene.readDrawFrames();
+
+    await scene.pressCameraButton('home');
+    await expectFlightThenRest(scene, framesBeforeHome);
+
+    const overview = await countPlatePixels(scene, edge);
+    const nightDeviation = Math.abs(night.plateCount - day.plateCount) / day.plateCount;
+
+    test.info().annotations.push({
+      description: [
+        `nearDay=${String(day.plateCount)}`,
+        `nearNight=${String(night.plateCount)}`,
+        `nightDeviation=${(nightDeviation * 100).toFixed(1)}%`,
+        `overview=${String(overview.plateCount)}`,
+        `overviewShare=${(overview.plateCount / day.plateCount * 100).toFixed(1)}%`,
+      ].join(' '),
+      type: 'banner-plate-pixels',
+    });
+
+    expect(night.viewMatrices).toEqual(day.viewMatrices);
+    expect(day.plateCount).toBeGreaterThanOrEqual(MIN_NEAR_PLATE_PIXELS);
+    expect(night.plateCount).toBeGreaterThanOrEqual(MIN_NEAR_PLATE_PIXELS);
+    expect(nightDeviation).toBeLessThanOrEqual(MAX_NIGHT_PLATE_DEVIATION);
+    expect(overview.plateCount).toBeLessThanOrEqual(day.plateCount * MAX_FAR_PLATE_SHARE);
   });
 
   test('"show on map" brings the camera back to the site after a manual pan', async ({ page }) => {

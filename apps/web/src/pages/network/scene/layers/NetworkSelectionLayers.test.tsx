@@ -1,5 +1,6 @@
 import type { RootState } from '@react-three/fiber';
 import type { ReactElement } from 'react';
+import type { OrthographicCamera } from 'three';
 import type { Mock } from 'vitest';
 
 import {
@@ -15,6 +16,8 @@ import {
 import { useEffect } from 'react';
 import {
   BoxGeometry,
+  BufferGeometry,
+  CanvasTexture,
   InstancedMesh,
   MeshBasicMaterial,
 } from 'three';
@@ -27,28 +30,54 @@ import {
   vi,
 } from 'vitest';
 
+import type { NetworkMapSiteValue } from '@/entities/network';
+
 import {
   readWorldPalette,
   WorldMaterialsProvider,
 } from '@/shared/3d';
 
+import type { ISiteBannerAtlas } from '../banner/createSiteBannerAtlas';
+import type { SiteBannerCellUvValue } from '../banner/siteBannerAtlasLayout';
+import type { SiteMarkModeValue } from '../banner/siteMarkMetrics';
 import type {
   NetworkSceneBuildingValue,
   NetworkSceneCityValue,
 } from '../layout';
 
+import { SITE_BANNER_CELL_NEAR_ATTRIBUTE } from '../banner/createSiteBannerMaterial';
+import { createTestMapSite } from '../banner/siteBannerTestSupport';
+import {
+  createSiteMarkMode,
+  SITE_MARK_NEAR_ENTER_ZOOM,
+  SITE_MARK_NEAR_EXIT_ZOOM,
+  SITE_MARK_OWN_FAR_UP_METERS,
+  SITE_MARK_OWN_NEAR_UP_METERS,
+} from '../banner/siteMarkMetrics';
 import {
   createFakeRenderer,
   ImmediateResizeObserver,
   VIEWPORT_RECT,
 } from './canvasTestSupport';
 import { NetworkSelectionCorners } from './NetworkSelectionCorners';
-import { NetworkSiteChips } from './NetworkSiteChips';
+import { NetworkSiteMarks } from './NetworkSiteMarks';
 
 interface LayersPropsValue {
   hoveredId: string | undefined;
   hoveredSiteIds: readonly string[];
   selectedIds: readonly string[];
+}
+
+interface MarkDataValue {
+  buildings: readonly NetworkSceneBuildingValue[];
+  sites: readonly NetworkMapSiteValue[];
+}
+
+interface MeshReadingValue {
+  array: ArrayLike<number>;
+  count: number;
+  hasCells: boolean;
+  material: unknown;
 }
 
 const createProps = (overrides: Partial<LayersPropsValue>): LayersPropsValue => ({
@@ -60,6 +89,16 @@ const createProps = (overrides: Partial<LayersPropsValue>): LayersPropsValue => 
 
 const PALETTE = readWorldPalette(() => '#808080');
 
+const FAKE_CELL: SiteBannerCellUvValue = { u0: 0, u1: 0.5, v0: 0, v1: 0.5 };
+
+const FAKE_ATLAS: ISiteBannerAtlas = {
+  dispose: (): void => undefined,
+  getFarCell: (): SiteBannerCellUvValue => FAKE_CELL,
+  getNearCell: (): SiteBannerCellUvValue => FAKE_CELL,
+  redraw: (): boolean => false,
+  texture: new CanvasTexture(document.createElement('canvas')),
+};
+
 const CITY: NetworkSceneCityValue = {
   cityId: 'moscow',
   hiddenSiteIds: ['hidden'],
@@ -70,6 +109,16 @@ const CITY: NetworkSceneCityValue = {
   x: 0,
   z: 0,
 };
+
+const CALM_HEIGHT = 3.7;
+const LIFTED_HEIGHT = 4.1;
+const STRETCH = Math.sqrt(1.5);
+const HOVER_SCALE = 1.25;
+const HEIGHT_TOLERANCE = 0.01;
+const FAR_MARKER_HEIGHT = CALM_HEIGHT + SITE_MARK_OWN_FAR_UP_METERS * STRETCH;
+const NEAR_MARKER_HEIGHT = CALM_HEIGHT + SITE_MARK_OWN_NEAR_UP_METERS * STRETCH;
+const MATRIX_HEIGHT_OFFSET = 13;
+const MATRIX_ITEM_SIZE = 16;
 
 const createWarehouse = (id: string, isOwn: boolean, x: number, side: 'customer' | 'supplier'): NetworkSceneBuildingValue => ({
   cityId: 'city',
@@ -88,31 +137,105 @@ const createWarehouse = (id: string, isOwn: boolean, x: number, side: 'customer'
   z: 0,
 });
 
-const BUILDINGS = [createWarehouse('own', true, -3.2, 'customer'), createWarehouse('other', false, 3.2, 'supplier')];
+const createMarkData = (count: number, ownCount: number): MarkDataValue => {
+  const sides = ['customer', 'supplier'] as const;
+  const buildings: NetworkSceneBuildingValue[] = [];
+  const sites: NetworkMapSiteValue[] = [];
 
-interface MeshReadingValue {
-  array: ArrayLike<number>;
-  count: number;
-}
+  for (let index = 0; index < count; index += 1) {
+    const side = sides[index % sides.length] ?? 'customer';
+    const id = `site-${String(index)}`;
+
+    buildings.push(createWarehouse(id, index < ownCount, index * 4 - 40, side));
+    sites.push(createTestMapSite(id, `org-${String(index)}`, {
+      isOwn: index < ownCount,
+      organizationName: `Компания ${String(index)}`,
+      side,
+    }));
+  }
+
+  return { buildings, sites };
+};
+
+const PAIR_DATA: MarkDataValue = {
+  buildings: [createWarehouse('own', true, -3.2, 'customer'), createWarehouse('other', false, 3.2, 'supplier')],
+  sites: [
+    createTestMapSite('own', 'org-own', { isOwn: true, organizationName: 'Заказчик 1', side: 'customer' }),
+    createTestMapSite('other', 'org-other', { organizationName: 'Поставщик 1', side: 'supplier' }),
+  ],
+};
 
 const readMeshes = (state: RootState): MeshReadingValue[] => {
   const meshes: MeshReadingValue[] = [];
 
   state.scene.traverse((object) => {
     if (object instanceof InstancedMesh) {
-      meshes.push({ array: object.instanceMatrix.array, count: object.count });
+      const geometry: unknown = object.geometry;
+      const material: unknown = object.material;
+
+      meshes.push({
+        array: object.instanceMatrix.array,
+        count: object.count,
+        hasCells: geometry instanceof BufferGeometry && SITE_BANNER_CELL_NEAR_ATTRIBUTE in geometry.attributes,
+        material,
+      });
     }
   });
 
   return meshes;
 };
 
+const readBannerMesh = (state: RootState): MeshReadingValue | undefined => readMeshes(state).find(
+  reading => reading.hasCells,
+);
+
+const readMarkerMeshes = (state: RootState, ownCount: number): MeshReadingValue[] => readMeshes(state).filter(
+  reading => reading.count === ownCount && !reading.hasCells,
+);
+
+const readBannerHeights = (state: RootState): number[] => {
+  const banner = readBannerMesh(state);
+
+  return Array.from({ length: banner?.count ?? 0 }, (_, index) => (
+    banner?.array[index * MATRIX_ITEM_SIZE + MATRIX_HEIGHT_OFFSET] ?? 0
+  ));
+};
+
+const countNear = (heights: readonly number[], target: number): number => (
+  heights.filter(value => Math.abs(value - target) < HEIGHT_TOLERANCE).length
+);
+
+const readBannerFar = (state: RootState): number | undefined => {
+  const material = readBannerMesh(state)?.material;
+  const shader = {
+    fragmentShader: '#include <common>\n#include <map_fragment>',
+    uniforms: {} as Record<string, { value: unknown }>,
+    vertexShader: '#include <common>\n#include <begin_vertex>',
+  };
+
+  if (!(material instanceof MeshBasicMaterial)) {
+    return undefined;
+  }
+
+  material.onBeforeCompile(shader as never, undefined as never);
+
+  return Number(shader.uniforms.uSiteBannerFar?.value);
+};
+
 const renderLayers = async (
   initial: LayersPropsValue,
-): Promise<{ invalidate: Mock; state: () => RootState; update: (props: LayersPropsValue) => void }> => {
+  data: MarkDataValue = PAIR_DATA,
+  atlas: ISiteBannerAtlas | null = FAKE_ATLAS,
+): Promise<{
+  invalidate: Mock;
+  markMode: SiteMarkModeValue;
+  state: () => RootState;
+  update: (props: LayersPropsValue) => void;
+}> => {
   let latest: RootState | undefined;
   const boxGeometry = new BoxGeometry(1, 1, 1);
   const invalidate = vi.fn();
+  const markMode = createSiteMarkMode();
 
   const Probe = (): null => {
     const get = useThree(current => current.get);
@@ -134,15 +257,18 @@ const renderLayers = async (
     >
       <Probe />
       <WorldMaterialsProvider palette={PALETTE}>
-        <NetworkSiteChips
+        <NetworkSiteMarks
+          atlas={atlas ?? undefined}
           boxGeometry={boxGeometry}
-          buildings={BUILDINGS}
+          buildings={data.buildings}
           hoveredId={props.hoveredId}
           hoveredSiteIds={props.hoveredSiteIds}
+          markMode={markMode}
+          sites={data.sites}
         />
         <NetworkSelectionCorners
           boxGeometry={boxGeometry}
-          buildings={BUILDINGS}
+          buildings={data.buildings}
           cities={[CITY]}
           selectedIds={props.selectedIds}
         />
@@ -158,6 +284,7 @@ const renderLayers = async (
 
   return {
     invalidate,
+    markMode,
     state: (): RootState => {
       if (latest === undefined) {
         throw new Error('The canvas is not created');
@@ -179,17 +306,14 @@ const drawFrame = (state: () => RootState, timestamp: number): void => {
   });
 };
 
-const readMaterials = (state: RootState): unknown[] => {
-  const materials: unknown[] = [];
+const setZoom = (state: () => RootState, zoom: number): void => {
+  const camera = state().camera as OrthographicCamera;
 
-  state.scene.traverse((object) => {
-    if (object instanceof InstancedMesh) {
-      materials.push(object.material);
-    }
-  });
-
-  return materials;
+  camera.zoom = zoom;
+  camera.updateProjectionMatrix();
 };
+
+const readMaterials = (state: RootState): unknown[] => readMeshes(state).map(reading => reading.material);
 
 const readCornerMeshes = (state: RootState): MeshReadingValue[] => readMeshes(state).filter(mesh => mesh.count === 8);
 
@@ -204,7 +328,7 @@ const readCornerReach = (mesh: MeshReadingValue | undefined): number => {
   return reach;
 };
 
-describe('selection and own site layers', () => {
+describe('selection and site mark layers', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', ImmediateResizeObserver);
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(VIEWPORT_RECT);
@@ -217,17 +341,37 @@ describe('selection and own site layers', () => {
     vi.restoreAllMocks();
   });
 
-  it('draws the chips, the posts, the house marks and the corners with materials that no light touches', async () => {
+  it('draws the banners, the house marks, the posts and the corners with materials that no light touches', async () => {
     const { state } = await renderLayers(createProps({ selectedIds: ['own'] }));
     const materials = readMaterials(state());
 
     expect(materials).toHaveLength(readMeshes(state()).length);
-    expect(materials.length).toBeGreaterThanOrEqual(9);
+    expect(materials).toHaveLength(6);
 
     for (const material of materials) {
       expect(material).toBeInstanceOf(MeshBasicMaterial);
-      expect(material).toMatchObject({ transparent: false, visible: true });
+      expect(material).toMatchObject({ toneMapped: false, transparent: false, visible: true });
     }
+  });
+
+  it('draws four layers for three sites and four for thirty', async () => {
+    const three = await renderLayers(createProps({}), createMarkData(3, 1));
+
+    expect(readMeshes(three.state())).toHaveLength(4);
+
+    cleanup();
+
+    const thirty = await renderLayers(createProps({}), createMarkData(30, 1));
+
+    expect(readMeshes(thirty.state())).toHaveLength(4);
+    expect(readBannerMesh(thirty.state())?.count).toBe(30);
+  });
+
+  it('draws only the posts and the marks of own sites while the atlas is not ready', async () => {
+    const { state } = await renderLayers(createProps({}), PAIR_DATA, null);
+
+    expect(readBannerMesh(state())).toBeUndefined();
+    expect(readMeshes(state())).toHaveLength(3);
   });
 
   it('draws no corners while nothing is selected', async () => {
@@ -294,40 +438,111 @@ describe('selection and own site layers', () => {
     expect(invalidate).not.toHaveBeenCalled();
   });
 
-  it('gives a house mark only to the chip of an own site', async () => {
-    const { state } = await renderLayers(createProps({}));
-    const meshes = readMeshes(state());
+  it('gives a house mark only to the site of an own organization', async () => {
+    const own = await renderLayers(createProps({}), createMarkData(5, 1));
 
-    expect(meshes.filter(mesh => mesh.count === 1)).toHaveLength(6);
-    expect(meshes.filter(mesh => mesh.count === 2)).toHaveLength(1);
+    expect(readMarkerMeshes(own.state(), 1)).toHaveLength(2);
+
+    cleanup();
+
+    const twoOwn = await renderLayers(createProps({}), createMarkData(5, 2));
+
+    expect(readMarkerMeshes(twoOwn.state(), 2)).toHaveLength(2);
+
+    cleanup();
+
+    const none = await renderLayers(createProps({}), createMarkData(5, 0));
+
+    expect(readMeshes(none.state())).toHaveLength(2);
   });
 
-  it('grows the hovered chip with its mark, lifts it and puts it back', async () => {
+  it('grows the hovered banner with its mark, lifts it and puts it back', async () => {
     const { state, update } = await renderLayers(createProps({}));
-    const readHeights = (): number[] => readMeshes(state())
-      .filter(mesh => mesh.count === 1)
-      .map(mesh => mesh.array[13] ?? 0);
-    const countNear = (heights: readonly number[], target: number): number => (
-      heights.filter(value => Math.abs(value - target) < 0.01).length
-    );
-    const calmMark = 3.7 + 1.05 * Math.sqrt(1.5);
-    const liftedMark = 4.1 + 1.05 * 1.25 * Math.sqrt(1.5);
+    const readMarkerHeight = (): number => readMarkerMeshes(state(), 1)[0]?.array[MATRIX_HEIGHT_OFFSET] ?? 0;
+    const liftedMark = LIFTED_HEIGHT + SITE_MARK_OWN_FAR_UP_METERS * HOVER_SCALE * STRETCH;
 
-    expect(countNear(readHeights(), 3.7)).toBe(4);
-    expect(countNear(readHeights(), calmMark)).toBe(2);
+    expect(countNear(readBannerHeights(state()), CALM_HEIGHT)).toBe(2);
+    expect(readMarkerHeight()).toBeCloseTo(FAR_MARKER_HEIGHT, 2);
 
     update(createProps({ hoveredId: 'own' }));
-    expect(countNear(readHeights(), 4.1)).toBe(2);
-    expect(countNear(readHeights(), 3.7)).toBe(2);
-    expect(countNear(readHeights(), liftedMark)).toBe(2);
+    expect(countNear(readBannerHeights(state()), LIFTED_HEIGHT)).toBe(1);
+    expect(countNear(readBannerHeights(state()), CALM_HEIGHT)).toBe(1);
+    expect(readMarkerHeight()).toBeCloseTo(liftedMark, 2);
 
     update(createProps({ hoveredId: 'other' }));
-    expect(countNear(readHeights(), 4.1)).toBe(2);
-    expect(countNear(readHeights(), calmMark)).toBe(2);
+    expect(countNear(readBannerHeights(state()), LIFTED_HEIGHT)).toBe(1);
+    expect(readMarkerHeight()).toBeCloseTo(FAR_MARKER_HEIGHT, 2);
 
     update(createProps({ hoveredId: 'city' }));
-    expect(countNear(readHeights(), 4.1)).toBe(0);
-    expect(countNear(readHeights(), 3.7)).toBe(4);
+    expect(countNear(readBannerHeights(state()), LIFTED_HEIGHT)).toBe(0);
+    expect(countNear(readBannerHeights(state()), CALM_HEIGHT)).toBe(2);
+  });
+
+  it('asks for one frame when the hovered site changes', async () => {
+    const { invalidate, update } = await renderLayers(createProps({}));
+
+    invalidate.mockClear();
+    update(createProps({ hoveredId: 'own' }));
+
+    expect(invalidate).toHaveBeenCalledTimes(1);
+
+    invalidate.mockClear();
+    update(createProps({ hoveredId: 'other' }));
+
+    expect(invalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks for no frames while the camera stands still', async () => {
+    const { invalidate, state } = await renderLayers(createProps({}));
+
+    drawFrame(state, 1000);
+    invalidate.mockClear();
+
+    drawFrame(state, 1016);
+    drawFrame(state, 1032);
+    drawFrame(state, 1048);
+
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('starts in the far view and switches the uniform and the own marks with the zoom, keeping the view inside the band', async () => {
+    const { invalidate, markMode, state } = await renderLayers(createProps({}));
+    const readMarkerHeight = (): number => readMarkerMeshes(state(), 1)[0]?.array[MATRIX_HEIGHT_OFFSET] ?? 0;
+
+    expect(markMode.isFar).toBe(true);
+    expect(readBannerFar(state())).toBe(1);
+
+    setZoom(state, SITE_MARK_NEAR_ENTER_ZOOM + 1);
+    drawFrame(state, 1000);
+
+    expect(markMode.isFar).toBe(false);
+    expect(readBannerFar(state())).toBe(0);
+    expect(readMarkerHeight()).toBeCloseTo(NEAR_MARKER_HEIGHT, 2);
+
+    setZoom(state, SITE_MARK_NEAR_EXIT_ZOOM + 1);
+    drawFrame(state, 1016);
+
+    expect(markMode.isFar).toBe(false);
+    expect(readBannerFar(state())).toBe(0);
+
+    invalidate.mockClear();
+    setZoom(state, SITE_MARK_NEAR_EXIT_ZOOM - 1);
+    drawFrame(state, 1032);
+
+    expect(markMode.isFar).toBe(true);
+    expect(readBannerFar(state())).toBe(1);
+    expect(readMarkerHeight()).toBeCloseTo(FAR_MARKER_HEIGHT, 2);
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('takes the view of the camera at once when the layer is set up again', async () => {
+    const { markMode, state, update } = await renderLayers(createProps({}));
+
+    setZoom(state, SITE_MARK_NEAR_ENTER_ZOOM + 10);
+    update(createProps({ hoveredId: 'own' }));
+
+    expect(markMode.isFar).toBe(false);
+    expect(readBannerFar(state())).toBe(0);
   });
 
   it('draws two layers of sixteen bars for two selected sites and one pair for two hidden sites of one city', async () => {
@@ -390,28 +605,22 @@ describe('selection and own site layers', () => {
     expect(invalidate.mock.calls.length).toBe(settledCalls);
   });
 
-  it('grows the chips of all the hovered sites together with the hovered id, and puts them back', async () => {
+  it('grows the banners of all the hovered sites together with the hovered id, and puts them back', async () => {
     const { state, update } = await renderLayers(createProps({}));
-    const readHeights = (): number[] => readMeshes(state())
-      .filter(mesh => mesh.count === 1)
-      .map(mesh => mesh.array[13] ?? 0);
-    const countNear = (heights: readonly number[], target: number): number => (
-      heights.filter(value => Math.abs(value - target) < 0.01).length
-    );
 
     update(createProps({ hoveredSiteIds: ['own', 'other'] }));
-    expect(countNear(readHeights(), 4.1)).toBe(4);
-    expect(countNear(readHeights(), 3.7)).toBe(0);
+    expect(countNear(readBannerHeights(state()), LIFTED_HEIGHT)).toBe(2);
+    expect(countNear(readBannerHeights(state()), CALM_HEIGHT)).toBe(0);
 
     update(createProps({ hoveredId: 'other', hoveredSiteIds: ['own'] }));
-    expect(countNear(readHeights(), 4.1)).toBe(4);
+    expect(countNear(readBannerHeights(state()), LIFTED_HEIGHT)).toBe(2);
 
     update(createProps({ hoveredSiteIds: ['own', 'ghost', 'city'] }));
-    expect(countNear(readHeights(), 4.1)).toBe(2);
-    expect(countNear(readHeights(), 3.7)).toBe(2);
+    expect(countNear(readBannerHeights(state()), LIFTED_HEIGHT)).toBe(1);
+    expect(countNear(readBannerHeights(state()), CALM_HEIGHT)).toBe(1);
 
     update(createProps({}));
-    expect(countNear(readHeights(), 4.1)).toBe(0);
-    expect(countNear(readHeights(), 3.7)).toBe(4);
+    expect(countNear(readBannerHeights(state()), LIFTED_HEIGHT)).toBe(0);
+    expect(countNear(readBannerHeights(state()), CALM_HEIGHT)).toBe(2);
   });
 });

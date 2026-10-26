@@ -12,6 +12,8 @@ import { WORLD_PALETTE_KEYS } from './worldPaletteKeys';
 const PALETTE_KEYS: readonly WorldPaletteKeyValue[] = [
   'background',
   'backgroundNight',
+  'bannerPlate',
+  'bannerText',
   'buildingBrick',
   'buildingRoof',
   'buildingRoofAlt',

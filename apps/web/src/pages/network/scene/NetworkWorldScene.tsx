@@ -60,7 +60,7 @@ import { WORLD_MODEL_CATALOG } from './models/worldModelCatalog';
 import { NETWORK_WORLD_SEED } from './networkWorldConstants';
 import {
   buildStreetLamps,
-  buildWindowInstances,
+  buildWindowSets,
 } from './night';
 
 const createTerrainParams = (layout: NetworkSceneLayoutValue): Parameters<typeof loadWorldTerrain>[0] => ({
@@ -129,7 +129,7 @@ const NetworkWorldScene = ({
   const bannerAtlas = useSiteBannerAtlas(bannerEntries);
   const modelWindows = useMemo(() => createModelWindowSources(placements, models), [models, placements]);
   const windows = useMemo(
-    () => buildWindowInstances(layout.buildings, layout.cities, modelWindows),
+    () => buildWindowSets(layout.buildings, layout.cities, modelWindows),
     [layout.buildings, layout.cities, modelWindows],
   );
   const lamps = useMemo(() => buildStreetLamps(layout.roads, layout.cities), [layout.cities, layout.roads]);

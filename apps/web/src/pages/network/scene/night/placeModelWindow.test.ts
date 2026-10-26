@@ -10,10 +10,8 @@ import {
 } from 'vitest';
 
 import type { WorldModelFitValue } from '../models/fitWorldModelToFootprint';
-import type {
-  WorldModelFaceValue,
-  WorldModelWindowValue,
-} from '../models/listWorldModelWindows';
+import type { WorldModelWindowValue } from '../models/listWorldModelWindows';
+import type { WorldModelFaceValue } from '../models/worldModelCatalog';
 
 import {
   INSTANCE_MATRIX_ITEM_SIZE,

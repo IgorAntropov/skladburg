@@ -38,9 +38,13 @@ import {
 
 import {
   buildStreetLamps,
-  buildWindowInstances,
+  buildWindowSets,
 } from '../night';
-import { buildSampleLayout } from '../night/nightTestSupport';
+import {
+  buildSampleLayout,
+  createGlassWindows,
+  createModelSource,
+} from '../night/nightTestSupport';
 import {
   createFakeRenderer,
   ImmediateResizeObserver,
@@ -53,7 +57,14 @@ import { NetworkWindows } from './NetworkWindows';
 const PALETTE = readWorldPalette(() => '#808080');
 
 const LAYOUT = buildSampleLayout();
-const WINDOWS = buildWindowInstances(LAYOUT.buildings, LAYOUT.cities);
+const ALL_FACES = (['positiveZ', 'positiveX', 'negativeZ', 'negativeX'] as const).map(face => ({ doorClearance: 0, face, inset: 0 }));
+const MODEL_SOURCES = new Map(
+  LAYOUT.buildings.filter((_, index) => index % 2 === 0).map(building => [
+    building.id,
+    createModelSource({ farWalls: { faces: ALL_FACES, heightShare: 0.9 }, glass: createGlassWindows(2) }),
+  ]),
+);
+const WINDOWS = buildWindowSets(LAYOUT.buildings, LAYOUT.cities, MODEL_SOURCES);
 const LAMPS = buildStreetLamps(LAYOUT.roads, LAYOUT.cities);
 
 interface CanvasHandleValue {
@@ -144,6 +155,19 @@ const isPole = (mesh: InstancedMesh): boolean => mesh.material instanceof MeshSt
 
 const isHead = (mesh: InstancedMesh): boolean => isGlowOpaque(mesh) && !isPlane(mesh);
 
+const isWindowMesh = (mesh: InstancedMesh): boolean => isGlowOpaque(mesh) && isPlane(mesh);
+
+const findWindowPair = (state: RootState): [InstancedMesh, InstancedMesh] => {
+  const found = readMeshes(state).filter(isWindowMesh);
+  const [near, far] = found;
+
+  if (found.length !== 2 || near === undefined || far === undefined) {
+    throw new Error(`Expected two window meshes, found ${String(found.length)}`);
+  }
+
+  return [near, far];
+};
+
 const findOne = (state: RootState, predicate: (mesh: InstancedMesh) => boolean): InstancedMesh => {
   const found = readMeshes(state).filter(predicate);
   const [mesh] = found;
@@ -168,15 +192,33 @@ describe('night layers of the network map', () => {
     vi.restoreAllMocks();
   });
 
-  it('draws the windows in one glowing mesh with a delay for every window and no shadows', async () => {
+  it('draws each window set in one glowing mesh with a delay for every window and no shadows', async () => {
     const { state } = await renderNight('high');
-    const windowMesh = findOne(state(), mesh => isGlowOpaque(mesh) && isPlane(mesh));
+    const [near, far] = findWindowPair(state());
 
-    expect(windowMesh.count).toBe(WINDOWS.count);
-    expect(readDelays(windowMesh)).toBe(WINDOWS.delays);
-    expect(readDelays(windowMesh)?.length).toBe(WINDOWS.count);
-    expect(windowMesh.castShadow).toBe(false);
-    expect(windowMesh.receiveShadow).toBe(false);
+    expect(near.count).toBe(WINDOWS.near.count);
+    expect(readDelays(near)).toBe(WINDOWS.near.delays);
+    expect(readDelays(near)?.length).toBe(WINDOWS.near.count);
+    expect(far.count).toBe(WINDOWS.far.count);
+    expect(readDelays(far)).toBe(WINDOWS.far.delays);
+    expect(readDelays(far)?.length).toBe(WINDOWS.far.count);
+
+    for (const windowMesh of [near, far]) {
+      expect(windowMesh.castShadow).toBe(false);
+      expect(windowMesh.receiveShadow).toBe(false);
+    }
+  });
+
+  it('tells the near set from the far one by the window count', () => {
+    expect(WINDOWS.far.count).not.toBe(WINDOWS.near.count);
+  });
+
+  it('shows only the near window set by day', async () => {
+    const { state } = await renderNight('high');
+    const [near, far] = findWindowPair(state());
+
+    expect(near.parent?.visible).toBe(true);
+    expect(far.parent?.visible).toBe(false);
   });
 
   it('draws the poles lit and without delays and the heads glowing with a delay for every lamp', async () => {
@@ -223,21 +265,31 @@ describe('night layers of the network map', () => {
   it('shows the share of lamps and windows that the level asks for', async () => {
     const levels = ['low', 'medium', 'high'] as const;
     const lampCounts: number[] = [];
-    const windowCounts: number[] = [];
+    const nearCounts: number[] = [];
+    const farCounts: number[] = [];
 
     for (const level of levels) {
       const { state } = await renderNight(level);
 
       lampCounts.push(findOne(state(), isHead).count);
-      windowCounts.push(findOne(state(), mesh => isGlowOpaque(mesh) && isPlane(mesh)).count);
+      const [near, far] = findWindowPair(state());
+
+      nearCounts.push(near.count);
+      farCounts.push(far.count);
       cleanup();
     }
 
     expect(lampCounts).toEqual(levels.map(level => LAMPS.getVisibleCount(QUALITY_LEVEL_SETTINGS[level].decorDensity)));
-    expect(windowCounts).toEqual(levels.map(level => WINDOWS.getVisibleCount(QUALITY_LEVEL_SETTINGS[level].decorDensity)));
+    expect(nearCounts).toEqual(
+      levels.map(level => WINDOWS.near.getVisibleCount(QUALITY_LEVEL_SETTINGS[level].decorDensity)),
+    );
+    expect(farCounts).toEqual(
+      levels.map(level => WINDOWS.far.getVisibleCount(QUALITY_LEVEL_SETTINGS[level].decorDensity)),
+    );
     expect(lampCounts[0]).toBeLessThan(lampCounts[1] ?? 0);
     expect(lampCounts[1]).toBeLessThan(lampCounts[2] ?? 0);
-    expect(windowCounts[0]).toBeLessThan(windowCounts[2] ?? 0);
+    expect(nearCounts[0]).toBeLessThan(nearCounts[2] ?? 0);
+    expect(farCounts[0]).toBeLessThan(farCounts[2] ?? 0);
   });
 
   it('releases the geometries it made for the layers on unmount and leaves the shared box alone', async () => {
@@ -247,8 +299,8 @@ describe('night layers of the network map', () => {
 
     unmount();
 
-    expect(spies).toHaveLength(5);
-    expect(spies.filter(entry => entry.isOwn)).toHaveLength(4);
+    expect(spies).toHaveLength(6);
+    expect(spies.filter(entry => entry.isOwn)).toHaveLength(5);
 
     for (const { isOwn, spy } of spies) {
       expect(spy.mock.calls.length > 0).toBe(isOwn);

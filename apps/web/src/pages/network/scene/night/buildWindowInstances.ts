@@ -23,6 +23,7 @@ import {
   getFarthestCityDistance,
   toDistanceUnit,
 } from './glowDelays';
+import { listModelFarWindowTransforms } from './listModelFarWindowTransforms';
 import { listModelWindowTransforms } from './listModelWindowTransforms';
 import {
   DARK_WINDOW_DELAY,
@@ -39,6 +40,11 @@ export interface WindowInstancesValue {
   getVisibleCount: (density: number) => number;
   matrices: Float32Array;
   windowEnds: Uint32Array;
+}
+
+export interface WindowSetsValue {
+  far: WindowInstancesValue;
+  near: WindowInstancesValue;
 }
 
 interface BuildingGlowFrameValue {
@@ -61,6 +67,8 @@ interface WindowDraftValue {
   delay: number;
   transform: InstanceTransformValue;
 }
+
+type WindowSetKindValue = 'far' | 'near';
 
 const EMPTY_MODEL_WINDOWS: ModelWindowSourcesValue = new Map();
 
@@ -114,12 +122,12 @@ const listBoxWindowTransforms = (building: NetworkSceneBuildingValue): InstanceT
 };
 
 const draftWindow = (
-  building: NetworkSceneBuildingValue,
+  keyPrefix: string,
   index: number,
   transform: InstanceTransformValue,
   { city, cityUnit }: BuildingGlowFrameValue,
 ): WindowDraftValue => {
-  const windowKey = [building.id, index].join(':');
+  const windowKey = [keyPrefix, index].join(':');
   const isDark = hashUnit(NETWORK_WORLD_SEED, windowKey, NIGHT_SALT.windowDark) < DARK_WINDOW_SHARE;
 
   return {
@@ -139,28 +147,37 @@ const draftBuildingWindows = (
   cityById: ReadonlyMap<string, NetworkSceneCityValue>,
   farthestCityDistance: number,
   modelWindows: ModelWindowSourcesValue,
+  kind: WindowSetKindValue,
 ): WindowDraftValue[] => {
   const city = resolveCityFrame(building, cityById);
   const frame: BuildingGlowFrameValue = { city, cityUnit: toDistanceUnit(Math.hypot(city.x, city.z), farthestCityDistance) };
   const source = modelWindows.get(building.id);
-  const transforms = source === undefined ? listBoxWindowTransforms(building) : listModelWindowTransforms(building, source);
 
-  return transforms.map((transform, index) => draftWindow(building, index, transform, frame));
+  if (source === undefined) {
+    return listBoxWindowTransforms(building).map((transform, index) => draftWindow(building.id, index, transform, frame));
+  }
+
+  if (kind === 'far') {
+    return listModelFarWindowTransforms(building, source)
+      .map((transform, index) => draftWindow(`${building.id}:far`, index, transform, frame));
+  }
+
+  return listModelWindowTransforms(building, source).map((transform, index) => draftWindow(building.id, index, transform, frame));
 };
 
-export const buildWindowInstances = (
-  buildings: readonly NetworkSceneBuildingValue[],
+const assembleWindowInstances = (
+  ordered: readonly NetworkSceneBuildingValue[],
   cities: readonly NetworkSceneCityValue[],
-  modelWindows: ModelWindowSourcesValue = EMPTY_MODEL_WINDOWS,
+  modelWindows: ModelWindowSourcesValue,
+  kind: WindowSetKindValue,
 ): WindowInstancesValue => {
-  const ordered = orderBuildingsForDensity(buildings);
   const cityById = new Map(cities.map(city => [city.id, city]));
   const farthestCityDistance = getFarthestCityDistance(cities);
   const drafts: WindowDraftValue[] = [];
   const windowEnds = new Uint32Array(ordered.length);
 
   for (const [index, building] of ordered.entries()) {
-    drafts.push(...draftBuildingWindows(building, cityById, farthestCityDistance, modelWindows));
+    drafts.push(...draftBuildingWindows(building, cityById, farthestCityDistance, modelWindows, kind));
     windowEnds[index] = drafts.length;
   }
 
@@ -179,4 +196,23 @@ export const buildWindowInstances = (
   };
 
   return { buildings: ordered, count: drafts.length, delays, getVisibleCount, matrices, windowEnds };
+};
+
+export const buildWindowInstances = (
+  buildings: readonly NetworkSceneBuildingValue[],
+  cities: readonly NetworkSceneCityValue[],
+  modelWindows: ModelWindowSourcesValue = EMPTY_MODEL_WINDOWS,
+): WindowInstancesValue => assembleWindowInstances(orderBuildingsForDensity(buildings), cities, modelWindows, 'near');
+
+export const buildWindowSets = (
+  buildings: readonly NetworkSceneBuildingValue[],
+  cities: readonly NetworkSceneCityValue[],
+  modelWindows: ModelWindowSourcesValue = EMPTY_MODEL_WINDOWS,
+): WindowSetsValue => {
+  const ordered = orderBuildingsForDensity(buildings);
+
+  return {
+    far: assembleWindowInstances(ordered, cities, modelWindows, 'far'),
+    near: assembleWindowInstances(ordered, cities, modelWindows, 'near'),
+  };
 };

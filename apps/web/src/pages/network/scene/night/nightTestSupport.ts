@@ -78,6 +78,7 @@ export const buildSampleLayout = (): NetworkSceneLayoutValue =>
 
 export const createModelSource = (overrides: Partial<ModelWindowSourceValue> = {}): ModelWindowSourceValue => ({
   bounds: { max: [0.5, 1, 0.25], min: [-0.5, 0, -0.25] },
+  farWalls: { faces: [], heightShare: 0.9 },
   glass: [],
   group: 'house',
   walls: undefined,

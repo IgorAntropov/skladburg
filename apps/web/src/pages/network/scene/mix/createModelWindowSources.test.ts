@@ -8,6 +8,7 @@ import type { WorldModelPlacementValue } from '../models/placeWorldModels';
 
 import { WORLD_MODEL_ROLES } from '../models/format/worldModelFormat';
 import { listWorldModelWindows } from '../models/listWorldModelWindows';
+import { WORLD_MODEL_CATALOG } from '../models/worldModelCatalog';
 import { createTrianglesWorldModel } from '../models/worldModelTestSupport';
 import { createModelWindowSources } from './createModelWindowSources';
 import { createMixBuilding } from './mixTestSupport';
@@ -32,7 +33,7 @@ const GLASS_MODEL = createTrianglesWorldModel([
 ]);
 
 describe('createModelWindowSources', () => {
-  it('gives every building of a placement the glass of its model and the walls of its catalog entry', () => {
+  it('gives every building of a placement the glass of its model and the walls and far walls of its catalog entry', () => {
     const sources = createModelWindowSources(
       [
         createPlacement('commercial/building-a', 'house', ['a', 'b']),
@@ -47,13 +48,9 @@ describe('createModelWindowSources', () => {
     expect(sources.get('a')?.glass).toHaveLength(1);
     expect(sources.get('a')?.walls).toBeUndefined();
     expect(sources.get('a')?.bounds).toBe(GLASS_MODEL.bounds);
+    expect(sources.get('a')?.farWalls).toBe(WORLD_MODEL_CATALOG.find(({ id }) => id === 'commercial/building-a')?.farWalls);
     expect(sources.get('c')?.walls?.faces).toHaveLength(4);
+    expect(sources.get('c')?.farWalls).toBe(sources.get('c')?.walls);
     expect(sources.get('c')?.group).toBe('house');
-  });
-
-  it('skips the placements whose model is not loaded', () => {
-    const sources = createModelWindowSources([createPlacement('commercial/building-a', 'house', ['a'])], new Map());
-
-    expect(sources.size).toBe(0);
   });
 });

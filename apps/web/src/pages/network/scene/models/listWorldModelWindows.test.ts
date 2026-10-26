@@ -4,7 +4,7 @@ import {
   it,
 } from 'vitest';
 
-import type { WorldModelFaceValue } from './listWorldModelWindows';
+import type { WorldModelFaceValue } from './worldModelCatalog';
 import type {
   TestCornerValue,
   TestTriangleValue,

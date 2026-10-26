@@ -25,6 +25,7 @@ export type DragDirectionValue = 'down' | 'left' | 'right' | 'up';
 
 export interface LightFrameComparisonValue {
   glowCount: number;
+  glowEdgeWarmSpotCount: number;
   newWarmSpotCount: number;
   rawWarmSpotCount: number;
   sharedWarmSpotCount: number;
@@ -158,6 +159,7 @@ export const createSceneEdgeRobot = (page: Page, scene: SceneRobotValue): SceneE
 
       return {
         glowCount: scan.glowCount,
+        glowEdgeWarmSpotCount: scan.glowEdgeWarmSpotCount,
         newWarmSpotCount: scan.newWarmSpotCount,
         rawWarmSpotCount: scan.rawWarmSpotCount,
         sharedWarmSpotCount: scan.sharedWarmSpotCount,

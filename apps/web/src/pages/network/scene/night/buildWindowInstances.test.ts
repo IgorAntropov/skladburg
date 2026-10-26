@@ -17,6 +17,7 @@ import type { NetworkSceneBuildingValue } from '../layout';
 import type { ModelWindowSourceValue } from '../mix/createModelWindowSources';
 import type { WindowInstancesValue } from './buildWindowInstances';
 
+import { PLAZA_HEIGHT_METERS } from '../geometry/networkSceneMetrics';
 import { buildWindowInstances } from './buildWindowInstances';
 import {
   DARK_WINDOW_DELAY,
@@ -97,8 +98,8 @@ describe('buildWindowInstances', () => {
           expect(Math.abs(localZ) + scale.x / 2).toBeLessThanOrEqual(building.depth / 2 - CORNER_MARGIN + EPSILON);
         }
 
-        expect(position.y - scale.y / 2).toBeGreaterThanOrEqual(0.1 - EPSILON);
-        expect(position.y + scale.y / 2).toBeLessThanOrEqual(0.1 + wallHeight + EPSILON);
+        expect(position.y - scale.y / 2).toBeGreaterThanOrEqual(PLAZA_HEIGHT_METERS - EPSILON);
+        expect(position.y + scale.y / 2).toBeLessThanOrEqual(PLAZA_HEIGHT_METERS + wallHeight + EPSILON);
       }
     }
   });
@@ -113,9 +114,11 @@ describe('buildWindowInstances', () => {
       Array.from({ length: windows.count }, (_, index) => readHeight(windows, index)),
     )].toSorted((current, prev) => current - prev);
 
-    expect(readHeights(house)).toEqual([0.1 + 0.5 * 1]);
-    expect(readHeights(office)).toEqual([0.1 + 0.32 * 1.8, 0.1 + 0.7 * 1.8].map(height => Number(height.toFixed(4))));
-    expect(readHeights(warehouse)).toEqual([0.1 + 0.65]);
+    expect(readHeights(house)).toEqual([PLAZA_HEIGHT_METERS + 0.5 * 1]);
+    expect(readHeights(office)).toEqual(
+      [PLAZA_HEIGHT_METERS + 0.32 * 1.8, PLAZA_HEIGHT_METERS + 0.7 * 1.8].map(height => Number(height.toFixed(4))),
+    );
+    expect(readHeights(warehouse)).toEqual([PLAZA_HEIGHT_METERS + 0.65]);
   });
 
   it('keeps the windows of a building together and orders the buildings companies first, decor by rank', () => {
@@ -276,8 +279,8 @@ describe('buildWindowInstances', () => {
         const position = new Vector3().setFromMatrixPosition(matrix);
         const scale = new Vector3().setFromMatrixScale(matrix);
 
-        expect(position.y - scale.y / 2).toBeGreaterThanOrEqual(0.1 - EPSILON);
-        expect(position.y + scale.y / 2).toBeLessThanOrEqual(0.1 + wallHeight + EPSILON);
+        expect(position.y - scale.y / 2).toBeGreaterThanOrEqual(PLAZA_HEIGHT_METERS - EPSILON);
+        expect(position.y + scale.y / 2).toBeLessThanOrEqual(PLAZA_HEIGHT_METERS + wallHeight + EPSILON);
       }
     });
 
@@ -306,8 +309,15 @@ describe('buildWindowInstances', () => {
         const matrix = readMatrix(windows, index);
         const top = new Vector3().setFromMatrixPosition(matrix).y + new Vector3().setFromMatrixScale(matrix).y / 2;
 
-        expect(top).toBeLessThanOrEqual(0.1 + wallHeight + EPSILON);
+        expect(top).toBeLessThanOrEqual(PLAZA_HEIGHT_METERS + wallHeight + EPSILON);
       }
+    });
+
+    it('leaves out a wall window that is taller than the wall of the fitted model', () => {
+      const walls = { faces: ALL_FACES, heightShare: 0.2 };
+
+      expect(buildFor(createModelSource({ walls })).count).toBe(0);
+      expect(buildFor(createModelSource({ walls: { faces: ALL_FACES, heightShare: 0.5 } })).count).toBe(6);
     });
 
     it('keeps about a quarter of the windows of models dark and times the rest inside the wave window', () => {

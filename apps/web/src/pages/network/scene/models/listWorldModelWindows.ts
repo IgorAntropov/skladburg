@@ -1,8 +1,7 @@
 import type { WorldModelDataValue } from './format/worldModelFormat';
+import type { WorldModelFaceValue } from './worldModelCatalog';
 
 import { WORLD_MODEL_ROLES } from './format/worldModelFormat';
-
-export type WorldModelFaceValue = 'negativeX' | 'negativeZ' | 'positiveX' | 'positiveZ';
 
 export interface WorldModelWindowValue {
   center: readonly [number, number, number];

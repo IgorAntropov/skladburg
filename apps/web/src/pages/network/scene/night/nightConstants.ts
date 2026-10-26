@@ -37,6 +37,10 @@ export const DARK_WINDOW_DELAY = 1;
 
 export const WINDOW_DELAY_RANGE = [0.45, 0.83] as const;
 
+export const FAR_WINDOW_SCALE = 1.2;
+
+export const FAR_WINDOW_MIN_NIGHT = 0.3;
+
 export const WINDOW_DELAY_WEIGHTS = { city: 0.6, hash: 0.15, local: 0.25 } as const;
 
 export const LAMP_DELAY_RANGE = [0.35, 0.58] as const;

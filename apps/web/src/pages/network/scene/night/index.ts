@@ -7,8 +7,11 @@ export {
   buildStreetLamps,
   getLampRank,
 } from './buildStreetLamps';
-export type { WindowInstancesValue } from './buildWindowInstances';
-export { buildWindowInstances } from './buildWindowInstances';
+export type {
+  WindowInstancesValue,
+  WindowSetsValue,
+} from './buildWindowInstances';
+export { buildWindowSets } from './buildWindowInstances';
 export {
   clampUnit,
   computeLampDelay,
@@ -18,6 +21,8 @@ export {
 } from './glowDelays';
 export {
   DARK_WINDOW_DELAY,
+  FAR_WINDOW_MIN_NIGHT,
+  FAR_WINDOW_SCALE,
   LAMP_DELAY_RANGE,
   LAMP_HALO_SHELL_RADII_METERS,
   LAMP_HALO_SHELL_STRENGTH,

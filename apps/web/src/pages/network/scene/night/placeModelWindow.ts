@@ -1,9 +1,7 @@
 import type { InstanceTransformValue } from '../geometry/composeInstanceMatrix';
 import type { WorldModelFitValue } from '../models/fitWorldModelToFootprint';
-import type {
-  WorldModelFaceValue,
-  WorldModelWindowValue,
-} from '../models/listWorldModelWindows';
+import type { WorldModelWindowValue } from '../models/listWorldModelWindows';
+import type { WorldModelFaceValue } from '../models/worldModelCatalog';
 
 import { PLAZA_HEIGHT_METERS } from '../geometry/networkSceneMetrics';
 import { WINDOW_STANDOFF_METERS } from './nightConstants';

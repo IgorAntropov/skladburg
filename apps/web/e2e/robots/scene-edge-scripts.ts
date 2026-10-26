@@ -159,6 +159,8 @@ export const WARM_SPOT_MIN_RED_MINUS_GREEN = 27;
 
 export const WARM_SPOT_NEIGHBOUR_RADIUS_PX = 1;
 
+export const WARM_SPOT_GLOW_EDGE_RADIUS_PX = 1;
+
 const DECODE_LIGHT_FRAME_SCRIPT = `
 const decodeFrame = async (base64) => {
   const image = new Image();
@@ -201,18 +203,20 @@ export const createCompareLightFramesScript = (frameBase64: string, referenceBas
 
   const { width, height } = frame;
   const radius = ${String(WARM_SPOT_NEIGHBOUR_RADIUS_PX)};
+  const glowEdgeRadius = ${String(WARM_SPOT_GLOW_EDGE_RADIUS_PX)};
   let glowCount = 0;
   let rawWarmSpotCount = 0;
   let newWarmSpotCount = 0;
   let sharedWarmSpotCount = 0;
+  let glowEdgeWarmSpotCount = 0;
 
-  const isWarmSpotNear = (data, x, y) => {
-    for (let dy = -radius; dy <= radius; dy += 1) {
-      for (let dx = -radius; dx <= radius; dx += 1) {
+  const isNear = (x, y, nearRadius, isMatch) => {
+    for (let dy = -nearRadius; dy <= nearRadius; dy += 1) {
+      for (let dx = -nearRadius; dx <= nearRadius; dx += 1) {
         const nearX = x + dx;
         const nearY = y + dy;
 
-        if (nearX >= 0 && nearX < width && nearY >= 0 && nearY < height && isWarmSpotPixel(data, (nearY * width + nearX) * 4)) {
+        if (nearX >= 0 && nearX < width && nearY >= 0 && nearY < height && isMatch(nearX, nearY)) {
           return true;
         }
       }
@@ -220,6 +224,12 @@ export const createCompareLightFramesScript = (frameBase64: string, referenceBas
 
     return false;
   };
+
+  const isReferenceGlow = (x, y) => isGlowPixel(reference.data, (y * width + x) * 4);
+
+  const isReferenceSpot = (x, y) => isWarmSpotPixel(reference.data, (y * width + x) * 4);
+
+  const isReferenceSpotAwayFromGlow = (x, y) => isReferenceSpot(x, y) && !isNear(x, y, glowEdgeRadius, isReferenceGlow);
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -232,8 +242,11 @@ export const createCompareLightFramesScript = (frameBase64: string, referenceBas
       if (isWarmSpotPixel(frame.data, offset)) {
         rawWarmSpotCount += 1;
 
-        if (isWarmSpotNear(reference.data, x, y)) {
+        if (isNear(x, y, radius, isReferenceSpotAwayFromGlow)) {
           sharedWarmSpotCount += 1;
+        }
+        else if (isNear(x, y, radius, isReferenceSpot)) {
+          glowEdgeWarmSpotCount += 1;
         }
         else {
           newWarmSpotCount += 1;
@@ -242,6 +255,6 @@ export const createCompareLightFramesScript = (frameBase64: string, referenceBas
     }
   }
 
-  return { glowCount, height, isSameSize: true, newWarmSpotCount, rawWarmSpotCount, sharedWarmSpotCount, width };
+  return { glowCount, glowEdgeWarmSpotCount, height, isSameSize: true, newWarmSpotCount, rawWarmSpotCount, sharedWarmSpotCount, width };
 })(${JSON.stringify(frameBase64)}, ${JSON.stringify(referenceBase64)})
 `;

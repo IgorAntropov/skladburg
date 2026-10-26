@@ -5,6 +5,7 @@ import type {
 import type { WorldModelWindowValue } from '../models/listWorldModelWindows';
 import type { WorldModelPlacementValue } from '../models/placeWorldModels';
 import type {
+  WorldModelEntryValue,
   WorldModelGroupValue,
   WorldModelWallWindowsValue,
 } from '../models/worldModelCatalog';
@@ -16,12 +17,13 @@ export type ModelWindowSourcesValue = ReadonlyMap<string, ModelWindowSourceValue
 
 export interface ModelWindowSourceValue {
   bounds: WorldModelBoundsValue;
+  farWalls: WorldModelWallWindowsValue;
   glass: readonly WorldModelWindowValue[];
   group: WorldModelGroupValue;
   walls: undefined | WorldModelWallWindowsValue;
 }
 
-const wallsByModelId = new Map(WORLD_MODEL_CATALOG.map(entry => [entry.id, entry.walls]));
+const entryByModelId: ReadonlyMap<string, WorldModelEntryValue> = new Map(WORLD_MODEL_CATALOG.map(entry => [entry.id, entry]));
 
 export const createModelWindowSources = (
   placements: readonly WorldModelPlacementValue[],
@@ -31,13 +33,15 @@ export const createModelWindowSources = (
 
   for (const { group, items, modelId } of placements) {
     const data = models.get(modelId);
+    const entry = entryByModelId.get(modelId);
 
-    if (data !== undefined) {
+    if (data !== undefined && entry !== undefined) {
       const source: ModelWindowSourceValue = {
         bounds: data.bounds,
+        farWalls: entry.farWalls,
         glass: listWorldModelWindows(data),
         group,
-        walls: wallsByModelId.get(modelId),
+        walls: entry.walls,
       };
 
       for (const item of items) {

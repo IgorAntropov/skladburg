@@ -12,8 +12,11 @@ import {
 } from 'vitest';
 
 import type { WorldModelDataValue } from '../src/pages/network/scene/models/format/worldModelFormat.ts';
-import type { WorldModelFaceValue } from '../src/pages/network/scene/models/listWorldModelWindows.ts';
-import type { WorldModelEntryValue } from '../src/pages/network/scene/models/worldModelCatalog.ts';
+import type {
+  WorldModelEntryValue,
+  WorldModelFaceValue,
+  WorldModelWallFaceValue,
+} from '../src/pages/network/scene/models/worldModelCatalog.ts';
 
 import { BYTES_PER_KILOBYTE } from '../build-budget/bundleBudgetConstants.ts';
 import {
@@ -41,9 +44,21 @@ const GLASS_AREA_TOLERANCE = 0.02;
 
 const WALL_PLANE_TOLERANCE = 0.004;
 
+const PLANE_GROUP_STEP = 0.002;
+
+const MAX_FAR_FLOAT = 0.18;
+
 const CENTER_TOLERANCE = 0.01;
 
+const EAVE_TOLERANCE = 0.005;
+
+const GATE_MIN_WIDTH = 0.3;
+
 const GLASS_ROLE = WORLD_MODEL_ROLES.indexOf('glass');
+
+const DARK_ROLE = WORLD_MODEL_ROLES.indexOf('dark');
+
+const ALL_FACES: readonly WorldModelFaceValue[] = ['positiveZ', 'positiveX', 'negativeZ', 'negativeX'];
 
 const FULL_ENTRIES = WORLD_MODEL_CATALOG.filter(({ lod }) => lod === 'full');
 
@@ -55,6 +70,7 @@ type CornerValue = readonly [number, number, number];
 
 interface TriangleValue {
   corners: readonly [CornerValue, CornerValue, CornerValue];
+  isDark: boolean;
   isGlass: boolean;
 }
 
@@ -68,6 +84,7 @@ const readTriangle = (data: WorldModelDataValue, triangle: number): TriangleValu
 
   return {
     corners: [first ?? [0, 0, 0], second ?? [0, 0, 0], third ?? [0, 0, 0]],
+    isDark: vertices.every(vertex => data.roles[vertex] === DARK_ROLE),
     isGlass: vertices.every(vertex => data.roles[vertex] === GLASS_ROLE),
   };
 };
@@ -97,23 +114,71 @@ const measureGlassArea = (data: WorldModelDataValue): number => {
   return area;
 };
 
-const hasWallAtPlane = (data: WorldModelDataValue, face: WorldModelFaceValue, plane: number): boolean => {
+const readOutwardPlane = (data: WorldModelDataValue, face: WorldModelFaceValue, inset: number): number => {
+  const axis = face.endsWith('X') ? 0 : 2;
+
+  return face.startsWith('positive') ? data.bounds.max[axis] - inset : data.bounds.min[axis] + inset;
+};
+
+interface WallTriangleValue extends TriangleValue {
+  plane: number;
+}
+
+const listFlatWallTriangles = (data: WorldModelDataValue, face: WorldModelFaceValue): WallTriangleValue[] => {
   const axis = face.endsWith('X') ? 0 : 2;
   const sign = face.startsWith('positive') ? 1 : -1;
+  const wall: WallTriangleValue[] = [];
 
   for (let triangle = 0; triangle < data.triangleCount; triangle += 1) {
-    const { corners, isGlass } = readTriangle(data, triangle);
-    const coordinates = corners.map(corner => corner[axis]);
+    const candidate = readTriangle(data, triangle);
+    const coordinates = candidate.corners.map(corner => corner[axis]);
     const isFlat = Math.max(...coordinates) - Math.min(...coordinates) < 1e-4;
-    const normal = computeCross(corners)[axis];
+    const normal = computeCross(candidate.corners)[axis];
 
-    if (!isGlass && isFlat && Math.sign(normal) === sign && Math.abs((coordinates[0] ?? 0) - plane) <= WALL_PLANE_TOLERANCE) {
-      return true;
+    if (!candidate.isGlass && isFlat && Math.sign(normal) === sign) {
+      wall.push({ ...candidate, plane: coordinates[0] ?? 0 });
     }
   }
 
-  return false;
+  return wall;
 };
+
+const listWallTriangles = (data: WorldModelDataValue, face: WorldModelFaceValue, plane: number): TriangleValue[] =>
+  listFlatWallTriangles(data, face).filter(triangle => Math.abs(triangle.plane - plane) <= WALL_PLANE_TOLERANCE);
+
+const measureFacadeInset = (data: WorldModelDataValue, face: WorldModelFaceValue): number => {
+  const areaByPlane = new Map<number, number>();
+
+  for (const triangle of listFlatWallTriangles(data, face)) {
+    const key = Math.round(triangle.plane / PLANE_GROUP_STEP);
+
+    areaByPlane.set(key, (areaByPlane.get(key) ?? 0) + Math.hypot(...computeCross(triangle.corners)) / 2);
+  }
+
+  const [widestKey] = [...areaByPlane.entries()].toSorted(([, currentArea], [, prevArea]) => prevArea - currentArea)[0] ?? [0];
+  const outerPlane = readOutwardPlane(data, face, 0);
+
+  return Math.abs(outerPlane - widestKey * PLANE_GROUP_STEP);
+};
+
+const measureTop = (triangle: TriangleValue): number => Math.max(...triangle.corners.map(corner => corner[1]));
+
+const measureBottom = (triangle: TriangleValue): number => Math.min(...triangle.corners.map(corner => corner[1]));
+
+const listHorizontalExtent = (triangle: TriangleValue, face: WorldModelFaceValue): readonly [number, number] => {
+  const axis = face.endsWith('X') ? 2 : 0;
+  const values = triangle.corners.map(corner => corner[axis]);
+
+  return [Math.min(...values), Math.max(...values)];
+};
+
+const listGateTriangles = (
+  data: WorldModelDataValue,
+  face: WorldModelFaceValue,
+  inset: number,
+  bandTop: number,
+): TriangleValue[] => listWallTriangles(data, face, readOutwardPlane(data, face, inset))
+  .filter(triangle => triangle.isDark && measureBottom(triangle) < bandTop);
 
 const listBinFiles = (): string[] => readdirSync(modelsRoot, { recursive: true, withFileTypes: true })
   .filter(entry => entry.isFile() && entry.name.endsWith('.bin'))
@@ -189,17 +254,81 @@ describe('world model files', () => {
     const data = readEntryModel(entry);
 
     for (const { face, inset } of entry.walls?.faces ?? []) {
-      const outward = face.startsWith('positive')
-        ? data.bounds.max[face.endsWith('X') ? 0 : 2] - inset
-        : data.bounds.min[face.endsWith('X') ? 0 : 2] + inset;
-
-      expect(hasWallAtPlane(data, face, outward)).toBe(true);
+      expect(listWallTriangles(data, face, readOutwardPlane(data, face, inset)).length).toBeGreaterThan(0);
     }
   });
 
-  it('keeps the windows of the warehouse off the wall with the gate', () => {
+  it.each(WORLD_MODEL_CATALOG)('puts the far wall windows of $id at the outer plane, not behind the facade or far in front', (entry) => {
+    const data = readEntryModel(entry);
+    const windowsTop = entry.farWalls.heightShare * data.bounds.max[1];
+
+    expect(entry.farWalls.faces.length).toBeGreaterThanOrEqual(3);
+    expect(entry.farWalls.heightShare).toBeGreaterThan(0);
+    expect(entry.farWalls.heightShare).toBeLessThanOrEqual(1);
+
+    for (const { face, inset } of entry.farWalls.faces) {
+      const facadeInset = measureFacadeInset(data, face);
+      const measureInset = (triangle: WallTriangleValue): number => Math.abs(readOutwardPlane(data, face, 0) - triangle.plane);
+      const facade = listFlatWallTriangles(data, face).filter(
+        triangle => measureInset(triangle) >= inset - WALL_PLANE_TOLERANCE && measureInset(triangle) <= facadeInset + WALL_PLANE_TOLERANCE,
+      );
+
+      expect(facade.length).toBeGreaterThan(0);
+      expect(inset).toBeGreaterThanOrEqual(0);
+      expect(inset).toBeLessThanOrEqual(facadeInset + WALL_PLANE_TOLERANCE);
+      expect(facadeInset - inset).toBeLessThanOrEqual(MAX_FAR_FLOAT);
+      expect(windowsTop).toBeLessThanOrEqual(Math.max(...facade.map(measureTop)) + EAVE_TOLERANCE);
+    }
+  });
+
+  const WALLED_ENTRIES = WORLD_MODEL_CATALOG.filter(({ walls }) => walls !== undefined);
+
+  it.each(WALLED_ENTRIES)('keeps the far walls of $id on the faces, band and doors of its walls', (entry) => {
+    const walls = entry.walls?.faces ?? [];
+    const listFacesAndDoors = (faces: readonly WorldModelWallFaceValue[]): (number | string)[][] =>
+      faces.map(({ doorClearance, face }) => [face, doorClearance]);
+
+    expect(entry.farWalls.heightShare).toBe(entry.walls?.heightShare);
+    expect(listFacesAndDoors(entry.farWalls.faces)).toEqual(listFacesAndDoors(walls));
+
+    for (const [index, { inset }] of entry.farWalls.faces.entries()) {
+      expect(inset).toBeLessThanOrEqual(walls[index]?.inset ?? 0);
+    }
+  });
+
+  it('keeps the windows of the warehouse off the gate and clear of the doors, by the geometry of its walls', () => {
     const warehouse = WORLD_MODEL_CATALOG.find(({ id }) => id === COMPANY_WAREHOUSE_MODEL_ID);
 
-    expect(warehouse?.walls?.faces.map(({ face }) => face)).toEqual(['positiveX', 'positiveZ', 'negativeZ']);
+    expect(warehouse).toBeDefined();
+
+    if (warehouse === undefined) {
+      return;
+    }
+
+    const data = readEntryModel(warehouse);
+    const bandTop = warehouse.farWalls.heightShare * data.bounds.max[1];
+    const listedFaces = warehouse.farWalls.faces.map(({ face }) => face);
+    const gateFaces = ALL_FACES.filter(face => !listedFaces.includes(face));
+
+    expect(gateFaces).toHaveLength(1);
+
+    for (const { doorClearance, face, inset } of warehouse.walls?.faces ?? []) {
+      for (const triangle of listGateTriangles(data, face, inset, bandTop)) {
+        const [low, high] = listHorizontalExtent(triangle, face);
+
+        expect(Math.max(Math.abs(low), Math.abs(high))).toBeLessThanOrEqual(doorClearance + EAVE_TOLERANCE);
+      }
+    }
+
+    for (const face of gateFaces) {
+      const gates = [0, 0.044, 0.06].flatMap(inset => listGateTriangles(data, face, inset, bandTop));
+      const widest = Math.max(...gates.map((triangle) => {
+        const [low, high] = listHorizontalExtent(triangle, face);
+
+        return high - low;
+      }));
+
+      expect(widest).toBeGreaterThanOrEqual(GATE_MIN_WIDTH);
+    }
   });
 });

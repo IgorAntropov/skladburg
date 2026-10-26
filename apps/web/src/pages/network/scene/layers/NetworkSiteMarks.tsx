@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react';
 import type {
   BufferGeometry,
-  Camera,
   Group,
 } from 'three';
 
@@ -16,7 +15,6 @@ import {
   useMemo,
   useRef,
 } from 'react';
-import { OrthographicCamera } from 'three';
 
 import type { NetworkMapSiteValue } from '@/entities/network';
 
@@ -47,6 +45,7 @@ import {
 import { INSTANCE_MATRIX_ITEM_SIZE } from '../geometry/composeInstanceMatrix';
 import { createOwnMarkerGeometries } from '../geometry/createOwnMarkerGeometry';
 import { SITE_MARK_AZIMUTH_EPSILON_RADIANS } from '../geometry/networkSceneMetrics';
+import { readCameraZoom } from '../geometry/readCameraZoom';
 import {
   applySiteMarkAzimuth,
   getCameraAzimuth,
@@ -74,8 +73,6 @@ const EMPTY_CELL_LOOKUP: ISiteBannerCellLookup = {
   getFarCell: (): SiteBannerCellUvValue => EMPTY_CELL,
   getNearCell: (): SiteBannerCellUvValue => EMPTY_CELL,
 };
-
-const readCameraZoom = (camera: Camera): number => camera instanceof OrthographicCamera ? camera.zoom : 0;
 
 export const NetworkSiteMarks = ({
   atlas,

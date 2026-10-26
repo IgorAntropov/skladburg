@@ -34,6 +34,7 @@ const RESIZED_VIEWPORT = { height: 700, width: 1100 } as const;
 const MIN_ROTATION_FRAMES = 10;
 const MAX_ROTATION_ANIMATION_MS = 1500;
 const MAX_DRAW_CALLS_PER_FRAME = 40;
+const MAX_HIGH_DRAW_CALLS_PER_FRAME = 50;
 const MIN_HOME_FRAMES = 2;
 const MAX_REDUCED_MOTION_FRAMES = 3;
 const MIN_REDUCED_MOTION_FRAMES = 1;
@@ -42,9 +43,10 @@ const MIN_THEME_TRANSITION_FRAMES = 10;
 const MIN_THEME_TRANSITION_MS = 2000;
 const MAX_THEME_TRANSITION_MS = 5000;
 const MAX_THEME_APPLY_MS = 1000;
-const MIN_NIGHT_GLOW_PIXELS = 100;
+const MIN_NIGHT_GLOW_PIXELS = 200;
 const MIN_NIGHT_WARM_SPOT_PIXELS = 200;
 const MAX_DAY_WARM_SPOT_PIXELS = 40;
+const MAX_DAY_GLOW_EDGE_SPOT_PIXELS = 2;
 
 const openReadyWorld = async (scene: SceneRobotValue): Promise<void> => {
   await scene.openNetwork();
@@ -226,7 +228,7 @@ test.describe('camera motion', () => {
   test.describe('at the high level', () => {
     test.use({ initialGraphicsPreference: 'high' });
 
-    test('turns with the button by day and goes quiet, the draw calls are only reported', async ({ page }) => {
+    test('turns with the button by day and goes quiet within the high draw call budget', async ({ page }) => {
       const scene = createSceneRobot(page);
 
       await openReadyWorld(scene);
@@ -241,6 +243,7 @@ test.describe('camera motion', () => {
 
       expect(rotation.frames).toBeGreaterThanOrEqual(MIN_ROTATION_FRAMES);
       expect(rotation.drawCallsPerFrame).toBeGreaterThan(0);
+      expect(rotation.drawCallsPerFrame).toBeLessThanOrEqual(MAX_HIGH_DRAW_CALLS_PER_FRAME);
     });
   });
 
@@ -371,9 +374,11 @@ test.describe('night world', () => {
         `nightGlow=${String(night.glowCount)}`,
         `nightRaw=${String(night.rawWarmSpotCount)}`,
         `daySpotsKeptAtNight=${String(day.sharedWarmSpotCount)}`,
+        `dayGlowEdgeSpots=${String(day.glowEdgeWarmSpotCount)}`,
         `dayGlow=${String(day.glowCount)}`,
         `dayRaw=${String(day.rawWarmSpotCount)}`,
         `nextDaySpotsKeptAtNight=${String(nextDay.sharedWarmSpotCount)}`,
+        `nextDayGlowEdgeSpots=${String(nextDay.glowEdgeWarmSpotCount)}`,
         `nextDayGlow=${String(nextDay.glowCount)}`,
         `nextDayRaw=${String(nextDay.rawWarmSpotCount)}`,
       ].join(' '),
@@ -386,16 +391,18 @@ test.describe('night world', () => {
     expect(night.newWarmSpotCount).toBeGreaterThanOrEqual(MIN_NIGHT_WARM_SPOT_PIXELS);
     expect(day.glowCount).toBe(0);
     expect(day.sharedWarmSpotCount).toBe(0);
+    expect(day.glowEdgeWarmSpotCount).toBeLessThanOrEqual(MAX_DAY_GLOW_EDGE_SPOT_PIXELS);
     expect(day.rawWarmSpotCount).toBeLessThanOrEqual(MAX_DAY_WARM_SPOT_PIXELS);
     expect(nextDay.glowCount).toBe(0);
     expect(nextDay.sharedWarmSpotCount).toBe(0);
+    expect(nextDay.glowEdgeWarmSpotCount).toBeLessThanOrEqual(MAX_DAY_GLOW_EDGE_SPOT_PIXELS);
     expect(nextDay.rawWarmSpotCount).toBeLessThanOrEqual(MAX_DAY_WARM_SPOT_PIXELS);
   });
 
   test.describe('at the high level', () => {
     test.use({ initialGraphicsPreference: 'high' });
 
-    test('turns with the button at night and goes quiet, the draw calls are only reported', async ({ page }) => {
+    test('turns with the button at night and goes quiet within the high draw call budget', async ({ page }) => {
       const scene = createSceneRobot(page);
 
       await openReadyWorldInColorScheme(scene, 'dark');
@@ -411,6 +418,7 @@ test.describe('night world', () => {
 
       expect(rotation.frames).toBeGreaterThanOrEqual(MIN_ROTATION_FRAMES);
       expect(rotation.drawCallsPerFrame).toBeGreaterThan(0);
+      expect(rotation.drawCallsPerFrame).toBeLessThanOrEqual(MAX_HIGH_DRAW_CALLS_PER_FRAME);
     });
   });
 });

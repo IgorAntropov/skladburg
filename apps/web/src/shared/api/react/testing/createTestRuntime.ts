@@ -7,6 +7,7 @@ import type { IDemoControl } from '../../transport/demo';
 
 import { createApiClient } from '../../client/createApiClient';
 import { createActingContextStore } from '../../context/createActingContextStore';
+import { createErrorJournal } from '../../errors/errorJournal';
 import { createActingOrganizationInterceptor } from '../../transport/createActingOrganizationInterceptor';
 
 export const TEST_ORGANIZATION_ID = 'f0000001-0000-4000-8000-000000000000';
@@ -30,6 +31,7 @@ export const createTestRuntime = (options: TestRuntimeOptionsValue = {}): ApiRun
     client: createApiClient(transport),
     close: () => undefined,
     demoControl: options.demoControl,
+    errorJournal: createErrorJournal(),
     networkMode: 'always',
     realtime: {
       stop: () => undefined,

@@ -9,6 +9,11 @@ export interface PersonaValue {
 const ALL_SECTIONS: readonly SectionValue[] = ['network', 'catalog', 'deals', 'warehouse'];
 
 export const PERSONAS = {
+  constructionCarrier: {
+    id: '90000007-0000-4000-8000-000000000000',
+    organizationName: 'Перевозчик 2',
+    sections: ['network', 'deals'],
+  },
   constructionCustomer: {
     id: '90000005-0000-4000-8000-000000000000',
     organizationName: 'Заказчик 2',
@@ -41,6 +46,10 @@ export const NOTIFICATION_IDS = {
   freshCustomerSupplier1: 'b0000002-0000-4000-8000-000000000000',
   freshCustomerSupplier2: 'b0000001-0000-4000-8000-000000000000',
 } as const;
+
+export const RU_CATALOG_DIGEST_GREETING = 'Здравствуйте! Вот что у вас сейчас';
+
+export const RU_INFORMAL_CATALOG_DIGEST_GREETING = 'Привет! Вот что у тебя сейчас';
 
 export const DEFAULT_PERSONA: PersonaValue = PERSONAS.freshCustomer;
 

@@ -1,3 +1,4 @@
+export { createErrorJournal } from './errors/errorJournal';
 export type { TestRuntimeOptionsValue } from './react/testing/createTestRuntime';
 export {
   createTestRuntime,

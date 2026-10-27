@@ -5,6 +5,7 @@ import type {
 
 import { createApiClient } from '../client/createApiClient';
 import { createActingContextStore } from '../context/createActingContextStore';
+import { createErrorJournal } from '../errors/errorJournal';
 import { createBrowserFrameScheduler } from '../realtime/createBrowserFrameScheduler';
 import { createRealtimeChannel } from '../realtime/createRealtimeChannel';
 import { createSilentRealtimeSource } from '../realtime/createSilentRealtimeSource';
@@ -36,6 +37,7 @@ export const createPilotRuntime = (options: CreateApiRuntimeOptionsValue): ApiRu
       realtime.stop();
     },
     demoControl: undefined,
+    errorJournal: createErrorJournal(),
     networkMode: 'online',
     realtime,
   };

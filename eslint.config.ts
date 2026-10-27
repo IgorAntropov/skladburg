@@ -33,6 +33,11 @@ const lazyProfileMenuFiles: string[] = ['apps/web/src/widgets/profile-menu/**/*.
 const lazyNotificationCenterFiles: string[] = ['apps/web/src/widgets/notification-center/**/*.{ts,tsx}'];
 const lazyNotificationCenterPanelChunkFiles: string[] = ['apps/web/src/widgets/notification-center/ui/panel/**/*.{ts,tsx}'];
 const lazyNotificationCenterReporterChunkFiles: string[] = ['apps/web/src/widgets/notification-center/ui/reporter/**/*.{ts,tsx}'];
+const lazyAssistantStartupFiles: string[] = [
+  'apps/web/src/widgets/assistant/index.ts',
+  'apps/web/src/widgets/assistant/ui/AssistantLauncher.tsx',
+  'apps/web/src/widgets/assistant/ui/loadAssistantHost.ts',
+];
 const lazyNotificationCenterChunkFiles: string[] = [
   ...lazyNotificationCenterPanelChunkFiles,
   ...lazyNotificationCenterReporterChunkFiles,
@@ -208,9 +213,21 @@ const sectionCatalogImportRestriction: SceneImportRestrictionValue = {
 
 const notificationEntityImportRestriction: SceneImportRestrictionValue = {
   message: 'The notification entity pulls the notification client and its descriptors into the bundle; the startup part of '
-    + 'the notification center reaches it only through the lazy panel and reporter chunks; use import type or move the code '
-    + 'into a chunk',
+    + 'the notification center and of the assistant reaches it only through their lazy chunks; use import type or move the '
+    + 'code into a chunk',
   regex: '^@/entities/notification(/|$)',
+};
+
+const quietModeFeatureImportRestriction: SceneImportRestrictionValue = {
+  message: 'The quiet mode feature is shown by the lazy panel of the notification center and read by the lazy assistant host; '
+    + 'the startup part of a widget reaches it only through those chunks; use import type or move the code into a chunk',
+  regex: '^@/features/assistant-quiet-mode(/|$)',
+};
+
+const assistantSectionImportRestriction: SceneImportRestrictionValue = {
+  message: 'The assistant texts are loaded lazily by the assistant host; the startup part of the assistant imports neither '
+    + 'the section file nor its catalogs; use import type or move the code into the host chunk',
+  regex: '(^|/)assistantSection$',
 };
 
 const sectionCatalogImportRestrictions: SceneImportRestrictionValue[] = [sectionCatalogImportRestriction];
@@ -258,6 +275,11 @@ const notificationCenterPanelChunkLazyRestriction: LazyModuleRestrictionValue = 
 const notificationCenterReporterChunkLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'the notification center reporter chunk',
   regex: '(^|/)reporter(/|$)',
+};
+
+const assistantHostChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the assistant host chunk',
+  regex: '(^|/)host(/|$)',
 };
 
 const changeAvatarLazyRestriction: LazyModuleRestrictionValue = {
@@ -336,6 +358,10 @@ const notificationCenterLazyRestrictions: LazyModuleRestrictionValue[] = [
   ...appLazyRestrictions,
   notificationCenterPanelChunkLazyRestriction,
   notificationCenterReporterChunkLazyRestriction,
+];
+const assistantLazyRestrictions: LazyModuleRestrictionValue[] = [
+  ...appLazyRestrictions,
+  assistantHostChunkLazyRestriction,
 ];
 const startLazyRestrictions: LazyModuleRestrictionValue[] = [
   ...appLazyRestrictions,
@@ -823,7 +849,21 @@ export default defineConfig(
     ignores: [...webTestFiles, ...lazyNotificationCenterChunkFiles],
     rules: createLazyModuleRules(
       notificationCenterLazyRestrictions,
-      [...sourceBoundaryImportRestrictions, notificationEntityImportRestriction],
+      [...sourceBoundaryImportRestrictions, notificationEntityImportRestriction, quietModeFeatureImportRestriction],
+    ),
+  },
+  {
+    files: lazyAssistantStartupFiles,
+    ignores: webTestFiles,
+    rules: createLazyModuleRules(
+      assistantLazyRestrictions,
+      [
+        ...sourceBoundaryImportRestrictions,
+        serviceDescriptorImportRestriction,
+        notificationEntityImportRestriction,
+        quietModeFeatureImportRestriction,
+        assistantSectionImportRestriction,
+      ],
     ),
   },
   {

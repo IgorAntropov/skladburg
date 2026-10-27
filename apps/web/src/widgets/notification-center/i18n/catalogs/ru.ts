@@ -14,6 +14,8 @@ export const catalog = {
   'notification.panel.markAllRead': 'Прочитать все',
   'notification.panel.markAllRead.done': 'Все уведомления прочитаны',
   'notification.panel.markAllRead.pending': 'Отмечаем…',
+  'notification.panel.quietMode': 'Только важное',
+  'notification.panel.quietMode.hint': 'Мелочи не всплывают, но видны в списке. Важное и критичное придёт как обычно',
   'notification.panel.title': 'Уведомления',
   'notification.row.unread': 'Не прочитано',
 } as const satisfies CatalogShapeValue;

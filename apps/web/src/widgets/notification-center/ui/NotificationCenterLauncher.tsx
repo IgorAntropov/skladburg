@@ -28,7 +28,13 @@ import { loadNotificationCenterPanel } from './loadNotificationCenterPanel';
 import { NotificationButton } from './NotificationButton';
 
 export interface NotificationCenterLauncherProps {
+  renderReplica?: ((slot: NotificationReplicaSlotValue) => ReactNode) | undefined;
   unreadCountReporter?: ReactNode | undefined;
+}
+
+export interface NotificationReplicaSlotValue {
+  isPanelOpen: boolean;
+  openCenter: () => void;
 }
 
 type LaunchStateValue
@@ -48,7 +54,7 @@ const LOAD_ERROR_CLASS_NAME = [
 
 const LOAD_ERROR_BADGE_CLASS_NAME = 'flex size-6 shrink-0 items-center justify-center rounded-full bg-status-alarm text-on-status-alarm';
 
-export const NotificationCenterLauncher = ({ unreadCountReporter }: NotificationCenterLauncherProps): ReactElement => {
+export const NotificationCenterLauncher = ({ renderReplica, unreadCountReporter }: NotificationCenterLauncherProps): ReactElement => {
   const { locale, t } = useI18n();
   const { cancelFocus, ref: handoffRef, requestFocus } = useFocusHandoff<HTMLButtonElement>(NOTIFICATION_CENTER_FOCUS_KEY);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -131,6 +137,16 @@ export const NotificationCenterLauncher = ({ unreadCountReporter }: Notification
 
   const isPanelShown = launchState.kind === 'ready' && isOpen;
 
+  const openCenter = (): void => {
+    console.log('> NotificationCenterLauncher -> openCenter:', { isPanelShown });
+
+    if (isPanelShown) {
+      return;
+    }
+
+    handleButtonClick();
+  };
+
   return (
     <div className="flex sm:relative" data-testid="notification-center" ref={rootRef}>
       <NotificationButton
@@ -145,6 +161,7 @@ export const NotificationCenterLauncher = ({ unreadCountReporter }: Notification
       />
       <UnreadCountSinkContext value={setUnreadCount}>{unreadCountReporter}</UnreadCountSinkContext>
       {isPanelShown && <launchState.Panel anchorRef={rootRef} id={panelId} onClose={handlePanelClose} />}
+      {renderReplica?.({ isPanelOpen: isPanelShown, openCenter })}
       {isLoadFailed && (
         <div className={LOAD_ERROR_CLASS_NAME}>
           <div className="flex items-start gap-2">

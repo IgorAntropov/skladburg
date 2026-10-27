@@ -94,6 +94,21 @@ const notificationCenterReporterFilePath = fileURLToPath(
 const notificationCenterReporterTestFilePath = fileURLToPath(
   new URL('../../apps/web/src/widgets/notification-center/ui/reporter/UnreadCountReporterBody.test.tsx', import.meta.url),
 );
+const assistantLauncherFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/assistant/ui/AssistantLauncher.tsx', import.meta.url),
+);
+const assistantLauncherTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/assistant/ui/AssistantLauncher.test.tsx', import.meta.url),
+);
+const assistantHostFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/assistant/ui/host/AssistantHost.tsx', import.meta.url),
+);
+const assistantHostTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/assistant/ui/host/AssistantHost.test.tsx', import.meta.url),
+);
+const assistantModelFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/assistant/model/useDigestReplica.ts', import.meta.url),
+);
 const motionSegmentFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/motion/probe-scope.ts', import.meta.url));
 const motionSegmentTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/motion/probe-scope.test.tsx', import.meta.url));
 const formSegmentFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/form/probe-form.ts', import.meta.url));
@@ -2102,6 +2117,131 @@ describe('eslint.config.ts with the local rules', () => {
         ['a page', pageFilePath],
       ])('does not restrict the entity in %s', async (_name, filePath) => {
         expect(await readLazyMessages(toValueImport('@/entities/notification'), filePath)).toEqual([]);
+      });
+    });
+
+    describe('the quiet mode feature in the startup part of the notification center', () => {
+      it.each([
+        ['the public api', '@/features/assistant-quiet-mode'],
+        ['a nested path', '@/features/assistant-quiet-mode/ui/QuietModeSwitch'],
+      ])('reports a value import of %s', async (_name, specifier) => {
+        const messages = await readLazyMessages(toValueImport(specifier), notificationCenterFilePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('quiet mode feature');
+        expect(messages[0]).toContain('use import type');
+      });
+
+      it.each([
+        ['import type', toTypeImport],
+        ['an import with only inline types', toNamedTypeImport],
+        ['import()', toDynamicImport],
+        ['an import type query', toTypeQuery],
+      ])('allows %s of the feature', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode('@/features/assistant-quiet-mode'), notificationCenterFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['the panel chunk', notificationCenterPanelFilePath],
+        ['the panel chunk test', notificationCenterPanelTestFilePath],
+        ['a test of the startup part', notificationCenterTestFilePath],
+      ])('allows a value import of the feature in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('@/features/assistant-quiet-mode'), filePath)).toEqual([]);
+      });
+    });
+
+    describe('the lazy chunk of the assistant host', () => {
+      const hostChunkSpecifiers: readonly (readonly [string, string])[] = [
+        ['a sibling folder', './host/AssistantHost'],
+        ['the folder itself', './host'],
+        ['a nested path', './ui/host/AssistantHost'],
+        ['an alias path', '@/widgets/assistant/ui/host/AssistantHost'],
+      ];
+
+      it.each(hostChunkSpecifiers)('reports a value import of %s in the assistant launcher', async (_name, specifier) => {
+        const messages = await readLazyMessages(toValueImport(specifier), assistantLauncherFilePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('assistant host chunk');
+        expect(messages[0]).toContain(lazyMessagePart);
+      });
+
+      it('reports a re-export of a value of the chunk in the assistant launcher', async () => {
+        const code = 'export { AssistantHost } from \'./host/AssistantHost\';\n';
+
+        expect(await readLazyMessages(code, assistantLauncherFilePath)).toHaveLength(1);
+      });
+
+      it.each([
+        ['import type', toTypeImport],
+        ['an import with only inline types', toNamedTypeImport],
+        ['import()', toDynamicImport],
+        ['an import type query', toTypeQuery],
+      ])('allows %s of ./host/AssistantHost in the assistant launcher', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode('./host/AssistantHost'), assistantLauncherFilePath)).toEqual([]);
+      });
+
+      it('allows a value import of the chunk in a test of the assistant launcher', async () => {
+        expect(await readLazyMessages(toValueImport('./host/AssistantHost'), assistantLauncherTestFilePath)).toEqual([]);
+      });
+
+      it('allows a value import of a sibling file inside the chunk and in its test', async () => {
+        expect(await readLazyMessages(toValueImport('./ReplicaBubble'), assistantHostFilePath)).toEqual([]);
+        expect(await readLazyMessages(toValueImport('./ReplicaBubble'), assistantHostTestFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['app', applicationScriptFilePath],
+        ['a widget outside assistant', widgetFilePath],
+        ['a page', pageFilePath],
+      ])('does not restrict ./host/AssistantHost in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('./host/AssistantHost'), filePath)).toEqual([]);
+      });
+
+      it('keeps the lazy boundaries of other widgets in the assistant launcher', async () => {
+        const messages = await readLazyMessages(toValueImport(personaSwitcherSpecifier), assistantLauncherFilePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('features/switch-persona');
+      });
+    });
+
+    describe('the data and texts in the startup part of the assistant', () => {
+      const startupOnlySpecifiers: readonly (readonly [string, string, string])[] = [
+        ['the notification entity', '@/entities/notification', 'notification entity'],
+        ['a nested path of the notification entity', '@/entities/notification/api/useNotificationsQuery', 'notification entity'],
+        ['the quiet mode feature', '@/features/assistant-quiet-mode', 'quiet mode feature'],
+        ['the section file of the texts', '../i18n/assistantSection', 'assistant texts'],
+        ['the notification contract', '@skladburg/contracts/notification/v1/notification', 'Service descriptors'],
+      ];
+
+      it.each(startupOnlySpecifiers)('reports a value import of %s', async (_name, specifier, messagePart) => {
+        const messages = await readLazyMessages(toValueImport(specifier), assistantLauncherFilePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain(messagePart);
+        expect(messages[0]).toContain('use import type');
+      });
+
+      it.each([
+        ['import type', toTypeImport],
+        ['an import with only inline types', toNamedTypeImport],
+        ['import()', toDynamicImport],
+        ['an import type query', toTypeQuery],
+      ])('allows %s of the entity and of the section file', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode('@/entities/notification'), assistantLauncherFilePath)).toEqual([]);
+        expect(await readLazyMessages(toCode('../i18n/assistantSection'), assistantLauncherFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['the host chunk', assistantHostFilePath],
+        ['the host chunk test', assistantHostTestFilePath],
+        ['the model segment', assistantModelFilePath],
+        ['a test of the launcher', assistantLauncherTestFilePath],
+      ])('allows a value import of the entity, the feature and the texts in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('@/entities/notification'), filePath)).toEqual([]);
+        expect(await readLazyMessages(toValueImport('@/features/assistant-quiet-mode'), filePath)).toEqual([]);
+        expect(await readLazyMessages(toValueImport('../i18n/assistantSection'), filePath)).toEqual([]);
       });
     });
 

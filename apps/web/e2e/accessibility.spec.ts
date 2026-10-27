@@ -1,6 +1,10 @@
 import { DEFAULT_PERSONA } from './fixtures/demoData.ts';
 import { test } from './fixtures/test.ts';
-import { DESKTOP_VIEWPORT } from './fixtures/viewports.ts';
+import {
+  DESKTOP_VIEWPORT,
+  PHONE_VIEWPORT,
+} from './fixtures/viewports.ts';
+import { createAssistantRobot } from './robots/assistant-robot.ts';
 import { createCreateWarehouseRobot } from './robots/create-warehouse-robot.ts';
 import { createHudRobot } from './robots/hud-robot.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';
@@ -61,5 +65,41 @@ test.describe('accessibility', () => {
     await notifications.open();
 
     await notifications.expectNoViolationsOfAccessibility();
+  });
+
+  test('has no violations of WCAG 2.1 A and AA with the assistant replica open', async ({ page }) => {
+    const assistant = createAssistantRobot(page);
+    const navigation = createNavigationRobot(page);
+    const persona = createPersonaRobot(page);
+    const topBar = createTopBarRobot(page);
+
+    await navigation.openSection('network');
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+    await topBar.expectDocumentTheme('light');
+
+    await assistant.expectNoViolationsOfAccessibility('digest');
+  });
+});
+
+test.describe('accessibility on the phone', () => {
+  test.use({
+    colorScheme: 'light',
+    reducedMotion: 'reduce',
+    viewport: PHONE_VIEWPORT,
+  });
+
+  test('has no violations of WCAG 2.1 A and AA with the assistant replica scrolling on the phone', async ({ page }) => {
+    const assistant = createAssistantRobot(page);
+    const navigation = createNavigationRobot(page);
+    const persona = createPersonaRobot(page);
+    const topBar = createTopBarRobot(page);
+
+    await navigation.openSection('network');
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+    await topBar.expectDocumentTheme('light');
+
+    await assistant.expectReplica('digest');
+    await assistant.expectScrollAreaFocusable('digest');
+    await assistant.expectNoViolationsOfAccessibility('digest');
   });
 });

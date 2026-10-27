@@ -5,6 +5,7 @@ import type {
 
 import { createApiClient } from '../client/createApiClient';
 import { createActingContextStore } from '../context/createActingContextStore';
+import { createErrorJournal } from '../errors/errorJournal';
 import { createBrowserFrameScheduler } from '../realtime/createBrowserFrameScheduler';
 import { createRealtimeChannel } from '../realtime/createRealtimeChannel';
 import { selectInitialPersona } from './selectInitialPersona';
@@ -55,6 +56,7 @@ export const createDemoRuntime = async (options: CreateApiRuntimeOptionsValue): 
       connection.close();
     },
     demoControl,
+    errorJournal: createErrorJournal(),
     networkMode: 'always',
     realtime,
   };

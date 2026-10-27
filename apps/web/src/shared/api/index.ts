@@ -16,9 +16,15 @@ export type {
   IActingContextStore,
 } from './context/actingContextTypes';
 export type { ApiErrorValue } from './errors/apiErrorTypes';
+export type {
+  ErrorJournalEntryValue,
+  IErrorJournal,
+} from './errors/errorJournal';
 export { getErrorMessageKey } from './errors/getErrorMessageKey';
 export { getFieldViolations } from './errors/getFieldViolations';
 export { getViolationMessageKey } from './errors/getViolationMessageKey';
+export type { KnownErrorCode } from './errors/isKnownErrorCode';
+export { isKnownErrorCode } from './errors/isKnownErrorCode';
 export { parseApiError } from './errors/parseApiError';
 export { translateApiError } from './errors/translateApiError';
 export { translatePermissionDenial } from './errors/translatePermissionDenial';
@@ -51,6 +57,7 @@ export { ApiRuntimeProvider } from './react/ApiRuntimeProvider';
 export { useActingContext } from './react/useActingContext';
 export { useApiClient } from './react/useApiClient';
 export { useDemoControl } from './react/useDemoControl';
+export { useErrorJournal } from './react/useErrorJournal';
 export { useRealtimeChannel } from './react/useRealtimeChannel';
 export type { SwitchActingContextResultValue } from './react/useSwitchActingContext';
 export { useSwitchActingContext } from './react/useSwitchActingContext';

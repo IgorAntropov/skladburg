@@ -62,11 +62,17 @@ const MAX_ORGANIZATION_LOGOS_KILOBYTES = 40;
 
 const MAX_ASSISTANT_PORTRAITS_KILOBYTES = 6;
 
-const MAX_NOTIFICATION_CENTER_GZIP_KILOBYTES = 30.5;
+const MAX_NOTIFICATION_CENTER_GZIP_KILOBYTES = 32;
 
 const MAX_NOTIFICATION_CENTER_TEXTS_GZIP_KILOBYTES = 1.5;
 
 const MAX_NOTIFICATION_UNREAD_REPORTER_GZIP_KILOBYTES = 3.5;
+
+const MAX_ASSISTANT_HOST_GZIP_KILOBYTES = 12.5;
+
+const MAX_ASSISTANT_TEXTS_GZIP_KILOBYTES = 2;
+
+const MAX_ASSISTANT_TEXTS_INFORMAL_GZIP_KILOBYTES = 3;
 
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
@@ -239,6 +245,27 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_NOTIFICATION_CENTER_TEXTS_GZIP_KILOBYTES,
     name: 'notification-center-texts',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/widgets/assistant/ui/host/AssistantHost.tsx'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_ASSISTANT_HOST_GZIP_KILOBYTES,
+    name: 'assistant',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/widgets/assistant/i18n/catalogs/ru.ts'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_ASSISTANT_TEXTS_GZIP_KILOBYTES,
+    name: 'assistant-texts',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/widgets/assistant/i18n/catalogs/ru.informal.ts'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_ASSISTANT_TEXTS_INFORMAL_GZIP_KILOBYTES,
+    name: 'assistant-texts-informal',
   },
 ];
 

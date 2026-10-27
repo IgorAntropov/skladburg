@@ -3,6 +3,7 @@ import type {
   ActingContextValue,
   IActingContextStore,
 } from '../context/actingContextTypes';
+import type { IErrorJournal } from '../errors/errorJournal';
 import type {
   IFrameScheduler,
   IRealtimeChannel,
@@ -17,6 +18,7 @@ export interface ApiRuntimeValue {
   client: ApiClient;
   close: () => void;
   demoControl: IDemoControl | undefined;
+  errorJournal: IErrorJournal;
   networkMode: QueryNetworkModeValue;
   realtime: IRealtimeChannel;
 }

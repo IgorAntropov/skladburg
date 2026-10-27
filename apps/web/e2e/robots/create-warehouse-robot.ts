@@ -53,7 +53,7 @@ export const createCreateWarehouseRobot = (page: Page): CreateWarehouseRobotValu
   const nameField = panel.locator('[name="name"]');
   const cityField = panel.locator('[name="cityId"]');
   const addressField = panel.locator('[name="address"]');
-  const announcement = page.locator('[aria-live="polite"]');
+  const announcement = page.locator('[aria-live="polite"]:not([data-testid="assistant-announcer"])');
 
   const getDescribedByIds = async (locator: Locator): Promise<string[]> => {
     await expect(locator).toHaveAttribute('aria-describedby', /\S/);

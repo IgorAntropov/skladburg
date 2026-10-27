@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 
 import { useNotificationsQuery } from '@/entities/notification';
+import { QuietModeSwitch } from '@/features/assistant-quiet-mode';
 import { WidgetStates } from '@/shared/ui';
 
 import type { NotificationTranslate } from '../../lib/formatNotificationMessage';
@@ -55,6 +56,9 @@ export const NotificationPanelBody = ({ onLinkClick, t }: NotificationPanelBodyP
             </ul>
           )}
         </WidgetStates>
+      </div>
+      <div className="shrink-0 border-t border-line p-1">
+        <QuietModeSwitch hint={t('notification.panel.quietMode.hint')} label={t('notification.panel.quietMode')} />
       </div>
     </>
   );

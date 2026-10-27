@@ -4,9 +4,13 @@ import type { ReactElement } from 'react';
 import { timestampMs } from '@bufbuild/protobuf/wkt';
 import { useMemo } from 'react';
 
+import type { NotificationLinkKind } from '@/entities/notification';
 import type { DateTimeFormatPartsValue } from '@/shared/i18n';
 
-import { useMarkNotificationsRead } from '@/entities/notification';
+import {
+  resolveNotificationLinks,
+  useMarkNotificationsRead,
+} from '@/entities/notification';
 import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
 import { AddressLink } from '@/shared/routing';
@@ -15,13 +19,18 @@ import type { NotificationTranslate } from '../../lib/formatNotificationMessage'
 
 import { formatNotificationMessage } from '../../lib/formatNotificationMessage';
 import { NotificationKindIcon } from './NotificationKindIcon';
-import { resolveNotificationLinks } from './resolveNotificationLinks';
 
 interface NotificationRowProps {
   notification: Notification;
   onLinkClick: () => void;
   t: NotificationTranslate;
 }
+
+const LINK_LABEL_KEY_BY_KIND = {
+  map: 'notification.link.map',
+  open: 'notification.link.open',
+  organization: 'notification.link.organization',
+} as const satisfies Record<NotificationLinkKind, string>;
 
 const TIME_FORMAT: DateTimeFormatPartsValue = { day: 'numeric', hour: '2-digit', minute: '2-digit', month: 'short' };
 
@@ -84,7 +93,7 @@ export const NotificationRow = ({ notification, onLinkClick, t }: NotificationRo
                 onClick={handleLinkClick}
                 to={link.address}
               >
-                {t(link.labelKey)}
+                {t(LINK_LABEL_KEY_BY_KIND[link.kind])}
               </AddressLink>
             ))}
           </div>

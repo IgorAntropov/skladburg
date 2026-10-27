@@ -3,6 +3,7 @@ import type { QueryKey } from '@tanstack/react-query';
 import { useMutation } from '@tanstack/react-query';
 import {
   useCallback,
+  useContext,
   useMemo,
   useRef,
 } from 'react';
@@ -12,8 +13,10 @@ import type {
   CommandValue,
 } from './commandTypes';
 
+import { isCancellationError } from '../errors/isCancellationError';
 import { parseApiError } from '../errors/parseApiError';
 import { createIdempotencyKey } from '../idempotency/createIdempotencyKey';
+import { ApiRuntimeContext } from '../react/ApiRuntimeContext';
 
 export const useCommand = <TResult>(options: CommandOptionsValue<TResult>): CommandValue => {
   const {
@@ -22,6 +25,8 @@ export const useCommand = <TResult>(options: CommandOptionsValue<TResult>): Comm
     mutationKey,
     onSuccess,
   } = options;
+  const errorJournal = useContext(ApiRuntimeContext)?.errorJournal;
+  const journalMethod = method === undefined ? 'unknown' : `${method.parent.typeName}/${method.name}`;
   const idempotencyKeyRef = useRef<string | undefined>(undefined);
   const isRunningRef = useRef(false);
 
@@ -37,8 +42,20 @@ export const useCommand = <TResult>(options: CommandOptionsValue<TResult>): Comm
     mutationFn: (idempotencyKey: string): Promise<TResult> => execute(idempotencyKey),
     mutationKey: resolvedMutationKey,
     onError: (error: Error): void => {
-      if (!parseApiError(error).isRetryable) {
+      const parsedError = parseApiError(error);
+
+      if (!parsedError.isRetryable) {
         idempotencyKeyRef.current = undefined;
+      }
+
+      if (!isCancellationError(error)) {
+        errorJournal?.record({
+          code: parsedError.code,
+          method: journalMethod,
+          occurredAt: Date.now(),
+          params: parsedError.params,
+          traceId: parsedError.traceId,
+        });
       }
     },
     onSettled: (): void => {

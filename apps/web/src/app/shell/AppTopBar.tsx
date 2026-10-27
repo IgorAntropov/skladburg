@@ -5,11 +5,14 @@ import {
   useState,
 } from 'react';
 
+import type { NotificationReplicaSlotValue } from '@/widgets/notification-center';
+
 import { CollapseHudPanelsButton } from '@/features/collapse-hud-panels';
 import {
   getAddressSection,
   useAddress,
 } from '@/shared/routing';
+import { AssistantLauncher } from '@/widgets/assistant';
 import {
   NotificationCenterLauncher,
   UnreadCountReporter,
@@ -31,6 +34,10 @@ export const AppTopBar = (): ReactElement => {
   const sections = availableSections.kind === 'ready' ? availableSections.sections : NO_SECTIONS;
   const unreadCountReporter = isReporterMounted ? <UnreadCountReporter /> : undefined;
 
+  const renderReplica = ({ isPanelOpen, openCenter }: NotificationReplicaSlotValue): ReactElement | undefined => {
+    return isReporterMounted ? <AssistantLauncher isPanelOpen={isPanelOpen} onOpenCenter={openCenter} /> : undefined;
+  };
+
   useEffect(() => {
     return scheduleWhenIdle(() => {
       setIsReporterMounted(true);
@@ -39,7 +46,7 @@ export const AppTopBar = (): ReactElement => {
 
   return (
     <TopBar
-      assistant={<NotificationCenterLauncher unreadCountReporter={unreadCountReporter} />}
+      assistant={<NotificationCenterLauncher renderReplica={renderReplica} unreadCountReporter={unreadCountReporter} />}
       currentSection={currentSection}
       panelsToggle={<CollapseHudPanelsButton />}
       profileMenu={<ProfileMenuLauncher currentSection={currentSection} sections={sections} />}

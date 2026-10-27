@@ -33,21 +33,26 @@ import {
   vi,
 } from 'vitest';
 
+import type { ApiRuntimeValue } from '../runtime/apiRuntimeTypes';
 import type {
   CommandOptionsValue,
   CommandValue,
 } from './commandTypes';
 
 import { createQueryClient } from '../query/createQueryClient';
+import { ApiRuntimeContext } from '../react/ApiRuntimeContext';
+import { createTestRuntime } from '../react/testing/createTestRuntime';
 import { useCommand } from './useCommand';
 
 type ExecuteValue = CommandOptionsValue<string>['execute'];
 
-const createWrapper = () => {
+const createWrapper = (runtime?: ApiRuntimeValue) => {
   const queryClient = createQueryClient({ networkMode: 'always' });
 
   return ({ children }: { children: ReactNode }): ReactElement => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <ApiRuntimeContext value={runtime}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </ApiRuntimeContext>
   );
 };
 
@@ -72,9 +77,10 @@ const createPermissionDeniedError = (): ConnectError => createDetailError(ErrorC
 
 const renderCommand = (
   options: CommandOptionsValue<string>,
+  runtime?: ApiRuntimeValue,
 ): RenderHookResult<CommandValue, CommandOptionsValue<string>> => renderHook(
   (props: CommandOptionsValue<string>) => useCommand(props),
-  { initialProps: options, wrapper: createWrapper() },
+  { initialProps: options, wrapper: createWrapper(runtime) },
 );
 
 describe('useCommand', () => {
@@ -456,5 +462,80 @@ describe('useCommand', () => {
     await waitFor(() => {
       expect(result.current.mutating).toBe(0);
     });
+  });
+
+  it('writes a refusal to the error journal with the code, trace id and method', async () => {
+    const runtime = createTestRuntime();
+    const method = OrganizationService.method.createWarehouse;
+    const error = new ConnectError(
+      'failed',
+      Code.FailedPrecondition,
+      undefined,
+      [{
+        desc: ErrorDetailSchema,
+        value: create(ErrorDetailSchema, { code: ErrorCode.UNAVAILABLE, traceId: 'trace-7' }),
+      }],
+    );
+    const { result } = renderCommand({ execute: () => Promise.reject(error), method }, runtime);
+
+    act(() => {
+      result.current.run();
+    });
+
+    await waitFor(() => {
+      expect(runtime.errorJournal.list()).toHaveLength(1);
+    });
+
+    expect(runtime.errorJournal.list()[0]).toMatchObject({
+      code: ErrorCode.UNAVAILABLE,
+      method: `${method.parent.typeName}/${method.name}`,
+      traceId: 'trace-7',
+    });
+  });
+
+  it('writes the unknown method for a command without one', async () => {
+    const runtime = createTestRuntime();
+    const { result } = renderCommand({ execute: () => Promise.reject(createPermissionDeniedError()) }, runtime);
+
+    act(() => {
+      result.current.run();
+    });
+
+    await waitFor(() => {
+      expect(runtime.errorJournal.list()[0]?.method).toBe('unknown');
+    });
+  });
+
+  it.each([
+    ['a canceled connect call', () => new ConnectError('canceled', Code.Canceled)],
+    ['an aborted request', () => new DOMException('aborted', 'AbortError')],
+  ])('does not write %s to the error journal', async (_title, createError) => {
+    const runtime = createTestRuntime();
+    const { result } = renderCommand({ execute: () => Promise.reject(createError()) }, runtime);
+
+    act(() => {
+      result.current.run();
+    });
+
+    await waitFor(() => {
+      expect(result.current.error).not.toBeNull();
+    });
+
+    expect(runtime.errorJournal.list()).toHaveLength(0);
+  });
+
+  it('does not write a success to the error journal', async () => {
+    const runtime = createTestRuntime();
+    const { result } = renderCommand({ execute: () => Promise.resolve('done') }, runtime);
+
+    act(() => {
+      result.current.run();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isPending).toBe(false);
+    });
+
+    expect(runtime.errorJournal.list()).toHaveLength(0);
   });
 });

@@ -30,7 +30,7 @@ describe('resolveNotificationLinks', () => {
       createLink(ObjectKind.SITE, SECOND_SITE_ID, true),
     ]);
 
-    expect(links.map(link => link.labelKey)).toEqual(['notification.link.organization', 'notification.link.map']);
+    expect(links.map(link => link.kind)).toEqual(['organization', 'map']);
     expect(links[1]?.address).toEqual({ kind: 'object', object: { id: FIRST_SITE_ID, type: 'site' } });
   });
 
@@ -41,7 +41,7 @@ describe('resolveNotificationLinks', () => {
     ]);
 
     expect(withCamera?.isFocusRequested).toBe(true);
-    expect(withoutCamera?.labelKey).toBe('notification.link.open');
+    expect(withoutCamera?.kind).toBe('open');
     expect(withoutCamera?.isFocusRequested).toBe(false);
   });
 
@@ -51,7 +51,7 @@ describe('resolveNotificationLinks', () => {
       createLink(ObjectKind.CITY, SECOND_SITE_ID, false),
     ]);
 
-    expect(links.map(link => link.labelKey)).toEqual(['notification.link.open']);
+    expect(links.map(link => link.kind)).toEqual(['open']);
   });
 
   it('returns nothing without links', () => {

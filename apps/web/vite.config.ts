@@ -38,23 +38,23 @@ const MAX_INITIAL_GZIP_KILOBYTES = 90;
 
 const MAX_SCENE_GZIP_KILOBYTES = 300;
 
-const MAX_STARTUP_GZIP_KILOBYTES = 100;
+const MAX_STARTUP_GZIP_KILOBYTES = 95;
 
-const MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES = 125;
+const MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES = 45;
 
-const MAX_NETWORK_INSPECTOR_GZIP_KILOBYTES = 107;
+const MAX_NETWORK_INSPECTOR_GZIP_KILOBYTES = 26;
 
-const MAX_NETWORK_ORGANIZATION_CARD_GZIP_KILOBYTES = 94.3;
+const MAX_NETWORK_ORGANIZATION_CARD_GZIP_KILOBYTES = 10;
 
-const MAX_NETWORK_MINI_MAP_GZIP_KILOBYTES = 69;
+const MAX_NETWORK_MINI_MAP_GZIP_KILOBYTES = 3;
 
-const MAX_NETWORK_SITES_GZIP_KILOBYTES = 95;
+const MAX_NETWORK_SITES_GZIP_KILOBYTES = 4.5;
 
-const MAX_NETWORK_COMPANIES_GZIP_KILOBYTES = 96.6;
+const MAX_NETWORK_COMPANIES_GZIP_KILOBYTES = 12.5;
 
-const MAX_ORGANIZATION_TABLE_GZIP_KILOBYTES = 97.5;
+const MAX_ORGANIZATION_TABLE_GZIP_KILOBYTES = 12;
 
-const MAX_MY_PROFILE_GZIP_KILOBYTES = 129.5;
+const MAX_MY_PROFILE_GZIP_KILOBYTES = 65;
 
 const MAX_WORLD_MODELS_KILOBYTES = 300;
 
@@ -97,6 +97,20 @@ const FORBIDDEN_SCENE_PACKAGES = [
   'react-hook-form',
 ];
 
+const FORBIDDEN_STARTUP_PACKAGES = [
+  '@radix-ui/*',
+  '@react-three/*',
+  'camera-controls',
+  'framer-motion',
+  'motion',
+  'motion-dom',
+  'motion-utils',
+  'react-hook-form',
+  'three',
+];
+
+const STARTUP_BASELINE = 'startup';
+
 const CRITICAL_PATH_ENTRIES: readonly CriticalPreloadEntryValue[] = [
   { entry: 'src/app/bootstrap/mountApp.tsx', isRequired: true },
   { entry: 'src/shared/api/transport/demo/index.ts', isDemoOnly: true, isRequired: true },
@@ -129,53 +143,62 @@ const LAZY_ENTRY_BUDGETS = [
   },
   {
     entries: STARTUP_BUDGET_ENTRIES,
+    forbiddenPackages: FORBIDDEN_STARTUP_PACKAGES,
     isRequired: true,
     maxGzipKiloBytes: MAX_STARTUP_GZIP_KILOBYTES,
-    name: 'startup',
+    name: STARTUP_BASELINE,
   },
   {
+    baseline: STARTUP_BASELINE,
     entries: ['src/features/create-warehouse/ui/form/CreateWarehouseForm.tsx'],
     isRequired: true,
     maxGzipKiloBytes: MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES,
     name: 'create-warehouse-form',
   },
   {
+    baseline: STARTUP_BASELINE,
     entries: ['src/pages/network/ui/inspector/NetworkInspectorBody.tsx'],
     isRequired: true,
     maxGzipKiloBytes: MAX_NETWORK_INSPECTOR_GZIP_KILOBYTES,
     name: 'network-inspector',
   },
   {
+    baseline: STARTUP_BASELINE,
     entries: ['src/pages/network/ui/organization-card/OrganizationInspector.tsx'],
     isRequired: true,
     maxGzipKiloBytes: MAX_NETWORK_ORGANIZATION_CARD_GZIP_KILOBYTES,
     name: 'network-organization-card',
   },
   {
+    baseline: STARTUP_BASELINE,
     entries: ['src/pages/network/ui/mini-map/NetworkMiniMap.tsx'],
     isRequired: true,
     maxGzipKiloBytes: MAX_NETWORK_MINI_MAP_GZIP_KILOBYTES,
     name: 'network-mini-map',
   },
   {
+    baseline: STARTUP_BASELINE,
     entries: ['src/pages/network/ui/sites/NetworkSitesPanel.tsx'],
     isRequired: true,
     maxGzipKiloBytes: MAX_NETWORK_SITES_GZIP_KILOBYTES,
     name: 'network-sites',
   },
   {
+    baseline: STARTUP_BASELINE,
     entries: ['src/pages/network/ui/companies/NetworkCompaniesPanel.tsx'],
     isRequired: true,
     maxGzipKiloBytes: MAX_NETWORK_COMPANIES_GZIP_KILOBYTES,
     name: 'network-companies',
   },
   {
+    baseline: STARTUP_BASELINE,
     entries: ['src/pages/network/ui/directory/OrganizationDirectoryPanel.tsx'],
     isRequired: true,
     maxGzipKiloBytes: MAX_ORGANIZATION_TABLE_GZIP_KILOBYTES,
     name: 'organization-table',
   },
   {
+    baseline: STARTUP_BASELINE,
     entries: ['src/widgets/profile-menu/ui/my-profile/ProfileMyProfile.tsx'],
     isRequired: true,
     maxGzipKiloBytes: MAX_MY_PROFILE_GZIP_KILOBYTES,

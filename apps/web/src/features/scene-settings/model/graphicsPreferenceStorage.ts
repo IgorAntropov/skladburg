@@ -1,21 +1,24 @@
-import type {
-  PersistStorage,
-  StorageValue,
-} from 'zustand/middleware';
-
 import type { GraphicsPreferenceValue } from './graphicsPreference';
 
-import { parseGraphicsPreference } from './graphicsPreference';
+import {
+  GRAPHICS_STORAGE_KEY,
+  parseGraphicsPreference,
+} from './graphicsPreference';
 
 export interface PersistedSceneSettingsValue {
   preference: GraphicsPreferenceValue | undefined;
+}
+
+export interface StoredSceneSettingsValue {
+  state: PersistedSceneSettingsValue;
+  version: number;
 }
 
 const STORAGE_VERSION = 0;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
-export const parseStoredSceneSettings = (rawValue: string): StorageValue<PersistedSceneSettingsValue> => {
+export const parseStoredSceneSettings = (rawValue: string): StoredSceneSettingsValue => {
   const parsedValue: unknown = JSON.parse(rawValue);
   const storedState = isRecord(parsedValue) ? parsedValue.state : undefined;
   const preference = isRecord(storedState) ? parseGraphicsPreference(storedState.preference) : undefined;
@@ -23,33 +26,26 @@ export const parseStoredSceneSettings = (rawValue: string): StorageValue<Persist
   return { state: { preference }, version: STORAGE_VERSION };
 };
 
-export const graphicsPreferenceStorage: PersistStorage<PersistedSceneSettingsValue> = {
-  getItem: (name) => {
-    try {
-      const rawValue = window.localStorage.getItem(name);
+export const readStoredPreference = (): GraphicsPreferenceValue | undefined => {
+  try {
+    const rawValue = window.localStorage.getItem(GRAPHICS_STORAGE_KEY);
 
-      return rawValue === null ? null : parseStoredSceneSettings(rawValue);
-    }
-    catch (error: unknown) {
-      console.error('> graphicsPreferenceStorage -> getItem:', { error });
+    return rawValue === null ? undefined : parseStoredSceneSettings(rawValue).state.preference;
+  }
+  catch (error: unknown) {
+    console.error('> graphicsPreferenceStorage -> readStoredPreference:', { error });
 
-      return null;
-    }
-  },
-  removeItem: (name) => {
-    try {
-      window.localStorage.removeItem(name);
-    }
-    catch (error: unknown) {
-      console.error('> graphicsPreferenceStorage -> removeItem:', { error });
-    }
-  },
-  setItem: (name, value) => {
-    try {
-      window.localStorage.setItem(name, JSON.stringify(value));
-    }
-    catch (error: unknown) {
-      console.error('> graphicsPreferenceStorage -> setItem:', { error });
-    }
-  },
+    return undefined;
+  }
+};
+
+export const writeStoredPreference = (preference: GraphicsPreferenceValue): void => {
+  try {
+    const value: StoredSceneSettingsValue = { state: { preference }, version: STORAGE_VERSION };
+
+    window.localStorage.setItem(GRAPHICS_STORAGE_KEY, JSON.stringify(value));
+  }
+  catch (error: unknown) {
+    console.error('> graphicsPreferenceStorage -> writeStoredPreference:', { error });
+  }
 };

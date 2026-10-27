@@ -18,13 +18,20 @@ const findDynamicEntryChunks = (chunks: readonly BudgetChunkValue[], entry: stri
 const collectInitialFileNames = (initialBundles: readonly InitialBundleValue[]): Set<string> =>
   new Set(initialBundles.flatMap(initialBundle => initialBundle.chunks.map(chunk => chunk.fileName)));
 
-export const measureLazyBudget = (
+interface LazyGraphValue {
+  chunks: InitialBundleChunkValue[];
+  missingEntries: string[];
+}
+
+const sumGzipBytes = (chunks: readonly InitialBundleChunkValue[]): number =>
+  chunks.reduce((total, chunk) => total + chunk.gzipBytes, 0);
+
+const collectLazyGraph = (
   chunks: readonly BudgetChunkValue[],
-  initialBundles: readonly InitialBundleValue[],
+  excludedFileNames: ReadonlySet<string>,
   budget: LazyEntryBudgetValue,
-): LazyBudgetMeasurementValue => {
+): LazyGraphValue => {
   const chunksByFileName = new Map(chunks.map(chunk => [chunk.fileName, chunk]));
-  const initialFileNames = collectInitialFileNames(initialBundles);
   const visitedFileNames = new Set<string>();
   const collected: InitialBundleChunkValue[] = [];
   const missingEntries: string[] = [];
@@ -43,7 +50,7 @@ export const measureLazyBudget = (
   while (pending.length > 0) {
     const chunk = pending.shift();
 
-    if (chunk === undefined || visitedFileNames.has(chunk.fileName) || initialFileNames.has(chunk.fileName)) {
+    if (chunk === undefined || visitedFileNames.has(chunk.fileName) || excludedFileNames.has(chunk.fileName)) {
       continue;
     }
 
@@ -59,11 +66,28 @@ export const measureLazyBudget = (
     }
   }
 
+  return { chunks: collected, missingEntries };
+};
+
+export const measureLazyBudget = (
+  chunks: readonly BudgetChunkValue[],
+  initialBundles: readonly InitialBundleValue[],
+  budget: LazyEntryBudgetValue,
+  baseline: LazyEntryBudgetValue | undefined,
+): LazyBudgetMeasurementValue => {
+  const initialFileNames = collectInitialFileNames(initialBundles);
+  const graph = collectLazyGraph(chunks, initialFileNames, budget);
+  const baselineGraph = baseline === undefined ? undefined : collectLazyGraph(chunks, initialFileNames, baseline);
+  const baselineFileNames = new Set((baselineGraph?.chunks ?? []).map(chunk => chunk.fileName));
+  const ownChunks = graph.chunks.filter(chunk => !baselineFileNames.has(chunk.fileName));
+
   return {
+    baselineMissingEntries: baselineGraph?.missingEntries ?? [],
     budget,
-    chunks: collected,
-    gzipBytes: collected.reduce((total, chunk) => total + chunk.gzipBytes, 0),
-    missingEntries,
+    chunks: ownChunks,
+    gzipBytes: sumGzipBytes(ownChunks),
+    missingEntries: graph.missingEntries,
+    totalGzipBytes: sumGzipBytes(graph.chunks),
   };
 };
 
@@ -85,4 +109,43 @@ export const assertValidLazyEntryBudgets = (budgets: readonly LazyEntryBudgetVal
 
     assertValidForbiddenPackages(budget.forbiddenPackages ?? []);
   }
+
+  const budgetsByName = new Map(budgets.map(budget => [budget.name, budget]));
+
+  if (budgetsByName.size !== budgets.length) {
+    throw new Error('Lazy entry budgets need unique names');
+  }
+
+  for (const budget of budgets) {
+    if (budget.baseline === undefined) {
+      continue;
+    }
+
+    const baseline = budgetsByName.get(budget.baseline);
+
+    if (baseline === undefined) {
+      throw new Error(
+        `Lazy entry budget "${budget.name}" has baseline "${budget.baseline}" that is not a lazy entry budget`,
+      );
+    }
+
+    if (baseline === budget) {
+      throw new Error(`Lazy entry budget "${budget.name}" cannot be its own baseline`);
+    }
+
+    if (baseline.baseline !== undefined) {
+      throw new Error(
+        [
+          `Lazy entry budget "${budget.name}" has baseline "${baseline.name}"`,
+          `that has its own baseline "${baseline.baseline}"; only one level is allowed`,
+        ].join(' '),
+      );
+    }
+  }
 };
+
+export const findBaselineBudget = (
+  budgets: readonly LazyEntryBudgetValue[],
+  budget: LazyEntryBudgetValue,
+): LazyEntryBudgetValue | undefined =>
+  budget.baseline === undefined ? undefined : budgets.find(candidate => candidate.name === budget.baseline);

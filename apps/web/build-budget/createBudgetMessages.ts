@@ -22,12 +22,14 @@ export interface BudgetReportValue {
 }
 
 export interface LazyBudgetReportValue {
+  baseline?: string;
   chunks: string[];
   entries: readonly string[];
   gzipKiloBytes: number;
   headroomKiloBytes: number;
   limitKiloBytes: number;
   name: string;
+  totalGzipKiloBytes?: number;
 }
 
 const describeChunkList = (chunks: readonly InitialBundleChunkValue[]): string[] =>
@@ -76,13 +78,19 @@ export const createLazyBudgetReport = (
   headroomKiloBytes: toKiloBytes(limitBytes - measurement.gzipBytes),
   limitKiloBytes: toKiloBytes(limitBytes),
   name: measurement.budget.name,
+  ...measurement.budget.baseline === undefined
+    ? {}
+    : { baseline: measurement.budget.baseline, totalGzipKiloBytes: toKiloBytes(measurement.totalGzipBytes) },
 });
 
 export const createLazyBudgetViolationMessage = (measurement: LazyBudgetMeasurementValue, limitBytes: number): string => {
   const overshoot = formatKiloBytes(measurement.gzipBytes - limitBytes);
+  const scope = measurement.budget.baseline === undefined
+    ? 'outside the initial JS'
+    : `on top of the baseline "${measurement.budget.baseline}" (${formatKiloBytes(measurement.totalGzipBytes)} gzip together with it)`;
 
   return [
-    `Lazy bundle "${measurement.budget.name}" loads ${formatKiloBytes(measurement.gzipBytes)} gzip outside the initial JS,`,
+    `Lazy bundle "${measurement.budget.name}" loads ${formatKiloBytes(measurement.gzipBytes)} gzip ${scope},`,
     `which exceeds the budget of ${formatKiloBytes(limitBytes)} by ${overshoot}.`,
     `Entries: ${measurement.budget.entries.join(', ')}.`,
     `Chunks: ${describeChunkList(measurement.chunks).join(', ')}.`,
@@ -102,6 +110,12 @@ export const createMissingLazyEntryMessage = (budgetName: string, entry: string)
   [
     `Lazy bundle "${budgetName}": module "${entry}" is not the entry of any dynamically imported chunk,`,
     'so its budget cannot be measured; fix the path in lazyEntryBudgets or load the module through import().',
+  ].join(' ');
+
+export const createIncompleteBaselineMessage = (budgetName: string, baselineName: string): string =>
+  [
+    `Lazy bundle "${budgetName}": the baseline "${baselineName}" has entries missing from the build,`,
+    'so the chunks of those entries are counted in this bundle; fix the baseline entries in lazyEntryBudgets.',
   ].join(' ');
 
 export interface AssetBudgetReportValue {

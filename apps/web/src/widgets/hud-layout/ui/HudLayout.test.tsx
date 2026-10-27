@@ -35,6 +35,13 @@ import { installFakeViewport } from '@/shared/lib/viewport/index.testing';
 import type { HudLayoutProps } from '../lib/hudLayoutTypes';
 
 import { HudLayout } from './HudLayout';
+import { ListsZoneContent } from './ListsZoneContent';
+
+vi.mock('./ListsZoneContent', async (importOriginal) => {
+  const actual = await importOriginal<{ ListsZoneContent: typeof ListsZoneContent }>();
+
+  return { ListsZoneContent: vi.fn(actual.ListsZoneContent) };
+});
 
 const catalog = defaultLocaleCatalog;
 
@@ -281,6 +288,27 @@ describe('HudLayout', () => {
       return zone;
     };
 
+    const inspectorButtonText = 'Inspector action';
+
+    const createInspectorProps = (overrides: Partial<HudLayoutProps> = {}): HudLayoutProps => createProps({
+      canCollapsePanels: true,
+      inspector: <button type="button">{inspectorButtonText}</button>,
+      inspectorKey: 'site:first',
+      isInspectorOpen: true,
+      panel: undefined,
+      ...overrides,
+    });
+
+    const readSheetToggle = (): HTMLElement => {
+      const toggle = document.querySelector<HTMLElement>(`section[aria-label="${catalog['hud.inspector.title']}"] > button`);
+
+      if (toggle === null) {
+        throw new Error('The sheet handle is not rendered');
+      }
+
+      return toggle;
+    };
+
     beforeEach(() => {
       resetHudPanelsStore();
       viewport.setViewportClass('phone');
@@ -357,32 +385,54 @@ describe('HudLayout', () => {
       expect(screen.getByRole('button', { name: catalog['hud.inspector.expand'] }).getAttribute('aria-expanded')).toBe('false');
     });
 
-    describe('when the map view is requested', () => {
-      const inspectorButtonText = 'Inspector action';
+    it('keeps the focus that is outside of the sheet', () => {
+      render(withPanelsToggle(createInspectorProps()));
+      const panelsToggle = screen.getByRole('button', { name: panelsToggleName });
+      panelsToggle.focus();
 
-      const createInspectorProps = (overrides: Partial<HudLayoutProps> = {}): HudLayoutProps => createProps({
-        canCollapsePanels: true,
-        inspector: <button type="button">{inspectorButtonText}</button>,
-        inspectorKey: 'site:first',
-        isInspectorOpen: true,
-        panel: undefined,
-        ...overrides,
+      pressPanelsToggle();
+
+      expect(document.activeElement).toBe(panelsToggle);
+      expect(readSheetToggle().getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('does not render the hidden lists again on a repeated map view request and still collapses the sheet', () => {
+      render(withPanelsToggle(createInspectorProps()));
+      pressPanelsToggle();
+      fireEvent.click(screen.getByRole('button', { name: catalog['hud.inspector.expand'] }));
+
+      expect(readSheetToggle().getAttribute('aria-expanded')).toBe('true');
+
+      vi.mocked(ListsZoneContent).mockClear();
+
+      act(() => {
+        requestHudMapView(0);
       });
 
+      expect(readSheetToggle().getAttribute('aria-expanded')).toBe('false');
+      expect(readListsZone().hidden).toBe(true);
+      expect(ListsZoneContent).not.toHaveBeenCalled();
+    });
+
+    it('collapses an expanded sheet when the layout starts to allow collapsing while the mode is on', () => {
+      const baseProps = createInspectorProps({ canCollapsePanels: false });
+      const { rerender } = render(withPanelsToggle(createInspectorProps({ canCollapsePanels: true })));
+      pressPanelsToggle();
+      rerender(withPanelsToggle(baseProps));
+      fireEvent.click(screen.getByRole('button', { name: catalog['hud.inspector.expand'] }));
+
+      expect(readSheetToggle().getAttribute('aria-expanded')).toBe('true');
+
+      rerender(withPanelsToggle({ ...baseProps, canCollapsePanels: true }));
+
+      expect(readSheetToggle().getAttribute('aria-expanded')).toBe('false');
+    });
+
+    describe('when the map view is requested', () => {
       const requestMapView = (): void => {
         act(() => {
           requestHudMapView(0);
         });
-      };
-
-      const readSheetToggle = (): HTMLElement => {
-        const toggle = document.querySelector<HTMLElement>(`section[aria-label="${catalog['hud.inspector.title']}"] > button`);
-
-        if (toggle === null) {
-          throw new Error('The sheet handle is not rendered');
-        }
-
-        return toggle;
       };
 
       it('collapses the inspector the person expanded by hand while the panels are already hidden', () => {
@@ -413,17 +463,6 @@ describe('HudLayout', () => {
         requestMapView();
 
         expect(document.activeElement).toBe(readSheetToggle());
-      });
-
-      it('keeps the focus that is outside of the sheet', () => {
-        render(withPanelsToggle(createInspectorProps()));
-        const panelsToggle = screen.getByRole('button', { name: panelsToggleName });
-        panelsToggle.focus();
-
-        pressPanelsToggle();
-
-        expect(document.activeElement).toBe(panelsToggle);
-        expect(readSheetToggle().getAttribute('aria-expanded')).toBe('false');
       });
 
       it('does not collapse or focus a new inspector with the signal that was raised before it opened', () => {

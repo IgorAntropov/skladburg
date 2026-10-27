@@ -2,10 +2,7 @@ import type { ReactElement } from 'react';
 
 import { useState } from 'react';
 
-import {
-  useCollapsibleHudPanels,
-  useHudPanelsCollapseSignal,
-} from '@/features/collapse-hud-panels';
+import { useCollapsibleHudPanels } from '@/features/collapse-hud-panels';
 import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
 
@@ -38,8 +35,8 @@ export const PhoneHudLayout = ({
   panel,
 }: HudZonesProps): ReactElement => {
   const { t } = useI18n();
-  const isCollapsed = useCollapsibleHudPanels(canCollapsePanels === true);
-  const collapseSignal = useHudPanelsCollapseSignal();
+  const canCollapse = canCollapsePanels === true;
+  const isCollapsed = useCollapsibleHudPanels(canCollapse);
   const [isRevealed, setIsRevealed] = useState(false);
   const [prevIsCollapsed, setPrevIsCollapsed] = useState(isCollapsed);
 
@@ -68,7 +65,7 @@ export const PhoneHudLayout = ({
         <HudZone className={mainZoneClassName} hidden={isCollapsed} label={t('hud.panel.label')}>{panel}</HudZone>
       )}
       {isInspectorOpen && (
-        <InspectorSheet collapseSignal={collapseSignal} isCollapseRequested={isCollapsed} key={inspectorKey}>
+        <InspectorSheet canCollapse={canCollapse} isInitiallyCollapsed={isCollapsed} key={inspectorKey}>
           {inspector}
         </InspectorSheet>
       )}

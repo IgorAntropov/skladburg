@@ -31,7 +31,7 @@ export const OrganizationCardLogo = ({ logo }: OrganizationCardLogoProps): null 
   const [failedUrl, setFailedUrl] = useState<string | undefined>(undefined);
 
   const logoUrl = resolveLogoUrl(logo, resolvedTheme);
-  const isLogoShown = logoUrl !== undefined && logoUrl !== failedUrl;
+  const isLogoFailed = logoUrl !== undefined && logoUrl === failedUrl;
 
   const handleLogoError = (): void => {
     console.log('> OrganizationCardLogo -> handleLogoError:', { logoUrl });
@@ -39,8 +39,12 @@ export const OrganizationCardLogo = ({ logo }: OrganizationCardLogoProps): null 
     setFailedUrl(logoUrl);
   };
 
-  if (!isLogoShown) {
+  if (logoUrl === undefined) {
     return null;
+  }
+
+  if (isLogoFailed) {
+    return <div aria-hidden className="h-10" />;
   }
 
   return (

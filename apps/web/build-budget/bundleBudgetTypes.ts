@@ -49,13 +49,16 @@ export interface InitialBundleValue {
 }
 
 export interface LazyBudgetMeasurementValue {
+  baselineMissingEntries: readonly string[];
   budget: LazyEntryBudgetValue;
   chunks: readonly InitialBundleChunkValue[];
   gzipBytes: number;
   missingEntries: readonly string[];
+  totalGzipBytes: number;
 }
 
 export interface LazyEntryBudgetValue {
+  baseline?: string | undefined;
   entries: readonly string[];
   forbiddenPackages?: readonly string[];
   isRequired?: boolean;

@@ -13,6 +13,7 @@ import type {
 import { measureInitialBundles } from './measureInitialBundles.ts';
 import {
   assertValidLazyEntryBudgets,
+  findBaselineBudget,
   measureLazyBudget,
 } from './measureLazyBudget.ts';
 
@@ -35,8 +36,9 @@ const createBudget = (overrides: Partial<LazyEntryBudgetValue> = {}): LazyEntryB
 const measure = (
   chunks: readonly BudgetChunkValue[],
   budget: LazyEntryBudgetValue = createBudget(),
+  baseline?: LazyEntryBudgetValue,
 ): LazyBudgetMeasurementValue =>
-  measureLazyBudget(chunks, measureInitialBundles(chunks), budget);
+  measureLazyBudget(chunks, measureInitialBundles(chunks), budget, baseline);
 
 describe('measureLazyBudget', () => {
   it('counts the lazy entry chunk with its static imports', () => {
@@ -188,7 +190,134 @@ describe('measureLazyBudget', () => {
   });
 });
 
+describe('measureLazyBudget with a baseline', () => {
+  const startupBudget = createBudget({ entries: ['src/app/mountApp.tsx'], name: 'startup' });
+  const panelBudget = createBudget({
+    baseline: 'startup',
+    entries: ['src/pages/network/ui/Panel.tsx'],
+    name: 'panel',
+  });
+  const createChunks = (): BudgetChunkValue[] => [
+    createChunk({ fileName: 'index.js', gzipBytes: 1, isEntry: true }),
+    createChunk({
+      fileName: 'mountApp.js',
+      gzipBytes: 500,
+      imports: ['shared.js'],
+      isDynamicEntry: true,
+      moduleIds: ['/repo/apps/web/src/app/mountApp.tsx'],
+    }),
+    createChunk({
+      fileName: 'Panel.js',
+      gzipBytes: 20,
+      imports: ['shared.js', 'panelOnly.js'],
+      isDynamicEntry: true,
+      moduleIds: ['/repo/apps/web/src/pages/network/ui/Panel.tsx'],
+    }),
+    createChunk({ fileName: 'shared.js', gzipBytes: 7_000, imports: ['deep.js'] }),
+    createChunk({ fileName: 'deep.js', gzipBytes: 300 }),
+    createChunk({ fileName: 'panelOnly.js', gzipBytes: 40 }),
+  ];
+
+  it('leaves out the chunks of the baseline and keeps the total with them', () => {
+    const measurement = measure(createChunks(), panelBudget, startupBudget);
+
+    expect(measurement.chunks.map(chunk => chunk.fileName)).toEqual(['Panel.js', 'panelOnly.js']);
+    expect(measurement.gzipBytes).toBe(60);
+    expect(measurement.totalGzipBytes).toBe(7_360);
+  });
+
+  it('does not count the chunks of the initial graph in the total either', () => {
+    const chunks = [
+      createChunk({ fileName: 'index.js', gzipBytes: 1, imports: ['shared.js'], isEntry: true }),
+      ...createChunks().slice(1),
+    ];
+    const measurement = measure(chunks, panelBudget, startupBudget);
+
+    expect(measurement.totalGzipBytes).toBe(60);
+    expect(measurement.gzipBytes).toBe(60);
+  });
+
+  it('measures the full graph when there is no baseline', () => {
+    const measurement = measure(createChunks(), panelBudget);
+
+    expect(measurement.gzipBytes).toBe(7_360);
+    expect(measurement.totalGzipBytes).toBe(7_360);
+    expect(measurement.baselineMissingEntries).toEqual([]);
+  });
+
+  it('reports the baseline entries missing from the build and counts the whole graph of the panel', () => {
+    const missingBaseline = createBudget({ entries: ['src/app/Gone.tsx'], name: 'startup' });
+    const measurement = measure(createChunks(), panelBudget, missingBaseline);
+
+    expect(measurement.baselineMissingEntries).toEqual(['src/app/Gone.tsx']);
+    expect(measurement.gzipBytes).toBe(7_360);
+  });
+
+  it('keeps the missing entries of the panel itself apart from those of the baseline', () => {
+    const measurement = measure(
+      createChunks(),
+      createBudget({ baseline: 'startup', entries: ['src/pages/Gone.tsx'], name: 'panel' }),
+      startupBudget,
+    );
+
+    expect(measurement.missingEntries).toEqual(['src/pages/Gone.tsx']);
+    expect(measurement.baselineMissingEntries).toEqual([]);
+    expect(measurement.gzipBytes).toBe(0);
+  });
+});
+
+describe('findBaselineBudget', () => {
+  it('finds the budget by the name of the baseline', () => {
+    const startup = createBudget({ name: 'startup' });
+    const panel = createBudget({ baseline: 'startup', name: 'panel' });
+
+    expect(findBaselineBudget([startup, panel], panel)).toBe(startup);
+    expect(findBaselineBudget([startup, panel], startup)).toBeUndefined();
+  });
+});
+
 describe('assertValidLazyEntryBudgets', () => {
+  it('accepts a baseline that is another budget without a baseline of its own', () => {
+    expect(() => {
+      assertValidLazyEntryBudgets([
+        createBudget({ name: 'startup' }),
+        createBudget({ baseline: 'startup', name: 'panel' }),
+        createBudget({ baseline: 'startup', name: 'form' }),
+      ]);
+    }).not.toThrow();
+  });
+
+  it('rejects a baseline that does not exist', () => {
+    expect(() => {
+      assertValidLazyEntryBudgets([createBudget({ baseline: 'startup', name: 'panel' })]);
+    }).toThrow('baseline "startup" that is not a lazy entry budget');
+    expect(() => {
+      assertValidLazyEntryBudgets([createBudget({ name: 'startup' }), createBudget({ baseline: '', name: 'panel' })]);
+    }).toThrow('not a lazy entry budget');
+  });
+
+  it('rejects a budget that is its own baseline', () => {
+    expect(() => {
+      assertValidLazyEntryBudgets([createBudget({ baseline: 'panel', name: 'panel' })]);
+    }).toThrow('cannot be its own baseline');
+  });
+
+  it('rejects a baseline that has a baseline of its own', () => {
+    expect(() => {
+      assertValidLazyEntryBudgets([
+        createBudget({ name: 'startup' }),
+        createBudget({ baseline: 'startup', name: 'mid' }),
+        createBudget({ baseline: 'mid', name: 'panel' }),
+      ]);
+    }).toThrow('only one level is allowed');
+  });
+
+  it('rejects two budgets with one name', () => {
+    expect(() => {
+      assertValidLazyEntryBudgets([createBudget({ name: 'panel' }), createBudget({ name: 'panel' })]);
+    }).toThrow('unique names');
+  });
+
   it('accepts valid budgets and an empty list', () => {
     expect(() => {
       assertValidLazyEntryBudgets([]);

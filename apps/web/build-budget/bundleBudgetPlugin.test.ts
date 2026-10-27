@@ -518,3 +518,93 @@ describe('bundleBudgetPlugin lazy budget forbidden packages', () => {
     ).toThrow('exact package name');
   });
 });
+
+describe('bundleBudgetPlugin lazy budgets with a baseline', () => {
+  const startupEntry = 'src/app/bootstrap/mountApp.tsx';
+  const panelEntry = 'src/pages/network/ui/Panel.tsx';
+  const sharedCode = createNoise(20_000);
+  const panelCode = createNoise(4_000);
+  const sharedKiloBytes = gzipSizeInBytes(sharedCode) / 1000;
+  const panelKiloBytes = gzipSizeInBytes(panelCode) / 1000;
+  const bundle = {
+    'assets/index.js': createChunk('assets/index.js', entryCode, { isEntry: true }),
+    'assets/mountApp.js': createChunk('assets/mountApp.js', createNoise(500), {
+      imports: ['assets/shared.js'],
+      isDynamicEntry: true,
+      moduleIds: ['/repo/apps/web/src/app/bootstrap/mountApp.tsx'],
+    }),
+    'assets/Panel.js': createChunk('assets/Panel.js', panelCode, {
+      imports: ['assets/shared.js'],
+      isDynamicEntry: true,
+      moduleIds: ['/repo/apps/web/src/pages/network/ui/Panel.tsx'],
+    }),
+    'assets/shared.js': createChunk('assets/shared.js', sharedCode),
+  };
+  const createBudgets = (panelLimit: number, startupExtra: Partial<LazyEntryBudgetValue> = {}): LazyEntryBudgetValue[] => [
+    { entries: [startupEntry], isRequired: true, maxGzipKiloBytes: 100, name: 'startup', ...startupExtra },
+    { baseline: 'startup', entries: [panelEntry], isRequired: true, maxGzipKiloBytes: panelLimit, name: 'panel' },
+  ];
+
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('applies the limit to the size over the baseline and logs both sizes', () => {
+    createOptionsRunner({ lazyEntryBudgets: createBudgets(panelKiloBytes + 0.5) }, bundle)();
+
+    expect(console.log).toHaveBeenCalledWith(
+      '> bundleBudgetPlugin -> generateBundle:',
+      expect.objectContaining({
+        baseline: 'startup',
+        gzipKiloBytes: Number(panelKiloBytes.toFixed(2)),
+        name: 'panel',
+        totalGzipKiloBytes: Number((panelKiloBytes + sharedKiloBytes).toFixed(2)),
+      }),
+    );
+  });
+
+  it('fails above the limit over the baseline and names the baseline and both sizes', () => {
+    const run = createOptionsRunner({ lazyEntryBudgets: createBudgets(panelKiloBytes / 2) }, bundle);
+
+    expect(run).toThrow('Lazy bundle "panel"');
+    expect(run).toThrow('on top of the baseline "startup"');
+    expect(run).toThrow(`${panelKiloBytes.toFixed(2)} kB gzip`);
+    expect(run).toThrow(`${(panelKiloBytes + sharedKiloBytes).toFixed(2)} kB gzip together with it`);
+  });
+
+  it('warns about missing baseline entries and counts the panel in full', () => {
+    const budgets = createBudgets(panelKiloBytes + sharedKiloBytes + 1, { entries: ['src/app/Gone.tsx'], isRequired: false });
+
+    createOptionsRunner({ lazyEntryBudgets: budgets }, bundle)();
+
+    expect(console.warn).toHaveBeenCalledWith(
+      '> bundleBudgetPlugin -> generateBundle:',
+      expect.stringContaining('baseline "startup"'),
+    );
+    expect(console.log).toHaveBeenCalledWith(
+      '> bundleBudgetPlugin -> generateBundle:',
+      expect.objectContaining({ gzipKiloBytes: Number((panelKiloBytes + sharedKiloBytes).toFixed(2)), name: 'panel' }),
+    );
+  });
+
+  it('fails when a required baseline is missing from the build', () => {
+    const budgets = createBudgets(300, { entries: ['src/app/Gone.tsx'] });
+
+    expect(createOptionsRunner({ lazyEntryBudgets: budgets }, bundle)).toThrow('module "src/app/Gone.tsx"');
+  });
+
+  it('rejects a baseline that is not a budget', () => {
+    expect(() =>
+      bundleBudgetPlugin({
+        forbiddenInitialPackages: [],
+        lazyEntryBudgets: [{ baseline: 'startup', entries: [panelEntry], maxGzipKiloBytes: 10, name: 'panel' }],
+        maxInitialGzipKiloBytes: 90,
+      }),
+    ).toThrow('baseline "startup" that is not a lazy entry budget');
+  });
+});

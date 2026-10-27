@@ -16,9 +16,16 @@ const readStoredState = (): unknown => {
   return rawValue === null ? undefined : (JSON.parse(rawValue) as { state: unknown }).state;
 };
 
-const rehydrateFrom = async (rawValue: string): Promise<void> => {
-  window.localStorage.setItem(GRAPHICS_STORAGE_KEY, rawValue);
-  await useSceneSettingsStore.persist.rehydrate();
+const startStoreFrom = async (rawValue: string | undefined): Promise<typeof useSceneSettingsStore> => {
+  if (rawValue !== undefined) {
+    window.localStorage.setItem(GRAPHICS_STORAGE_KEY, rawValue);
+  }
+
+  vi.resetModules();
+
+  const { useSceneSettingsStore: freshStore } = await import('./useSceneSettingsStore');
+
+  return freshStore;
 };
 
 describe('useSceneSettingsStore', () => {
@@ -91,10 +98,26 @@ describe('useSceneSettingsStore', () => {
     expect(window.localStorage.getItem(GRAPHICS_STORAGE_KEY)).not.toContain('isSceneUnavailable');
   });
 
-  it('restores a saved preference', async () => {
-    await rehydrateFrom(JSON.stringify({ state: { preference: 'off' }, version: 0 }));
+  it('restores a preference saved in the earlier format', async () => {
+    const freshStore = await startStoreFrom(JSON.stringify({ state: { preference: 'off' }, version: 0 }));
 
-    expect(useSceneSettingsStore.getState().preference).toBe('off');
+    expect(freshStore.getState().preference).toBe('off');
+  });
+
+  it('writes the preference in the same format it reads', async () => {
+    useSceneSettingsStore.getState().setPreference('medium');
+
+    expect(window.localStorage.getItem(GRAPHICS_STORAGE_KEY)).toBe(JSON.stringify({ state: { preference: 'medium' }, version: 0 }));
+
+    const freshStore = await startStoreFrom(undefined);
+
+    expect(freshStore.getState().preference).toBe('medium');
+  });
+
+  it('starts without a preference when nothing is saved', async () => {
+    const freshStore = await startStoreFrom(undefined);
+
+    expect(freshStore.getState().preference).toBeUndefined();
   });
 
   it.each([
@@ -105,19 +128,34 @@ describe('useSceneSettingsStore', () => {
     ['a null state', JSON.stringify({ state: null, version: 0 })],
     ['a bare string', JSON.stringify('high')],
   ])('treats %s as the device default', async (_title, rawValue) => {
-    await rehydrateFrom(rawValue);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    expect(useSceneSettingsStore.getState().preference).toBeUndefined();
+    const freshStore = await startStoreFrom(rawValue);
+
+    expect(freshStore.getState().preference).toBeUndefined();
+  });
+
+  it('starts with the device default when the storage refuses to read', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage denied');
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const freshStore = await startStoreFrom(undefined);
+
+    expect(freshStore.getState().preference).toBeUndefined();
+    expect(errorSpy).toHaveBeenCalledWith('> graphicsPreferenceStorage -> readStoredPreference:', expect.anything());
   });
 
   it('keeps working when the storage refuses to write', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('quota exceeded');
     });
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
     useSceneSettingsStore.getState().setPreference('low');
 
     expect(useSceneSettingsStore.getState().preference).toBe('low');
+    expect(errorSpy).toHaveBeenCalledWith('> graphicsPreferenceStorage -> writeStoredPreference:', expect.anything());
   });
 });

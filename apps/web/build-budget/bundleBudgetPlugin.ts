@@ -18,6 +18,7 @@ import {
   createBudgetReport,
   createBudgetViolationMessage,
   createForbiddenPackageMessage,
+  createIncompleteBaselineMessage,
   createLazyBudgetForbiddenPackageMessage,
   createLazyBudgetReport,
   createLazyBudgetViolationMessage,
@@ -38,6 +39,7 @@ import {
 import { measureInitialBundles } from './measureInitialBundles.ts';
 import {
   assertValidLazyEntryBudgets,
+  findBaselineBudget,
   measureLazyBudget,
 } from './measureLazyBudget.ts';
 
@@ -152,7 +154,9 @@ export const bundleBudgetPlugin = (options: BundleBudgetPluginOptionsValue): Bun
         findForbiddenPackageViolations(initialBundle, moduleIdsByFileName, isForbiddenInitialPackage),
       );
       const anyChunkPackageViolations = findForbiddenPackagesInChunks(budgetChunks, isForbiddenPackage);
-      const lazyMeasurements = lazyEntryBudgets.map(budget => measureLazyBudget(budgetChunks, initialBundles, budget));
+      const lazyMeasurements = lazyEntryBudgets.map(budget =>
+        measureLazyBudget(budgetChunks, initialBundles, budget, findBaselineBudget(lazyEntryBudgets, budget)),
+      );
       const lazySizeViolations = lazyMeasurements.filter(
         measurement => measurement.gzipBytes > toBytes(measurement.budget.maxGzipKiloBytes),
       );
@@ -166,6 +170,11 @@ export const bundleBudgetPlugin = (options: BundleBudgetPluginOptionsValue): Bun
         })),
       );
       const requiredMissingMessages = missingEntries.filter(missing => missing.isRequired).map(missing => missing.message);
+      const incompleteBaselineMessages = lazyMeasurements.flatMap(measurement =>
+        measurement.baselineMissingEntries.length > 0 && measurement.budget.baseline !== undefined
+          ? [createIncompleteBaselineMessage(measurement.budget.name, measurement.budget.baseline)]
+          : [],
+      );
 
       if (
         sizeViolations.length > 0
@@ -202,8 +211,8 @@ export const bundleBudgetPlugin = (options: BundleBudgetPluginOptionsValue): Bun
         }
       }
 
-      for (const missing of missingEntries) {
-        console.warn('> bundleBudgetPlugin -> generateBundle:', missing.message);
+      for (const message of [...missingEntries.map(missing => missing.message), ...incompleteBaselineMessages]) {
+        console.warn('> bundleBudgetPlugin -> generateBundle:', message);
       }
     },
     name: 'skladburg:bundle-budget',

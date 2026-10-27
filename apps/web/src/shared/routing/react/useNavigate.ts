@@ -15,7 +15,11 @@ export const useNavigate = (): NavigateFunction => {
     (address: AppAddressValue, options?: NavigateOptionsValue): void => {
       const path = formatAddressPath(address);
 
-      console.log('> useNavigate -> navigate:', { isReplace: options?.isReplace === true, path });
+      console.log('> useNavigate -> navigate:', {
+        isFocusRequested: options?.isFocusRequested === true,
+        isReplace: options?.isReplace === true,
+        path,
+      });
       location.navigate(path, options);
     },
     [location],

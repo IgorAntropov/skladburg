@@ -76,6 +76,24 @@ const profilePlateChunkFilePath = fileURLToPath(
 const profilePlateChunkTestFilePath = fileURLToPath(
   new URL('../../apps/web/src/widgets/profile-menu/ui/my-profile/ProfileMyProfile.test.tsx', import.meta.url),
 );
+const notificationCenterFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/notification-center/ui/probe-launcher.ts', import.meta.url),
+);
+const notificationCenterTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/notification-center/ui/probe-launcher.test.ts', import.meta.url),
+);
+const notificationCenterPanelFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/notification-center/ui/panel/NotificationCenterPanel.tsx', import.meta.url),
+);
+const notificationCenterPanelTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/notification-center/ui/panel/NotificationCenterPanel.test.tsx', import.meta.url),
+);
+const notificationCenterReporterFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/notification-center/ui/reporter/UnreadCountReporterBody.tsx', import.meta.url),
+);
+const notificationCenterReporterTestFilePath = fileURLToPath(
+  new URL('../../apps/web/src/widgets/notification-center/ui/reporter/UnreadCountReporterBody.test.tsx', import.meta.url),
+);
 const motionSegmentFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/motion/probe-scope.ts', import.meta.url));
 const motionSegmentTestFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/motion/probe-scope.test.tsx', import.meta.url));
 const formSegmentFilePath = fileURLToPath(new URL('../../apps/web/src/shared/lib/form/probe-form.ts', import.meta.url));
@@ -1930,6 +1948,163 @@ describe('eslint.config.ts with the local rules', () => {
       });
     });
 
+    describe('the lazy chunk of the notification center panel', () => {
+      const panelChunkSpecifiers: readonly (readonly [string, string])[] = [
+        ['a sibling folder', './panel/NotificationCenterPanel'],
+        ['the folder itself', './panel'],
+        ['a nested path', './ui/panel/NotificationCenterPanel'],
+        ['an alias path', '@/widgets/notification-center/ui/panel/NotificationCenterPanel'],
+      ];
+
+      it.each(panelChunkSpecifiers)('reports a value import of %s in widgets/notification-center', async (_name, specifier) => {
+        const messages = await readLazyMessages(toValueImport(specifier), notificationCenterFilePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('notification center panel chunk');
+        expect(messages[0]).toContain(lazyMessagePart);
+      });
+
+      it('reports a re-export of a value of the chunk in widgets/notification-center', async () => {
+        const code = 'export { NotificationCenterPanel } from \'./panel/NotificationCenterPanel\';\n';
+
+        expect(await readLazyMessages(code, notificationCenterFilePath)).toHaveLength(1);
+      });
+
+      it.each([
+        ['import type', toTypeImport],
+        ['an import with only inline types', toNamedTypeImport],
+        ['import()', toDynamicImport],
+        ['an import type query', toTypeQuery],
+      ])('allows %s of ./panel/NotificationCenterPanel in widgets/notification-center', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode('./panel/NotificationCenterPanel'), notificationCenterFilePath)).toEqual([]);
+      });
+
+      it('allows a value import of the chunk in a test of widgets/notification-center', async () => {
+        expect(
+          await readLazyMessages(toValueImport('./panel/NotificationCenterPanel'), notificationCenterTestFilePath),
+        ).toEqual([]);
+      });
+
+      it('allows a value import of a sibling file of the chunk inside the chunk and in its test', async () => {
+        expect(await readLazyMessages(toValueImport('./NotificationRow'), notificationCenterPanelFilePath)).toEqual([]);
+        expect(await readLazyMessages(toValueImport('./NotificationRow'), notificationCenterPanelTestFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['app', applicationScriptFilePath],
+        ['a widget outside notification-center', widgetFilePath],
+        ['a page', pageFilePath],
+      ])('does not restrict ./panel/NotificationCenterPanel in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('./panel/NotificationCenterPanel'), filePath)).toEqual([]);
+      });
+
+      it('keeps the lazy boundaries of other widgets in widgets/notification-center', async () => {
+        const messages = await readLazyMessages(toValueImport(personaSwitcherSpecifier), notificationCenterFilePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('features/switch-persona');
+      });
+    });
+
+    describe('the lazy chunk of the notification center reporter', () => {
+      const reporterChunkSpecifiers: readonly (readonly [string, string])[] = [
+        ['a sibling folder', './reporter/UnreadCountReporterBody'],
+        ['the folder itself', './reporter'],
+        ['a nested path', './ui/reporter/UnreadCountReporterBody'],
+        ['an alias path', '@/widgets/notification-center/ui/reporter/UnreadCountReporterBody'],
+      ];
+
+      it.each(reporterChunkSpecifiers)('reports a value import of %s in widgets/notification-center', async (_name, specifier) => {
+        const messages = await readLazyMessages(toValueImport(specifier), notificationCenterFilePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('notification center reporter chunk');
+        expect(messages[0]).toContain(lazyMessagePart);
+      });
+
+      it('reports a re-export of a value of the chunk in widgets/notification-center', async () => {
+        const code = 'export { UnreadCountReporterBody } from \'./reporter/UnreadCountReporterBody\';\n';
+
+        expect(await readLazyMessages(code, notificationCenterFilePath)).toHaveLength(1);
+      });
+
+      it.each([
+        ['import type', toTypeImport],
+        ['an import with only inline types', toNamedTypeImport],
+        ['import()', toDynamicImport],
+        ['an import type query', toTypeQuery],
+      ])('allows %s of ./reporter/UnreadCountReporterBody in widgets/notification-center', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode('./reporter/UnreadCountReporterBody'), notificationCenterFilePath)).toEqual([]);
+      });
+
+      it('allows a value import of the chunk in a test of widgets/notification-center', async () => {
+        expect(
+          await readLazyMessages(toValueImport('./reporter/UnreadCountReporterBody'), notificationCenterTestFilePath),
+        ).toEqual([]);
+      });
+
+      it('allows a value import of a sibling file of the chunk inside the chunk and in its test', async () => {
+        expect(await readLazyMessages(toValueImport('./Sibling'), notificationCenterReporterFilePath)).toEqual([]);
+        expect(await readLazyMessages(toValueImport('./Sibling'), notificationCenterReporterTestFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['app', applicationScriptFilePath],
+        ['a widget outside notification-center', widgetFilePath],
+        ['a page', pageFilePath],
+      ])('does not restrict ./reporter/UnreadCountReporterBody in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('./reporter/UnreadCountReporterBody'), filePath)).toEqual([]);
+      });
+    });
+
+    describe('the notification entity in the startup part of the notification center', () => {
+      const entitySpecifiers: readonly (readonly [string, string])[] = [
+        ['the public api', '@/entities/notification'],
+        ['a nested path', '@/entities/notification/api/useUnreadNotificationCount'],
+      ];
+
+      it.each(entitySpecifiers)('reports a value import of %s', async (_name, specifier) => {
+        const messages = await readLazyMessages(toValueImport(specifier), notificationCenterFilePath);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('notification entity');
+        expect(messages[0]).toContain('use import type');
+      });
+
+      it('reports a re-export of the entity', async () => {
+        const code = 'export { useUnreadNotificationCount } from \'@/entities/notification\';\n';
+
+        expect(await readLazyMessages(code, notificationCenterFilePath)).toHaveLength(1);
+      });
+
+      it.each([
+        ['import type', toTypeImport],
+        ['an import with only inline types', toNamedTypeImport],
+        ['import()', toDynamicImport],
+        ['an import type query', toTypeQuery],
+      ])('allows %s of the entity', async (_name, toCode) => {
+        expect(await readLazyMessages(toCode('@/entities/notification'), notificationCenterFilePath)).toEqual([]);
+      });
+
+      it.each([
+        ['the panel chunk', notificationCenterPanelFilePath],
+        ['the panel chunk test', notificationCenterPanelTestFilePath],
+        ['the reporter chunk', notificationCenterReporterFilePath],
+        ['the reporter chunk test', notificationCenterReporterTestFilePath],
+        ['a test of the startup part', notificationCenterTestFilePath],
+      ])('allows a value import of the entity in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('@/entities/notification'), filePath)).toEqual([]);
+      });
+
+      it.each([
+        ['app', applicationScriptFilePath],
+        ['a widget outside notification-center', widgetFilePath],
+        ['a page', pageFilePath],
+      ])('does not restrict the entity in %s', async (_name, filePath) => {
+        expect(await readLazyMessages(toValueImport('@/entities/notification'), filePath)).toEqual([]);
+      });
+    });
+
     describe('the lazy chunk of create-warehouse', () => {
       it.each([
         ['the form view from the button', './form/CreateWarehouseFormBody', createWarehouseButtonFilePath],
@@ -2398,6 +2573,92 @@ describe('eslint.config.ts with the local rules', () => {
       const code = `${toValueImport(descriptorSpecifier)}import { scenePart } from './scene/part';\nexport const part = scenePart;\n`;
 
       expect(await readDescriptorMessages(code, apiClientFilePath)).toHaveLength(2);
+    });
+  });
+
+  describe('catalog section modules in the web application', () => {
+    const sectionRuleId = '@typescript-eslint/no-restricted-imports';
+    const sectionMessagePart = 'catalog section module';
+    const siblingSectionFilePath = fileURLToPath(
+      new URL('../../apps/web/src/widgets/probe/i18n/probeSection.ts', import.meta.url),
+    );
+    const sectionSceneFilePath = fileURLToPath(new URL('../../apps/web/src/pages/probe/scene/ProbeScene.ts', import.meta.url));
+    const sectionWidgetSceneFilePath = fileURLToPath(
+      new URL('../../apps/web/src/widgets/probe/scene/ProbeScene.ts', import.meta.url),
+    );
+    const sectionWidgetTestFilePath = fileURLToPath(new URL('../../apps/web/src/widgets/probe/ui/ProbePanel.test.tsx', import.meta.url));
+    const sectionSpecifiers = [
+      '@/widgets/probe/i18n/catalogs/ru',
+      '../i18n/catalogs/ru',
+      './i18n/catalogs/ru',
+    ];
+
+    const readSectionMessages = async (code: string, filePath: string): Promise<string[]> => {
+      if (untypedEslint === undefined) {
+        throw new Error('ESLint is not initialized');
+      }
+
+      const [result] = await untypedEslint.lintText(code, { filePath });
+
+      return (result?.messages ?? []).flatMap(message => message.ruleId === sectionRuleId ? [message.message] : []);
+    };
+
+    it.each(sectionSpecifiers)('reports a value import of %s in a widget', async (specifier) => {
+      const messages = await readSectionMessages(toValueImport(specifier), widgetFilePath);
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toContain(sectionMessagePart);
+      expect(messages[0]).toContain('use import type or import()');
+    });
+
+    it('reports a value import of the catalog next to the section file', async () => {
+      const messages = await readSectionMessages(toValueImport('./catalogs/ru'), siblingSectionFilePath);
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toContain(sectionMessagePart);
+    });
+
+    it('reports a re-export of a section catalog', async () => {
+      expect(await readSectionMessages(toReExport('./catalogs/ru'), siblingSectionFilePath)).toHaveLength(1);
+    });
+
+    it.each([
+      ['a page', pageFilePath],
+      ['a feature', featureViewFilePath],
+      ['an entity api', entityApiFilePath],
+      ['the application', applicationScriptFilePath],
+      ['a widget', widgetFilePath],
+      ['a test', widgetTestFilePath],
+      ['the api client', apiClientFilePath],
+      ['a scene of a page', sectionSceneFilePath],
+      ['a scene of a widget', sectionWidgetSceneFilePath],
+      ['a test next to a scene', sectionWidgetTestFilePath],
+    ])('reports a value import of a section catalog in %s', async (_name, filePath) => {
+      expect(await readSectionMessages(toValueImport('@/entities/probe/i18n/catalogs/ru'), filePath)).toHaveLength(1);
+    });
+
+    it.each([
+      ['an import type', toTypeImport],
+      ['an import type query', toTypeQuery],
+      ['a dynamic import', toDynamicImport],
+    ])('allows %s of a section catalog', async (_name, toCode) => {
+      expect(await readSectionMessages(toCode('./catalogs/ru'), siblingSectionFilePath)).toEqual([]);
+      expect(await readSectionMessages(toCode('@/widgets/probe/i18n/catalogs/ru'), widgetFilePath)).toEqual([]);
+    });
+
+    it.each([
+      ['the section file', './probeSection'],
+      ['a sibling folder', '../catalogs/ru'],
+      ['a catalogs folder of another segment', './model/catalogs'],
+    ])('allows a value import of %s', async (_name, specifier) => {
+      expect(await readSectionMessages(toValueImport(specifier), widgetFilePath)).toEqual([]);
+    });
+
+    it('keeps the lazy module boundary of the widget next to the section boundary', async () => {
+      const lazyImport = 'import { lazyPart } from \'@/features/switch-theme\';\nexport const part = lazyPart;\n';
+      const code = `${toValueImport('./i18n/catalogs/ru')}${lazyImport}`;
+
+      expect(await readSectionMessages(code, widgetFilePath)).toHaveLength(2);
     });
   });
 

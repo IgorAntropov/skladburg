@@ -29,6 +29,7 @@ const PANELS_TOGGLE_SLOT_CLASS_NAME = 'flex shrink-0 empty:hidden sm:hidden';
 const HIDDEN_ON_PHONE_CLASS_NAME = 'max-sm:hidden';
 
 export interface TopBarProps {
+  assistant?: ReactNode | undefined;
   currentSection: AppSectionValue | undefined;
   panelsToggle?: ReactNode | undefined;
   profileMenu: ReactNode;
@@ -36,6 +37,7 @@ export interface TopBarProps {
 }
 
 export const TopBar = ({
+  assistant,
   currentSection,
   panelsToggle,
   profileMenu,
@@ -58,6 +60,7 @@ export const TopBar = ({
         <SearchField isPhoneFieldOpen={isPhoneSearchOpen} onPhoneFieldOpenChange={setIsPhoneSearchOpen} />
         <div className={cn(TRAILING_GROUP_CLASS_NAME, isPhoneSearchOpen && HIDDEN_ON_PHONE_CLASS_NAME)}>
           <WorldClock />
+          {assistant}
           {profileMenu}
         </div>
       </div>

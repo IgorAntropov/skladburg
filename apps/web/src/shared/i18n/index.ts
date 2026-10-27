@@ -26,4 +26,14 @@ export type {
 export { resolveLocale } from './localizer/resolveLocale';
 export { LocalizerProvider } from './react/LocalizerProvider';
 export { useI18n } from './react/useI18n';
+export { createCatalogSection } from './section/createCatalogSection';
+export type {
+  CatalogSectionOptionsValue,
+  CatalogSectionResultValue,
+  CatalogSectionValue,
+  SectionLocaleCatalogValue,
+  SectionStatus,
+  SectionTranslate,
+} from './section/sectionTypes';
+export { useCatalogSection } from './section/useCatalogSection';
 export { getOffsetLabel } from './translation/formatZonedDateTime';

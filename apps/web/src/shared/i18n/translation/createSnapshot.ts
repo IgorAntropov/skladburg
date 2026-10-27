@@ -6,7 +6,11 @@ import type {
   TenantLocalizationValue,
   ZonedDateTimeOptionsValue,
 } from '../localizer/localizationTypes';
-import type { LocaleCode } from '../localizer/messageShape';
+import type {
+  CatalogShapeValue,
+  LocaleCode,
+} from '../localizer/messageShape';
+import type { RuntimeTranslate } from './createTranslator';
 import type { ZonedFormatContextValue } from './formatZonedDateTime';
 
 import {
@@ -31,6 +35,11 @@ export const createSnapshot = (
   const zonedContext: ZonedFormatContextValue = { locale, t, userTimeZone };
 
   return Object.freeze({
+    createSectionTranslator: (sectionCatalog: CatalogShapeValue): RuntimeTranslate => {
+      const sectionOverrides = sanitizeOverrides(tenant.termOverrides[locale], sectionCatalog, locale);
+
+      return createTranslator({ layers: [sectionCatalog, sectionOverrides], locale });
+    },
     formatCalendarDate: (date: CalendarDateValue, format?: DateTimeFormatPartsValue): string => formatCalendarDate(locale, date, format),
     formatCurrency: (amount: number, currencyCode: string): string => {
       return getNumberFormat(locale, { currency: currencyCode, style: 'currency' }).format(amount);

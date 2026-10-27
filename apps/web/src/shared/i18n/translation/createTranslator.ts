@@ -1,8 +1,10 @@
 import type {
+  CatalogTranslate,
   MessageOverridesValue,
-  Translate,
+  ReferenceCatalogValue,
 } from '../localizer/localizationTypes';
 import type {
+  CatalogShapeValue,
   LocaleCode,
   MessageValue,
 } from '../localizer/messageShape';
@@ -81,6 +83,8 @@ export const createTranslator = ({ layers, locale }: TranslatorOptionsValue): Ru
   };
 };
 
-export const createTranslate = (translate: RuntimeTranslate): Translate => {
+export const createTranslate = <TCatalog extends CatalogShapeValue = ReferenceCatalogValue>(
+  translate: RuntimeTranslate,
+): CatalogTranslate<TCatalog> => {
   return (key, ...params): string => translate(key, params.at(0));
 };

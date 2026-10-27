@@ -64,6 +64,9 @@ export const TopBarSkeleton = (): ReactElement => {
           <div className={AVATAR_SLOT_CLASS_NAME}>
             <Skeleton className="size-9" shape="circle" />
           </div>
+          <div className={AVATAR_SLOT_CLASS_NAME}>
+            <Skeleton className="size-9" shape="circle" />
+          </div>
         </div>
       </div>
     </Panel>

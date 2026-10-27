@@ -30,6 +30,13 @@ const lazyAppFiles: string[] = ['apps/web/src/app/**/*.{ts,tsx}'];
 const lazyMountAppFiles: string[] = ['apps/web/src/app/bootstrap/mountApp.tsx'];
 const lazyWidgetFiles: string[] = ['apps/web/src/widgets/**/*.{ts,tsx}'];
 const lazyProfileMenuFiles: string[] = ['apps/web/src/widgets/profile-menu/**/*.{ts,tsx}'];
+const lazyNotificationCenterFiles: string[] = ['apps/web/src/widgets/notification-center/**/*.{ts,tsx}'];
+const lazyNotificationCenterPanelChunkFiles: string[] = ['apps/web/src/widgets/notification-center/ui/panel/**/*.{ts,tsx}'];
+const lazyNotificationCenterReporterChunkFiles: string[] = ['apps/web/src/widgets/notification-center/ui/reporter/**/*.{ts,tsx}'];
+const lazyNotificationCenterChunkFiles: string[] = [
+  ...lazyNotificationCenterPanelChunkFiles,
+  ...lazyNotificationCenterReporterChunkFiles,
+];
 const lazyProfileMenuOnlyChunkFiles: string[] = ['apps/web/src/widgets/profile-menu/ui/menu/**/*.{ts,tsx}'];
 const lazyProfilePlateChunkFiles: string[] = ['apps/web/src/widgets/profile-menu/ui/my-profile/**/*.{ts,tsx}'];
 const lazyProfileMenuChunkFiles: string[] = [...lazyProfileMenuOnlyChunkFiles, ...lazyProfilePlateChunkFiles];
@@ -193,8 +200,24 @@ const profileDescriptorImportRestriction: SceneImportRestrictionValue = {
   regex: '^@skladburg/contracts/access/v1/profile$',
 };
 
+const sectionCatalogImportRestriction: SceneImportRestrictionValue = {
+  message: 'A catalog section module is loaded lazily through import() by the section file next to it; a static value import '
+    + 'pulls the section texts into the bundle; use import type or import()',
+  regex: '(^|/)i18n/catalogs/|^\\./catalogs/',
+};
+
+const notificationEntityImportRestriction: SceneImportRestrictionValue = {
+  message: 'The notification entity pulls the notification client and its descriptors into the bundle; the startup part of '
+    + 'the notification center reaches it only through the lazy panel and reporter chunks; use import type or move the code '
+    + 'into a chunk',
+  regex: '^@/entities/notification(/|$)',
+};
+
+const sectionCatalogImportRestrictions: SceneImportRestrictionValue[] = [sectionCatalogImportRestriction];
+
 const sourceBoundaryImportRestrictions: SceneImportRestrictionValue[] = [
   ...sceneBoundaryImportRestrictions,
+  ...sectionCatalogImportRestrictions,
   showcaseDescriptorImportRestriction,
   profileDescriptorImportRestriction,
 ];
@@ -225,6 +248,16 @@ const sectionPagesLazyRestriction: LazyModuleRestrictionValue = {
 const profileMenuChunkLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'the profile menu chunk',
   regex: '(^|/)menu(/|$)',
+};
+
+const notificationCenterPanelChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the notification center panel chunk',
+  regex: '(^|/)panel(/|$)',
+};
+
+const notificationCenterReporterChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the notification center reporter chunk',
+  regex: '(^|/)reporter(/|$)',
 };
 
 const changeAvatarLazyRestriction: LazyModuleRestrictionValue = {
@@ -298,6 +331,11 @@ const profileMenuLazyRestrictions: LazyModuleRestrictionValue[] = [
   ...appLazyRestrictions,
   profileMenuChunkLazyRestriction,
   profileMyProfileChunkLazyRestriction,
+];
+const notificationCenterLazyRestrictions: LazyModuleRestrictionValue[] = [
+  ...appLazyRestrictions,
+  notificationCenterPanelChunkLazyRestriction,
+  notificationCenterReporterChunkLazyRestriction,
 ];
 const startLazyRestrictions: LazyModuleRestrictionValue[] = [
   ...appLazyRestrictions,
@@ -754,7 +792,7 @@ export default defineConfig(
   {
     files: engineBoundaryTestFiles,
     ignores: sceneSegmentFiles,
-    rules: createLazyModuleRules([], sceneEngineImportRestrictions),
+    rules: createLazyModuleRules([], [...sceneEngineImportRestrictions, ...sectionCatalogImportRestrictions]),
   },
   {
     files: apiClientFiles,
@@ -781,9 +819,20 @@ export default defineConfig(
     rules: createLazyModuleRules(profileMenuLazyRestrictions, sourceBoundaryImportRestrictions),
   },
   {
+    files: lazyNotificationCenterFiles,
+    ignores: [...webTestFiles, ...lazyNotificationCenterChunkFiles],
+    rules: createLazyModuleRules(
+      notificationCenterLazyRestrictions,
+      [...sourceBoundaryImportRestrictions, notificationEntityImportRestriction],
+    ),
+  },
+  {
     files: lazyProfileMenuOnlyChunkFiles,
     ignores: webTestFiles,
-    rules: createLazyModuleRules([profileMyProfileChunkLazyRestriction, changeAvatarLazyRestriction]),
+    rules: createLazyModuleRules(
+      [profileMyProfileChunkLazyRestriction, changeAvatarLazyRestriction],
+      sectionCatalogImportRestrictions,
+    ),
   },
   {
     files: lazyCreateWarehouseFeatureFiles,
@@ -823,13 +872,16 @@ export default defineConfig(
     ignores: [...webTestFiles, ...sceneSegmentFiles],
     rules: createLazyModuleRules(
       [networkInspectorChunkLazyRestriction, networkSitesChunkLazyRestriction, networkMiniMapChunkLazyRestriction],
-      sceneBoundaryImportRestrictions,
+      [...sceneBoundaryImportRestrictions, ...sectionCatalogImportRestrictions],
     ),
   },
   {
     files: changeAvatarApiFiles,
     ignores: [...webTestFiles, ...sceneSegmentFiles],
-    rules: createLazyModuleRules([], [...sceneBoundaryImportRestrictions, showcaseDescriptorImportRestriction]),
+    rules: createLazyModuleRules(
+      [],
+      [...sceneBoundaryImportRestrictions, ...sectionCatalogImportRestrictions, showcaseDescriptorImportRestriction],
+    ),
   },
   {
     files: lazySceneViewportFiles,
@@ -840,9 +892,13 @@ export default defineConfig(
     ),
   },
   {
+    files: sceneSegmentFiles,
+    rules: createLazyModuleRules([], sectionCatalogImportRestrictions),
+  },
+  {
     files: lazyWidgetSceneFiles,
     ignores: webTestFiles,
-    rules: createLazyModuleRules(appLazyRestrictions),
+    rules: createLazyModuleRules(appLazyRestrictions, sectionCatalogImportRestrictions),
   },
   {
     extends: [tseslint.configs.disableTypeChecked],

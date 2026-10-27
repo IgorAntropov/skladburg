@@ -4,9 +4,12 @@ import {
   it,
 } from 'vitest';
 
+import type { LocationSnapshotValue } from '@/shared/routing';
+
 import { removeSearchParam } from './removeSearchParam';
 
-const createSnapshot = (path: string, query: string): { path: string; searchParams: URLSearchParams } => ({
+const createSnapshot = (path: string, query: string): LocationSnapshotValue => ({
+  focusRequest: 0,
   path,
   searchParams: new URLSearchParams(query),
 });

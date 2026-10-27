@@ -19,6 +19,7 @@ export const createMemoryLocation = (initialPath: string): IMemoryLocation => {
   const readSnapshot = createSnapshotReader();
   let entries: readonly string[] = [initialPath];
   let currentIndex = 0;
+  let focusRequest = 0;
   let reloadCount = 0;
 
   const notifySubscriptions = (): void => {
@@ -45,10 +46,14 @@ export const createMemoryLocation = (initialPath: string): IMemoryLocation => {
       currentIndex += 1;
     }
 
+    if (options?.isFocusRequested === true) {
+      focusRequest += 1;
+    }
+
     notifySubscriptions();
   };
 
-  const read = (): LocationSnapshotValue => readSnapshot(entries[currentIndex] ?? '/');
+  const read = (): LocationSnapshotValue => readSnapshot(entries[currentIndex] ?? '/', focusRequest);
 
   const subscribe = (listener: () => void): (() => void) => {
     const subscription = (): void => {

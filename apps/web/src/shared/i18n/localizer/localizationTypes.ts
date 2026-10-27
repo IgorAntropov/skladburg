@@ -1,5 +1,7 @@
 import type { catalog } from '../catalogs/ru';
+import type { RuntimeTranslate } from '../translation/createTranslator';
 import type {
+  CatalogShapeValue,
   LocaleCode,
   MessageValue,
   PluralFormsValue,
@@ -15,9 +17,26 @@ export type CatalogLoader = () => Promise<LocaleCatalogValue>;
 
 export type CatalogLoadersValue = Readonly<Partial<Record<LocaleCode, CatalogLoader>>>;
 
+export type CatalogMessageKey<TCatalog extends CatalogShapeValue> = Extract<keyof TCatalog, string>;
+
+export type CatalogMessageParamsArgs<
+  TCatalog extends CatalogShapeValue,
+  Key extends CatalogMessageKey<TCatalog>,
+> = TCatalog[Key] extends string
+  ? [PlaceholderNames<CatalogMessageText<TCatalog, Key>>] extends [never]
+      ? []
+      : [params: TextParamsValue<PlaceholderNames<CatalogMessageText<TCatalog, Key>>>]
+  : [params: PluralParamsValue<PlaceholderNames<CatalogMessageText<TCatalog, Key>>>];
+
+export type CatalogTranslate<TCatalog extends CatalogShapeValue> = <Key extends CatalogMessageKey<TCatalog>>(
+  key: Key,
+  ...params: CatalogMessageParamsArgs<TCatalog, Key>
+) => string;
+
 export type DateTimeFormatPartsValue = Omit<Intl.DateTimeFormatOptions, 'timeZone' | 'timeZoneName'>;
 
 export interface I18nSnapshotValue {
+  createSectionTranslator: (sectionCatalog: CatalogShapeValue) => RuntimeTranslate;
   formatCalendarDate: (date: CalendarDateValue, format?: DateTimeFormatPartsValue) => string;
   formatCurrency: (amount: number, currencyCode: string) => string;
   formatDateTime: (instant: Date | number, options: ZonedDateTimeOptionsValue) => string;
@@ -50,11 +69,7 @@ export type MessageKey = Extract<keyof ReferenceCatalogValue, string>;
 
 export type MessageOverridesValue = Readonly<Partial<Record<string, MessageValue>>>;
 
-export type MessageParamsArgs<Key extends MessageKey> = ReferenceCatalogValue[Key] extends string
-  ? [PlaceholderNames<MessageText<Key>>] extends [never]
-      ? []
-      : [params: TextParamsValue<PlaceholderNames<MessageText<Key>>>]
-  : [params: PluralParamsValue<PlaceholderNames<MessageText<Key>>>];
+export type ReferenceCatalogValue = typeof catalog;
 
 export type ResolveLocaleOptionsValue = Pick<LocalizerOptionsValue, 'bundledLocales' | 'requestedLocale' | 'tenant'>;
 
@@ -66,7 +81,7 @@ export interface TenantLocalizationValue {
 
 export type TermOverridesValue = Readonly<Partial<Record<LocaleCode, MessageOverridesValue>>>;
 
-export type Translate = <Key extends MessageKey>(key: Key, ...params: MessageParamsArgs<Key>) => string;
+export type Translate = CatalogTranslate<ReferenceCatalogValue>;
 
 export interface ZonedDateTimeOptionsValue {
   format?: DateTimeFormatPartsValue | undefined;
@@ -74,16 +89,14 @@ export interface ZonedDateTimeOptionsValue {
   timeZone: string;
 }
 
-type MessageText<Key extends MessageKey> = ReferenceCatalogValue[Key] extends string
-  ? ReferenceCatalogValue[Key]
-  : Extract<ReferenceCatalogValue[Key][keyof ReferenceCatalogValue[Key]], string>;
+type CatalogMessageText<TCatalog extends CatalogShapeValue, Key extends CatalogMessageKey<TCatalog>> = TCatalog[Key] extends string
+  ? TCatalog[Key]
+  : Extract<TCatalog[Key][keyof TCatalog[Key]], string>;
 
 type PlaceholderNames<Text extends string> = Text extends `${string}{${infer Name}}${infer Rest}`
   ? Name | PlaceholderNames<Rest>
   : never;
 
 type PluralParamsValue<Names extends string> = { [Name in 'count' | Names]: Name extends 'count' ? number : number | string };
-
-type ReferenceCatalogValue = typeof catalog;
 
 type TextParamsValue<Names extends string> = Record<Names, number | string>;

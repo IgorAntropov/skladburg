@@ -10,6 +10,7 @@ import { useLocationSource } from './useLocationSource';
 
 export interface CurrentAddressValue {
   address: AppAddressValue | undefined;
+  focusRequest: number;
   path: string;
   searchParams: URLSearchParams;
 }
@@ -21,6 +22,7 @@ export const useAddress = (): CurrentAddressValue => {
   return useMemo(
     (): CurrentAddressValue => ({
       address: parseAddressPath(snapshot.path),
+      focusRequest: snapshot.focusRequest,
       path: snapshot.path,
       searchParams: snapshot.searchParams,
     }),

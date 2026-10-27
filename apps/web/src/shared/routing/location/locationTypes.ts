@@ -7,10 +7,12 @@ export interface ILocationSource {
 }
 
 export interface LocationSnapshotValue {
+  focusRequest: number;
   path: string;
   searchParams: URLSearchParams;
 }
 
 export interface NavigateOptionsValue {
+  isFocusRequested?: boolean | undefined;
   isReplace?: boolean | undefined;
 }

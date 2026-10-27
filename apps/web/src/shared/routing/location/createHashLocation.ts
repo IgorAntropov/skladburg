@@ -12,6 +12,7 @@ export const createHashLocation = (target: Window): ILocationSource => {
   const subscriptions = new Set<() => void>();
   const readSnapshot = createSnapshotReader();
   let lastHash = target.location.hash;
+  let focusRequest = 0;
 
   const notifySubscriptions = (): void => {
     for (const subscription of [...subscriptions]) {
@@ -42,6 +43,10 @@ export const createHashLocation = (target: Window): ILocationSource => {
       target.history.pushState(null, '', nextUrl);
     }
 
+    if (options?.isFocusRequested === true) {
+      focusRequest += 1;
+    }
+
     lastHash = target.location.hash;
     notifySubscriptions();
   };
@@ -49,7 +54,7 @@ export const createHashLocation = (target: Window): ILocationSource => {
   const read = (): LocationSnapshotValue => {
     const { hash } = target.location;
 
-    return readSnapshot(hash.startsWith(HASH_PREFIX) ? hash.slice(HASH_PREFIX.length) : hash);
+    return readSnapshot(hash.startsWith(HASH_PREFIX) ? hash.slice(HASH_PREFIX.length) : hash, focusRequest);
   };
 
   const reload = (): void => {

@@ -35,6 +35,7 @@ const mocks = vi.hoisted((): SceneMocksValue => ({
 }));
 
 vi.mock('@/shared/routing', () => ({
+  useAddress: (): { focusRequest: number } => ({ focusRequest: 0 }),
   useNavigate: (): typeof mocks.navigate => mocks.navigate,
 }));
 

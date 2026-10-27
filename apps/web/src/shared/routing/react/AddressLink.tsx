@@ -11,6 +11,7 @@ import { useLocationSource } from './useLocationSource';
 import { useNavigate } from './useNavigate';
 
 export interface AddressLinkProps extends Omit<ComponentProps<'a'>, 'href'> {
+  isFocusRequested?: boolean | undefined;
   to: AppAddressValue;
 }
 
@@ -20,7 +21,14 @@ const isPlainLeftClick = (event: MouseEvent<HTMLAnchorElement>): boolean => {
   return event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
 };
 
-export const AddressLink = ({ children, onClick, target, to, ...anchorProps }: AddressLinkProps): ReactElement => {
+export const AddressLink = ({
+  children,
+  isFocusRequested,
+  onClick,
+  target,
+  to,
+  ...anchorProps
+}: AddressLinkProps): ReactElement => {
   const location = useLocationSource();
   const navigate = useNavigate();
 
@@ -37,7 +45,7 @@ export const AddressLink = ({ children, onClick, target, to, ...anchorProps }: A
     }
 
     event.preventDefault();
-    navigate(to);
+    navigate(to, { isFocusRequested });
   };
 
   return (

@@ -239,6 +239,90 @@ describe('createHashLocation', () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
+  describe('focus request', () => {
+    it('starts from zero', () => {
+      const location = createHashLocation(window);
+
+      expect(location.read().focusRequest).toBe(0);
+    });
+
+    it('grows by one for each navigation with the intent', () => {
+      const location = createHashLocation(window);
+
+      location.navigate('/network', { isFocusRequested: true });
+
+      expect(location.read().focusRequest).toBe(1);
+
+      location.navigate('/deals', { isFocusRequested: true });
+
+      expect(location.read().focusRequest).toBe(2);
+    });
+
+    it('grows and notifies for the same path', () => {
+      const location = createHashLocation(window);
+      location.navigate('/network');
+      const listener = vi.fn();
+      location.subscribe(listener);
+      const before = location.read();
+
+      location.navigate('/network', { isFocusRequested: true });
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(location.read()).not.toBe(before);
+      expect(location.read().focusRequest).toBe(1);
+      expect(location.read().path).toBe('/network');
+    });
+
+    it('grows for a replace with the intent', () => {
+      const location = createHashLocation(window);
+
+      location.navigate('/network', { isFocusRequested: true, isReplace: true });
+
+      expect(location.read().focusRequest).toBe(1);
+    });
+
+    it('does not grow without the intent', () => {
+      const location = createHashLocation(window);
+
+      location.navigate('/network');
+      location.navigate('/network', { isFocusRequested: false });
+      location.navigate('/deals', { isReplace: true });
+
+      expect(location.read().focusRequest).toBe(0);
+    });
+
+    it('does not grow on back and forward', async () => {
+      const location = createHashLocation(window);
+      const listener = vi.fn();
+      location.navigate('/network');
+      location.navigate('/deals', { isFocusRequested: true });
+      location.subscribe(listener);
+
+      window.history.back();
+      await waitForNotification(listener, 1);
+
+      expect(location.read().path).toBe('/network');
+      expect(location.read().focusRequest).toBe(1);
+
+      window.history.forward();
+      await waitForNotification(listener, 2);
+
+      expect(location.read().path).toBe('/deals');
+      expect(location.read().focusRequest).toBe(1);
+    });
+
+    it('does not grow on an external hash change', async () => {
+      const location = createHashLocation(window);
+      const listener = vi.fn();
+      location.subscribe(listener);
+
+      window.location.hash = '#/warehouse';
+      await waitForNotification(listener, 1);
+
+      expect(location.read().focusRequest).toBe(0);
+    });
+  });
+
   it('reloads the page through the target', () => {
     const reload = vi.fn();
     const target = { location: { hash: '', reload } } as unknown as Window;

@@ -22,6 +22,7 @@ import type {
 import { listOrganizationSiteIds } from '../lib/listOrganizationSiteIds';
 import { resolveNetworkFocusRequest } from '../lib/resolveNetworkFocusRequest';
 import { resolveNetworkSelectedTarget } from '../lib/resolveNetworkSelectedTarget';
+import { useAddressFocusRequest } from '../model/useAddressFocusRequest';
 import { useNetworkMapStore } from '../model/useNetworkMapStore';
 import { loadNetworkScene } from './loadNetworkScene';
 
@@ -46,6 +47,8 @@ export const NetworkSceneViewport = ({
   const focusCommand = useNetworkMapStore(state => state.focusCommand);
   const setHoveredId = useNetworkMapStore(state => state.setHoveredId);
   const clearHoveredId = useNetworkMapStore(state => state.clearHoveredId);
+
+  useAddressFocusRequest(focus);
 
   const focusId = focus?.id;
   const focusType = focus?.type;

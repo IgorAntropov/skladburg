@@ -97,6 +97,28 @@ describe('AddressLink', () => {
     expect(location.currentIndex).toBe(1);
   });
 
+  it('asks for the camera focus when the link has the intent', () => {
+    const location = renderLink({ isFocusRequested: true });
+
+    fireEvent.click(screen.getByRole('link', { name: LINK_LABEL }));
+
+    expect(location.read().focusRequest).toBe(1);
+  });
+
+  it('does not ask for the camera focus by default', () => {
+    const location = renderLink();
+
+    fireEvent.click(screen.getByRole('link', { name: LINK_LABEL }));
+
+    expect(location.read().focusRequest).toBe(0);
+  });
+
+  it('does not pass the focus intent to the anchor element', () => {
+    renderLink({ isFocusRequested: true });
+
+    expect(screen.getByRole('link', { name: LINK_LABEL }).hasAttribute('isfocusrequested')).toBe(false);
+  });
+
   it('does not intercept a download link', () => {
     const location = renderLink({ download: 'deal.pdf' });
 

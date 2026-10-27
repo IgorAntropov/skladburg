@@ -60,6 +60,14 @@ const MAX_WORLD_MODELS_KILOBYTES = 300;
 
 const MAX_ORGANIZATION_LOGOS_KILOBYTES = 40;
 
+const MAX_ASSISTANT_PORTRAITS_KILOBYTES = 6;
+
+const MAX_NOTIFICATION_CENTER_GZIP_KILOBYTES = 30.5;
+
+const MAX_NOTIFICATION_CENTER_TEXTS_GZIP_KILOBYTES = 1.5;
+
+const MAX_NOTIFICATION_UNREAD_REPORTER_GZIP_KILOBYTES = 3.5;
+
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
 const PRECACHE_GLOB_PATTERNS = ['**/*.{js,css,html,woff2,svg,png,bin}'];
@@ -80,6 +88,13 @@ const ASSET_BUDGETS = [
     isRequired: true,
     maxKiloBytes: MAX_ORGANIZATION_LOGOS_KILOBYTES,
     name: 'organization-logos',
+  },
+  {
+    directory: 'assistant',
+    extensions: ['.svg'],
+    isRequired: true,
+    maxKiloBytes: MAX_ASSISTANT_PORTRAITS_KILOBYTES,
+    name: 'assistant',
   },
 ];
 
@@ -203,6 +218,27 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_MY_PROFILE_GZIP_KILOBYTES,
     name: 'my-profile',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/widgets/notification-center/ui/panel/NotificationCenterPanel.tsx'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_NOTIFICATION_CENTER_GZIP_KILOBYTES,
+    name: 'notification-center',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/widgets/notification-center/ui/reporter/UnreadCountReporterBody.tsx'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_NOTIFICATION_UNREAD_REPORTER_GZIP_KILOBYTES,
+    name: 'notification-unread-reporter',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/widgets/notification-center/i18n/catalogs/ru.ts'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_NOTIFICATION_CENTER_TEXTS_GZIP_KILOBYTES,
+    name: 'notification-center-texts',
   },
 ];
 

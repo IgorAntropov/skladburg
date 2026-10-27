@@ -9,7 +9,16 @@ import {
   ErrorCode,
   type ErrorDetail,
 } from '@skladburg/contracts/common/v1/error';
-import { EventSchema } from '@skladburg/contracts/event/v1/event';
+import { ObjectKind } from '@skladburg/contracts/common/v1/object_link';
+import {
+  type Event,
+  EventSchema,
+} from '@skladburg/contracts/event/v1/event';
+import {
+  NotificationImportance,
+  NotificationKind,
+} from '@skladburg/contracts/notification/v1/notification';
+import { NotificationsChange } from '@skladburg/contracts/notification/v1/notification_events';
 import {
   type CreateWarehouseRequest,
   CreateWarehouseRequestSchema,
@@ -18,6 +27,7 @@ import {
 } from '@skladburg/contracts/organization/v1/organization';
 import {
   organizationChannel,
+  userChannel,
   warehouseChannel,
 } from '@skladburg/contracts/runtime';
 import {
@@ -25,6 +35,9 @@ import {
   expect,
   it,
 } from 'vitest';
+
+import type { NotificationRecordValue } from '../../state/index';
+import type { ModuleHarnessValue } from '../testing/moduleHarness';
 
 import {
   SeedCityId,
@@ -56,6 +69,15 @@ const createRequest = (overrides: Partial<CreateWarehouseRequest> = {}): CreateW
   timeZone: 'Europe/Moscow',
   ...overrides,
 });
+
+const listWarehouseEvents = (events: readonly Event[]): Event[] =>
+  events.filter(event => !event.channel.startsWith('user:'));
+
+const listNotificationIds = (harness: ModuleHarnessValue): Set<string> =>
+  new Set(harness.state.read.list('notifications').map(record => record.notification.id));
+
+const listNewNotifications = (harness: ModuleHarnessValue, knownIds: ReadonlySet<string>): NotificationRecordValue[] =>
+  harness.state.read.list('notifications').filter(record => !knownIds.has(record.notification.id));
 
 const getViolations = (detail: ErrorDetail): { fieldPath: string; ruleId: string }[] =>
   detail.params.case === 'validationFailed'
@@ -213,7 +235,7 @@ describe('OrganizationService.createWarehouse', () => {
     const warehouseId = created.warehouse?.id ?? '';
     const [changed, full] = events;
 
-    expect(events).toHaveLength(2);
+    expect(listWarehouseEvents(events)).toHaveLength(2);
     expect(changed?.channel).toBe(organizationChannel(SeedOrganizationId.CUSTOMER_1));
     expect(changed?.seq).toBe(1n);
     expect(changed?.epoch).toBe(TEST_EPOCH);
@@ -259,7 +281,7 @@ describe('OrganizationService.createWarehouse', () => {
     const first = await organization.createWarehouse(createRequest(), options);
     const second = await organization.createWarehouse(createRequest({ idempotencyKey: OTHER_KEY, name: 'Склад 10' }), options);
 
-    expect(events.map(event => [event.channel, event.seq])).toEqual([
+    expect(listWarehouseEvents(events).map(event => [event.channel, event.seq])).toEqual([
       [organizationChannel(SeedOrganizationId.CUSTOMER_1), 1n],
       [warehouseChannel(first.warehouse?.id ?? ''), 1n],
       [organizationChannel(SeedOrganizationId.CUSTOMER_1), 2n],
@@ -295,13 +317,14 @@ describe('OrganizationService.createWarehouse', () => {
 
     const first = await organization.createWarehouse(createRequest(), options);
     const commitsAfterFirst = commits.length;
+    const eventsAfterFirst = events.length;
     const second = await organization.createWarehouse(createRequest(), options);
     const listed = await organization.listWarehouses({}, options);
 
     expect(second.warehouse?.id).toBe(first.warehouse?.id);
     expect(second).toEqual(first);
     expect(listed.warehouses).toHaveLength(4);
-    expect(events).toHaveLength(2);
+    expect(events).toHaveLength(eventsAfterFirst);
     expect(commits).toHaveLength(commitsAfterFirst);
   });
 
@@ -320,11 +343,12 @@ describe('OrganizationService.createWarehouse', () => {
     const options = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
     await organization.createWarehouse(createRequest(), options);
+    const eventsAfterFirst = events.length;
     const error = await captureError(organization.createWarehouse(createRequest({ name: 'Склад 10' }), options));
 
     expect(error.code).toBe(Code.InvalidArgument);
     expect(readErrorDetail(error).code).toBe(ErrorCode.IDEMPOTENCY_KEY_REUSED);
-    expect(events).toHaveLength(2);
+    expect(events).toHaveLength(eventsAfterFirst);
   });
 
   it('rejects an invalid body with validation_failed carrying the field path and the rule id', async () => {
@@ -519,5 +543,161 @@ describe('OrganizationService.createWarehouse', () => {
     ));
 
     expect(readErrorDetail(error).code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
+  });
+});
+
+describe('OrganizationService.createWarehouse notifications', () => {
+  const adminOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
+
+  it('posts WAREHOUSE_CREATED with the warehouse and city snapshot, a site link and the same camera focus', async () => {
+    const harness = createModuleHarness();
+    const knownIds = listNotificationIds(harness);
+
+    const created = await harness.organization.createWarehouse(createRequest(), adminOptions);
+    const warehouseId = created.warehouse?.id ?? '';
+    const records = listNewNotifications(harness, knownIds);
+    const record = records.find(candidate => candidate.userId === SeedUserId.ADMIN_1);
+
+    expect(record?.notification.kind).toBe(NotificationKind.WAREHOUSE_CREATED);
+    expect(record?.notification.importance).toBe(NotificationImportance.NORMAL);
+    expect(record?.notification.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
+    expect(record?.notification.readAt).toBeUndefined();
+    expect(record?.notification.params.case === 'warehouseCreated' ? record.notification.params.value : undefined).toMatchObject({
+      cityName: 'Казань',
+      warehouseId,
+      warehouseName: 'Склад 9',
+    });
+    expect(record?.notification.links).toHaveLength(1);
+    expect(record?.notification.links[0]?.target).toMatchObject({ id: warehouseId, kind: ObjectKind.SITE });
+    expect(record?.notification.links[0]?.cameraFocus).toMatchObject({ id: warehouseId, kind: ObjectKind.SITE });
+    expect(records.every(candidate => candidate.notification.kind === NotificationKind.WAREHOUSE_CREATED)).toBe(true);
+  });
+
+  it('shows the notification to its recipient through ListNotifications', async () => {
+    const harness = createModuleHarness();
+
+    const created = await harness.organization.createWarehouse(createRequest(), adminOptions);
+    const listed = await harness.notification.listNotifications({}, adminOptions);
+    const matching = listed.notifications.filter(
+      notification => notification.params.case === 'warehouseCreated' && notification.params.value.warehouseId === created.warehouse?.id,
+    );
+
+    expect(matching).toHaveLength(1);
+    expect(matching[0]?.kind).toBe(NotificationKind.WAREHOUSE_CREATED);
+  });
+
+  it('publishes POSTED into the user channel of each recipient in the same commit', async () => {
+    const harness = createModuleHarness();
+    const knownIds = listNotificationIds(harness);
+
+    await harness.organization.createWarehouse(createRequest(), adminOptions);
+    const records = listNewNotifications(harness, knownIds);
+    const userEvents = harness.events.filter(event => event.channel.startsWith('user:'));
+
+    expect(records.length).toBeGreaterThan(0);
+    expect(userEvents).toHaveLength(records.length);
+    expect(harness.commits).toHaveLength(1);
+
+    for (const record of records) {
+      const posted = userEvents.find(event => event.channel === userChannel(record.userId));
+
+      expect(posted?.payload.case).toBe('notificationsChanged');
+      expect(posted?.payload.case === 'notificationsChanged' ? posted.payload.value.change : undefined).toBe(NotificationsChange.POSTED);
+      expect(posted?.payload.case === 'notificationsChanged' ? posted.payload.value.notificationIds : undefined)
+        .toEqual([record.notification.id]);
+    }
+  });
+
+  it('names the author with a role over the whole organization', async () => {
+    const harness = createModuleHarness();
+    const knownIds = listNotificationIds(harness);
+
+    await harness.organization.createWarehouse(createRequest(), adminOptions);
+
+    expect(listNewNotifications(harness, knownIds).map(record => record.userId)).toContain(SeedUserId.ADMIN_1);
+  });
+
+  it('names a member with the warehouse_view permission over the whole organization and skips those without it', async () => {
+    const harness = createModuleHarness();
+    const viewer = await addTestMember(harness, {
+      organizationId: SeedOrganizationId.CUSTOMER_1,
+      permissions: ['warehouse_view'],
+      warehouseIds: [],
+    });
+    const outsider = await addTestMember(harness, {
+      organizationId: SeedOrganizationId.CUSTOMER_1,
+      permissions: ['member_view'],
+      warehouseIds: [],
+    });
+    const knownIds = listNotificationIds(harness);
+
+    await harness.organization.createWarehouse(createRequest(), adminOptions);
+    const recipients = listNewNotifications(harness, knownIds).map(record => record.userId);
+
+    expect(recipients).toContain(viewer);
+    expect(recipients).not.toContain(outsider);
+  });
+
+  it('does not name a storekeeper whose area does not hold the new warehouse', async () => {
+    const harness = createModuleHarness();
+    const knownIds = listNotificationIds(harness);
+
+    await harness.organization.createWarehouse(createRequest(), adminOptions);
+    const recipients = listNewNotifications(harness, knownIds).map(record => record.userId);
+
+    expect(recipients).not.toContain(SeedUserId.STOREKEEPER_1);
+  });
+
+  it('never names the members of another organization', async () => {
+    const harness = createModuleHarness();
+    const knownIds = listNotificationIds(harness);
+
+    await harness.organization.createWarehouse(createRequest(), adminOptions);
+    const otherMemberIds = harness.state.read.listBy('memberships', 'organizationId', SeedOrganizationId.CUSTOMER_2)
+      .map(membership => membership.userId);
+    const records = listNewNotifications(harness, knownIds);
+
+    expect(otherMemberIds).toContain(SeedUserId.ADMIN_5);
+    expect(records.some(record => otherMemberIds.includes(record.userId))).toBe(false);
+    expect(harness.events.some(event => event.channel === userChannel(SeedUserId.ADMIN_5))).toBe(false);
+  });
+
+  it('keeps people out of the parameters', async () => {
+    const harness = createModuleHarness();
+    const knownIds = listNotificationIds(harness);
+
+    await harness.organization.createWarehouse(createRequest(), adminOptions);
+    const [record] = listNewNotifications(harness, knownIds);
+    const params = record?.notification.params.case === 'warehouseCreated' ? Object.keys(record.notification.params.value).sort() : [];
+
+    expect(params).toEqual(['$typeName', 'cityName', 'warehouseId', 'warehouseName']);
+  });
+
+  it('posts nothing a second time for a repeated request with the same idempotency key', async () => {
+    const harness = createModuleHarness();
+
+    await harness.organization.createWarehouse(createRequest(), adminOptions);
+    const notificationsAfterFirst = harness.state.read.list('notifications').length;
+    const eventsAfterFirst = harness.events.length;
+    await harness.organization.createWarehouse(createRequest(), adminOptions);
+
+    expect(harness.state.read.list('notifications')).toHaveLength(notificationsAfterFirst);
+    expect(harness.events).toHaveLength(eventsAfterFirst);
+  });
+
+  it('posts nothing when the command is rejected', async () => {
+    const harness = createModuleHarness();
+    const notificationsBefore = harness.state.read.list('notifications').length;
+
+    await captureError(harness.organization.createWarehouse(createRequest({ name: '' }), adminOptions));
+    await captureError(harness.organization.createWarehouse(createRequest({ cityId: UNKNOWN_ID }), adminOptions));
+    await captureError(harness.organization.createWarehouse(createRequest({ mapNodeId: SeedMapNodeId.MOSCOW }), adminOptions));
+    await captureError(harness.organization.createWarehouse(
+      createRequest(),
+      callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1),
+    ));
+
+    expect(harness.state.read.list('notifications')).toHaveLength(notificationsBefore);
+    expect(harness.events).toEqual([]);
   });
 });

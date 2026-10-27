@@ -1,3 +1,5 @@
+import { create } from '@bufbuild/protobuf';
+import { NotificationSchema } from '@skladburg/contracts/notification/v1/notification';
 import {
   describe,
   expect,
@@ -131,6 +133,28 @@ const SHAPE_FINGERPRINTS: Readonly<Record<number, readonly string[]>> = {
     'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
     'meta.worldTimeMs:number',
   ],
+  6: [
+    'collection.cities:bytes',
+    'collection.idempotency:{id:string,method:string,requestBytes:bytes,responseBytes:bytes}',
+    'collection.mapNodes:bytes',
+    'collection.memberships:bytes',
+    'collection.notifications:{id:string,notificationBytes:bytes,userId:string}',
+    'collection.organizationSettings:bytes',
+    'collection.organizations:bytes',
+    'collection.personas:{group:string,id:string,kind:string,organizationId:string,userId:string}',
+    'collection.roles:bytes',
+    'collection.routeLegs:bytes',
+    'collection.spheres:bytes',
+    'collection.users:bytes',
+    'collection.warehouses:bytes',
+    'meta.channelSeq:record<bigint>',
+    'meta.randomState:{a:number,b:number,c:number,d:number}',
+    'meta.schedulerDueAtMs:record<number>',
+    'meta.seedVersion:number',
+    'meta.timeScale:number',
+    'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
+    'meta.worldTimeMs:number',
+  ],
 };
 
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -181,6 +205,10 @@ const populatedTask: SchedulerTaskValue = {
   id: 'fingerprint-task',
   intervalMs: 1_000,
   run: (transaction) => {
+    transaction.put('notifications', {
+      notification: create(NotificationSchema, { id: 'fingerprint-notification' }),
+      userId: SeedUserId.ADMIN_1,
+    });
     transaction.put('personas', {
       group: DemoPersonaGroup.FRESH,
       id: 'fingerprint-persona',
@@ -252,8 +280,8 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 5 since the route legs joined the collections', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(5);
+  it('is version 6 since the notifications joined the collections', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(6);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
   });
 });

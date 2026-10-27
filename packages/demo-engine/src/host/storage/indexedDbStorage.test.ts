@@ -125,6 +125,8 @@ const LEGACY_STORE_NAMES = [
 const LEGACY_SCHEMA_VERSION = 3;
 const PREVIOUS_DATABASE_VERSION = 2;
 const PREVIOUS_SCHEMA_VERSION = 4;
+const ROUTE_LEGS_DATABASE_VERSION = 3;
+const ROUTE_LEGS_SCHEMA_VERSION = 5;
 
 const LEGACY_DATABASE: LegacyDatabaseValue = {
   nodeStoreName: 'boardNodes',
@@ -138,6 +140,13 @@ const PREVIOUS_DATABASE: LegacyDatabaseValue = {
   schemaVersion: PREVIOUS_SCHEMA_VERSION,
   storeNames: LEGACY_STORE_NAMES.map(name => (name === 'boardNodes' ? 'mapNodes' : name)),
   version: PREVIOUS_DATABASE_VERSION,
+};
+
+const ROUTE_LEGS_DATABASE: LegacyDatabaseValue = {
+  nodeStoreName: 'mapNodes',
+  schemaVersion: ROUTE_LEGS_SCHEMA_VERSION,
+  storeNames: [...PREVIOUS_DATABASE.storeNames, 'routeLegs'],
+  version: ROUTE_LEGS_DATABASE_VERSION,
 };
 
 const createLegacyDatabase = (factory: IDBFactory, legacy: LegacyDatabaseValue = LEGACY_DATABASE): Promise<void> =>
@@ -441,6 +450,32 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     expect(loaded?.collections.mapNodes.size).toBe(snapshot.collections.mapNodes.size + 1);
     expect(loaded?.collections.warehouses.has('legacy-warehouse')).toBe(false);
     expect(loaded?.schemaVersion).toBe(snapshot.schemaVersion);
+  });
+
+  it('recreates the stores with the notifications for a database of version 3 and stays writable after the upgrade', async () => {
+    const factory = new IDBFactory();
+    await createLegacyDatabase(factory, ROUTE_LEGS_DATABASE);
+
+    const storage = await openStorage(factory);
+    const upgraded = await openForeignConnection(factory, INDEXED_DB_VERSION);
+    const storeNames = Array.from(upgraded.objectStoreNames);
+    upgraded.close();
+
+    expect(INDEXED_DB_VERSION).toBeGreaterThan(ROUTE_LEGS_DATABASE_VERSION);
+    expect(storeNames).toContain('notifications');
+    expect(await storage.load()).toBeUndefined();
+
+    const snapshot = createSeedSnapshot();
+    await storage.replaceAll(snapshot);
+    await storage.commit({
+      deletes: {},
+      meta: snapshot.meta,
+      puts: { notifications: new Map<string, StoredRecordValue>([['added-notification', { id: 'added-notification' }]]) },
+    });
+    const loaded = await storage.load();
+
+    expect(loaded?.collections.notifications.has('added-notification')).toBe(true);
+    expect(loaded?.collections.mapNodes.has('legacy-node')).toBe(false);
   });
 
   it('recreates the stores with the route legs for a database of version 2 and stays writable after the upgrade', async () => {

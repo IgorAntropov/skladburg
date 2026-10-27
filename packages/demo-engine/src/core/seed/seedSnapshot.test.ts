@@ -76,7 +76,7 @@ describe('createSeedSnapshot', () => {
       worldTimeMs: SEED_WORLD_START_MS,
     });
     expect(SEED_TIME_SCALE).toBe(1);
-    expect(SEED_VERSION).toBe(8);
+    expect(SEED_VERSION).toBe(9);
   });
 
   it('carries the current schema version', () => {

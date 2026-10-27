@@ -49,13 +49,16 @@ import type {
 import type {
   DemoPersonaValue,
   IdempotencyRecordValue,
+  NotificationRecordValue,
 } from './records';
 
 import {
   parseDemoPersona,
   parseIdempotencyRecord,
+  parseNotificationRecord,
   serializeDemoPersona,
   serializeIdempotencyRecord,
+  serializeNotificationRecord,
 } from './records';
 
 export interface TableDefinition<TRecord, TIndex extends string> {
@@ -75,6 +78,7 @@ export interface TableIndexesValue {
   idempotency: never;
   mapNodes: never;
   memberships: 'organizationId' | 'userId';
+  notifications: 'userId';
   organizations: never;
   organizationSettings: never;
   personas: never;
@@ -92,6 +96,7 @@ export interface TableRecordsValue {
   idempotency: IdempotencyRecordValue;
   mapNodes: MapNode;
   memberships: Membership;
+  notifications: NotificationRecordValue;
   organizations: Organization;
   organizationSettings: OrganizationSettings;
   personas: DemoPersonaValue;
@@ -131,6 +136,14 @@ const defineRecordTable = <TRecord extends { id: string }>(
   indexKeys: {},
 });
 
+const NOTIFICATION_TABLE: TableDefinition<NotificationRecordValue, 'userId'> = {
+  clone: record => parseNotificationRecord(serializeNotificationRecord(record)),
+  decode: parseNotificationRecord,
+  encode: serializeNotificationRecord,
+  getId: record => record.notification.id,
+  indexKeys: { userId: record => record.userId },
+};
+
 export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   cities: defineMessageTable(CitySchema, city => city.id, {}),
   idempotency: defineRecordTable(parseIdempotencyRecord, serializeIdempotencyRecord),
@@ -139,6 +152,7 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
     organizationId: membership => membership.organizationId,
     userId: membership => membership.userId,
   }),
+  notifications: NOTIFICATION_TABLE,
   organizations: defineMessageTable(OrganizationSchema, organization => organization.id, {}),
   organizationSettings: defineMessageTable(OrganizationSettingsSchema, settings => settings.organizationId, {}),
   personas: defineRecordTable(parseDemoPersona, serializeDemoPersona),

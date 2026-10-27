@@ -1,0 +1,130 @@
+syntax = "proto3";
+
+package notification.v1;
+
+import "buf/validate/validate.proto";
+import "common/v1/method_options.proto";
+import "common/v1/object_link.proto";
+import "common/v1/page.proto";
+import "google/protobuf/timestamp.proto";
+import "organization/v1/organization.proto";
+
+enum NotificationKind {
+  NOTIFICATION_KIND_UNSPECIFIED = 0;
+  NOTIFICATION_KIND_WAREHOUSE_CREATED = 1;
+  NOTIFICATION_KIND_PARTNER_VERIFIED = 2;
+  NOTIFICATION_KIND_VERIFICATION_NEXT_LEVEL = 3;
+}
+
+enum NotificationImportance {
+  NOTIFICATION_IMPORTANCE_UNSPECIFIED = 0;
+  NOTIFICATION_IMPORTANCE_NORMAL = 1;
+  NOTIFICATION_IMPORTANCE_IMPORTANT = 2;
+  NOTIFICATION_IMPORTANCE_CRITICAL = 3;
+}
+
+message WarehouseCreatedParams {
+  string warehouse_id = 1;
+  string warehouse_name = 2;
+  string city_name = 3;
+}
+
+message PartnerVerifiedParams {
+  string organization_id = 1;
+  string organization_name = 2;
+  int32 verification_level = 3;
+}
+
+message VerificationNextLevelParams {
+  int32 current_level = 1;
+  int32 next_level = 2;
+}
+
+message Notification {
+  string id = 1;
+  string organization_id = 2;
+  NotificationKind kind = 3;
+  NotificationImportance importance = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp read_at = 6;
+  oneof params {
+    WarehouseCreatedParams warehouse_created = 10;
+    PartnerVerifiedParams partner_verified = 11;
+    VerificationNextLevelParams verification_next_level = 12;
+  }
+  repeated common.v1.ObjectLink links = 7 [(buf.validate.field).repeated.max_items = 3];
+}
+
+enum DigestItemKind {
+  DIGEST_ITEM_KIND_UNSPECIFIED = 0;
+  DIGEST_ITEM_KIND_UNREAD_NOTIFICATIONS = 1;
+  DIGEST_ITEM_KIND_OWN_WAREHOUSES = 2;
+  DIGEST_ITEM_KIND_VERIFIED_PARTNERS = 3;
+  DIGEST_ITEM_KIND_VERIFICATION_NEXT_LEVEL = 4;
+}
+
+message DigestItem {
+  DigestItemKind kind = 1;
+  int32 count = 2;
+  common.v1.ObjectLink link = 3;
+  organization.v1.ProfileKind partner_side = 4;
+  int32 next_level = 5;
+}
+
+message ListNotificationsRequest {
+  common.v1.PageRequest page = 1;
+}
+
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
+  common.v1.PageResponse page = 2;
+  int32 unread_count = 3;
+}
+
+message GetDigestRequest {}
+
+message GetDigestResponse {
+  repeated DigestItem items = 1;
+}
+
+message MarkNotificationsReadRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  repeated string notification_ids = 2 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 100,
+    (buf.validate.field).repeated.unique = true,
+    (buf.validate.field).repeated.items.string.uuid = true
+  ];
+}
+
+message MarkNotificationsReadResponse {
+  int32 unread_count = 1;
+}
+
+message MarkAllNotificationsReadRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message MarkAllNotificationsReadResponse {
+  int32 unread_count = 1;
+}
+
+service NotificationService {
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).member = {};
+  }
+
+  rpc GetDigest(GetDigestRequest) returns (GetDigestResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).member = {};
+  }
+
+  rpc MarkNotificationsRead(MarkNotificationsReadRequest) returns (MarkNotificationsReadResponse) {
+    option (common.v1.access).self = {};
+  }
+
+  rpc MarkAllNotificationsRead(MarkAllNotificationsReadRequest) returns (MarkAllNotificationsReadResponse) {
+    option (common.v1.access).self = {};
+  }
+}

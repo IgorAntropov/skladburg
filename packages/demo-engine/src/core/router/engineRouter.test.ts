@@ -54,6 +54,7 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
     clockService: { getWorldClock: unused },
     errors,
     networkService: { listCities: unused, listMapNodes: unused, listMapSites: unused, listRouteLegs: unused },
+    notificationService: { getDigest: unused, listNotifications: unused, markAllNotificationsRead: unused, markNotificationsRead: unused },
     organizationService: {
       createWarehouse: unused,
       getOrganization: unused,

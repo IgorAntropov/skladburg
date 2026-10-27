@@ -1,9 +1,13 @@
-import { create } from '@bufbuild/protobuf';
+import {
+  create,
+  toBinary,
+} from '@bufbuild/protobuf';
 import { UserSchema } from '@skladburg/contracts/access/v1/access';
 import {
   CitySchema,
   MapNodeSchema,
 } from '@skladburg/contracts/network/v1/network';
+import { NotificationSchema } from '@skladburg/contracts/notification/v1/notification';
 import {
   OrganizationSchema,
   OrganizationSettingsSchema,
@@ -22,6 +26,7 @@ import {
   DemoPersonaKind,
   parseDemoPersona,
   parseIdempotencyRecord,
+  parseNotificationRecord,
 } from './records';
 import { TABLE_DEFINITIONS } from './tables';
 import {
@@ -155,5 +160,38 @@ describe('plain record tables', () => {
     const stored = { id: 'k', method: 'm', requestBytes: 'text', responseBytes: new Uint8Array() };
 
     expect(() => parseIdempotencyRecord(stored)).toThrow(TypeError);
+  });
+});
+
+describe('notification table', () => {
+  const notification = create(NotificationSchema, {
+    id: 'notification-1',
+    organizationId: 'org-1',
+    params: { case: 'verificationNextLevel', value: { currentLevel: 1, nextLevel: 2 } },
+  });
+
+  it('round-trips a notification with its recipient and keys it by the notification id', () => {
+    const record = { notification, userId: 'user-1' };
+    const decoded = TABLE_DEFINITIONS.notifications.decode(TABLE_DEFINITIONS.notifications.encode(record));
+
+    expect(decoded).toEqual(record);
+    expect(TABLE_DEFINITIONS.notifications.getId(record)).toBe('notification-1');
+    expect(TABLE_DEFINITIONS.notifications.indexKeys.userId(record)).toBe('user-1');
+  });
+
+  it('clones into an independent record', () => {
+    const record = { notification, userId: 'user-1' };
+    const copy = TABLE_DEFINITIONS.notifications.clone(record);
+    copy.notification.organizationId = 'org-2';
+
+    expect(record.notification.organizationId).toBe('org-1');
+  });
+
+  it('rejects a stored record without bytes or with a different id inside', () => {
+    const notificationBytes = toBinary(NotificationSchema, notification);
+
+    expect(() => parseNotificationRecord({ id: 'n', userId: 'u' })).toThrow(TypeError);
+    expect(() => parseNotificationRecord(new Uint8Array([1]))).toThrow(TypeError);
+    expect(() => parseNotificationRecord({ id: 'other', notificationBytes, userId: 'user-1' })).toThrow(TypeError);
   });
 });

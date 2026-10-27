@@ -3,6 +3,16 @@ import type { ServiceImpl } from '@connectrpc/connect';
 import { create } from '@bufbuild/protobuf';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import {
+  ObjectKind,
+  ObjectLinkSchema,
+  ObjectRefSchema,
+} from '@skladburg/contracts/common/v1/object_link';
+import {
+  NotificationImportance,
+  NotificationKind,
+  WarehouseCreatedParamsSchema,
+} from '@skladburg/contracts/notification/v1/notification';
+import {
   CreateWarehouseResponseSchema,
   ListWarehousesResponseSchema,
   OrganizationService,
@@ -19,12 +29,22 @@ import {
 import type { IModuleRuntime } from '../moduleRuntime';
 
 import { listVisibleWarehouses } from '../../visibility/index';
+import { resolveWarehouseRecipients } from '../notifications/index';
 import { paginate } from '../pagination';
 
 export type WarehouseHandlersValue = Pick<ServiceImpl<typeof OrganizationService>, 'createWarehouse' | 'listWarehouses'>;
 
 export const createWarehouseHandlers = (runtime: IModuleRuntime): WarehouseHandlersValue => {
-  const { command, errors, guard, idempotency, outbox, random, read } = runtime;
+  const {
+    command,
+    errors,
+    guard,
+    idempotency,
+    notifier,
+    outbox,
+    random,
+    read,
+  } = runtime;
 
   return {
     createWarehouse: (request, context) => command((transaction) => {
@@ -32,7 +52,9 @@ export const createWarehouseHandlers = (runtime: IModuleRuntime): WarehouseHandl
 
       return idempotency.run(transaction, {
         handler: () => {
-          if (transaction.get('cities', request.cityId) === undefined) {
+          const city = transaction.get('cities', request.cityId);
+
+          if (city === undefined) {
             throw errors.notFound(EntityKind.CITY);
           }
 
@@ -60,6 +82,23 @@ export const createWarehouseHandlers = (runtime: IModuleRuntime): WarehouseHandl
           outbox.add(transaction, warehouseChannel(warehouse.id), {
             case: 'warehouseCreated',
             value: create(WarehouseCreatedSchema, { warehouse }),
+          });
+          const siteRef = create(ObjectRefSchema, { id: warehouse.id, kind: ObjectKind.SITE });
+
+          notifier.post(transaction, {
+            importance: NotificationImportance.NORMAL,
+            kind: NotificationKind.WAREHOUSE_CREATED,
+            links: [create(ObjectLinkSchema, { cameraFocus: siteRef, target: siteRef })],
+            organizationId: warehouse.tenantId,
+            params: {
+              case: 'warehouseCreated',
+              value: create(WarehouseCreatedParamsSchema, {
+                cityName: city.name,
+                warehouseId: warehouse.id,
+                warehouseName: warehouse.name,
+              }),
+            },
+            recipients: resolveWarehouseRecipients(transaction, warehouse),
           });
 
           return create(CreateWarehouseResponseSchema, { warehouse });

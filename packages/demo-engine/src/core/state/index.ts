@@ -13,6 +13,7 @@ export {
   DemoPersonaKind,
   type DemoPersonaValue,
   type IdempotencyRecordValue,
+  type NotificationRecordValue,
 } from './records';
 export {
   ENGINE_SCHEMA_VERSION,

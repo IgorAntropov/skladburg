@@ -31,6 +31,7 @@ import {
 } from '../../seed/index';
 import { createEngineState } from '../../state/index';
 import { createRequestValidator } from '../../validation/index';
+import { createNotifier } from '../notifications/index';
 
 export const TEST_EPOCH = 'test-epoch';
 
@@ -85,6 +86,8 @@ export const createTestRuntime = (): TestRuntimeValue => {
     replaceAll: memoryStorage.replaceAll,
   };
 
+  const outbox = createCollectingOutbox(bus, events);
+
   const runtime: IModuleRuntime = {
     command: createCommandRunner({
       bus,
@@ -102,7 +105,8 @@ export const createTestRuntime = (): TestRuntimeValue => {
     errors,
     guard: createCallGuard({ errors, validator: createRequestValidator(errors, getContractRegistry()) }),
     idempotency: createIdempotencyGuard(errors),
-    outbox: createCollectingOutbox(bus, events),
+    notifier: createNotifier({ outbox, random }),
+    outbox,
     random,
     read: state.read,
   };

@@ -9,4 +9,10 @@ export {
   type IModuleRuntime,
 } from './moduleRuntime';
 export { createNetworkService } from './network/index';
+export {
+  createNotificationService,
+  createNotifier,
+  type INotifier,
+  resolveWarehouseRecipients,
+} from './notifications/index';
 export { createOrganizationService } from './organizationService';

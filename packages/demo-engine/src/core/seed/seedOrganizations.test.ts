@@ -1,10 +1,15 @@
+import { AssistantAddressForm } from '@skladburg/contracts/organization/v1/organization';
 import {
   describe,
   expect,
   it,
 } from 'vitest';
 
-import { createSeedOrganizations } from './seedOrganizations';
+import { SeedOrganizationId } from './seedIds';
+import {
+  createSeedOrganizations,
+  createSeedOrganizationSettings,
+} from './seedOrganizations';
 
 const LOGO_KEY_PATTERN = /^(customer|supplier|carrier)-\d+$/;
 
@@ -43,5 +48,27 @@ describe('createSeedOrganizations', () => {
       ['Перевозчик 2', 'logos/carrier-2-light.svg'],
       ['Поставщик 5', 'logos/supplier-5-light.svg'],
     ]);
+  });
+});
+
+describe('createSeedOrganizationSettings', () => {
+  const settings = createSeedOrganizationSettings();
+
+  it('sets the assistant address form explicitly for every organization', () => {
+    expect(settings).toHaveLength(9);
+
+    for (const entry of settings) {
+      expect(
+        [AssistantAddressForm.FORMAL, AssistantAddressForm.INFORMAL],
+        entry.organizationId,
+      ).toContain(entry.assistantAddressForm);
+    }
+  });
+
+  it('addresses informally only the second carrier and formally everyone else', () => {
+    const informal = settings.filter(entry => entry.assistantAddressForm === AssistantAddressForm.INFORMAL);
+
+    expect(informal.map(entry => entry.organizationId)).toEqual([SeedOrganizationId.CARRIER_2]);
+    expect(settings.filter(entry => entry.assistantAddressForm === AssistantAddressForm.FORMAL)).toHaveLength(8);
   });
 });

@@ -1,3 +1,11 @@
+import type { Notification } from '@skladburg/contracts/notification/v1/notification';
+
+import {
+  fromBinary,
+  toBinary,
+} from '@bufbuild/protobuf';
+import { NotificationSchema } from '@skladburg/contracts/notification/v1/notification';
+
 import type {
   StoredObjectValue,
   StoredRecordValue,
@@ -26,6 +34,11 @@ export interface IdempotencyRecordValue {
   method: string;
   requestBytes: Uint8Array;
   responseBytes: Uint8Array;
+}
+
+export interface NotificationRecordValue {
+  notification: Notification;
+  userId: string;
 }
 
 const isDemoPersonaGroup = (value: unknown): value is DemoPersonaGroup => Object.values<unknown>(DemoPersonaGroup).includes(value);
@@ -71,6 +84,22 @@ export const parseIdempotencyRecord = (stored: StoredRecordValue): IdempotencyRe
   return { id, method, requestBytes, responseBytes };
 };
 
+export const parseNotificationRecord = (stored: StoredRecordValue): NotificationRecordValue => {
+  const { id, notificationBytes, userId } = readPlainObject(stored, 'notification record');
+
+  if (typeof id !== 'string' || typeof userId !== 'string' || !(notificationBytes instanceof Uint8Array)) {
+    throw new TypeError('Stored notification record has an unexpected shape');
+  }
+
+  const notification = fromBinary(NotificationSchema, notificationBytes);
+
+  if (notification.id !== id) {
+    throw new TypeError('Stored notification record does not match the id inside the notification');
+  }
+
+  return { notification, userId };
+};
+
 export const serializeDemoPersona = (persona: DemoPersonaValue): StoredObjectValue => ({
   group: persona.group,
   id: persona.id,
@@ -84,4 +113,10 @@ export const serializeIdempotencyRecord = (record: IdempotencyRecordValue): Stor
   method: record.method,
   requestBytes: record.requestBytes.slice(),
   responseBytes: record.responseBytes.slice(),
+});
+
+export const serializeNotificationRecord = (record: NotificationRecordValue): StoredObjectValue => ({
+  id: record.notification.id,
+  notificationBytes: toBinary(NotificationSchema, record.notification),
+  userId: record.userId,
 });

@@ -25,6 +25,7 @@ import {
   ErrorDetailSchema,
 } from '@skladburg/contracts/common/v1/error';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
+import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import { OrganizationShowcaseService } from '@skladburg/contracts/organization/v1/showcase';
 import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
@@ -39,11 +40,13 @@ import {
   createUserProfileService,
 } from '../identity/index';
 import { createNetworkService } from '../network/index';
+import { createNotificationService } from '../notifications/index';
 import { createOrganizationService } from '../organizationService';
 import { createTestRuntime } from './testRuntime';
 
 export interface ModuleHarnessValue extends TestRuntimeValue {
   access: Client<typeof AccessService>;
+  notification: Client<typeof NotificationService>;
   organization: Client<typeof OrganizationService>;
   transport: Transport;
 }
@@ -110,6 +113,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(AccessService, createAccessService(testRuntime.runtime));
     service(ClockService, createClockService(testRuntime.runtime, () => testRuntime.clock.getSnapshot()));
     service(NetworkService, createNetworkService(testRuntime.runtime));
+    service(NotificationService, createNotificationService(testRuntime.runtime));
     service(OrganizationService, createOrganizationService(testRuntime.runtime));
     service(OrganizationShowcaseService, createOrganizationShowcaseService(testRuntime.runtime));
     service(UserProfileService, createUserProfileService(testRuntime.runtime));
@@ -118,6 +122,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
   return {
     ...testRuntime,
     access: createClient(AccessService, transport),
+    notification: createClient(NotificationService, transport),
     organization: createClient(OrganizationService, transport),
     transport,
   };

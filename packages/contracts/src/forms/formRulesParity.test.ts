@@ -59,6 +59,8 @@ const EXTERNAL_FILE_PREFIXES: readonly string[] = ['buf/validate/', 'google/'];
 const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
   'access.v1.SetMyAvatarRequest.image',
   'access.v1.SetMyAvatarRequest.mediaType',
+  'common.v1.ObjectLink.target',
+  'notification.v1.Notification.links',
 ];
 const EXPECTED_SERVER_ONLY_MESSAGES: readonly string[] = ['common.v1.MethodAccess'];
 

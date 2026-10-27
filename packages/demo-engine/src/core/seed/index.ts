@@ -11,6 +11,10 @@ export {
   SeedUserId,
   SeedWarehouseId,
 } from './seedIds';
+export {
+  createSeedNotifications,
+  SeedNotificationId,
+} from './seedNotifications';
 export { SEED_DEFAULT_LOCALE } from './seedOrganizations';
 export {
   createSeedRecords,

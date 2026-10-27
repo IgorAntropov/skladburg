@@ -1,5 +1,6 @@
 import { create } from '@bufbuild/protobuf';
 import {
+  AssistantAddressForm,
   type Organization,
   OrganizationLogoSchema,
   OrganizationSchema,
@@ -14,6 +15,8 @@ import {
 } from './seedIds';
 
 export const SEED_DEFAULT_LOCALE = 'ru';
+
+const INFORMAL_ASSISTANT_ORGANIZATION_IDS: ReadonlySet<string> = new Set([SeedOrganizationId.CARRIER_2]);
 
 interface SeedOrganizationDefinitionValue {
   id: string;
@@ -144,6 +147,9 @@ export const createSeedOrganizations = (): Organization[] => SEED_ORGANIZATION_D
 
 export const createSeedOrganizationSettings = (): OrganizationSettings[] =>
   SEED_ORGANIZATION_DEFINITIONS.map(definition => create(OrganizationSettingsSchema, {
+    assistantAddressForm: INFORMAL_ASSISTANT_ORGANIZATION_IDS.has(definition.id)
+      ? AssistantAddressForm.INFORMAL
+      : AssistantAddressForm.FORMAL,
     availableLocales: [SEED_DEFAULT_LOCALE],
     brandName: definition.name,
     defaultLocale: SEED_DEFAULT_LOCALE,

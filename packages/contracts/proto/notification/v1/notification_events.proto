@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package notification.v1;
+
+enum NotificationsChange {
+  NOTIFICATIONS_CHANGE_UNSPECIFIED = 0;
+  NOTIFICATIONS_CHANGE_POSTED = 1;
+  NOTIFICATIONS_CHANGE_READ = 2;
+}
+
+message NotificationsChanged {
+  NotificationsChange change = 1;
+  repeated string notification_ids = 2;
+}

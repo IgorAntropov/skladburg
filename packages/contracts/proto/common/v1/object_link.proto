@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package common.v1;
+
+import "buf/validate/validate.proto";
+
+enum ObjectKind {
+  OBJECT_KIND_UNSPECIFIED = 0;
+  OBJECT_KIND_DEAL = 1;
+  OBJECT_KIND_DOCUMENT = 2;
+  OBJECT_KIND_DASHBOARD = 3;
+  OBJECT_KIND_HANDLING_UNIT = 4;
+  OBJECT_KIND_CELL = 5;
+  OBJECT_KIND_VEHICLE = 6;
+  OBJECT_KIND_TRIP = 7;
+  OBJECT_KIND_WAREHOUSE = 8;
+  OBJECT_KIND_SITE = 9;
+  OBJECT_KIND_CITY = 10;
+  OBJECT_KIND_ORGANIZATION = 11;
+}
+
+message ObjectRef {
+  ObjectKind kind = 1 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+  string id = 2 [(buf.validate.field).string.uuid = true];
+}
+
+message ObjectLink {
+  ObjectRef target = 1 [(buf.validate.field).required = true];
+  ObjectRef camera_focus = 2;
+}

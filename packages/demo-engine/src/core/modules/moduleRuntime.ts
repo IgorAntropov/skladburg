@@ -8,6 +8,7 @@ import type {
   IStateReader,
   IStateTransaction,
 } from '../state/index';
+import type { INotifier } from './notifications/notifierTypes';
 
 export interface IEventOutbox {
   add: (transaction: IStateTransaction, channel: string, payload: Event['payload']) => void;
@@ -18,6 +19,7 @@ export interface IModuleRuntime {
   errors: IDomainErrors;
   guard: ICallGuard;
   idempotency: IIdempotencyGuard;
+  notifier: INotifier;
   outbox: IEventOutbox;
   random: IRandom;
   read: IStateReader;

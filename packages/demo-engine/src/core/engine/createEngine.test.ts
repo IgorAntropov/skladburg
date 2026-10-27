@@ -31,6 +31,7 @@ import {
 } from '@skladburg/contracts/organization/v1/organization';
 import {
   organizationChannel,
+  userChannel,
   warehouseChannel,
 } from '@skladburg/contracts/runtime';
 import {
@@ -583,6 +584,7 @@ describe('events', () => {
     expect(storage.commits).toHaveLength(1);
     expect(storage.commits[0]?.meta.channelSeq).toEqual({
       [organizationChannel(SeedOrganizationId.CUSTOMER_1)]: 1n,
+      [userChannel(SeedUserId.ADMIN_1)]: 1n,
       [warehouseChannel(created.warehouse?.id ?? '')]: 1n,
     });
   });
@@ -604,6 +606,8 @@ describe('events', () => {
     expect(lastCommit?.meta.channelSeq).toEqual({
       [organizationChannel(SeedOrganizationId.CUSTOMER_1)]: 2n,
       [organizationChannel(SeedOrganizationId.CUSTOMER_2)]: 1n,
+      [userChannel(SeedUserId.ADMIN_1)]: 2n,
+      [userChannel(SeedUserId.ADMIN_5)]: 1n,
       [warehouseChannel(first.warehouse?.id ?? '')]: 1n,
       [warehouseChannel(second.warehouse?.id ?? '')]: 1n,
       [warehouseChannel(third.warehouse?.id ?? '')]: 1n,
@@ -1377,6 +1381,7 @@ describe('reset', () => {
     expect(recreated.warehouse?.id).toBe(original.warehouse?.id);
     expect(storage.commits.at(-1)?.meta.channelSeq).toEqual({
       [organizationChannel(SeedOrganizationId.CUSTOMER_1)]: 1n,
+      [userChannel(SeedUserId.ADMIN_1)]: 1n,
       [warehouseChannel(recreated.warehouse?.id ?? '')]: 1n,
     });
   });

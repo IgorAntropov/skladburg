@@ -17,6 +17,10 @@ export {
 } from './notifications/index';
 export { createOrganizationService } from './organizationService';
 export {
+  appendSupportAuditEntry,
+  createSupportAccessExpiryTask,
+  createSupportAccessService,
   createSupportBotTask,
   createSupportTicketService,
+  type SupportAuditEntryInputValue,
 } from './platform/index';

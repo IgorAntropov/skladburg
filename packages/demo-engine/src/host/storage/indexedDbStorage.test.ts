@@ -131,6 +131,8 @@ const NOTIFICATIONS_DATABASE_VERSION = 4;
 const NOTIFICATIONS_SCHEMA_VERSION = 6;
 const SUPPORT_ACCESS_DATABASE_VERSION = 5;
 const SUPPORT_ACCESS_SCHEMA_VERSION = 7;
+const SUPPORT_TICKETS_DATABASE_VERSION = 6;
+const SUPPORT_TICKETS_SCHEMA_VERSION = 8;
 
 const LEGACY_DATABASE: LegacyDatabaseValue = {
   nodeStoreName: 'boardNodes',
@@ -165,6 +167,13 @@ const SUPPORT_ACCESS_DATABASE: LegacyDatabaseValue = {
   schemaVersion: SUPPORT_ACCESS_SCHEMA_VERSION,
   storeNames: [...NOTIFICATIONS_DATABASE.storeNames, 'supportAccessSessions'],
   version: SUPPORT_ACCESS_DATABASE_VERSION,
+};
+
+const SUPPORT_TICKETS_DATABASE: LegacyDatabaseValue = {
+  nodeStoreName: 'mapNodes',
+  schemaVersion: SUPPORT_TICKETS_SCHEMA_VERSION,
+  storeNames: [...SUPPORT_ACCESS_DATABASE.storeNames, 'supportTickets', 'supportTicketMessages', 'supportBotQueue'],
+  version: SUPPORT_TICKETS_DATABASE_VERSION,
 };
 
 const createLegacyDatabase = (factory: IDBFactory, legacy: LegacyDatabaseValue = LEGACY_DATABASE): Promise<void> =>
@@ -468,6 +477,34 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     expect(loaded?.collections.mapNodes.size).toBe(snapshot.collections.mapNodes.size + 1);
     expect(loaded?.collections.warehouses.has('legacy-warehouse')).toBe(false);
     expect(loaded?.schemaVersion).toBe(snapshot.schemaVersion);
+  });
+
+  it('recreates the stores with the support audit entries for a database of version 6 and stays writable after the upgrade', async () => {
+    const factory = new IDBFactory();
+    await createLegacyDatabase(factory, SUPPORT_TICKETS_DATABASE);
+
+    const storage = await openStorage(factory);
+    const upgraded = await openForeignConnection(factory, INDEXED_DB_VERSION);
+    const storeNames = Array.from(upgraded.objectStoreNames);
+    upgraded.close();
+
+    expect(INDEXED_DB_VERSION).toBeGreaterThan(SUPPORT_TICKETS_DATABASE_VERSION);
+    expect(storeNames).toEqual(expect.arrayContaining(['supportAuditEntries']));
+    expect(await storage.load()).toBeUndefined();
+
+    const snapshot = createSeedSnapshot();
+    await storage.replaceAll(snapshot);
+    await storage.commit({
+      deletes: {},
+      meta: snapshot.meta,
+      puts: {
+        supportAuditEntries: new Map<string, StoredRecordValue>([['added-entry', new Uint8Array([7])]]),
+      },
+    });
+    const loaded = await storage.load();
+
+    expect(loaded?.collections.supportAuditEntries.has('added-entry')).toBe(true);
+    expect(loaded?.collections.mapNodes.has('legacy-node')).toBe(false);
   });
 
   it('recreates the stores with the support tickets for a database of version 5 and stays writable after the upgrade', async () => {

@@ -75,6 +75,7 @@ export const createSeedRecords = (): SeedRecordsValue => ({
   routeLegs: createSeedRouteLegs(),
   spheres: createSeedSpheres(),
   supportAccessSessions: [],
+  supportAuditEntries: [],
   supportBotQueue: [],
   supportTicketMessages: [],
   supportTickets: [],

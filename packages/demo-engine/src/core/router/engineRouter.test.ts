@@ -63,6 +63,17 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
       listWarehouses: unused,
     },
     organizationShowcaseService: { getOrganizationShowcase: unused, listOrganizationShowcases: unused },
+    supportAccessService: {
+      approveSupportAccess: unused,
+      closeSupportAccess: unused,
+      declineSupportAccess: unused,
+      endSupportAccess: unused,
+      listSupportAccessSessions: unused,
+      listSupportAuditEntries: unused,
+      requestSupportAccess: unused,
+      startEmergencySupportAccess: unused,
+    },
+    supportAudit: next => next,
     supportTicketService: { createSupportTicket: unused, getSupportTicket: unused, listMySupportTickets: unused },
     userProfileService: { removeMyAvatar: unused, setMyAvatar: unused },
   });

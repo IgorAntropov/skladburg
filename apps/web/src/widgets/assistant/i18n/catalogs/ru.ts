@@ -64,6 +64,8 @@ export const catalog = {
     other: 'Ещё {count} новых — в центре уведомлений',
   },
   'assistant.replica.partnerVerified': 'Компанию «{organizationName}» проверили, теперь у неё уровень {verificationLevel}',
+  'assistant.replica.supportAccessRequested': 'Поддержка просит доступ к данным компании по обращению № {ticketNumber}',
+  'assistant.replica.supportEmergencyAccessStarted': 'Поддержка включила экстренный доступ к данным компании: {staff}',
   'assistant.replica.supportReply': 'Поддержка ответила на ваше обращение № {ticketNumber}',
   'assistant.replica.unknown': 'Пришло новое уведомление. Подробности в центре',
   'assistant.replica.verificationNextLevel':

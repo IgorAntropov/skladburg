@@ -1055,7 +1055,7 @@ describe('checkpoint', () => {
     expect(storage.commits).toHaveLength(0);
   });
 
-  it('writes the deadline of the support bot with the first checkpoint and nothing more while time stands still', async () => {
+  it('writes the deadlines of the engine tasks with the first checkpoint and nothing more while time stands still', async () => {
     const { engine, storage } = await createTestEngine();
 
     await engine.checkpoint();
@@ -1063,7 +1063,10 @@ describe('checkpoint', () => {
 
     expect(storage.commits).toHaveLength(1);
     expect(storage.commits[0]?.puts).toEqual({});
-    expect(storage.commits[0]?.meta.schedulerDueAtMs).toEqual({ 'support-bot': DEFAULT_ENGINE_SEED.worldStartMs + 1_000 });
+    expect(storage.commits[0]?.meta.schedulerDueAtMs).toEqual({
+      'support-access-expiry': DEFAULT_ENGINE_SEED.worldStartMs + 15_000,
+      'support-bot': DEFAULT_ENGINE_SEED.worldStartMs + 1_000,
+    });
   });
 
   it('does not commit right after a command that stored the same meta', async () => {

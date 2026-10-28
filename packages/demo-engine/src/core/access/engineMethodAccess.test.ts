@@ -83,6 +83,21 @@ describe('engine method access: coverage', () => {
     expect(supportRows.map(row => row.requirementCase)).toEqual(supportRows.map(() => 'self'));
   });
 
+  it('serves the support access methods by their permissions', () => {
+    const accessRows = ROWS.filter(row => row.label.startsWith('support.v1.SupportAccessService.'));
+
+    expect(accessRows.map(row => [row.label, row.permissionName])).toEqual([
+      ['support.v1.SupportAccessService.RequestSupportAccess', 'support_session_create'],
+      ['support.v1.SupportAccessService.StartEmergencySupportAccess', 'support_emergency_manage'],
+      ['support.v1.SupportAccessService.CloseSupportAccess', 'support_session_create'],
+      ['support.v1.SupportAccessService.ApproveSupportAccess', 'support_access_approve'],
+      ['support.v1.SupportAccessService.DeclineSupportAccess', 'support_access_approve'],
+      ['support.v1.SupportAccessService.EndSupportAccess', 'support_access_approve'],
+      ['support.v1.SupportAccessService.ListSupportAccessSessions', 'support_access_view'],
+      ['support.v1.SupportAccessService.ListSupportAuditEntries', 'support_access_view'],
+    ]);
+  });
+
   it('keeps every engine service method unary with an access requirement', () => {
     const methodCount = ENGINE_SERVICES.reduce((count, service) => count + service.methods.length, 0);
 

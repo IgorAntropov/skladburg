@@ -34,9 +34,12 @@ import {
 const ALLOWED_PARAM_FIELDS: ReadonlySet<string> = new Set([
   'cityName',
   'currentLevel',
+  'expiresAt',
   'nextLevel',
   'organizationId',
   'organizationName',
+  'sessionId',
+  'staffDisplayName',
   'ticketId',
   'ticketNumber',
   'verificationLevel',

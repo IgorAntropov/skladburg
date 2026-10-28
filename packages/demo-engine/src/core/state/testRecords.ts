@@ -1,6 +1,7 @@
 import type { Timestamp } from '@bufbuild/protobuf/wkt';
 
 import { create } from '@bufbuild/protobuf';
+import { timestampFromMs } from '@bufbuild/protobuf/wkt';
 import {
   type Membership,
   MembershipSchema,
@@ -17,6 +18,10 @@ import {
   type SupportAccessSession,
   SupportAccessSessionSchema,
   SupportAccessStatus,
+  SupportAuditAction,
+  type SupportAuditEntry,
+  SupportAuditEntrySchema,
+  SupportAuditOutcome,
 } from '@skladburg/contracts/support/v1/support_access';
 
 import type {
@@ -45,8 +50,8 @@ export const createTestMembership = (id: string, userId: string, organizationId:
 
 export interface TestSupportAccessSessionOptionsValue {
   expiresAt?: Timestamp | undefined;
-  mode?: SupportAccessMode;
-  section?: SupportAccessSection;
+  mode?: SupportAccessMode | undefined;
+  section?: SupportAccessSection | undefined;
 }
 
 export const createTestSupportAccessSession = (
@@ -65,6 +70,25 @@ export const createTestSupportAccessSession = (
   staffUserId,
   status,
   version: 1,
+});
+
+export interface TestSupportAuditEntryOptionsValue {
+  action?: SupportAuditAction | undefined;
+  occurredAtMs?: number | undefined;
+  sessionId?: string | undefined;
+}
+
+export const createTestSupportAuditEntry = (
+  id: string,
+  organizationId: string,
+  options: TestSupportAuditEntryOptionsValue = {},
+): SupportAuditEntry => create(SupportAuditEntrySchema, {
+  action: options.action ?? SupportAuditAction.READ,
+  id,
+  occurredAt: timestampFromMs(options.occurredAtMs ?? 0),
+  organizationId,
+  outcome: SupportAuditOutcome.ALLOWED,
+  sessionId: options.sessionId ?? '',
 });
 
 export const TEST_WORLD_TIME_MS = 1_000;

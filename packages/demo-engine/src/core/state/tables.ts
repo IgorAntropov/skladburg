@@ -18,7 +18,10 @@ import type {
   Sphere,
   Warehouse,
 } from '@skladburg/contracts/organization/v1/organization';
-import type { SupportAccessSession } from '@skladburg/contracts/support/v1/support_access';
+import type {
+  SupportAccessSession,
+  SupportAuditEntry,
+} from '@skladburg/contracts/support/v1/support_access';
 import type {
   SupportTicket,
   SupportTicketMessage,
@@ -45,7 +48,10 @@ import {
   SphereSchema,
   WarehouseSchema,
 } from '@skladburg/contracts/organization/v1/organization';
-import { SupportAccessSessionSchema } from '@skladburg/contracts/support/v1/support_access';
+import {
+  SupportAccessSessionSchema,
+  SupportAuditEntrySchema,
+} from '@skladburg/contracts/support/v1/support_access';
 import {
   SupportTicketMessageSchema,
   SupportTicketSchema,
@@ -99,6 +105,7 @@ export interface TableIndexesValue {
   routeLegs: never;
   spheres: never;
   supportAccessSessions: 'organizationId' | 'staffUserId';
+  supportAuditEntries: 'organizationId';
   supportBotQueue: never;
   supportTicketMessages: 'ticketId';
   supportTickets: 'authorUserId';
@@ -121,6 +128,7 @@ export interface TableRecordsValue {
   routeLegs: RouteLeg;
   spheres: Sphere;
   supportAccessSessions: SupportAccessSession;
+  supportAuditEntries: SupportAuditEntry;
   supportBotQueue: SupportBotQueueRecordValue;
   supportTicketMessages: SupportTicketMessage;
   supportTickets: SupportTicket;
@@ -183,6 +191,9 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   supportAccessSessions: defineMessageTable(SupportAccessSessionSchema, session => session.id, {
     organizationId: session => session.organizationId,
     staffUserId: session => session.staffUserId,
+  }),
+  supportAuditEntries: defineMessageTable(SupportAuditEntrySchema, entry => entry.id, {
+    organizationId: entry => entry.organizationId,
   }),
   supportBotQueue: defineRecordTable(parseSupportBotQueueRecord, serializeSupportBotQueueRecord),
   supportTicketMessages: defineMessageTable(SupportTicketMessageSchema, message => message.id, {

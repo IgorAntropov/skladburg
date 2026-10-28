@@ -30,6 +30,7 @@ import {
   createNotifier,
   createOrganizationService,
   createOrganizationShowcaseService,
+  createSupportAccessService,
   createSupportTicketService,
   createUserProfileService,
 } from '../modules/index';
@@ -37,7 +38,10 @@ import {
   createRandom,
   createScaledClock,
 } from '../ports/index';
-import { createEngineHandler } from '../router/index';
+import {
+  createEngineHandler,
+  createSupportAuditInterceptor,
+} from '../router/index';
 import {
   createEngineTasks,
   createScheduler,
@@ -162,6 +166,8 @@ export const createEngineWithTasks = async (
     notificationService: createNotificationService(runtime),
     organizationService: createOrganizationService(runtime),
     organizationShowcaseService: createOrganizationShowcaseService(runtime),
+    supportAccessService: createSupportAccessService(runtime),
+    supportAudit: createSupportAuditInterceptor(runtime),
     supportTicketService: createSupportTicketService(runtime),
     userProfileService: createUserProfileService(runtime),
   });

@@ -36,6 +36,7 @@ import {
   listSupportStaffActions,
   resolveSupportSessionPermissions,
   SUPPORT_SECTION_BY_FEATURE,
+  SUPPORT_SETTINGS_PERMISSIONS,
 } from './supportSessionPermissions';
 
 type ConcreteSection = Exclude<SupportAccessSection, SupportAccessSection.ALL | SupportAccessSection.UNSPECIFIED>;
@@ -102,6 +103,19 @@ const actionOf = (code: KnownPermissionCode): PermissionAction => splitPermissio
 
 const CLIENT_CODES = listPermissionCodes().filter(code => !isPlatformPermission(getPermissionName(code)));
 
+const DATA_NOT_SETTINGS_PERMISSIONS: readonly string[] = [
+  'catalog_edit',
+  'fleet_edit',
+  'inventory_edit',
+  'layout_edit',
+  'price_list_edit',
+  'promotion_edit',
+  'task_create',
+  'task_edit',
+  'warehouse_create',
+  'warehouse_edit',
+];
+
 interface IntersectionRowValue {
   expected: readonly string[];
   mode: SupportAccessMode;
@@ -137,41 +151,20 @@ const INTERSECTION_ROWS: readonly IntersectionRowValue[] = [
     title: 'supplier, warehouses, view',
   },
   {
-    expected: [
-      'inventory_edit',
-      'inventory_view',
-      'layout_edit',
-      'sensor_view',
-      'staff_view',
-      'task_create',
-      'task_edit',
-      'task_view',
-      'warehouse_create',
-      'warehouse_edit',
-      'warehouse_view',
-      'yard_view',
-    ],
+    expected: ['inventory_view', 'sensor_view', 'staff_view', 'task_view', 'warehouse_view', 'yard_view'],
     mode: SupportAccessMode.EDIT,
     profiles: SUPPLIER,
     roleKey: OperatorPresetKey.SUPER_ADMIN,
     section: SupportAccessSection.WAREHOUSES,
-    title: 'supplier, warehouses, edit',
+    title: 'supplier, warehouses, edit: data edits are not settings',
   },
   {
-    expected: [
-      'catalog_edit',
-      'catalog_view',
-      'network_view',
-      'price_list_edit',
-      'price_list_view',
-      'promotion_edit',
-      'promotion_view',
-    ],
+    expected: ['catalog_view', 'network_view', 'price_list_view', 'promotion_view'],
     mode: SupportAccessMode.EDIT,
     profiles: SUPPLIER,
     roleKey: OperatorPresetKey.SUPPORT_ENGINEER,
     section: SupportAccessSection.CATALOG,
-    title: 'supplier, catalog, edit',
+    title: 'supplier, catalog, edit: no catalog, price list or promotion edits',
   },
   {
     expected: ['analytics_view', 'claim_view', 'contract_view', 'deal_view', 'document_view', 'payment_view'],
@@ -230,12 +223,12 @@ const INTERSECTION_ROWS: readonly IntersectionRowValue[] = [
     title: 'carrier, logistics, view',
   },
   {
-    expected: ['fleet_edit', 'fleet_view', 'transport_request_view', 'trip_view'],
+    expected: ['fleet_view', 'transport_request_view', 'trip_view'],
     mode: SupportAccessMode.EDIT,
     profiles: CARRIER,
     roleKey: OperatorPresetKey.SUPER_ADMIN,
     section: SupportAccessSection.LOGISTICS,
-    title: 'carrier, logistics, edit: no trip_edit and no transport_offer_create',
+    title: 'carrier, logistics, edit: no fleet_edit, no trip_edit and no transport_offer_create',
   },
 ];
 
@@ -289,6 +282,8 @@ describe('resolveSupportSessionPermissions: the intersection of every factor', (
       const modeActions = mode === SupportAccessMode.EDIT ? EDIT_ACTIONS : VIEW_ACTIONS;
       const hasSettingsEdit = staffPermissions.some(candidate => candidate.permission === 'support_settings_edit');
       const roleActions = hasSettingsEdit ? EDIT_ACTIONS : VIEW_ACTIONS;
+      const isViewOrSetting = (name: string): boolean =>
+        splitPermissionName(name).action === PermissionAction.VIEW || SUPPORT_SETTINGS_PERMISSIONS.includes(name);
 
       for (const name of result) {
         const { action } = splitPermissionName(name);
@@ -298,6 +293,7 @@ describe('resolveSupportSessionPermissions: the intersection of every factor', (
         expect(sectionNames).toContain(name);
         expect(modeActions).toContain(action);
         expect(roleActions).toContain(action);
+        expect(isViewOrSetting(name)).toBe(true);
         expect(code !== undefined && isNeverForSupport(code)).toBe(false);
       }
 
@@ -352,6 +348,69 @@ describe('resolveSupportSessionPermissions: the intersection of every factor', (
 
     expect(view.every(name => edit.includes(name))).toBe(true);
     expect(edit.length).toBeGreaterThan(view.length);
+  });
+});
+
+describe('support settings: only feature settings open to an edit session', () => {
+  it('lists organization_edit as the only settings permission', () => {
+    expect(SUPPORT_SETTINGS_PERMISSIONS).toEqual(['organization_edit']);
+  });
+
+  it('classifies every change permission of the client catalog as a setting or as data', () => {
+    const undecided = CLIENT_CODES
+      .filter(code => actionOf(code) !== PermissionAction.VIEW && !isNeverForSupport(code))
+      .map(code => getPermissionName(code))
+      .filter(name => !SUPPORT_SETTINGS_PERMISSIONS.includes(name) && !DATA_NOT_SETTINGS_PERMISSIONS.includes(name));
+
+    expect(undecided).toEqual([]);
+  });
+
+  it('keeps the lists of settings and data apart and inside the client catalog', () => {
+    const catalogNames: readonly string[] = CLIENT_CODES.map(code => getPermissionName(code));
+
+    expect(SUPPORT_SETTINGS_PERMISSIONS.filter(name => DATA_NOT_SETTINGS_PERMISSIONS.includes(name))).toEqual([]);
+    expect([...SUPPORT_SETTINGS_PERMISSIONS, ...DATA_NOT_SETTINGS_PERMISSIONS].filter(name => !catalogNames.includes(name))).toEqual([]);
+  });
+
+  it('keeps every settings permission outside the never list', () => {
+    const settingsCodes = CLIENT_CODES.filter(code => SUPPORT_SETTINGS_PERMISSIONS.includes(getPermissionName(code)));
+
+    expect(settingsCodes).toHaveLength(SUPPORT_SETTINGS_PERMISSIONS.length);
+    expect(settingsCodes.some(code => isNeverForSupport(code))).toBe(false);
+  });
+
+  it.each(DATA_NOT_SETTINGS_PERMISSIONS)('does not issue %s to a super administrator in an edit session over all', (name) => {
+    for (const profiles of PROFILE_SETS) {
+      expect(resolveFor(staffPermissionsOf(OperatorPresetKey.SUPER_ADMIN), profiles, SupportAccessSection.ALL, SupportAccessMode.EDIT))
+        .not.toContain(name);
+    }
+  });
+
+  it('issues organization_edit in an edit session over the organization section or over all, and in no other section', () => {
+    const staffPermissions = staffPermissionsOf(OperatorPresetKey.SUPPORT_ENGINEER);
+
+    for (const profiles of PROFILE_SETS) {
+      for (const section of ALL_SECTIONS) {
+        const isExpected = section === SupportAccessSection.ORGANIZATION || section === SupportAccessSection.ALL;
+
+        expect(resolveFor(staffPermissions, profiles, section, SupportAccessMode.EDIT).includes('organization_edit')).toBe(isExpected);
+        expect(resolveFor(staffPermissions, profiles, section, SupportAccessMode.VIEW)).not.toContain('organization_edit');
+      }
+    }
+  });
+
+  it('gives the engineer in an edit session exactly the view permissions of the section plus organization_edit', () => {
+    const staffPermissions = staffPermissionsOf(OperatorPresetKey.SUPPORT_ENGINEER);
+
+    for (const profiles of PROFILE_SETS) {
+      for (const section of ALL_SECTIONS) {
+        const view = resolveFor(staffPermissions, profiles, section, SupportAccessMode.VIEW);
+        const edit = resolveFor(staffPermissions, profiles, section, SupportAccessMode.EDIT);
+        const isOrganizationEditExpected = section === SupportAccessSection.ORGANIZATION || section === SupportAccessSection.ALL;
+
+        expect(new Set(edit)).toEqual(new Set(isOrganizationEditExpected ? [...view, 'organization_edit'] : view));
+      }
+    }
   });
 });
 

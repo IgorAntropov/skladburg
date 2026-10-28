@@ -41,6 +41,7 @@ import { TABLE_DEFINITIONS } from './tables';
 import {
   createTestMembership,
   createTestSupportAccessSession,
+  createTestSupportAuditEntry,
   createTestWarehouse,
   FIRST_TENANT_ID,
 } from './testRecords';
@@ -219,6 +220,25 @@ describe('support access session table', () => {
   it('indexes a session by the organization and by the staff member', () => {
     expect(TABLE_DEFINITIONS.supportAccessSessions.indexKeys.organizationId(session)).toBe('org-1');
     expect(TABLE_DEFINITIONS.supportAccessSessions.indexKeys.staffUserId(session)).toBe('staff-1');
+  });
+});
+
+describe('support audit entry table', () => {
+  const entry = createTestSupportAuditEntry('entry-1', 'org-1', { occurredAtMs: 5_000, sessionId: 'session-1' });
+
+  it('round-trips an entry and keys it by the entry id and the organization', () => {
+    const decoded = TABLE_DEFINITIONS.supportAuditEntries.decode(TABLE_DEFINITIONS.supportAuditEntries.encode(entry));
+
+    expect(decoded).toEqual(entry);
+    expect(TABLE_DEFINITIONS.supportAuditEntries.getId(entry)).toBe('entry-1');
+    expect(TABLE_DEFINITIONS.supportAuditEntries.indexKeys.organizationId(entry)).toBe('org-1');
+  });
+
+  it('clones an entry into an independent record', () => {
+    const copy = TABLE_DEFINITIONS.supportAuditEntries.clone(entry);
+    copy.sessionId = 'other';
+
+    expect(entry.sessionId).toBe('session-1');
   });
 });
 

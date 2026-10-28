@@ -19,6 +19,7 @@ import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import { OrganizationShowcaseService } from '@skladburg/contracts/organization/v1/showcase';
+import { SupportAccessService } from '@skladburg/contracts/support/v1/support_access';
 import { SupportTicketService } from '@skladburg/contracts/support/v1/support_ticket';
 
 import type { IDomainErrors } from '../errors/index';
@@ -31,6 +32,8 @@ export interface CreateEngineHandlerOptionsValue {
   notificationService: ServiceImpl<typeof NotificationService>;
   organizationService: ServiceImpl<typeof OrganizationService>;
   organizationShowcaseService: ServiceImpl<typeof OrganizationShowcaseService>;
+  supportAccessService: ServiceImpl<typeof SupportAccessService>;
+  supportAudit: Interceptor;
   supportTicketService: ServiceImpl<typeof SupportTicketService>;
   userProfileService: ServiceImpl<typeof UserProfileService>;
 }
@@ -61,7 +64,7 @@ export const createEngineHandler = (options: CreateEngineHandlerOptionsValue): E
     connect: true,
     grpc: false,
     grpcWeb: false,
-    interceptors: [createErrorNormalizer(options.errors)],
+    interceptors: [createErrorNormalizer(options.errors), options.supportAudit],
   });
 
   router.service(AccessService, options.accessService);
@@ -70,6 +73,7 @@ export const createEngineHandler = (options: CreateEngineHandlerOptionsValue): E
   router.service(NotificationService, options.notificationService);
   router.service(OrganizationService, options.organizationService);
   router.service(OrganizationShowcaseService, options.organizationShowcaseService);
+  router.service(SupportAccessService, options.supportAccessService);
   router.service(SupportTicketService, options.supportTicketService);
   router.service(UserProfileService, options.userProfileService);
 

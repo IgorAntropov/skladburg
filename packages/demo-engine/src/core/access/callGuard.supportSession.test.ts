@@ -18,6 +18,7 @@ import {
 import { MethodAccessSchema } from '@skladburg/contracts/common/v1/method_options';
 import { MoneySchema } from '@skladburg/contracts/common/v1/money';
 import {
+  CreateWarehouseRequestSchema,
   GetOrganizationSettingsRequestSchema,
   ListSpheresRequestSchema,
   ListWarehousesRequestSchema,
@@ -55,7 +56,9 @@ import { createSubscriptionAccess } from '../events/subscriptionAccess';
 import {
   callAs,
   callForOutcome,
+  captureError,
   createModuleHarness,
+  readErrorDetail,
 } from '../modules/testing/moduleHarness';
 import { createSeededRandom } from '../ports/index';
 import { DEMO_USER_HEADER } from '../protocol';
@@ -507,14 +510,14 @@ describe('support session: the intersection reaches the guard', () => {
   });
 
   it('opens an editing permission to a session in the edit mode and refuses it in the view mode', () => {
-    const method = probe('warehouse_edit');
+    const method = probe('organization_edit');
 
     expect(() => callProbe(method, headersFor({ mode: SupportAccessMode.EDIT }))).not.toThrow();
 
     const detail = detailOf(catchError(() => callProbe(method, headersFor({ mode: SupportAccessMode.VIEW }))));
 
     expect(detail.code).toBe(ErrorCode.PERMISSION_DENIED);
-    expect(permissionNameOf(detail)).toBe('warehouse_edit');
+    expect(permissionNameOf(detail)).toBe('organization_edit');
   });
 
   it('refuses a permission outside the section of the session', () => {
@@ -545,12 +548,12 @@ describe('support session: the intersection reaches the guard', () => {
   it('gives an engineer the view and the edit permissions of the settings only', () => {
     const headers = headersFor({ staffUserId: SeedUserId.OPERATOR_SUPPORT_ENGINEER });
 
-    expect(() => callProbe(probe('warehouse_edit'), headers)).not.toThrow();
+    expect(() => callProbe(probe('organization_edit'), headers)).not.toThrow();
     expect(() => callProbe(probe('warehouse_view'), headers)).not.toThrow();
   });
 
   it('validates the request after the permission', () => {
-    const method = probe('warehouse_edit');
+    const method = probe('organization_edit');
     const invalid = create(method.input, { name: '' });
     const headers = headersFor({});
 
@@ -564,7 +567,7 @@ describe('support session: the intersection reaches the guard', () => {
   });
 
   it('covers the whole organization for the scope field and keeps another organization out', () => {
-    const method = probeOf('warehouse_edit', { scopeField: 'address' });
+    const method = probeOf('organization_edit', { scopeField: 'address' });
     const headers = headersFor({});
     const guardFor = (warehouseId: string): unknown => guard.guardCall(read, method, probeRequestOf(method, warehouseId), headers);
 
@@ -575,7 +578,7 @@ describe('support session: the intersection reaches the guard', () => {
   });
 
   it('applies no amount limit to a session', () => {
-    const method = probeOf('warehouse_edit', { limitField: 'amount' });
+    const method = probeOf('organization_edit', { limitField: 'amount' });
 
     expect(() => guard.guardCall(read, method, probeRequestOf(method), headersFor({}))).not.toThrow();
   });
@@ -638,8 +641,53 @@ describe('support session: the never list', () => {
   });
 
   it('lets the same session through on an allowed permission so that the refusals are meaningful', () => {
-    const method = probeOf('warehouse_edit');
+    const method = probeOf('organization_edit');
 
     expect(() => guard.guardCall(read, method, probeRequestOf(method), headersForOrganization(CLIENT_ORGANIZATION_ID))).not.toThrow();
+  });
+});
+
+describe('support session: data edits are not settings', () => {
+  const editHeaders = (): Headers => staffHeadersOf({
+    organizationId: CLIENT_ORGANIZATION_ID,
+    sessionId: putSession(state, {
+      mode: SupportAccessMode.EDIT,
+      section: SupportAccessSection.ALL,
+      staffUserId: SeedUserId.OPERATOR_SUPER_ADMIN_1,
+    }),
+    userId: SeedUserId.OPERATOR_SUPER_ADMIN_1,
+  });
+
+  it('refuses the warehouse_edit probe to a super administrator in an edit session over all', () => {
+    const method = probeOf('warehouse_edit');
+    const detail = detailOf(catchError(() => guard.guardCall(read, method, probeRequestOf(method), editHeaders())));
+
+    expect(detail.code).toBe(ErrorCode.PERMISSION_DENIED);
+    expect(permissionNameOf(detail)).toBe('warehouse_edit');
+  });
+
+  it('refuses the real CreateWarehouse to a super administrator in an edit session over all', async () => {
+    const harness = createModuleHarness();
+    const sessionId = putSession(harness.state, {
+      mode: SupportAccessMode.EDIT,
+      section: SupportAccessSection.ALL,
+      staffUserId: SeedUserId.OPERATOR_SUPER_ADMIN_1,
+    });
+    const headers = staffHeadersOf({ organizationId: CLIENT_ORGANIZATION_ID, sessionId, userId: SeedUserId.OPERATOR_SUPER_ADMIN_1 });
+    const request = create(CreateWarehouseRequestSchema, {
+      address: 'ул. Вымышленная, 1',
+      capabilities: [WarehouseCapability.RAMP],
+      cityId: SeedCityId.KAZAN,
+      idempotencyKey: '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153',
+      mapNodeId: SeedMapNodeId.KAZAN,
+      name: 'Склад 9',
+      timeZone: 'Europe/Moscow',
+    });
+    const detail = readErrorDetail(await captureError(harness.organization.createWarehouse(request, { headers })));
+    const listed = await harness.organization.listWarehouses(warehousesRequest, { headers });
+
+    expect(detail.code).toBe(ErrorCode.PERMISSION_DENIED);
+    expect(permissionNameOf(detail)).toBe('warehouse_create');
+    expect(listed.warehouses.every(warehouse => warehouse.name !== 'Склад 9')).toBe(true);
   });
 });

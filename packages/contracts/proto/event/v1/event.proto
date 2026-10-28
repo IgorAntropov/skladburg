@@ -19,5 +19,6 @@ message Event {
     access.v1.UserChanged user_changed = 12;
     notification.v1.NotificationsChanged notifications_changed = 13;
     support.v1.SupportTicketChanged support_ticket_changed = 14;
+    support.v1.SupportAccessChanged support_access_changed = 15;
   }
 }

@@ -15,6 +15,8 @@ enum NotificationKind {
   NOTIFICATION_KIND_PARTNER_VERIFIED = 2;
   NOTIFICATION_KIND_VERIFICATION_NEXT_LEVEL = 3;
   NOTIFICATION_KIND_SUPPORT_REPLY = 4;
+  NOTIFICATION_KIND_SUPPORT_ACCESS_REQUESTED = 5;
+  NOTIFICATION_KIND_SUPPORT_EMERGENCY_ACCESS_STARTED = 6;
 }
 
 enum NotificationImportance {
@@ -46,6 +48,13 @@ message SupportReplyParams {
   int32 ticket_number = 2;
 }
 
+message SupportAccessParams {
+  string session_id = 1;
+  int32 ticket_number = 2;
+  string staff_display_name = 5;
+  google.protobuf.Timestamp expires_at = 6;
+}
+
 message Notification {
   string id = 1;
   string organization_id = 2;
@@ -58,6 +67,7 @@ message Notification {
     PartnerVerifiedParams partner_verified = 11;
     VerificationNextLevelParams verification_next_level = 12;
     SupportReplyParams support_reply = 13;
+    SupportAccessParams support_access = 14;
   }
   repeated common.v1.ObjectLink links = 7 [(buf.validate.field).repeated.max_items = 3];
 }

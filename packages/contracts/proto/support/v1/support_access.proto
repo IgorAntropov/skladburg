@@ -2,6 +2,10 @@ syntax = "proto3";
 
 package support.v1;
 
+import "buf/validate/validate.proto";
+import "common/v1/error.proto";
+import "common/v1/method_options.proto";
+import "common/v1/page.proto";
 import "google/protobuf/timestamp.proto";
 
 enum SupportAccessKind {
@@ -78,4 +82,188 @@ message SupportAccessSession {
   string approved_by_user_id = 18;
   SupportEmergencyReview emergency_review = 19;
   int32 version = 20;
+}
+
+enum SupportAuditAction {
+  SUPPORT_AUDIT_ACTION_UNSPECIFIED = 0;
+  SUPPORT_AUDIT_ACTION_SESSION_REQUESTED = 1;
+  SUPPORT_AUDIT_ACTION_SESSION_APPROVED = 2;
+  SUPPORT_AUDIT_ACTION_SESSION_DECLINED = 3;
+  SUPPORT_AUDIT_ACTION_SESSION_CANCELLED = 4;
+  SUPPORT_AUDIT_ACTION_SESSION_STARTED_EMERGENCY = 5;
+  SUPPORT_AUDIT_ACTION_SESSION_CLOSED = 6;
+  SUPPORT_AUDIT_ACTION_READ = 7;
+  SUPPORT_AUDIT_ACTION_CHANGE = 8;
+}
+
+enum SupportAuditOutcome {
+  SUPPORT_AUDIT_OUTCOME_UNSPECIFIED = 0;
+  SUPPORT_AUDIT_OUTCOME_ALLOWED = 1;
+  SUPPORT_AUDIT_OUTCOME_DENIED = 2;
+}
+
+message SupportAuditEntry {
+  string id = 1;
+  string organization_id = 2;
+  string session_id = 3;
+  int32 ticket_number = 4;
+  string staff_user_id = 5;
+  string staff_display_name = 6;
+  string actor_user_id = 7;
+  SupportAuditAction action = 8;
+  string method = 9;
+  string permission = 10;
+  SupportAuditOutcome outcome = 11;
+  common.v1.ErrorCode error_code = 12;
+  SupportAccessCloseReason close_reason = 13;
+  google.protobuf.Timestamp occurred_at = 14;
+}
+
+message RequestSupportAccessRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  string organization_id = 2 [(buf.validate.field).string.uuid = true];
+  string ticket_id = 3 [(buf.validate.field).string.uuid = true];
+  SupportAccessSection section = 4 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+  SupportAccessMode mode = 5 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+  int32 duration_minutes = 6 [
+    (buf.validate.field).int32.gte = 15,
+    (buf.validate.field).int32.lte = 240
+  ];
+}
+
+message RequestSupportAccessResponse {
+  SupportAccessSession session = 1;
+}
+
+message StartEmergencySupportAccessRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  string organization_id = 2 [(buf.validate.field).string.uuid = true];
+  SupportEmergencyReason emergency_reason = 3 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+  string ticket_id = 4 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.uuid = true
+  ];
+  SupportAccessSection section = 5 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+  SupportAccessMode mode = 6 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+  int32 duration_minutes = 7 [
+    (buf.validate.field).int32.gte = 15,
+    (buf.validate.field).int32.lte = 60
+  ];
+}
+
+message StartEmergencySupportAccessResponse {
+  SupportAccessSession session = 1;
+}
+
+message CloseSupportAccessRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  string session_id = 2 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 3 [(buf.validate.field).int32.gte = 1];
+}
+
+message CloseSupportAccessResponse {
+  SupportAccessSession session = 1;
+}
+
+message ApproveSupportAccessRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  string session_id = 2 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 3 [(buf.validate.field).int32.gte = 1];
+}
+
+message ApproveSupportAccessResponse {
+  SupportAccessSession session = 1;
+}
+
+message DeclineSupportAccessRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  string session_id = 2 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 3 [(buf.validate.field).int32.gte = 1];
+}
+
+message DeclineSupportAccessResponse {
+  SupportAccessSession session = 1;
+}
+
+message EndSupportAccessRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  string session_id = 2 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 3 [(buf.validate.field).int32.gte = 1];
+}
+
+message EndSupportAccessResponse {
+  SupportAccessSession session = 1;
+}
+
+message ListSupportAccessSessionsRequest {
+  common.v1.PageRequest page = 1;
+}
+
+message ListSupportAccessSessionsResponse {
+  repeated SupportAccessSession sessions = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message ListSupportAuditEntriesRequest {
+  common.v1.PageRequest page = 1;
+  string session_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.uuid = true
+  ];
+}
+
+message ListSupportAuditEntriesResponse {
+  repeated SupportAuditEntry entries = 1;
+  common.v1.PageResponse page = 2;
+}
+
+service SupportAccessService {
+  rpc RequestSupportAccess(RequestSupportAccessRequest) returns (RequestSupportAccessResponse) {
+    option (common.v1.access).permission.name = "support_session_create";
+  }
+
+  rpc StartEmergencySupportAccess(StartEmergencySupportAccessRequest) returns (StartEmergencySupportAccessResponse) {
+    option (common.v1.access).permission.name = "support_emergency_manage";
+  }
+
+  rpc CloseSupportAccess(CloseSupportAccessRequest) returns (CloseSupportAccessResponse) {
+    option (common.v1.access).permission.name = "support_session_create";
+  }
+
+  rpc ApproveSupportAccess(ApproveSupportAccessRequest) returns (ApproveSupportAccessResponse) {
+    option (common.v1.access).permission.name = "support_access_approve";
+  }
+
+  rpc DeclineSupportAccess(DeclineSupportAccessRequest) returns (DeclineSupportAccessResponse) {
+    option (common.v1.access).permission.name = "support_access_approve";
+  }
+
+  rpc EndSupportAccess(EndSupportAccessRequest) returns (EndSupportAccessResponse) {
+    option (common.v1.access).permission.name = "support_access_approve";
+  }
+
+  rpc ListSupportAccessSessions(ListSupportAccessSessionsRequest) returns (ListSupportAccessSessionsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "support_access_view";
+  }
+
+  rpc ListSupportAuditEntries(ListSupportAuditEntriesRequest) returns (ListSupportAuditEntriesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "support_access_view";
+  }
 }

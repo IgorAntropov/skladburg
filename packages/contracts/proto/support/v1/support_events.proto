@@ -5,3 +5,15 @@ package support.v1;
 message SupportTicketChanged {
   string ticket_id = 1;
 }
+
+enum SupportAccessChange {
+  SUPPORT_ACCESS_CHANGE_UNSPECIFIED = 0;
+  SUPPORT_ACCESS_CHANGE_REQUESTED = 1;
+  SUPPORT_ACCESS_CHANGE_STARTED = 2;
+  SUPPORT_ACCESS_CHANGE_ENDED = 3;
+}
+
+message SupportAccessChanged {
+  string session_id = 1;
+  SupportAccessChange change = 2;
+}

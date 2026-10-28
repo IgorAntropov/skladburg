@@ -48,6 +48,7 @@ export const NotificationRow = ({ notification, onLinkClick, t }: NotificationRo
   const links = useMemo(() => resolveNotificationLinks(notification.links), [notification.links]);
   const createdAtMs = notification.createdAt === undefined ? undefined : timestampMs(notification.createdAt);
   const timeText = createdAtMs === undefined ? '' : formatDateTime(createdAtMs, { format: TIME_FORMAT, timeZone: userTimeZone });
+  const formatTime = (instantMs: number): string => formatDateTime(instantMs, { timeZone: userTimeZone });
   const dateTimeValue = createdAtMs === undefined ? undefined : new Date(createdAtMs).toISOString();
 
   const handleLinkClick = (): void => {
@@ -71,7 +72,7 @@ export const NotificationRow = ({ notification, onLinkClick, t }: NotificationRo
       <div className="flex min-w-0 flex-1 flex-col">
         <p className={cn('text-base leading-6', isUnread ? 'text-on-panel' : 'text-on-panel-muted')}>
           {isUnread && <span className="sr-only">{`${t('notification.row.unread')}. `}</span>}
-          {formatNotificationMessage(t, notification)}
+          {formatNotificationMessage(t, formatTime, notification)}
         </p>
         {dateTimeValue !== undefined && (
           <time className="text-sm leading-5 text-on-panel-muted" dateTime={dateTimeValue}>{timeText}</time>

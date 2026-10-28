@@ -64,6 +64,10 @@ const SESSION_CREATE_PERMISSION = getPermissionName(PermissionCode.SUPPORT_SESSI
 
 const SETTINGS_EDIT_PERMISSION = getPermissionName(PermissionCode.SUPPORT_SETTINGS_EDIT);
 
+export const SUPPORT_SETTINGS_PERMISSIONS: readonly string[] = [
+  getPermissionName(PermissionCode.ORGANIZATION_EDIT),
+];
+
 const NEVER_ACTIONS: readonly PermissionAction[] = [
   PermissionAction.APPROVE,
   PermissionAction.EXPORT,
@@ -73,7 +77,7 @@ const NEVER_ACTIONS: readonly PermissionAction[] = [
   PermissionAction.SIGN,
 ];
 
-const DEAL_FEATURES: readonly string[] = [
+const DEAL_LIFECYCLE_FEATURES: readonly string[] = [
   'claim',
   'contract',
   'deal',
@@ -111,7 +115,7 @@ export const isPermissionNameNeverForSupport = (name: string, isLimitApplicable:
 
   return NEVER_ACTIONS.includes(action)
     || feature === SUPPORT_ACCESS_FEATURE
-    || (DEAL_FEATURES.includes(feature) && action !== PermissionAction.VIEW);
+    || (DEAL_LIFECYCLE_FEATURES.includes(feature) && action !== PermissionAction.VIEW);
 };
 
 export const isNeverForSupport = (code: KnownPermissionCode): boolean =>
@@ -134,11 +138,14 @@ export const resolveSupportSessionPermissions = (input: SupportSessionPermission
 
   return listPermissionsForProfiles(organizationProfiles)
     .filter((code) => {
-      const { action, feature } = splitPermissionName(getPermissionName(code));
+      const name = getPermissionName(code);
+      const { action, feature } = splitPermissionName(name);
       const isSectionMatched = session.section === SupportAccessSection.ALL
         || SUPPORT_SECTION_BY_FEATURE.get(feature) === session.section;
+      const isViewOrSetting = action === PermissionAction.VIEW || SUPPORT_SETTINGS_PERMISSIONS.includes(name);
 
       return isSectionMatched
+        && isViewOrSetting
         && modeActions.includes(action)
         && staffActions.includes(action)
         && !isNeverForSupport(code);

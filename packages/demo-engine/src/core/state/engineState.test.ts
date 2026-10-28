@@ -25,6 +25,7 @@ import {
   createLiveMeta,
   createTestMembership,
   createTestSupportAccessSession,
+  createTestSupportAuditEntry,
   createTestWarehouse,
   createVolatileMeta,
   FIRST_TENANT_ID,
@@ -90,6 +91,18 @@ describe('createEngineState reads', () => {
     const firstTenantSessions = state.read.listBy('supportAccessSessions', 'organizationId', FIRST_TENANT_ID);
 
     expect(firstTenantSessions.map(session => session.id)).toEqual(['s-1', 's-3']);
+  });
+
+  it('finds support audit entries by the organization and reads one by id', () => {
+    const state = createEngineState(createEmptySnapshot());
+    state.transact(TEST_WORLD_TIME_MS, (transaction) => {
+      transaction.put('supportAuditEntries', createTestSupportAuditEntry('e-1', FIRST_TENANT_ID));
+      transaction.put('supportAuditEntries', createTestSupportAuditEntry('e-2', SECOND_TENANT_ID));
+      transaction.put('supportAuditEntries', createTestSupportAuditEntry('e-3', FIRST_TENANT_ID));
+    }, createLiveMeta).apply();
+
+    expect(state.read.get('supportAuditEntries', 'e-2')?.organizationId).toBe(SECOND_TENANT_ID);
+    expect(state.read.listBy('supportAuditEntries', 'organizationId', FIRST_TENANT_ID).map(entry => entry.id)).toEqual(['e-1', 'e-3']);
   });
 
   it('finds support tickets by the author, messages by the ticket and reads a bot queue record by id', () => {

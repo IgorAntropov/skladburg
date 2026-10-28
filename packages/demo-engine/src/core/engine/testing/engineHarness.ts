@@ -19,6 +19,7 @@ import {
   WarehouseCapability,
 } from '@skladburg/contracts/organization/v1/organization';
 import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
+import { SupportAccessService } from '@skladburg/contracts/support/v1/support_access';
 import { SupportTicketService } from '@skladburg/contracts/support/v1/support_ticket';
 
 import type {
@@ -53,6 +54,7 @@ export interface EngineCallerValue {
   notification: Client<typeof NotificationService>;
   options: (userId: string | undefined, organizationId?: string) => CallOptions;
   organization: Client<typeof OrganizationService>;
+  supportAccess: Client<typeof SupportAccessService>;
   supportTicket: Client<typeof SupportTicketService>;
 }
 
@@ -186,6 +188,7 @@ export const createEngineCaller = (engine: IDemoEngine, useBinaryFormat = true):
     notification: createClient(NotificationService, transport),
     options: callAs,
     organization: createClient(OrganizationService, transport),
+    supportAccess: createClient(SupportAccessService, transport),
     supportTicket: createClient(SupportTicketService, transport),
   };
 };

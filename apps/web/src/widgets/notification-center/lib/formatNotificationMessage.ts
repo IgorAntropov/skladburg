@@ -13,6 +13,11 @@ export const formatNotificationMessage = (t: NotificationTranslate, { params }: 
 
       return t('notification.message.partnerVerified', { organizationName, verificationLevel });
     }
+    case 'supportReply': {
+      const { ticketNumber } = params.value;
+
+      return t('notification.message.supportReply', { ticketNumber: String(ticketNumber) });
+    }
     case undefined:
       return t('notification.message.unknown');
     case 'verificationNextLevel': {

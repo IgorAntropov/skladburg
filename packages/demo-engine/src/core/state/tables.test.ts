@@ -3,6 +3,7 @@ import {
   toBinary,
 } from '@bufbuild/protobuf';
 import { UserSchema } from '@skladburg/contracts/access/v1/access';
+import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import {
   CitySchema,
   MapNodeSchema,
@@ -16,6 +17,12 @@ import {
 } from '@skladburg/contracts/organization/v1/organization';
 import { SupportAccessStatus } from '@skladburg/contracts/support/v1/support_access';
 import {
+  SupportMessageAuthorKind,
+  SupportTicketCategory,
+  SupportTicketMessageSchema,
+  SupportTicketSchema,
+} from '@skladburg/contracts/support/v1/support_ticket';
+import {
   describe,
   expect,
   it,
@@ -28,6 +35,7 @@ import {
   parseDemoPersona,
   parseIdempotencyRecord,
   parseNotificationRecord,
+  parseSupportBotQueueRecord,
 } from './records';
 import { TABLE_DEFINITIONS } from './tables';
 import {
@@ -211,5 +219,76 @@ describe('support access session table', () => {
   it('indexes a session by the organization and by the staff member', () => {
     expect(TABLE_DEFINITIONS.supportAccessSessions.indexKeys.organizationId(session)).toBe('org-1');
     expect(TABLE_DEFINITIONS.supportAccessSessions.indexKeys.staffUserId(session)).toBe('staff-1');
+  });
+});
+
+describe('support ticket tables', () => {
+  const ticket = create(SupportTicketSchema, {
+    authorUserId: 'user-1',
+    category: SupportTicketCategory.MONEY,
+    context: {
+      appVersion: '0.1.0',
+      errors: [{ code: ErrorCode.NOT_FOUND, occurredAt: { seconds: 5n }, traceId: 'trace-1' }],
+      screenPath: '/map',
+    },
+    id: 'ticket-1',
+    number: 1001,
+    organizationId: 'org-1',
+  });
+  const message = create(SupportTicketMessageSchema, {
+    authorKind: SupportMessageAuthorKind.SUPPORT,
+    body: { case: 'reply', value: { traceId: 'trace-1' } },
+    id: 'message-1',
+    ticketId: 'ticket-1',
+  });
+
+  it('round-trips a ticket and keys it by the ticket id and the author', () => {
+    const decoded = TABLE_DEFINITIONS.supportTickets.decode(TABLE_DEFINITIONS.supportTickets.encode(ticket));
+
+    expect(decoded).toEqual(ticket);
+    expect(TABLE_DEFINITIONS.supportTickets.getId(ticket)).toBe('ticket-1');
+    expect(TABLE_DEFINITIONS.supportTickets.indexKeys.authorUserId(ticket)).toBe('user-1');
+  });
+
+  it('round-trips a message and keys it by the message id and the ticket', () => {
+    const decoded = TABLE_DEFINITIONS.supportTicketMessages.decode(TABLE_DEFINITIONS.supportTicketMessages.encode(message));
+
+    expect(decoded).toEqual(message);
+    expect(TABLE_DEFINITIONS.supportTicketMessages.getId(message)).toBe('message-1');
+    expect(TABLE_DEFINITIONS.supportTicketMessages.indexKeys.ticketId(message)).toBe('ticket-1');
+  });
+
+  it('clones a ticket into an independent record', () => {
+    const copy = TABLE_DEFINITIONS.supportTickets.clone(ticket);
+    copy.number = 2000;
+
+    expect(ticket.number).toBe(1001);
+  });
+});
+
+describe('support bot queue table', () => {
+  const record = { dueAtMs: 1_791_784_804_000, id: 'ticket-1' };
+
+  it('round-trips a record, keyed by the ticket id and without indexes', () => {
+    const decoded = TABLE_DEFINITIONS.supportBotQueue.decode(TABLE_DEFINITIONS.supportBotQueue.encode(record));
+
+    expect(decoded).toEqual(record);
+    expect(TABLE_DEFINITIONS.supportBotQueue.getId(record)).toBe('ticket-1');
+    expect(TABLE_DEFINITIONS.supportBotQueue.indexKeys).toEqual({});
+  });
+
+  it('clones into an independent record', () => {
+    const copy = TABLE_DEFINITIONS.supportBotQueue.clone(record);
+    copy.dueAtMs = 0;
+
+    expect(record.dueAtMs).toBe(1_791_784_804_000);
+  });
+
+  it('rejects binary data, a missing id and a due time that is not a finite number', () => {
+    expect(() => parseSupportBotQueueRecord(new Uint8Array([1]))).toThrow(TypeError);
+    expect(() => parseSupportBotQueueRecord({ dueAtMs: 1 })).toThrow(TypeError);
+    expect(() => parseSupportBotQueueRecord({ dueAtMs: '1', id: 'ticket-1' })).toThrow(TypeError);
+    expect(() => parseSupportBotQueueRecord({ dueAtMs: Number.NaN, id: 'ticket-1' })).toThrow(TypeError);
+    expect(() => parseSupportBotQueueRecord({ dueAtMs: Number.POSITIVE_INFINITY, id: 'ticket-1' })).toThrow(TypeError);
   });
 });

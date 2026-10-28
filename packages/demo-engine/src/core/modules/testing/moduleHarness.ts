@@ -29,6 +29,7 @@ import { NotificationService } from '@skladburg/contracts/notification/v1/notifi
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import { OrganizationShowcaseService } from '@skladburg/contracts/organization/v1/showcase';
 import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
+import { SupportTicketService } from '@skladburg/contracts/support/v1/support_ticket';
 
 import type { TestRuntimeValue } from './testRuntime';
 
@@ -42,12 +43,14 @@ import {
 import { createNetworkService } from '../network/index';
 import { createNotificationService } from '../notifications/index';
 import { createOrganizationService } from '../organizationService';
+import { createSupportTicketService } from '../platform/index';
 import { createTestRuntime } from './testRuntime';
 
 export interface ModuleHarnessValue extends TestRuntimeValue {
   access: Client<typeof AccessService>;
   notification: Client<typeof NotificationService>;
   organization: Client<typeof OrganizationService>;
+  supportTicket: Client<typeof SupportTicketService>;
   transport: Transport;
 }
 
@@ -116,6 +119,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(NotificationService, createNotificationService(testRuntime.runtime));
     service(OrganizationService, createOrganizationService(testRuntime.runtime));
     service(OrganizationShowcaseService, createOrganizationShowcaseService(testRuntime.runtime));
+    service(SupportTicketService, createSupportTicketService(testRuntime.runtime));
     service(UserProfileService, createUserProfileService(testRuntime.runtime));
   });
 
@@ -124,6 +128,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     access: createClient(AccessService, transport),
     notification: createClient(NotificationService, transport),
     organization: createClient(OrganizationService, transport),
+    supportTicket: createClient(SupportTicketService, transport),
     transport,
   };
 };

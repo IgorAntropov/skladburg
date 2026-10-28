@@ -19,6 +19,7 @@ import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import { OrganizationShowcaseService } from '@skladburg/contracts/organization/v1/showcase';
+import { SupportTicketService } from '@skladburg/contracts/support/v1/support_ticket';
 
 import type { IDomainErrors } from '../errors/index';
 
@@ -30,6 +31,7 @@ export interface CreateEngineHandlerOptionsValue {
   notificationService: ServiceImpl<typeof NotificationService>;
   organizationService: ServiceImpl<typeof OrganizationService>;
   organizationShowcaseService: ServiceImpl<typeof OrganizationShowcaseService>;
+  supportTicketService: ServiceImpl<typeof SupportTicketService>;
   userProfileService: ServiceImpl<typeof UserProfileService>;
 }
 
@@ -68,6 +70,7 @@ export const createEngineHandler = (options: CreateEngineHandlerOptionsValue): E
   router.service(NotificationService, options.notificationService);
   router.service(OrganizationService, options.organizationService);
   router.service(OrganizationShowcaseService, options.organizationShowcaseService);
+  router.service(SupportTicketService, options.supportTicketService);
   router.service(UserProfileService, options.userProfileService);
 
   return createFetchHandler(createPathDispatcher(router.handlers));

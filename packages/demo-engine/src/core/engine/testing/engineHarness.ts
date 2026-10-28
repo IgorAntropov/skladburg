@@ -11,6 +11,7 @@ import {
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { AccessService } from '@skladburg/contracts/access/v1/access';
 import { ClockService } from '@skladburg/contracts/clock/v1/clock';
+import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
 import {
   type CreateWarehouseRequest,
   CreateWarehouseRequestSchema,
@@ -18,6 +19,7 @@ import {
   WarehouseCapability,
 } from '@skladburg/contracts/organization/v1/organization';
 import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
+import { SupportTicketService } from '@skladburg/contracts/support/v1/support_ticket';
 
 import type {
   EngineChangeSetValue,
@@ -48,8 +50,10 @@ export const WORLD_REAL_TIME_START_MS = 1_000_000;
 export interface EngineCallerValue {
   access: Client<typeof AccessService>;
   clock: Client<typeof ClockService>;
+  notification: Client<typeof NotificationService>;
   options: (userId: string | undefined, organizationId?: string) => CallOptions;
   organization: Client<typeof OrganizationService>;
+  supportTicket: Client<typeof SupportTicketService>;
 }
 
 export interface FakeRealTimeValue extends IRealTimeSource {
@@ -179,8 +183,10 @@ export const createEngineCaller = (engine: IDemoEngine, useBinaryFormat = true):
   return {
     access: createClient(AccessService, transport),
     clock: createClient(ClockService, transport),
+    notification: createClient(NotificationService, transport),
     options: callAs,
     organization: createClient(OrganizationService, transport),
+    supportTicket: createClient(SupportTicketService, transport),
   };
 };
 

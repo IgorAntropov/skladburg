@@ -5,6 +5,7 @@ export const catalog = {
   'notification.link.open': 'Открыть карточку',
   'notification.link.organization': 'Карточка компании',
   'notification.message.partnerVerified': 'Компания «{organizationName}» проверена, уровень {verificationLevel}',
+  'notification.message.supportReply': 'Поддержка ответила по обращению № {ticketNumber}',
   'notification.message.unknown': 'Новое уведомление',
   'notification.message.verificationNextLevel': 'Доступен уровень проверки {nextLevel}. Сейчас у вас уровень {currentLevel}',
   'notification.message.warehouseCreated': 'Создан склад «{warehouseName}» в городе {cityName}',

@@ -16,3 +16,7 @@ export {
   resolveWarehouseRecipients,
 } from './notifications/index';
 export { createOrganizationService } from './organizationService';
+export {
+  createSupportBotTask,
+  createSupportTicketService,
+} from './platform/index';

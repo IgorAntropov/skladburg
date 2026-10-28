@@ -72,6 +72,9 @@ const createTables = (): TablesValue => ({
   routeLegs: createTable(TABLE_DEFINITIONS.routeLegs),
   spheres: createTable(TABLE_DEFINITIONS.spheres),
   supportAccessSessions: createTable(TABLE_DEFINITIONS.supportAccessSessions),
+  supportBotQueue: createTable(TABLE_DEFINITIONS.supportBotQueue),
+  supportTicketMessages: createTable(TABLE_DEFINITIONS.supportTicketMessages),
+  supportTickets: createTable(TABLE_DEFINITIONS.supportTickets),
   users: createTable(TABLE_DEFINITIONS.users),
   warehouses: createTable(TABLE_DEFINITIONS.warehouses),
 });
@@ -89,6 +92,9 @@ const createOverlays = (tables: TablesValue): OverlaysValue => ({
   routeLegs: tables.routeLegs.createOverlay(),
   spheres: tables.spheres.createOverlay(),
   supportAccessSessions: tables.supportAccessSessions.createOverlay(),
+  supportBotQueue: tables.supportBotQueue.createOverlay(),
+  supportTicketMessages: tables.supportTicketMessages.createOverlay(),
+  supportTickets: tables.supportTickets.createOverlay(),
   users: tables.users.createOverlay(),
   warehouses: tables.warehouses.createOverlay(),
 });

@@ -89,11 +89,14 @@ describe('createSeedSnapshot', () => {
     expect(createSeedSnapshot().schemaVersion).toBe(ENGINE_SCHEMA_VERSION);
   });
 
-  it('holds every collection and starts without idempotency records', () => {
+  it('holds every collection and starts without idempotency records and support tickets', () => {
     const snapshot = createSeedSnapshot();
 
     expect(Object.keys(snapshot.collections).sort()).toEqual([...ENGINE_COLLECTION_NAMES].sort());
     expect(snapshot.collections.idempotency.size).toBe(0);
+    expect(snapshot.collections.supportTickets.size).toBe(0);
+    expect(snapshot.collections.supportTicketMessages.size).toBe(0);
+    expect(snapshot.collections.supportBotQueue.size).toBe(0);
     expect(snapshot.collections.organizations.size).toBeGreaterThan(0);
   });
 

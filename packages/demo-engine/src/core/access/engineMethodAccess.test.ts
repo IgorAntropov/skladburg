@@ -72,6 +72,17 @@ describe('engine method access: coverage', () => {
     expect(ENGINE_SERVICES.map(service => service.typeName).sort()).toEqual(contractServices.map(service => service.typeName).sort());
   });
 
+  it('serves the three support ticket methods as self methods', () => {
+    const supportRows = ROWS.filter(row => row.label.startsWith('support.v1.SupportTicketService.'));
+
+    expect(supportRows.map(row => row.label).sort()).toEqual([
+      'support.v1.SupportTicketService.CreateSupportTicket',
+      'support.v1.SupportTicketService.GetSupportTicket',
+      'support.v1.SupportTicketService.ListMySupportTickets',
+    ]);
+    expect(supportRows.map(row => row.requirementCase)).toEqual(supportRows.map(() => 'self'));
+  });
+
   it('keeps every engine service method unary with an access requirement', () => {
     const methodCount = ENGINE_SERVICES.reduce((count, service) => count + service.methods.length, 0);
 

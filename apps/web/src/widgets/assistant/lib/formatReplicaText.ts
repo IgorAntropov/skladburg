@@ -21,6 +21,11 @@ const formatNotification = (t: AssistantTranslate, { params }: Notification): st
 
       return t('assistant.replica.partnerVerified', { organizationName, verificationLevel });
     }
+    case 'supportReply': {
+      const { ticketNumber } = params.value;
+
+      return t('assistant.replica.supportReply', { ticketNumber: String(ticketNumber) });
+    }
     case undefined:
       return t('assistant.replica.unknown');
     case 'verificationNextLevel': {

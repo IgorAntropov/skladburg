@@ -1,6 +1,6 @@
 import type { EngineSnapshotValue } from '../ports/index';
 
-export const ENGINE_SCHEMA_VERSION = 7;
+export const ENGINE_SCHEMA_VERSION = 8;
 
 export const isCurrentSnapshot = (
   snapshot: EngineSnapshotValue | undefined,

@@ -4,6 +4,7 @@ import type { ReactElement } from 'react';
 import {
   Bell,
   CircleArrowUp,
+  LifeBuoy,
   ShieldCheck,
   Warehouse,
 } from 'lucide-react';
@@ -18,6 +19,8 @@ export const NotificationKindIcon = ({ notification }: NotificationKindIconProps
   switch (notification.params.case) {
     case 'partnerVerified':
       return <ShieldCheck className={ICON_CLASS_NAME} />;
+    case 'supportReply':
+      return <LifeBuoy className={ICON_CLASS_NAME} />;
     case undefined:
       return <Bell className={ICON_CLASS_NAME} />;
     case 'verificationNextLevel':

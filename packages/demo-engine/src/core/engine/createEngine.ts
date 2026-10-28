@@ -30,6 +30,7 @@ import {
   createNotifier,
   createOrganizationService,
   createOrganizationShowcaseService,
+  createSupportTicketService,
   createUserProfileService,
 } from '../modules/index';
 import {
@@ -38,8 +39,8 @@ import {
 } from '../ports/index';
 import { createEngineHandler } from '../router/index';
 import {
+  createEngineTasks,
   createScheduler,
-  ENGINE_TASKS,
 } from '../scheduler/index';
 import {
   createSeedSnapshot,
@@ -106,7 +107,7 @@ const loadOrSeedSnapshot = async (options: CreateEngineOptionsValue): Promise<En
 
 export const createEngineWithTasks = async (
   options: CreateEngineOptionsValue,
-  tasks: readonly SchedulerTaskValue[],
+  createTasks: (runtime: IModuleRuntime) => readonly SchedulerTaskValue[],
 ): Promise<IDemoEngine> => {
   const { realTime, storage } = options;
   const snapshot = await loadOrSeedSnapshot(options);
@@ -161,6 +162,7 @@ export const createEngineWithTasks = async (
     notificationService: createNotificationService(runtime),
     organizationService: createOrganizationService(runtime),
     organizationShowcaseService: createOrganizationShowcaseService(runtime),
+    supportTicketService: createSupportTicketService(runtime),
     userProfileService: createUserProfileService(runtime),
   });
   const scheduler = createScheduler({
@@ -171,7 +173,7 @@ export const createEngineWithTasks = async (
   const subscriptionAccess = createSubscriptionAccess(errors);
   const queue = createCommandQueue();
 
-  for (const task of tasks) {
+  for (const task of createTasks(runtime)) {
     scheduler.register(task);
   }
 
@@ -243,4 +245,4 @@ export const createEngineWithTasks = async (
 };
 
 export const createEngine = (options: CreateEngineOptionsValue): Promise<IDemoEngine> =>
-  createEngineWithTasks(options, ENGINE_TASKS);
+  createEngineWithTasks(options, createEngineTasks);

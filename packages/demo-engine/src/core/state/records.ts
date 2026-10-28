@@ -41,6 +41,11 @@ export interface NotificationRecordValue {
   userId: string;
 }
 
+export interface SupportBotQueueRecordValue {
+  dueAtMs: number;
+  id: string;
+}
+
 const isDemoPersonaGroup = (value: unknown): value is DemoPersonaGroup => Object.values<unknown>(DemoPersonaGroup).includes(value);
 
 const isDemoPersonaKind = (value: unknown): value is DemoPersonaKind => Object.values<unknown>(DemoPersonaKind).includes(value);
@@ -100,6 +105,16 @@ export const parseNotificationRecord = (stored: StoredRecordValue): Notification
   return { notification, userId };
 };
 
+export const parseSupportBotQueueRecord = (stored: StoredRecordValue): SupportBotQueueRecordValue => {
+  const { dueAtMs, id } = readPlainObject(stored, 'support bot queue record');
+
+  if (typeof id !== 'string' || typeof dueAtMs !== 'number' || !Number.isFinite(dueAtMs)) {
+    throw new TypeError('Stored support bot queue record has an unexpected shape');
+  }
+
+  return { dueAtMs, id };
+};
+
 export const serializeDemoPersona = (persona: DemoPersonaValue): StoredObjectValue => ({
   group: persona.group,
   id: persona.id,
@@ -119,4 +134,9 @@ export const serializeNotificationRecord = (record: NotificationRecordValue): St
   id: record.notification.id,
   notificationBytes: toBinary(NotificationSchema, record.notification),
   userId: record.userId,
+});
+
+export const serializeSupportBotQueueRecord = (record: SupportBotQueueRecordValue): StoredObjectValue => ({
+  dueAtMs: record.dueAtMs,
+  id: record.id,
 });

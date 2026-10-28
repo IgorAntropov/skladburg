@@ -37,6 +37,8 @@ const ALLOWED_PARAM_FIELDS: ReadonlySet<string> = new Set([
   'nextLevel',
   'organizationId',
   'organizationName',
+  'ticketId',
+  'ticketNumber',
   'verificationLevel',
   'warehouseId',
   'warehouseName',

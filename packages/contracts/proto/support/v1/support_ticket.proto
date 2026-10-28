@@ -1,0 +1,187 @@
+syntax = "proto3";
+
+package support.v1;
+
+import "buf/validate/validate.proto";
+import "common/v1/error.proto";
+import "common/v1/method_options.proto";
+import "common/v1/page.proto";
+import "google/protobuf/timestamp.proto";
+
+enum SupportTicketCategory {
+  SUPPORT_TICKET_CATEGORY_UNSPECIFIED = 0;
+  SUPPORT_TICKET_CATEGORY_GENERAL = 1;
+  SUPPORT_TICKET_CATEGORY_ERROR = 2;
+  SUPPORT_TICKET_CATEGORY_MONEY = 3;
+  SUPPORT_TICKET_CATEGORY_RECEIVING_BLOCKED = 4;
+}
+
+enum SupportTicketPriority {
+  SUPPORT_TICKET_PRIORITY_UNSPECIFIED = 0;
+  SUPPORT_TICKET_PRIORITY_NORMAL = 1;
+  SUPPORT_TICKET_PRIORITY_URGENT = 2;
+}
+
+enum SupportTicketStatus {
+  SUPPORT_TICKET_STATUS_UNSPECIFIED = 0;
+  SUPPORT_TICKET_STATUS_OPEN = 1;
+  SUPPORT_TICKET_STATUS_ANSWERED = 2;
+  SUPPORT_TICKET_STATUS_CLOSED = 3;
+}
+
+enum SupportTicketChannel {
+  SUPPORT_TICKET_CHANNEL_UNSPECIFIED = 0;
+  SUPPORT_TICKET_CHANNEL_ASSISTANT = 1;
+  SUPPORT_TICKET_CHANNEL_EMAIL = 2;
+}
+
+enum DeviceFormFactor {
+  DEVICE_FORM_FACTOR_UNSPECIFIED = 0;
+  DEVICE_FORM_FACTOR_PHONE = 1;
+  DEVICE_FORM_FACTOR_TABLET = 2;
+  DEVICE_FORM_FACTOR_DESKTOP = 3;
+}
+
+enum DeviceOsFamily {
+  DEVICE_OS_FAMILY_UNSPECIFIED = 0;
+  DEVICE_OS_FAMILY_IOS = 1;
+  DEVICE_OS_FAMILY_ANDROID = 2;
+  DEVICE_OS_FAMILY_MACOS = 3;
+  DEVICE_OS_FAMILY_WINDOWS = 4;
+  DEVICE_OS_FAMILY_LINUX = 5;
+  DEVICE_OS_FAMILY_OTHER = 6;
+}
+
+enum DeviceBrowserFamily {
+  DEVICE_BROWSER_FAMILY_UNSPECIFIED = 0;
+  DEVICE_BROWSER_FAMILY_SAFARI = 1;
+  DEVICE_BROWSER_FAMILY_CHROME = 2;
+  DEVICE_BROWSER_FAMILY_YANDEX = 3;
+  DEVICE_BROWSER_FAMILY_FIREFOX = 4;
+  DEVICE_BROWSER_FAMILY_EDGE = 5;
+  DEVICE_BROWSER_FAMILY_OTHER = 6;
+}
+
+message SupportDevice {
+  DeviceFormFactor form_factor = 1 [(buf.validate.field).enum.defined_only = true];
+  DeviceOsFamily os_family = 2 [(buf.validate.field).enum.defined_only = true];
+  DeviceBrowserFamily browser_family = 3 [(buf.validate.field).enum.defined_only = true];
+  bool is_installed = 4;
+}
+
+message SupportErrorRef {
+  common.v1.ErrorCode code = 1 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+  string trace_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.uuid = true
+  ];
+  string method = 3 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.max_len = 160,
+    (buf.validate.field).string.pattern = "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*\\.v[0-9]+\\.[A-Z][A-Za-z0-9]*/[A-Z][A-Za-z0-9]*$"
+  ];
+  google.protobuf.Timestamp occurred_at = 4 [(buf.validate.field).required = true];
+}
+
+message SupportTicketContext {
+  string screen_path = 1 [(buf.validate.field).string.pattern = "^/([a-z][a-z-]{0,31}(/[A-Za-z0-9][A-Za-z0-9_-]{0,63})?)?$"];
+  repeated SupportErrorRef errors = 2 [(buf.validate.field).repeated.max_items = 5];
+  string app_version = 3 [(buf.validate.field).string.pattern = "^(dev|[0-9a-f]{7,40}|[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,4}(\\+[0-9a-f]{7,40})?)$"];
+  SupportDevice device = 4 [(buf.validate.field).required = true];
+}
+
+message SupportTicket {
+  string id = 1;
+  int32 number = 2;
+  string organization_id = 3;
+  string author_user_id = 4;
+  repeated string author_role_ids = 5;
+  SupportTicketChannel channel = 6;
+  SupportTicketCategory category = 7;
+  SupportTicketPriority priority = 8;
+  SupportTicketStatus status = 9;
+  SupportTicketContext context = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp response_due_at = 12;
+}
+
+enum SupportReplyTemplate {
+  SUPPORT_REPLY_TEMPLATE_UNSPECIFIED = 0;
+  SUPPORT_REPLY_TEMPLATE_ACKNOWLEDGED = 1;
+  SUPPORT_REPLY_TEMPLATE_URGENT_ACKNOWLEDGED = 2;
+  SUPPORT_REPLY_TEMPLATE_ERROR_EXPLAINED = 3;
+}
+
+message SupportReply {
+  SupportReplyTemplate template = 1;
+  common.v1.ErrorCode error_code = 2;
+  string trace_id = 3;
+}
+
+enum SupportMessageAuthorKind {
+  SUPPORT_MESSAGE_AUTHOR_KIND_UNSPECIFIED = 0;
+  SUPPORT_MESSAGE_AUTHOR_KIND_CLIENT = 1;
+  SUPPORT_MESSAGE_AUTHOR_KIND_SUPPORT = 2;
+}
+
+message SupportTicketMessage {
+  string id = 1;
+  string ticket_id = 2;
+  SupportMessageAuthorKind author_kind = 3;
+  string author_display_name = 4;
+  google.protobuf.Timestamp created_at = 5;
+  oneof body {
+    string text = 10;
+    SupportReply reply = 11;
+  }
+}
+
+message CreateSupportTicketRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  SupportTicketCategory category = 2 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+  SupportTicketContext context = 3 [(buf.validate.field).required = true];
+}
+
+message CreateSupportTicketResponse {
+  SupportTicket ticket = 1;
+}
+
+message ListMySupportTicketsRequest {
+  common.v1.PageRequest page = 1;
+}
+
+message ListMySupportTicketsResponse {
+  repeated SupportTicket tickets = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message GetSupportTicketRequest {
+  string ticket_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetSupportTicketResponse {
+  SupportTicket ticket = 1;
+  repeated SupportTicketMessage messages = 2;
+}
+
+service SupportTicketService {
+  rpc CreateSupportTicket(CreateSupportTicketRequest) returns (CreateSupportTicketResponse) {
+    option (common.v1.access).self = {};
+  }
+
+  rpc ListMySupportTickets(ListMySupportTicketsRequest) returns (ListMySupportTicketsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).self = {};
+  }
+
+  rpc GetSupportTicket(GetSupportTicketRequest) returns (GetSupportTicketResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).self = {};
+  }
+}

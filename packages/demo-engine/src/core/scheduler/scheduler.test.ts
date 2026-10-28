@@ -247,7 +247,7 @@ describe('engine tick', () => {
   it('runs a task through the engine runtime with one commit per run and stores the world time with it', async () => {
     const realTime = createFakeRealTime(0);
     const storage = createSpyStorage();
-    const engine = await createEngineWithTasks({ epoch: 'e', realTime, storage }, [writingTask]);
+    const engine = await createEngineWithTasks({ epoch: 'e', realTime, storage }, () => [writingTask]);
 
     realTime.advance(2_000);
     await engine.tick();
@@ -263,7 +263,7 @@ describe('engine tick', () => {
   it('does not commit when no task is due or a task changes nothing, so the stored world time stays at the last commit', async () => {
     const realTime = createFakeRealTime(0);
     const storage = createSpyStorage();
-    const engine = await createEngineWithTasks({ epoch: 'e', realTime, storage }, [{
+    const engine = await createEngineWithTasks({ epoch: 'e', realTime, storage }, () => [{
       id: 'idle',
       intervalMs: 1_000,
       run: () => undefined,
@@ -281,7 +281,7 @@ describe('engine tick', () => {
   it('restarts the schedule on reset', async () => {
     const realTime = createFakeRealTime(0);
     const storage = createSpyStorage();
-    const engine = await createEngineWithTasks({ epoch: 'e', realTime, storage }, [writingTask]);
+    const engine = await createEngineWithTasks({ epoch: 'e', realTime, storage }, () => [writingTask]);
 
     realTime.advance(5_000);
     await engine.reset('e2');
@@ -323,7 +323,7 @@ describe('engine scheduler deadlines', () => {
   it('writes the next due time of the task with every commit and with a checkpoint', async () => {
     const realTime = createFakeRealTime(0);
     const storage = createSpyStorage();
-    const engine = await createEngineWithTasks({ epoch: 'e', realTime, storage }, [idleTask]);
+    const engine = await createEngineWithTasks({ epoch: 'e', realTime, storage }, () => [idleTask]);
 
     realTime.advance(1_000);
     await engine.tick();
@@ -340,13 +340,13 @@ describe('engine scheduler deadlines', () => {
   it('keeps the due time and does not go back in world time after a restart on the same storage', async () => {
     const firstRealTime = createFakeRealTime(0);
     const storage = createSpyStorage();
-    const first = await createEngineWithTasks({ epoch: 'e', realTime: firstRealTime, storage }, [idleTask]);
+    const first = await createEngineWithTasks({ epoch: 'e', realTime: firstRealTime, storage }, () => [idleTask]);
     firstRealTime.advance(600);
     await first.checkpoint();
     const checkpointWorldTimeMs = first.getClockSnapshot().worldTimeMs;
 
     const secondRealTime = createFakeRealTime(50_000);
-    const second = await createEngineWithTasks({ epoch: 'e2', realTime: secondRealTime, storage }, [idleTask]);
+    const second = await createEngineWithTasks({ epoch: 'e2', realTime: secondRealTime, storage }, () => [idleTask]);
 
     expect(second.getClockSnapshot().worldTimeMs).toBeGreaterThanOrEqual(checkpointWorldTimeMs);
     secondRealTime.advance(399);
@@ -365,12 +365,12 @@ describe('engine scheduler deadlines', () => {
   it('counts a task that has no stored deadline from the world time of the start', async () => {
     const firstRealTime = createFakeRealTime(0);
     const storage = createSpyStorage();
-    const first = await createEngineWithTasks({ epoch: 'e', realTime: firstRealTime, storage }, []);
+    const first = await createEngineWithTasks({ epoch: 'e', realTime: firstRealTime, storage }, () => []);
     firstRealTime.advance(600);
     await first.checkpoint();
 
     const secondRealTime = createFakeRealTime(0);
-    const second = await createEngineWithTasks({ epoch: 'e2', realTime: secondRealTime, storage }, [idleTask]);
+    const second = await createEngineWithTasks({ epoch: 'e2', realTime: secondRealTime, storage }, () => [idleTask]);
     secondRealTime.advance(999);
     await second.tick();
 
@@ -385,7 +385,7 @@ describe('engine scheduler deadlines', () => {
   it('counts the deadlines from now on reset and stores them with the next checkpoint', async () => {
     const realTime = createFakeRealTime(0);
     const storage = createSpyStorage();
-    const engine = await createEngineWithTasks({ epoch: 'e', realTime, storage }, [idleTask]);
+    const engine = await createEngineWithTasks({ epoch: 'e', realTime, storage }, () => [idleTask]);
     realTime.advance(5_000);
     await engine.tick();
 

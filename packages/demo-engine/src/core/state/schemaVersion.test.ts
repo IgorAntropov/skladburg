@@ -2,6 +2,10 @@ import { create } from '@bufbuild/protobuf';
 import { NotificationSchema } from '@skladburg/contracts/notification/v1/notification';
 import { SupportAccessSessionSchema } from '@skladburg/contracts/support/v1/support_access';
 import {
+  SupportTicketMessageSchema,
+  SupportTicketSchema,
+} from '@skladburg/contracts/support/v1/support_ticket';
+import {
   describe,
   expect,
   it,
@@ -179,6 +183,32 @@ const SHAPE_FINGERPRINTS: Readonly<Record<number, readonly string[]>> = {
     'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
     'meta.worldTimeMs:number',
   ],
+  8: [
+    'collection.cities:bytes',
+    'collection.idempotency:{id:string,method:string,requestBytes:bytes,responseBytes:bytes}',
+    'collection.mapNodes:bytes',
+    'collection.memberships:bytes',
+    'collection.notifications:{id:string,notificationBytes:bytes,userId:string}',
+    'collection.organizationSettings:bytes',
+    'collection.organizations:bytes',
+    'collection.personas:{group:string,id:string,kind:string,organizationId:string,userId:string}',
+    'collection.roles:bytes',
+    'collection.routeLegs:bytes',
+    'collection.spheres:bytes',
+    'collection.supportAccessSessions:bytes',
+    'collection.supportBotQueue:{dueAtMs:number,id:string}',
+    'collection.supportTicketMessages:bytes',
+    'collection.supportTickets:bytes',
+    'collection.users:bytes',
+    'collection.warehouses:bytes',
+    'meta.channelSeq:record<bigint>',
+    'meta.randomState:{a:number,b:number,c:number,d:number}',
+    'meta.schedulerDueAtMs:record<number>',
+    'meta.seedVersion:number',
+    'meta.timeScale:number',
+    'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
+    'meta.worldTimeMs:number',
+  ],
 };
 
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -241,13 +271,19 @@ const populatedTask: SchedulerTaskValue = {
       userId: SeedUserId.ADMIN_1,
     });
     transaction.put('supportAccessSessions', create(SupportAccessSessionSchema, { id: 'fingerprint-session' }));
+    transaction.put('supportTickets', create(SupportTicketSchema, { id: 'fingerprint-ticket' }));
+    transaction.put('supportTicketMessages', create(SupportTicketMessageSchema, {
+      id: 'fingerprint-message',
+      ticketId: 'fingerprint-ticket',
+    }));
+    transaction.put('supportBotQueue', { dueAtMs: 1, id: 'fingerprint-ticket' });
   },
 };
 
 const createPopulatedSnapshot = async (): Promise<EngineSnapshotValue> => {
   const realTime = createFakeRealTime(0);
   const storage = createSpyStorage();
-  const engine = await createEngineWithTasks({ epoch: 'e', realTime, storage }, [populatedTask]);
+  const engine = await createEngineWithTasks({ epoch: 'e', realTime, storage }, () => [populatedTask]);
   const caller = createEngineCaller(engine);
 
   await caller.organization.createWarehouse(
@@ -305,8 +341,8 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 7 since the support access sessions joined the collections', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(7);
+  it('is version 8 since the support tickets, their messages and the bot queue joined the collections', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(8);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
   });
 });

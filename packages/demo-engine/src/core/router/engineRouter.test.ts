@@ -63,6 +63,7 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
       listWarehouses: unused,
     },
     organizationShowcaseService: { getOrganizationShowcase: unused, listOrganizationShowcases: unused },
+    supportTicketService: { createSupportTicket: unused, getSupportTicket: unused, listMySupportTickets: unused },
     userProfileService: { removeMyAvatar: unused, setMyAvatar: unused },
   });
 

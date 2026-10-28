@@ -4,6 +4,7 @@ import { create } from '@bufbuild/protobuf';
 import {
   NotificationSchema,
   PartnerVerifiedParamsSchema,
+  SupportReplyParamsSchema,
   VerificationNextLevelParamsSchema,
   WarehouseCreatedParamsSchema,
 } from '@skladburg/contracts/notification/v1/notification';
@@ -78,6 +79,18 @@ describe('formatNotificationMessage', () => {
     });
 
     expect(formatNotificationMessage(t, notification)).toBe('Доступен уровень проверки 3. Сейчас у вас уровень 2');
+  });
+
+  it('names the number of the support ticket that was answered without a thousands separator', async () => {
+    const t = await loadTranslate();
+    const notification = create(NotificationSchema, {
+      params: {
+        case: 'supportReply',
+        value: create(SupportReplyParamsSchema, { ticketId: 'ticket-1', ticketNumber: 1001 }),
+      },
+    });
+
+    expect(formatNotificationMessage(t, notification)).toBe('Поддержка ответила по обращению № 1001');
   });
 
   it('never shows an empty line for a kind without a text', async () => {

@@ -19,6 +19,10 @@ import type {
   Warehouse,
 } from '@skladburg/contracts/organization/v1/organization';
 import type { SupportAccessSession } from '@skladburg/contracts/support/v1/support_access';
+import type {
+  SupportTicket,
+  SupportTicketMessage,
+} from '@skladburg/contracts/support/v1/support_ticket';
 
 import {
   clone,
@@ -42,6 +46,10 @@ import {
   WarehouseSchema,
 } from '@skladburg/contracts/organization/v1/organization';
 import { SupportAccessSessionSchema } from '@skladburg/contracts/support/v1/support_access';
+import {
+  SupportTicketMessageSchema,
+  SupportTicketSchema,
+} from '@skladburg/contracts/support/v1/support_ticket';
 
 import type {
   EngineCollectionName,
@@ -52,15 +60,18 @@ import type {
   DemoPersonaValue,
   IdempotencyRecordValue,
   NotificationRecordValue,
+  SupportBotQueueRecordValue,
 } from './records';
 
 import {
   parseDemoPersona,
   parseIdempotencyRecord,
   parseNotificationRecord,
+  parseSupportBotQueueRecord,
   serializeDemoPersona,
   serializeIdempotencyRecord,
   serializeNotificationRecord,
+  serializeSupportBotQueueRecord,
 } from './records';
 
 export interface TableDefinition<TRecord, TIndex extends string> {
@@ -88,6 +99,9 @@ export interface TableIndexesValue {
   routeLegs: never;
   spheres: never;
   supportAccessSessions: 'organizationId' | 'staffUserId';
+  supportBotQueue: never;
+  supportTicketMessages: 'ticketId';
+  supportTickets: 'authorUserId';
   users: never;
   warehouses: 'tenantId';
 }
@@ -107,6 +121,9 @@ export interface TableRecordsValue {
   routeLegs: RouteLeg;
   spheres: Sphere;
   supportAccessSessions: SupportAccessSession;
+  supportBotQueue: SupportBotQueueRecordValue;
+  supportTicketMessages: SupportTicketMessage;
+  supportTickets: SupportTicket;
   users: User;
   warehouses: Warehouse;
 }
@@ -166,6 +183,13 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   supportAccessSessions: defineMessageTable(SupportAccessSessionSchema, session => session.id, {
     organizationId: session => session.organizationId,
     staffUserId: session => session.staffUserId,
+  }),
+  supportBotQueue: defineRecordTable(parseSupportBotQueueRecord, serializeSupportBotQueueRecord),
+  supportTicketMessages: defineMessageTable(SupportTicketMessageSchema, message => message.id, {
+    ticketId: message => message.ticketId,
+  }),
+  supportTickets: defineMessageTable(SupportTicketSchema, ticket => ticket.id, {
+    authorUserId: ticket => ticket.authorUserId,
   }),
   users: defineMessageTable(UserSchema, user => user.id, {}),
   warehouses: defineMessageTable(WarehouseSchema, warehouse => warehouse.id, { tenantId: warehouse => warehouse.tenantId }),

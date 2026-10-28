@@ -129,6 +129,8 @@ const ROUTE_LEGS_DATABASE_VERSION = 3;
 const ROUTE_LEGS_SCHEMA_VERSION = 5;
 const NOTIFICATIONS_DATABASE_VERSION = 4;
 const NOTIFICATIONS_SCHEMA_VERSION = 6;
+const SUPPORT_ACCESS_DATABASE_VERSION = 5;
+const SUPPORT_ACCESS_SCHEMA_VERSION = 7;
 
 const LEGACY_DATABASE: LegacyDatabaseValue = {
   nodeStoreName: 'boardNodes',
@@ -156,6 +158,13 @@ const NOTIFICATIONS_DATABASE: LegacyDatabaseValue = {
   schemaVersion: NOTIFICATIONS_SCHEMA_VERSION,
   storeNames: [...ROUTE_LEGS_DATABASE.storeNames, 'notifications'],
   version: NOTIFICATIONS_DATABASE_VERSION,
+};
+
+const SUPPORT_ACCESS_DATABASE: LegacyDatabaseValue = {
+  nodeStoreName: 'mapNodes',
+  schemaVersion: SUPPORT_ACCESS_SCHEMA_VERSION,
+  storeNames: [...NOTIFICATIONS_DATABASE.storeNames, 'supportAccessSessions'],
+  version: SUPPORT_ACCESS_DATABASE_VERSION,
 };
 
 const createLegacyDatabase = (factory: IDBFactory, legacy: LegacyDatabaseValue = LEGACY_DATABASE): Promise<void> =>
@@ -459,6 +468,38 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     expect(loaded?.collections.mapNodes.size).toBe(snapshot.collections.mapNodes.size + 1);
     expect(loaded?.collections.warehouses.has('legacy-warehouse')).toBe(false);
     expect(loaded?.schemaVersion).toBe(snapshot.schemaVersion);
+  });
+
+  it('recreates the stores with the support tickets for a database of version 5 and stays writable after the upgrade', async () => {
+    const factory = new IDBFactory();
+    await createLegacyDatabase(factory, SUPPORT_ACCESS_DATABASE);
+
+    const storage = await openStorage(factory);
+    const upgraded = await openForeignConnection(factory, INDEXED_DB_VERSION);
+    const storeNames = Array.from(upgraded.objectStoreNames);
+    upgraded.close();
+
+    expect(INDEXED_DB_VERSION).toBeGreaterThan(SUPPORT_ACCESS_DATABASE_VERSION);
+    expect(storeNames).toEqual(expect.arrayContaining(['supportTickets', 'supportTicketMessages', 'supportBotQueue']));
+    expect(await storage.load()).toBeUndefined();
+
+    const snapshot = createSeedSnapshot();
+    await storage.replaceAll(snapshot);
+    await storage.commit({
+      deletes: {},
+      meta: snapshot.meta,
+      puts: {
+        supportBotQueue: new Map<string, StoredRecordValue>([['added-ticket', { dueAtMs: 4_000, id: 'added-ticket' }]]),
+        supportTicketMessages: new Map<string, StoredRecordValue>([['added-message', new Uint8Array([8])]]),
+        supportTickets: new Map<string, StoredRecordValue>([['added-ticket', new Uint8Array([9])]]),
+      },
+    });
+    const loaded = await storage.load();
+
+    expect(loaded?.collections.supportBotQueue.get('added-ticket')).toEqual({ dueAtMs: 4_000, id: 'added-ticket' });
+    expect(loaded?.collections.supportTicketMessages.has('added-message')).toBe(true);
+    expect(loaded?.collections.supportTickets.has('added-ticket')).toBe(true);
+    expect(loaded?.collections.mapNodes.has('legacy-node')).toBe(false);
   });
 
   it('recreates the stores with the support access sessions for a database of version 4 and stays writable after the upgrade', async () => {

@@ -6,6 +6,7 @@ import "access/v1/access.proto";
 import "google/protobuf/timestamp.proto";
 import "notification/v1/notification_events.proto";
 import "organization/v1/organization.proto";
+import "support/v1/support_events.proto";
 
 message Event {
   string channel = 1;
@@ -17,5 +18,6 @@ message Event {
     organization.v1.WarehouseChanged warehouse_changed = 11;
     access.v1.UserChanged user_changed = 12;
     notification.v1.NotificationsChanged notifications_changed = 13;
+    support.v1.SupportTicketChanged support_ticket_changed = 14;
   }
 }

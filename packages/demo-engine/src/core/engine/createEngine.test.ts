@@ -10,7 +10,10 @@ import {
   toBinary,
   toJsonString,
 } from '@bufbuild/protobuf';
-import { timestampMs } from '@bufbuild/protobuf/wkt';
+import {
+  timestampFromMs,
+  timestampMs,
+} from '@bufbuild/protobuf/wkt';
 import {
   Code,
   type ConnectError,
@@ -31,9 +34,14 @@ import {
 } from '@skladburg/contracts/organization/v1/organization';
 import {
   organizationChannel,
+  SUPPORT_SESSION_HEADER,
   userChannel,
   warehouseChannel,
 } from '@skladburg/contracts/runtime';
+import {
+  SupportAccessSection,
+  SupportAccessStatus,
+} from '@skladburg/contracts/support/v1/support_access';
 import {
   describe,
   expect,
@@ -41,9 +49,15 @@ import {
   vi,
 } from 'vitest';
 
-import type { IRealTimeSource } from '../ports/index';
+import type {
+  EngineSnapshotValue,
+  IRealTimeSource,
+} from '../ports/index';
 import type { IDemoEngine } from './engineTypes';
-import type { EngineCallerValue } from './testing/engineHarness';
+import type {
+  EngineCallerValue,
+  TestEngineValue,
+} from './testing/engineHarness';
 
 import {
   LEGACY_FIRST_ORGANIZATION_NAME,
@@ -69,8 +83,14 @@ import {
   ENGINE_SCHEMA_VERSION,
   TABLE_DEFINITIONS,
 } from '../state/index';
-import { createTestWarehouse } from '../state/testRecords';
-import { createEngine } from './createEngine';
+import {
+  createTestSupportAccessSession,
+  createTestWarehouse,
+} from '../state/testRecords';
+import {
+  createEngine,
+  createEngineWithTasks,
+} from './createEngine';
 import {
   createEngineCaller,
   createFakeRealTime,
@@ -112,6 +132,14 @@ const subscribeCustomer = (engine: IDemoEngine, events: Event[][]): void => {
   );
 
   expect(result.kind).toBe('subscribed');
+};
+
+const createEngineWithoutTasks = async (): Promise<TestEngineValue> => {
+  const realTime = createFakeRealTime();
+  const storage = createSpyStorage();
+  const engine = await createEngineWithTasks({ epoch: TEST_ENGINE_EPOCH, realTime, storage }, () => []);
+
+  return { engine, realTime, storage };
 };
 
 describe('createEngine startup', () => {
@@ -990,7 +1018,7 @@ describe('subscription position', () => {
 
 describe('checkpoint', () => {
   it('commits one change set without records, carrying the world time of the checkpoint and the unchanged streams', async () => {
-    const { engine, realTime, storage } = await createTestEngine();
+    const { engine, realTime, storage } = await createEngineWithoutTasks();
     const seedMeta = createSeedSnapshot().meta;
     realTime.advance(7_000);
 
@@ -1020,11 +1048,22 @@ describe('checkpoint', () => {
   });
 
   it('does not commit when the world time stands still and no command has run', async () => {
-    const { engine, storage } = await createTestEngine();
+    const { engine, storage } = await createEngineWithoutTasks();
 
     await engine.checkpoint();
 
     expect(storage.commits).toHaveLength(0);
+  });
+
+  it('writes the deadline of the support bot with the first checkpoint and nothing more while time stands still', async () => {
+    const { engine, storage } = await createTestEngine();
+
+    await engine.checkpoint();
+    await engine.checkpoint();
+
+    expect(storage.commits).toHaveLength(1);
+    expect(storage.commits[0]?.puts).toEqual({});
+    expect(storage.commits[0]?.meta.schedulerDueAtMs).toEqual({ 'support-bot': DEFAULT_ENGINE_SEED.worldStartMs + 1_000 });
   });
 
   it('does not commit right after a command that stored the same meta', async () => {
@@ -1113,6 +1152,68 @@ describe('checkpoint', () => {
     const after = await createEngine({ epoch: 'epoch-2', realTime, storage });
 
     expect(after.getClockSnapshot().worldTimeMs).toBe(DEFAULT_ENGINE_SEED.worldStartMs + 9_000);
+  });
+});
+
+describe('world clock of the call guard', () => {
+  const SESSION_ID = 'd0000000-0000-4000-8000-0000000000e1';
+  const SESSION_LENGTH_MS = 3_600_000;
+
+  const createSnapshotWithSession = (): EngineSnapshotValue => {
+    const seed = createSeedSnapshot();
+    const session = createTestSupportAccessSession(
+      SESSION_ID,
+      SeedOrganizationId.CUSTOMER_1,
+      SeedUserId.OPERATOR_SUPER_ADMIN_1,
+      SupportAccessStatus.ACTIVE,
+      { expiresAt: timestampFromMs(DEFAULT_ENGINE_SEED.worldStartMs + SESSION_LENGTH_MS), section: SupportAccessSection.WAREHOUSES },
+    );
+
+    return {
+      ...seed,
+      collections: {
+        ...seed.collections,
+        supportAccessSessions: new Map([[SESSION_ID, TABLE_DEFINITIONS.supportAccessSessions.encode(session)]]),
+      },
+    };
+  };
+
+  const listWarehousesAsStaff = (caller: EngineCallerValue): Promise<unknown> => {
+    const headers = createHeaders(SeedUserId.OPERATOR_SUPER_ADMIN_1, SeedOrganizationId.CUSTOMER_1);
+    headers.set(SUPPORT_SESSION_HEADER, SESSION_ID);
+
+    return caller.organization.listWarehouses({}, { headers });
+  };
+
+  it('opens a stored support session until its expiry by the world time of the engine, without a scheduler task', async () => {
+    const { engine, realTime } = await createTestEngine({ storage: createSpyStorage(createSnapshotWithSession()) });
+    const caller = createEngineCaller(engine);
+
+    await expect(listWarehousesAsStaff(caller)).resolves.toBeDefined();
+
+    realTime.advance(SESSION_LENGTH_MS - 1);
+
+    await expect(listWarehousesAsStaff(caller)).resolves.toBeDefined();
+
+    realTime.advance(1);
+    const error = await captureError(listWarehousesAsStaff(caller));
+
+    expect(readErrorDetail(error).code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
+  });
+
+  it('follows the scale of the world clock: a faster world closes the session sooner', async () => {
+    const seed = createSnapshotWithSession();
+    const { engine, realTime } = await createTestEngine({
+      storage: createSpyStorage({ ...seed, meta: { ...seed.meta, timeScale: 60 } }),
+    });
+    const caller = createEngineCaller(engine);
+
+    await expect(listWarehousesAsStaff(caller)).resolves.toBeDefined();
+
+    realTime.advance(SESSION_LENGTH_MS / 60);
+    const error = await captureError(listWarehousesAsStaff(caller));
+
+    expect(readErrorDetail(error).code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
   });
 });
 

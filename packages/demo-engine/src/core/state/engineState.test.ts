@@ -1,6 +1,10 @@
 import { create } from '@bufbuild/protobuf';
 import { WarehouseSchema } from '@skladburg/contracts/organization/v1/organization';
 import {
+  SupportTicketMessageSchema,
+  SupportTicketSchema,
+} from '@skladburg/contracts/support/v1/support_ticket';
+import {
   describe,
   expect,
   it,
@@ -86,6 +90,35 @@ describe('createEngineState reads', () => {
     const firstTenantSessions = state.read.listBy('supportAccessSessions', 'organizationId', FIRST_TENANT_ID);
 
     expect(firstTenantSessions.map(session => session.id)).toEqual(['s-1', 's-3']);
+  });
+
+  it('finds support tickets by the author, messages by the ticket and reads a bot queue record by id', () => {
+    const state = createEngineState(createEmptySnapshot());
+    state.transact(TEST_WORLD_TIME_MS, (transaction) => {
+      transaction.put('supportTickets', create(SupportTicketSchema, { authorUserId: 'user-1', id: 't-1', number: 1001 }));
+      transaction.put('supportTickets', create(SupportTicketSchema, { authorUserId: 'user-2', id: 't-2', number: 1002 }));
+      transaction.put('supportTickets', create(SupportTicketSchema, { authorUserId: 'user-1', id: 't-3', number: 1003 }));
+      transaction.put('supportTicketMessages', create(SupportTicketMessageSchema, { id: 'm-1', ticketId: 't-1' }));
+      transaction.put('supportTicketMessages', create(SupportTicketMessageSchema, { id: 'm-2', ticketId: 't-2' }));
+      transaction.put('supportBotQueue', { dueAtMs: 7, id: 't-1' });
+    }, createLiveMeta).apply();
+
+    expect(state.read.listBy('supportTickets', 'authorUserId', 'user-1').map(ticket => ticket.id)).toEqual(['t-1', 't-3']);
+    expect(state.read.listBy('supportTicketMessages', 'ticketId', 't-2').map(message => message.id)).toEqual(['m-2']);
+    expect(state.read.get('supportBotQueue', 't-1')).toEqual({ dueAtMs: 7, id: 't-1' });
+  });
+
+  it('removes a bot queue record in a transaction and leaves it out of the list afterwards', () => {
+    const state = createEngineState(createEmptySnapshot());
+    state.transact(TEST_WORLD_TIME_MS, (transaction) => {
+      transaction.put('supportBotQueue', { dueAtMs: 7, id: 't-1' });
+      transaction.put('supportBotQueue', { dueAtMs: 9, id: 't-2' });
+    }, createLiveMeta).apply();
+    state.transact(TEST_WORLD_TIME_MS, (transaction) => {
+      transaction.delete('supportBotQueue', 't-1');
+    }, createLiveMeta).apply();
+
+    expect(state.read.list('supportBotQueue').map(record => record.id)).toEqual(['t-2']);
   });
 
   it('hands out copies: mutating a result does not touch the state', () => {

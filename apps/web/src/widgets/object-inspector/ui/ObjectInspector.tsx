@@ -11,7 +11,10 @@ import {
 import type { ObjectRefValue } from '@/shared/routing';
 
 import { useI18n } from '@/shared/i18n';
-import { Button } from '@/shared/ui';
+import {
+  Button,
+  EmptyState,
+} from '@/shared/ui';
 
 export interface ObjectInspectorProps {
   children?: ReactNode | undefined;
@@ -34,12 +37,6 @@ const IDENTIFIER_CLASS_NAME = [
   'mt-2 block rounded-control border border-line bg-panel-solid px-3 py-2',
   'font-mono text-sm break-all',
 ].join(' ');
-
-const EMPTY_CLASS_NAME = 'flex flex-1 flex-col items-center justify-center gap-3 text-center';
-
-const EMPTY_ICON_CLASS_NAME = 'flex size-10 shrink-0 items-center justify-center rounded-full bg-hover text-on-panel-muted';
-
-const EMPTY_TEXT_CLASS_NAME = 'max-w-80 text-base text-pretty text-on-panel-muted @xl:max-w-none';
 
 export const ObjectInspector = ({
   children,
@@ -70,14 +67,7 @@ export const ObjectInspector = ({
           </Button>
         )}
       </div>
-      {isEmptyShown && (
-        <div className={EMPTY_CLASS_NAME}>
-          <span aria-hidden className={EMPTY_ICON_CLASS_NAME}>
-            <MousePointerClick className="size-5" />
-          </span>
-          <p className={EMPTY_TEXT_CLASS_NAME}>{t('hud.inspector.empty')}</p>
-        </div>
-      )}
+      {isEmptyShown && <EmptyState icon={MousePointerClick} text={t('hud.inspector.empty')} />}
       {isBodyShown && children}
       {isStubShown && (
         <p className={OBJECT_CLASS_NAME}>

@@ -2,9 +2,7 @@ import type { ReactElement } from 'react';
 
 import {
   ChartNoAxesColumn,
-  Handshake,
   ListChecks,
-  Truck,
 } from 'lucide-react';
 import {
   useCallback,
@@ -14,11 +12,12 @@ import {
 import type { ObjectRefValue } from '@/shared/routing';
 import type { TabsItemValue } from '@/shared/ui';
 
+import { AssistantPortrait } from '@/entities/assistant';
 import { useI18n } from '@/shared/i18n';
+import { EmptyState } from '@/shared/ui';
 import {
   HudLayout,
   useInspectorFocus,
-  ZoneEmptyState,
 } from '@/widgets/hud-layout';
 import { SceneCameraControls } from '@/widgets/scene-viewport';
 
@@ -67,12 +66,12 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
 
   const listTabs: readonly TabsItemValue[] = [
     {
-      content: <ZoneEmptyState icon={Handshake} text={t('hud.lists.empty.deals')} />,
+      content: <EmptyState media={<AssistantPortrait size="sm" />} text={t('hud.lists.empty.deals')} />,
       id: 'deals',
       label: t('hud.lists.deals'),
     },
     {
-      content: <ZoneEmptyState icon={Truck} text={t('hud.lists.empty.trips')} />,
+      content: <EmptyState media={<AssistantPortrait size="sm" />} text={t('hud.lists.empty.trips')} />,
       id: 'trips',
       label: t('hud.lists.trips'),
     },
@@ -105,7 +104,7 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
         canCollapsePanels
         defaultListTabId={SITES_TAB_ID}
         inspector={<NetworkInspector focus={focus} onClose={inspectorFocus.onInspectorClose} state={modelState} />}
-        kpi={<ZoneEmptyState icon={ChartNoAxesColumn} text={t('hud.kpi.empty')} />}
+        kpi={<EmptyState icon={ChartNoAxesColumn} text={t('hud.kpi.empty')} />}
         listTabs={listTabs}
         listTabsResetKey={listTabsResetKey}
         panel={panel}
@@ -118,7 +117,7 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
           />
         )}
         sceneControls={<SceneCameraControls />}
-        tracker={<ZoneEmptyState icon={ListChecks} text={t('hud.tracker.empty')} />}
+        tracker={<EmptyState icon={ListChecks} text={t('hud.tracker.empty')} />}
       />
     </div>
   );

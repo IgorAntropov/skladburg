@@ -13,8 +13,10 @@ import {
 } from '@/entities/session';
 import { ChangeAvatarActions } from '@/features/change-avatar';
 import { useI18n } from '@/shared/i18n';
-import { AddressLink } from '@/shared/routing';
-import { Avatar } from '@/shared/ui';
+import {
+  Avatar,
+  TextLink,
+} from '@/shared/ui';
 
 import { ProfileMyProfileSkeleton } from '../menu/ProfileMyProfileSkeleton';
 import { SideBadges } from '../menu/SideBadges';
@@ -23,12 +25,6 @@ import { useProfileSecondLine } from '../menu/useProfileSecondLine';
 const NAME_CLASS_NAME = 'max-w-full text-lg leading-6 font-semibold tracking-tight break-words';
 
 const PHOTO_HINT_CLASS_NAME = 'flex items-start gap-2 text-sm leading-5 text-pretty text-on-panel-muted';
-
-const COMPANY_LINK_CLASS_NAME = [
-  'inline-flex min-h-11 items-center rounded-control text-base text-link underline underline-offset-2',
-  'hover:text-on-panel',
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
-].join(' ');
 
 export interface ProfileMyProfileProps {
   onDismiss: () => void;
@@ -83,14 +79,13 @@ export const ProfileMyProfile = ({ onDismiss }: ProfileMyProfileProps): ReactEle
       </div>
       {canViewNetwork && (
         <div className="border-t border-line pt-2">
-          <AddressLink
-            className={COMPANY_LINK_CLASS_NAME}
+          <TextLink
             data-testid="profile-my-profile-company-link"
             onClick={handleCompanyCardClick}
             to={{ kind: 'object', object: { id: organizationId, type: 'organization' } }}
           >
             {t('profile.myProfile.companyCard')}
-          </AddressLink>
+          </TextLink>
         </div>
       )}
     </div>

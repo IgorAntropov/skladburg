@@ -1,14 +1,16 @@
 import type { ReactElement } from 'react';
 
-import { Warehouse } from 'lucide-react';
 import { useMemo } from 'react';
 
 import type { NetworkMapModelValue } from '@/entities/network';
 import type { ObjectRefValue } from '@/shared/routing';
 
+import { AssistantPortrait } from '@/entities/assistant';
 import { useI18n } from '@/shared/i18n';
-import { WidgetStates } from '@/shared/ui';
-import { ZoneEmptyState } from '@/widgets/hud-layout';
+import {
+  EmptyState,
+  WidgetStates,
+} from '@/shared/ui';
 
 import type { NetworkMapModelStateValue } from '../../api/useNetworkMapModel';
 
@@ -69,7 +71,7 @@ export const NetworkSiteList = ({ focus, state }: NetworkSiteListProps): ReactEl
   return (
     <WidgetStates
       data={state.data}
-      empty={<ZoneEmptyState icon={Warehouse} text={t('hud.lists.empty.warehouses')} />}
+      empty={<EmptyState media={<AssistantPortrait size="sm" />} text={t('hud.lists.empty.warehouses')} />}
       error={state.error}
       isEmpty={isModelEmpty}
       isRetrying={state.isRetrying}

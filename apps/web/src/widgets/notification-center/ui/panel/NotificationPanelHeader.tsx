@@ -1,7 +1,5 @@
 import type { ReactElement } from 'react';
 
-import type { CommandAccessValue } from '@/shared/api';
-
 import { useMarkAllNotificationsRead } from '@/entities/notification';
 import { useCommandAccess } from '@/entities/session';
 import {
@@ -17,8 +15,6 @@ interface NotificationPanelHeaderProps {
   unreadCount: number;
 }
 
-const NOTHING_TO_READ_ACCESS: CommandAccessValue = { status: 'checking' };
-
 export const NotificationPanelHeader = ({ t, unreadCount }: NotificationPanelHeaderProps): ReactElement => {
   const announce = useAnnounce();
 
@@ -33,18 +29,18 @@ export const NotificationPanelHeader = ({ t, unreadCount }: NotificationPanelHea
   const access = useCommandAccess(command.method);
 
   const isNothingToRead = unreadCount === 0 && !command.isPending;
-  const buttonAccess = isNothingToRead ? NOTHING_TO_READ_ACCESS : access;
 
   return (
     <div className="shrink-0 border-b border-line">
       <div className="flex min-h-14 items-center justify-between gap-2 pr-1 pl-4">
         <h2 className="text-lg font-semibold tracking-tight">{t('notification.panel.title')}</h2>
         <ActionButton
-          access={buttonAccess}
+          access={access}
           className="px-3"
           command={command}
           data-testid="notification-center-mark-all"
           errorPlacement="external"
+          isDisabled={isNothingToRead}
           pendingLabel={t('notification.panel.markAllRead.pending')}
           variant="ghost"
         >

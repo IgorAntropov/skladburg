@@ -15,14 +15,16 @@ import { Tooltip } from '../tooltip/Tooltip';
 
 const ACCESS_REASON_CLASS_NAME = 'sr-only pointer-coarse:not-sr-only max-w-prose text-sm text-pretty wrap-break-word text-on-panel-muted';
 
-export interface AccessButtonProps extends Omit<ButtonProps, 'aria-describedby' | 'aria-disabled'> {
+export interface AccessButtonProps extends Omit<ButtonProps, 'aria-describedby' | 'aria-disabled' | 'disabled'> {
   access: CommandAccessValue;
+  isDisabled?: boolean | undefined;
   tooltipSide?: TooltipProps['side'] | undefined;
 }
 
 export const AccessButton = ({
   access,
   children,
+  isDisabled = false,
   pending,
   tooltipSide,
   ...buttonProps
@@ -33,7 +35,7 @@ export const AccessButton = ({
   const denialReason = access.status === 'denied' ? translatePermissionDenial(t, access.permission) : undefined;
   const isDenied = denialReason !== undefined;
   const describedById = isDenied ? reasonId : undefined;
-  const isBlocked = access.status !== 'allowed';
+  const isBlocked = access.status !== 'allowed' || isDisabled;
   const isPending = access.status === 'allowed' && pending === true;
 
   return (

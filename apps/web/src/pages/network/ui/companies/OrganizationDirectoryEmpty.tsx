@@ -1,14 +1,13 @@
 import type { ReactElement } from 'react';
 
-import {
-  BadgeCheck,
-  Building2,
-  SearchX,
-} from 'lucide-react';
+import { SearchX } from 'lucide-react';
 
+import { AssistantPortrait } from '@/entities/assistant';
 import { useI18n } from '@/shared/i18n';
-import { Button } from '@/shared/ui';
-import { ZoneEmptyState } from '@/widgets/hud-layout';
+import {
+  Button,
+  EmptyState,
+} from '@/shared/ui';
 
 import type { OrganizationDirectoryFilterValue } from '../../model/organizationDirectoryFilter';
 
@@ -33,17 +32,18 @@ export const OrganizationDirectoryEmpty = ({ filter, onReset }: OrganizationDire
   };
 
   if (isTopLevelFilter) {
-    return <ZoneEmptyState icon={BadgeCheck} text={t('organization.directory.level4Empty')} />;
+    return <EmptyState media={<AssistantPortrait size="sm" />} text={t('organization.directory.level4Empty')} />;
   }
 
   if (!isFiltered) {
-    return <ZoneEmptyState icon={Building2} text={t('organization.directory.empty')} />;
+    return <EmptyState media={<AssistantPortrait size="sm" />} text={t('organization.directory.empty')} />;
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3">
-      <ZoneEmptyState icon={SearchX} text={t('organization.directory.emptyFiltered')} />
-      <Button onClick={handleResetClick} variant="ghost">{t('organization.directory.reset')}</Button>
-    </div>
+    <EmptyState
+      action={<Button onClick={handleResetClick} variant="ghost">{t('organization.directory.reset')}</Button>}
+      icon={SearchX}
+      text={t('organization.directory.emptyFiltered')}
+    />
   );
 };

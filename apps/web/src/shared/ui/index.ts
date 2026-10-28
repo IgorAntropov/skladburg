@@ -23,6 +23,8 @@ export { DropdownMenuRadioGroup } from './dropdown-menu/DropdownMenuRadioGroup';
 export { DropdownMenuRadioItem } from './dropdown-menu/DropdownMenuRadioItem';
 export { DropdownMenuSeparator } from './dropdown-menu/DropdownMenuSeparator';
 export { DropdownMenuTrigger } from './dropdown-menu/DropdownMenuTrigger';
+export type { EmptyStateProps } from './empty-state/EmptyState';
+export { EmptyState } from './empty-state/EmptyState';
 export type { FileButtonProps } from './file-button/FileButton';
 export { FileButton } from './file-button/FileButton';
 export { FocusHandoffProvider } from './focus-handoff/FocusHandoffProvider';
@@ -60,6 +62,8 @@ export type {
 export { Tabs } from './tabs/Tabs';
 export type { TextInputProps } from './text-input/TextInput';
 export { TextInput } from './text-input/TextInput';
+export type { TextLinkProps } from './text-link/TextLink';
+export { TextLink } from './text-link/TextLink';
 export type { TooltipProps } from './tooltip/Tooltip';
 export { Tooltip } from './tooltip/Tooltip';
 export type { TooltipGroupProps } from './tooltip/TooltipGroup';

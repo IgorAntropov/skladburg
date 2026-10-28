@@ -25,10 +25,16 @@ import { AccessButton } from './AccessButton';
 const BUTTON_LABEL = 'Добавить склад';
 const PERMISSION_NAME = defaultLocaleCatalog['permission.warehouse_create'];
 
-const renderButton = (access: CommandAccessValue, isPending = false): Mock<(event: MouseEvent<HTMLButtonElement>) => void> => {
+const renderButton = (
+  access: CommandAccessValue,
+  isPending = false,
+  isDisabled = false,
+): Mock<(event: MouseEvent<HTMLButtonElement>) => void> => {
   const onClick = vi.fn<(event: MouseEvent<HTMLButtonElement>) => void>();
 
-  render(withTestLocalizer(<AccessButton access={access} onClick={onClick} pending={isPending}>{BUTTON_LABEL}</AccessButton>));
+  render(withTestLocalizer(
+    <AccessButton access={access} isDisabled={isDisabled} onClick={onClick} pending={isPending}>{BUTTON_LABEL}</AccessButton>,
+  ));
 
   return onClick;
 };
@@ -68,6 +74,17 @@ describe('AccessButton', () => {
 
   it('blocks the press without a reason while the access is being checked', () => {
     const onClick = renderButton({ status: 'checking' });
+
+    const button = screen.getByRole('button', { name: BUTTON_LABEL });
+    fireEvent.click(button);
+
+    expect(onClick).not.toHaveBeenCalled();
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(button.getAttribute('aria-describedby')).toBeNull();
+  });
+
+  it('blocks the press when the button is disabled although the access is allowed', () => {
+    const onClick = renderButton({ status: 'allowed' }, false, true);
 
     const button = screen.getByRole('button', { name: BUTTON_LABEL });
     fireEvent.click(button);

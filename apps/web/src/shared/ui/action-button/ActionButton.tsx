@@ -26,6 +26,7 @@ export interface ActionButtonProps extends WithTestIdValue {
   className?: string | undefined;
   command: CommandValue;
   errorPlacement?: 'below' | 'external' | undefined;
+  isDisabled?: boolean | undefined;
   pendingLabel?: string | undefined;
   size?: ButtonSizeValue | undefined;
   tooltipSide?: TooltipProps['side'] | undefined;
@@ -44,6 +45,7 @@ export const ActionButton = ({
   command,
   'data-testid': testId,
   errorPlacement = 'below',
+  isDisabled,
   pendingLabel,
   size,
   tooltipSide,
@@ -72,6 +74,7 @@ export const ActionButton = ({
         access={access}
         className={className}
         data-testid={testId}
+        isDisabled={isDisabled}
         onClick={handleClick}
         pending={command.isPending}
         pendingLabel={pendingLabel ?? t('action.pending')}

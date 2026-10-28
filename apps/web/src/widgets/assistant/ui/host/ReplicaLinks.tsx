@@ -1,8 +1,10 @@
 import type { ReactElement } from 'react';
 
 import { useMarkNotificationsRead } from '@/entities/notification';
-import { AddressLink } from '@/shared/routing';
-import { Button } from '@/shared/ui';
+import {
+  Button,
+  TextLink,
+} from '@/shared/ui';
 
 import type { AssistantTranslate } from '../../lib/formatReplicaText';
 import type { ReplicaValue } from '../../model/replicaTypes';
@@ -20,12 +22,6 @@ const LINK_LABEL_KEYS = {
   open: 'assistant.link.open',
   organization: 'assistant.link.organization',
 } as const;
-
-const LINK_CLASS_NAME = [
-  'inline-flex min-h-11 items-center rounded-control text-sm font-medium text-link underline underline-offset-2',
-  'hover:text-on-panel active:text-on-panel',
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
-].join(' ');
 
 const CENTER_BUTTON_CLASS_NAME = '-mx-1 px-1! text-sm underline underline-offset-2';
 
@@ -50,16 +46,16 @@ export const ReplicaLinks = ({ notificationIds, onNavigate, onOpenCenter, replic
   return (
     <div className="flex flex-wrap items-center gap-x-4">
       {replica.links.map(link => (
-        <AddressLink
-          className={LINK_CLASS_NAME}
+        <TextLink
           data-testid={`assistant-replica-link-${link.kind}`}
           isFocusRequested={link.isFocusRequested}
           key={link.id}
           onClick={handleLinkClick}
+          size="sm"
           to={link.address}
         >
           {t(LINK_LABEL_KEYS[link.kind])}
-        </AddressLink>
+        </TextLink>
       ))}
       {replica.hasCenterLink && (
         <Button

@@ -13,7 +13,7 @@ import {
 } from '@/entities/notification';
 import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
-import { AddressLink } from '@/shared/routing';
+import { TextLink } from '@/shared/ui';
 
 import type { NotificationTranslate } from '../../lib/formatNotificationMessage';
 
@@ -39,12 +39,6 @@ const ROW_CLASS_NAME = 'flex gap-3 border-b border-line pt-3 pr-4 pl-3 last:bord
 const ICON_CLASS_NAME = 'relative flex size-8 shrink-0 items-center justify-center rounded-full bg-hover';
 
 const UNREAD_DOT_CLASS_NAME = 'absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-on-panel ring-2 ring-panel-solid';
-
-const LINK_CLASS_NAME = [
-  'inline-flex min-h-11 items-center rounded-control text-sm font-medium text-link underline underline-offset-2',
-  'hover:text-on-panel active:text-on-panel',
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
-].join(' ');
 
 export const NotificationRow = ({ notification, onLinkClick, t }: NotificationRowProps): ReactElement => {
   const { formatDateTime, userTimeZone } = useI18n();
@@ -85,16 +79,16 @@ export const NotificationRow = ({ notification, onLinkClick, t }: NotificationRo
         {links.length > 0 && (
           <div className="flex flex-wrap gap-x-4">
             {links.map(link => (
-              <AddressLink
-                className={LINK_CLASS_NAME}
+              <TextLink
                 data-testid={`notification-center-link-${link.kind}`}
                 isFocusRequested={link.isFocusRequested}
                 key={link.id}
                 onClick={handleLinkClick}
+                size="sm"
                 to={link.address}
               >
                 {t(LINK_LABEL_KEY_BY_KIND[link.kind])}
-              </AddressLink>
+              </TextLink>
             ))}
           </div>
         )}

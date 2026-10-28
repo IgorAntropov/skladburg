@@ -8,4 +8,3 @@ export { useInspectorFocus } from './lib/useInspectorFocus';
 export { HudLayout } from './ui/HudLayout';
 export { HudLayoutSkeleton } from './ui/HudLayoutSkeleton';
 export { PanelPlaceholder } from './ui/PanelPlaceholder';
-export { ZoneEmptyState } from './ui/ZoneEmptyState';

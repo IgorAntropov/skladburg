@@ -13,17 +13,23 @@ import type {
   PermissionRequirement,
 } from '@skladburg/contracts/common/v1/method_options';
 import type { Money } from '@skladburg/contracts/common/v1/money';
+import type { SupportAccessSession } from '@skladburg/contracts/support/v1/support_access';
 
 import { isMessage } from '@bufbuild/protobuf';
 import {
   isReflectMessage,
   reflect,
 } from '@bufbuild/protobuf/reflect';
-import { MethodOptions_IdempotencyLevel } from '@bufbuild/protobuf/wkt';
+import {
+  MethodOptions_IdempotencyLevel,
+  timestampMs,
+} from '@bufbuild/protobuf/wkt';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import { MoneySchema } from '@skladburg/contracts/common/v1/money';
 import { getMethodAccess } from '@skladburg/contracts/runtime';
+import { SupportAccessStatus } from '@skladburg/contracts/support/v1/support_access';
 
+import type { ActingContextValue } from '../context/index';
 import type { IDomainErrors } from '../errors/index';
 import type { IStateReader } from '../state/index';
 import type { IRequestValidator } from '../validation/index';
@@ -34,13 +40,24 @@ import type {
 } from './permissionScope';
 
 import { readActingContext } from '../context/index';
+import { isPlatformOperator } from '../platform/index';
 import { compareIds } from '../state/index';
 import { summarizePermissionGrants } from './effectivePermissions';
 import { resolvePermissionGrants } from './permissionGrants';
 import { isWarehouseInScope } from './permissionScope';
+import { resolveSupportSessionPermissions } from './supportSessionPermissions';
+
+export type AdmissionValue
+  = | { kind: 'membership'; membership: Membership }
+    | { kind: 'support_session'; session: SupportAccessSession };
+
+export interface AdmittedCallerValue extends CallerValue {
+  admission: AdmissionValue;
+  organizationId: string;
+}
 
 export interface CallerValue {
-  membership: Membership | undefined;
+  admission: AdmissionValue | undefined;
   organizationId: string | undefined;
   permissions: readonly EffectivePermissionValue[];
   scope: PermissionScopeValue | undefined;
@@ -49,6 +66,7 @@ export interface CallerValue {
 
 export interface CallGuardDependenciesValue {
   errors: IDomainErrors;
+  getWorldTimeMs: () => number;
   validator: IRequestValidator;
 }
 
@@ -61,17 +79,12 @@ export type GuardFunction<TCaller> = <TInput extends DescMessage, TOutput extend
 
 export interface ICallGuard {
   guardCall: GuardFunction<CallerValue>;
-  guardMemberCall: GuardFunction<MemberCallerValue>;
+  guardMemberCall: GuardFunction<AdmittedCallerValue>;
   guardPermissionCall: GuardFunction<PermissionCallerValue>;
   guardScopeFilteredCall: GuardFunction<PermissionCallerValue>;
 }
 
-export interface MemberCallerValue extends CallerValue {
-  membership: Membership;
-  organizationId: string;
-}
-
-export interface PermissionCallerValue extends MemberCallerValue {
+export interface PermissionCallerValue extends AdmittedCallerValue {
   scope: PermissionScopeValue;
 }
 
@@ -81,8 +94,8 @@ interface AuthorizationValue {
 }
 
 interface OrganizationContextValue {
+  admission: AdmissionValue;
   grants: readonly PermissionGrantValue[];
-  membership: Membership;
   organizationId: string;
   permissions: readonly EffectivePermissionValue[];
 }
@@ -95,7 +108,7 @@ interface ScopeCheckValue {
 }
 
 export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICallGuard => {
-  const { errors, validator } = dependencies;
+  const { errors, getWorldTimeMs, validator } = dependencies;
 
   const authenticate = (reader: IStateReader, userId: string | undefined): User => {
     const user = userId === undefined ? undefined : reader.get('users', userId);
@@ -107,16 +120,92 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
     return user;
   };
 
-  const joinOrganization = (reader: IStateReader, user: User, organizationId: string): OrganizationContextValue => {
-    const membership = reader.listBy('memberships', 'userId', user.id).find(candidate => candidate.organizationId === organizationId);
+  const findMembership = (reader: IStateReader, user: User, organizationId: string): Membership | undefined =>
+    reader.listBy('memberships', 'userId', user.id).find(candidate => candidate.organizationId === organizationId);
+
+  const joinByMembership = (reader: IStateReader, membership: Membership): OrganizationContextValue => {
+    const grants = resolvePermissionGrants(reader, membership);
+
+    return {
+      admission: { kind: 'membership', membership },
+      grants,
+      organizationId: membership.organizationId,
+      permissions: summarizePermissionGrants(grants),
+    };
+  };
+
+  const isSessionInForce = (session: SupportAccessSession, user: User, organizationId: string): boolean =>
+    session.status === SupportAccessStatus.ACTIVE
+    && session.staffUserId === user.id
+    && session.organizationId === organizationId
+    && session.expiresAt !== undefined
+    && getWorldTimeMs() < timestampMs(session.expiresAt);
+
+  const joinBySupportSession = (
+    reader: IStateReader,
+    user: User,
+    organizationId: string,
+    supportSessionId: string,
+  ): OrganizationContextValue => {
+    const session = reader.get('supportAccessSessions', supportSessionId);
+    const organization = reader.get('organizations', organizationId);
+    const staffMembership = reader.listBy('memberships', 'userId', user.id).find(candidate => isPlatformOperator(candidate.organizationId));
+
+    const isAdmitted = session !== undefined
+      && organization !== undefined
+      && staffMembership !== undefined
+      && isSessionInForce(session, user, organizationId);
+
+    if (!isAdmitted) {
+      throw errors.membershipRequired();
+    }
+
+    const permissions = resolveSupportSessionPermissions({
+      organizationProfiles: organization.profiles.map(profile => profile.kind),
+      session,
+      staffPermissions: summarizePermissionGrants(resolvePermissionGrants(reader, staffMembership)),
+    });
+
+    return {
+      admission: { kind: 'support_session', session },
+      grants: permissions.map(effective => ({
+        amountLimit: undefined,
+        isOrganizationWide: effective.isOrganizationWide,
+        permission: effective.permission,
+        warehouseIds: effective.warehouseIds,
+      })),
+      organizationId,
+      permissions,
+    };
+  };
+
+  const joinOrganization = (
+    reader: IStateReader,
+    user: User,
+    organizationId: string,
+    supportSessionId: string | undefined,
+  ): OrganizationContextValue => {
+    const membership = findMembership(reader, user, organizationId);
+
+    if (membership !== undefined) {
+      return joinByMembership(reader, membership);
+    }
+
+    if (supportSessionId === undefined) {
+      throw errors.membershipRequired();
+    }
+
+    return joinBySupportSession(reader, user, organizationId, supportSessionId);
+  };
+
+  const joinMemberOrganization = (reader: IStateReader, user: User, organizationId: string): OrganizationContextValue => {
+    const membership = findMembership(reader, user, organizationId);
 
     if (membership === undefined) {
       throw errors.membershipRequired();
     }
 
-    const grants = resolvePermissionGrants(reader, membership);
-
-    return { grants, membership, organizationId, permissions: summarizePermissionGrants(grants) };
+    return joinByMembership(reader, membership);
   };
 
   const findPermissionScope = (permissions: readonly EffectivePermissionValue[], permissionName: string): PermissionScopeValue => {
@@ -133,9 +222,11 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
     reader: IStateReader,
     requirement: MethodAccess['requirement'],
     user: User,
-    organizationId: string | undefined,
+    context: ActingContextValue,
     isScopeFiltered: boolean,
   ): AuthorizationValue => {
+    const { organizationId } = context;
+
     if (requirement.case === undefined) {
       throw errors.internal();
     }
@@ -152,11 +243,11 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
       return { organization: undefined, scopeCheck: undefined };
     }
 
-    const organization = joinOrganization(reader, user, organizationId);
-
     if (requirement.case !== 'permission') {
-      return { organization, scopeCheck: undefined };
+      return { organization: joinMemberOrganization(reader, user, organizationId), scopeCheck: undefined };
     }
+
+    const organization = joinOrganization(reader, user, organizationId, context.supportSessionId);
 
     const scope = findPermissionScope(organization.permissions, requirement.value.name);
     const isOrganizationWideRequired = requirement.value.scopeField === '' && !isScopeFiltered;
@@ -305,7 +396,7 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
 
     const context = readActingContext(headers);
     const user = authenticate(reader, context.userId);
-    const { organization, scopeCheck } = authorize(reader, requirement, user, context.organizationId, isScopeFiltered);
+    const { organization, scopeCheck } = authorize(reader, requirement, user, context, isScopeFiltered);
 
     validator.validate(method.input, request);
 
@@ -314,7 +405,7 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
     }
 
     return {
-      membership: organization?.membership,
+      admission: organization?.admission,
       organizationId: organization?.organizationId,
       permissions: organization?.permissions ?? [],
       scope: scopeCheck?.scope,
@@ -322,14 +413,14 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
     };
   };
 
-  const requireMember = (caller: CallerValue): MemberCallerValue => {
-    const { membership, organizationId } = caller;
+  const requireMember = (caller: CallerValue): AdmittedCallerValue => {
+    const { admission, organizationId } = caller;
 
-    if (membership === undefined || organizationId === undefined) {
+    if (admission === undefined || organizationId === undefined) {
       throw errors.membershipRequired();
     }
 
-    return { ...caller, membership, organizationId };
+    return { ...caller, admission, organizationId };
   };
 
   const requirePermission = (caller: CallerValue): PermissionCallerValue => {
@@ -346,7 +437,7 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
   const guardCall: GuardFunction<CallerValue> = (reader, method, request, headers) =>
     runGuard(reader, method, request, headers, false);
 
-  const guardMemberCall: GuardFunction<MemberCallerValue> = (reader, method, request, headers) =>
+  const guardMemberCall: GuardFunction<AdmittedCallerValue> = (reader, method, request, headers) =>
     requireMember(guardCall(reader, method, request, headers));
 
   const guardPermissionCall: GuardFunction<PermissionCallerValue> = (reader, method, request, headers) =>

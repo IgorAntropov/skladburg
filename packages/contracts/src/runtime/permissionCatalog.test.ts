@@ -62,10 +62,10 @@ describe('permission code names', () => {
 });
 
 describe('listPermissionCodes', () => {
-  it('lists the fifty nine codes of the catalog without the unspecified one', () => {
+  it('lists the sixty eight codes of the catalog without the unspecified one', () => {
     const codes = listPermissionCodes();
 
-    expect(codes).toHaveLength(59);
+    expect(codes).toHaveLength(68);
     expect(codes).not.toContain(PermissionCode.UNSPECIFIED);
     expect(new Set(codes).size).toBe(codes.length);
   });
@@ -81,7 +81,7 @@ describe('listPermissionCodes', () => {
 
     codes.pop();
 
-    expect(listPermissionCodes()).toHaveLength(59);
+    expect(listPermissionCodes()).toHaveLength(68);
   });
 
   it('gives every code a name made of a feature and an action', () => {
@@ -114,10 +114,46 @@ describe('getPermissionTraits', () => {
     expect(getPermissionTraits(PermissionCode.WAREHOUSE_VIEW).isLimitApplicable).toBe(false);
   });
 
-  it('gives every code at least one profile', () => {
-    const codesWithoutProfile = listPermissionCodes().filter(code => getPermissionTraits(code).profiles.length === 0);
+  it('gives every client code at least one profile and no platform code any', () => {
+    const codes = listPermissionCodes();
+    const clientCodesWithoutProfile = codes.filter((code) => {
+      const traits = getPermissionTraits(code);
 
-    expect(codesWithoutProfile).toEqual([]);
+      return !traits.isPlatform && traits.profiles.length === 0;
+    });
+    const platformCodesWithProfile = codes.filter((code) => {
+      const traits = getPermissionTraits(code);
+
+      return traits.isPlatform && traits.profiles.length > 0;
+    });
+
+    expect(clientCodesWithoutProfile).toEqual([]);
+    expect(platformCodesWithProfile).toEqual([]);
+  });
+
+  it('marks the platform codes', () => {
+    const platformNames = listPermissionCodes()
+      .filter(code => getPermissionTraits(code).isPlatform)
+      .map(getPermissionName);
+
+    expect(platformNames).toEqual([
+      'platform_dispute_approve',
+      'platform_verification_approve',
+      'support_emergency_manage',
+      'support_session_create',
+      'support_settings_edit',
+      'support_ticket_edit',
+      'support_ticket_view',
+    ]);
+  });
+
+  it('keeps the client support access codes out of the platform area', () => {
+    expect(getPermissionTraits(PermissionCode.SUPPORT_ACCESS_APPROVE).isPlatform).toBe(false);
+    expect(getPermissionTraits(PermissionCode.SUPPORT_ACCESS_VIEW).profiles).toEqual([
+      ProfileKind.CUSTOMER,
+      ProfileKind.SUPPLIER,
+      ProfileKind.CARRIER,
+    ]);
   });
 
   it('refuses the unspecified code', () => {

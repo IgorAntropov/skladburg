@@ -9,6 +9,7 @@ message PermissionTraits {
   repeated organization.v1.ProfileKind profiles = 1;
   bool is_scope_applicable = 2;
   bool is_limit_applicable = 3;
+  bool is_platform = 4;
 }
 
 extend google.protobuf.EnumValueOptions {
@@ -370,4 +371,25 @@ enum PermissionCode {
       PROFILE_KIND_CARRIER
     ]
   }];
+  PERMISSION_CODE_SUPPORT_ACCESS_APPROVE = 60 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_SUPPORT_ACCESS_VIEW = 61 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_SUPPORT_TICKET_VIEW = 62 [(permission_traits) = {is_platform: true}];
+  PERMISSION_CODE_SUPPORT_TICKET_EDIT = 63 [(permission_traits) = {is_platform: true}];
+  PERMISSION_CODE_SUPPORT_SESSION_CREATE = 64 [(permission_traits) = {is_platform: true}];
+  PERMISSION_CODE_SUPPORT_SETTINGS_EDIT = 65 [(permission_traits) = {is_platform: true}];
+  PERMISSION_CODE_SUPPORT_EMERGENCY_MANAGE = 66 [(permission_traits) = {is_platform: true}];
+  PERMISSION_CODE_PLATFORM_VERIFICATION_APPROVE = 67 [(permission_traits) = {is_platform: true}];
+  PERMISSION_CODE_PLATFORM_DISPUTE_APPROVE = 68 [(permission_traits) = {is_platform: true}];
 }

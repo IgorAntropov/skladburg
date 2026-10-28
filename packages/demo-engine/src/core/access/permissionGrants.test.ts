@@ -10,6 +10,7 @@ import {
   it,
 } from 'vitest';
 
+import { PLATFORM_OPERATOR_ORGANIZATION_ID } from '../platform/index';
 import {
   createEmptySnapshot,
   createEngineState,
@@ -36,6 +37,18 @@ const createState = (): ReturnType<typeof createEngineState> => {
       tenantId: ORGANIZATION_ID,
     }));
     transaction.put('roles', create(RoleSchema, {
+      id: 'role-client-with-platform',
+      name: 'role-client-with-platform',
+      permissions: ['deal_view', 'support_ticket_view', 'support_session_create'],
+      tenantId: ORGANIZATION_ID,
+    }));
+    transaction.put('roles', create(RoleSchema, {
+      id: 'role-operator-with-client',
+      name: 'role-operator-with-client',
+      permissions: ['deal_view', 'support_ticket_view', 'support_session_create', 'support_access_approve'],
+      tenantId: PLATFORM_OPERATOR_ORGANIZATION_ID,
+    }));
+    transaction.put('roles', create(RoleSchema, {
       id: 'role-foreign',
       name: 'role-foreign',
       permissions: ['deal_view'],
@@ -48,8 +61,9 @@ const createState = (): ReturnType<typeof createEngineState> => {
 
 const createMembership = (
   assignments: { amountLimit?: typeof LIMIT; roleId: string; warehouseIds: string[] }[],
+  organizationId: string = ORGANIZATION_ID,
 ): ReturnType<typeof create<typeof MembershipSchema>> =>
-  create(MembershipSchema, { id: 'membership-1', organizationId: ORGANIZATION_ID, roleAssignments: assignments, userId: 'user-1' });
+  create(MembershipSchema, { id: 'membership-1', organizationId, roleAssignments: assignments, userId: 'user-1' });
 
 describe('resolvePermissionGrants', () => {
   it('returns one grant per assignment and role permission with the limit of the assignment', () => {
@@ -74,6 +88,36 @@ describe('resolvePermissionGrants', () => {
       { roleId: 'role-foreign', warehouseIds: [] },
       { roleId: 'role-missing', warehouseIds: [] },
     ]));
+
+    expect(grants).toEqual([]);
+  });
+
+  it('drops platform permissions from the roles of a client organization', () => {
+    const { read } = createState();
+
+    const grants = resolvePermissionGrants(read, createMembership([{ roleId: 'role-client-with-platform', warehouseIds: [] }]));
+
+    expect(grants.map(grant => grant.permission)).toEqual(['deal_view']);
+  });
+
+  it('drops client permissions from the roles of the platform operator', () => {
+    const { read } = createState();
+
+    const grants = resolvePermissionGrants(
+      read,
+      createMembership([{ roleId: 'role-operator-with-client', warehouseIds: [] }], PLATFORM_OPERATOR_ORGANIZATION_ID),
+    );
+
+    expect(grants.map(grant => grant.permission)).toEqual(['support_ticket_view', 'support_session_create']);
+  });
+
+  it('keeps the platform permissions out of a client role that is assigned to the operator membership', () => {
+    const { read } = createState();
+
+    const grants = resolvePermissionGrants(
+      read,
+      createMembership([{ roleId: 'role-client-with-platform', warehouseIds: [] }], PLATFORM_OPERATOR_ORGANIZATION_ID),
+    );
 
     expect(grants).toEqual([]);
   });

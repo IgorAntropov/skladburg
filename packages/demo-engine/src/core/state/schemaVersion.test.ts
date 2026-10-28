@@ -1,5 +1,6 @@
 import { create } from '@bufbuild/protobuf';
 import { NotificationSchema } from '@skladburg/contracts/notification/v1/notification';
+import { SupportAccessSessionSchema } from '@skladburg/contracts/support/v1/support_access';
 import {
   describe,
   expect,
@@ -155,6 +156,29 @@ const SHAPE_FINGERPRINTS: Readonly<Record<number, readonly string[]>> = {
     'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
     'meta.worldTimeMs:number',
   ],
+  7: [
+    'collection.cities:bytes',
+    'collection.idempotency:{id:string,method:string,requestBytes:bytes,responseBytes:bytes}',
+    'collection.mapNodes:bytes',
+    'collection.memberships:bytes',
+    'collection.notifications:{id:string,notificationBytes:bytes,userId:string}',
+    'collection.organizationSettings:bytes',
+    'collection.organizations:bytes',
+    'collection.personas:{group:string,id:string,kind:string,organizationId:string,userId:string}',
+    'collection.roles:bytes',
+    'collection.routeLegs:bytes',
+    'collection.spheres:bytes',
+    'collection.supportAccessSessions:bytes',
+    'collection.users:bytes',
+    'collection.warehouses:bytes',
+    'meta.channelSeq:record<bigint>',
+    'meta.randomState:{a:number,b:number,c:number,d:number}',
+    'meta.schedulerDueAtMs:record<number>',
+    'meta.seedVersion:number',
+    'meta.timeScale:number',
+    'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
+    'meta.worldTimeMs:number',
+  ],
 };
 
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -216,6 +240,7 @@ const populatedTask: SchedulerTaskValue = {
       organizationId: SeedOrganizationId.CUSTOMER_1,
       userId: SeedUserId.ADMIN_1,
     });
+    transaction.put('supportAccessSessions', create(SupportAccessSessionSchema, { id: 'fingerprint-session' }));
   },
 };
 
@@ -280,8 +305,8 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 6 since the notifications joined the collections', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(6);
+  it('is version 7 since the support access sessions joined the collections', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(7);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
   });
 });

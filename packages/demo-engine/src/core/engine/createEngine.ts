@@ -142,7 +142,11 @@ export const createEngineWithTasks = async (
   const runtime: IModuleRuntime = {
     command,
     errors,
-    guard: createCallGuard({ errors, validator: createRequestValidator(errors, getContractRegistry()) }),
+    guard: createCallGuard({
+      errors,
+      getWorldTimeMs: readWorldTimeMs,
+      validator: createRequestValidator(errors, getContractRegistry()),
+    }),
     idempotency: createIdempotencyGuard(errors),
     notifier: createNotifier({ outbox: bus.outbox, random }),
     outbox: bus.outbox,

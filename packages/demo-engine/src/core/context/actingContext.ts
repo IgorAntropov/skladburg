@@ -1,9 +1,13 @@
-import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
+import {
+  ACTING_ORGANIZATION_HEADER,
+  SUPPORT_SESSION_HEADER,
+} from '@skladburg/contracts/runtime';
 
 import { DEMO_USER_HEADER } from '../protocol';
 
 export interface ActingContextValue {
   organizationId: string | undefined;
+  supportSessionId: string | undefined;
   userId: string | undefined;
 }
 
@@ -15,5 +19,6 @@ const readHeader = (headers: Headers, name: string): string | undefined => {
 
 export const readActingContext = (headers: Headers): ActingContextValue => ({
   organizationId: readHeader(headers, ACTING_ORGANIZATION_HEADER),
+  supportSessionId: readHeader(headers, SUPPORT_SESSION_HEADER),
   userId: readHeader(headers, DEMO_USER_HEADER),
 });

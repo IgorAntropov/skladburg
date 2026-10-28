@@ -1,3 +1,5 @@
+import type { Timestamp } from '@bufbuild/protobuf/wkt';
+
 import { create } from '@bufbuild/protobuf';
 import {
   type Membership,
@@ -8,6 +10,14 @@ import {
   WarehouseCapability,
   WarehouseSchema,
 } from '@skladburg/contracts/organization/v1/organization';
+import {
+  SupportAccessKind,
+  SupportAccessMode,
+  SupportAccessSection,
+  type SupportAccessSession,
+  SupportAccessSessionSchema,
+  SupportAccessStatus,
+} from '@skladburg/contracts/support/v1/support_access';
 
 import type {
   LiveMetaValue,
@@ -31,6 +41,30 @@ export const createTestMembership = (id: string, userId: string, organizationId:
   organizationId,
   roleAssignments: [],
   userId,
+});
+
+export interface TestSupportAccessSessionOptionsValue {
+  expiresAt?: Timestamp | undefined;
+  mode?: SupportAccessMode;
+  section?: SupportAccessSection;
+}
+
+export const createTestSupportAccessSession = (
+  id: string,
+  organizationId: string,
+  staffUserId: string,
+  status: SupportAccessStatus = SupportAccessStatus.REQUESTED,
+  options: TestSupportAccessSessionOptionsValue = {},
+): SupportAccessSession => create(SupportAccessSessionSchema, {
+  expiresAt: options.expiresAt,
+  id,
+  kind: SupportAccessKind.NORMAL,
+  mode: options.mode ?? SupportAccessMode.VIEW,
+  organizationId,
+  section: options.section ?? SupportAccessSection.ORGANIZATION,
+  staffUserId,
+  status,
+  version: 1,
 });
 
 export const TEST_WORLD_TIME_MS = 1_000;

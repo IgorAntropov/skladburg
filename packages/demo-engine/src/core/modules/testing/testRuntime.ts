@@ -103,7 +103,11 @@ export const createTestRuntime = (): TestRuntimeValue => {
       storage,
     }),
     errors,
-    guard: createCallGuard({ errors, validator: createRequestValidator(errors, getContractRegistry()) }),
+    guard: createCallGuard({
+      errors,
+      getWorldTimeMs: () => clock.now(),
+      validator: createRequestValidator(errors, getContractRegistry()),
+    }),
     idempotency: createIdempotencyGuard(errors),
     notifier: createNotifier({ outbox, random }),
     outbox,

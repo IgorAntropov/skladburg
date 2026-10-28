@@ -14,6 +14,7 @@ import {
   ProfileKind,
   SphereSchema,
 } from '@skladburg/contracts/organization/v1/organization';
+import { SupportAccessStatus } from '@skladburg/contracts/support/v1/support_access';
 import {
   describe,
   expect,
@@ -31,6 +32,7 @@ import {
 import { TABLE_DEFINITIONS } from './tables';
 import {
   createTestMembership,
+  createTestSupportAccessSession,
   createTestWarehouse,
   FIRST_TENANT_ID,
 } from './testRecords';
@@ -193,5 +195,21 @@ describe('notification table', () => {
     expect(() => parseNotificationRecord({ id: 'n', userId: 'u' })).toThrow(TypeError);
     expect(() => parseNotificationRecord(new Uint8Array([1]))).toThrow(TypeError);
     expect(() => parseNotificationRecord({ id: 'other', notificationBytes, userId: 'user-1' })).toThrow(TypeError);
+  });
+});
+
+describe('support access session table', () => {
+  const session = createTestSupportAccessSession('session-1', 'org-1', 'staff-1', SupportAccessStatus.ACTIVE);
+
+  it('round-trips a session and keys it by the session id', () => {
+    const decoded = TABLE_DEFINITIONS.supportAccessSessions.decode(TABLE_DEFINITIONS.supportAccessSessions.encode(session));
+
+    expect(decoded).toEqual(session);
+    expect(TABLE_DEFINITIONS.supportAccessSessions.getId(session)).toBe('session-1');
+  });
+
+  it('indexes a session by the organization and by the staff member', () => {
+    expect(TABLE_DEFINITIONS.supportAccessSessions.indexKeys.organizationId(session)).toBe('org-1');
+    expect(TABLE_DEFINITIONS.supportAccessSessions.indexKeys.staffUserId(session)).toBe('staff-1');
   });
 });

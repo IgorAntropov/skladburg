@@ -3,6 +3,8 @@ import type { Money } from '@skladburg/contracts/common/v1/money';
 
 import type { IStateReader } from '../state/index';
 
+import { isPermissionInOrganizationArea } from './permissionArea';
+
 export interface PermissionGrantValue {
   amountLimit: Money | undefined;
   isOrganizationWide: boolean;
@@ -18,10 +20,12 @@ export const resolvePermissionGrants = (read: IStateReader, membership: Membersh
       return [];
     }
 
-    return role.permissions.map(permission => ({
-      amountLimit: assignment.amountLimit,
-      isOrganizationWide: assignment.warehouseIds.length === 0,
-      permission,
-      warehouseIds: [...assignment.warehouseIds],
-    }));
+    return role.permissions
+      .filter(permission => isPermissionInOrganizationArea(permission, membership.organizationId))
+      .map(permission => ({
+        amountLimit: assignment.amountLimit,
+        isOrganizationWide: assignment.warehouseIds.length === 0,
+        permission,
+        warehouseIds: [...assignment.warehouseIds],
+      }));
   });

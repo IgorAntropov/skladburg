@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package support.v1;
+
+import "google/protobuf/timestamp.proto";
+
+enum SupportAccessKind {
+  SUPPORT_ACCESS_KIND_UNSPECIFIED = 0;
+  SUPPORT_ACCESS_KIND_NORMAL = 1;
+  SUPPORT_ACCESS_KIND_EMERGENCY = 2;
+}
+
+enum SupportAccessMode {
+  SUPPORT_ACCESS_MODE_UNSPECIFIED = 0;
+  SUPPORT_ACCESS_MODE_VIEW = 1;
+  SUPPORT_ACCESS_MODE_EDIT = 2;
+}
+
+enum SupportAccessSection {
+  SUPPORT_ACCESS_SECTION_UNSPECIFIED = 0;
+  SUPPORT_ACCESS_SECTION_ORGANIZATION = 1;
+  SUPPORT_ACCESS_SECTION_WAREHOUSES = 2;
+  SUPPORT_ACCESS_SECTION_CATALOG = 3;
+  SUPPORT_ACCESS_SECTION_DEALS = 4;
+  SUPPORT_ACCESS_SECTION_LOGISTICS = 5;
+  SUPPORT_ACCESS_SECTION_ALL = 6;
+}
+
+enum SupportAccessStatus {
+  SUPPORT_ACCESS_STATUS_UNSPECIFIED = 0;
+  SUPPORT_ACCESS_STATUS_REQUESTED = 1;
+  SUPPORT_ACCESS_STATUS_ACTIVE = 2;
+  SUPPORT_ACCESS_STATUS_DECLINED = 3;
+  SUPPORT_ACCESS_STATUS_CANCELLED = 4;
+  SUPPORT_ACCESS_STATUS_CLOSED = 5;
+}
+
+enum SupportAccessCloseReason {
+  SUPPORT_ACCESS_CLOSE_REASON_UNSPECIFIED = 0;
+  SUPPORT_ACCESS_CLOSE_REASON_EXPIRED = 1;
+  SUPPORT_ACCESS_CLOSE_REASON_ENDED_BY_CLIENT = 2;
+  SUPPORT_ACCESS_CLOSE_REASON_CLOSED_BY_SUPPORT = 3;
+  SUPPORT_ACCESS_CLOSE_REASON_CLOSED_BY_SUPER_ADMIN = 4;
+}
+
+enum SupportEmergencyReason {
+  SUPPORT_EMERGENCY_REASON_UNSPECIFIED = 0;
+  SUPPORT_EMERGENCY_REASON_SECURITY_INCIDENT = 1;
+  SUPPORT_EMERGENCY_REASON_DATA_RECOVERY = 2;
+  SUPPORT_EMERGENCY_REASON_CLIENT_UNREACHABLE = 3;
+}
+
+enum SupportEmergencyReview {
+  SUPPORT_EMERGENCY_REVIEW_UNSPECIFIED = 0;
+  SUPPORT_EMERGENCY_REVIEW_NOT_REQUIRED = 1;
+  SUPPORT_EMERGENCY_REVIEW_PENDING = 2;
+  SUPPORT_EMERGENCY_REVIEW_CONFIRMED = 3;
+}
+
+message SupportAccessSession {
+  string id = 1;
+  string organization_id = 2;
+  string staff_user_id = 3;
+  string staff_display_name = 4;
+  SupportAccessKind kind = 5;
+  SupportAccessSection section = 6;
+  SupportAccessMode mode = 7;
+  string ticket_id = 8;
+  int32 ticket_number = 9;
+  SupportEmergencyReason emergency_reason = 10;
+  int32 duration_minutes = 11;
+  SupportAccessStatus status = 12;
+  SupportAccessCloseReason close_reason = 13;
+  google.protobuf.Timestamp requested_at = 14;
+  google.protobuf.Timestamp started_at = 15;
+  google.protobuf.Timestamp expires_at = 16;
+  google.protobuf.Timestamp ended_at = 17;
+  string approved_by_user_id = 18;
+  SupportEmergencyReview emergency_review = 19;
+  int32 version = 20;
+}

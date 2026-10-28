@@ -19,6 +19,7 @@ export const buildPermissionCatalog = (): Permission[] =>
     return create(PermissionSchema, {
       ...splitPermissionName(name),
       isLimitApplicable: traits.isLimitApplicable,
+      isPlatform: traits.isPlatform,
       isScopeApplicable: traits.isScopeApplicable,
       name,
       profiles: [...traits.profiles],

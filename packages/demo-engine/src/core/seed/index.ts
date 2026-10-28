@@ -17,6 +17,11 @@ export {
 } from './seedNotifications';
 export { SEED_DEFAULT_LOCALE } from './seedOrganizations';
 export {
+  PLATFORM_OPERATOR_NAME,
+  SEED_OPERATOR_ROLE_IDS,
+  SEED_OPERATOR_STAFF_DEFINITIONS,
+} from './seedPlatform';
+export {
   createSeedRecords,
   createSeedSnapshot,
   DEFAULT_ENGINE_SEED,

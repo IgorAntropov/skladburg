@@ -21,6 +21,7 @@ import {
 
 import {
   permission_traits as permissionTraits,
+  type PermissionTraits,
   PermissionTraitsSchema,
 } from '../gen/access/v1/permission_pb';
 import {
@@ -552,12 +553,38 @@ describe('permission catalog rules', () => {
       }
     });
 
-  const createTraitsOptions = (profiles: ProfileKind[]): EnumValueOptions => {
+  const createTraitsOptions = (
+    profiles: ProfileKind[],
+    traits: Partial<Pick<PermissionTraits, 'isLimitApplicable' | 'isPlatform' | 'isScopeApplicable'>> = {},
+  ): EnumValueOptions => {
     const options = create(EnumValueOptionsSchema);
 
-    setExtension(options, permissionTraits, create(PermissionTraitsSchema, { profiles }));
+    setExtension(options, permissionTraits, create(PermissionTraitsSchema, { profiles, ...traits }));
 
     return options;
+  };
+
+  const modifyPermission = (
+    codeName: string,
+    modify: (value: EnumValueDescriptorProto) => void,
+  ): FileRegistry =>
+    createRegistryWithModifiedFile(PERMISSION_FILE_NAME, (file) => {
+      const target = file.enumType
+        .flatMap(enumType => enumType.value)
+        .find(value => value.name === `PERMISSION_CODE_${codeName}`);
+
+      if (target) {
+        modify(target);
+      }
+    });
+
+  const expectTraitsViolation = (registry: FileRegistry, codeName: string): void => {
+    expect(findContractViolations(registry)).toEqual([
+      {
+        element: `access.v1.PermissionCode.PERMISSION_CODE_${codeName}`,
+        rule: ContractRule.PERMISSION_TRAITS_MISSING,
+      },
+    ]);
   };
 
   it('reports a code without traits', () => {
@@ -588,6 +615,73 @@ describe('permission catalog rules', () => {
     expect(findContractViolations(registry)).toEqual([
       { element: DEAL_VIEW_ELEMENT, rule: ContractRule.PERMISSION_TRAITS_MISSING },
     ]);
+  });
+
+  it('accepts a platform right without profiles, scope and limit', () => {
+    const registry = modifyPermission('SUPPORT_TICKET_VIEW', (value) => {
+      value.options = createTraitsOptions([], { isPlatform: true });
+    });
+
+    expect(findContractViolations(registry)).toEqual([]);
+  });
+
+  it('reports a platform right that has a profile', () => {
+    const registry = modifyPermission('SUPPORT_TICKET_VIEW', (value) => {
+      value.options = createTraitsOptions([ProfileKind.CUSTOMER], { isPlatform: true });
+    });
+
+    expectTraitsViolation(registry, 'SUPPORT_TICKET_VIEW');
+  });
+
+  it('reports a client right that has no profile and is not a platform right', () => {
+    const registry = modifyPermission('SUPPORT_ACCESS_VIEW', (value) => {
+      value.options = createTraitsOptions([]);
+    });
+
+    expectTraitsViolation(registry, 'SUPPORT_ACCESS_VIEW');
+  });
+
+  it('reports a platform right that is not marked as a platform right even with profiles', () => {
+    const registry = modifyPermission('SUPPORT_TICKET_VIEW', (value) => {
+      value.options = createTraitsOptions([ProfileKind.CUSTOMER]);
+    });
+
+    expectTraitsViolation(registry, 'SUPPORT_TICKET_VIEW');
+  });
+
+  it('accepts a client support right with profiles that is not a platform right', () => {
+    const registry = modifyPermission('SUPPORT_ACCESS_VIEW', (value) => {
+      value.options = createTraitsOptions([ProfileKind.CUSTOMER]);
+    });
+
+    expect(findContractViolations(registry)).toEqual([]);
+  });
+
+  it('reports a client support right marked as a platform right', () => {
+    const registry = modifyPermission('SUPPORT_ACCESS_VIEW', (value) => {
+      value.options = createTraitsOptions([], { isPlatform: true });
+    });
+
+    expectTraitsViolation(registry, 'SUPPORT_ACCESS_VIEW');
+  });
+
+  it.each([
+    ['scope', { isPlatform: true, isScopeApplicable: true }],
+    ['limit', { isLimitApplicable: true, isPlatform: true }],
+  ])('reports a platform right with an applicable %s', (_, traits) => {
+    const registry = modifyPermission('SUPPORT_TICKET_VIEW', (value) => {
+      value.options = createTraitsOptions([], traits);
+    });
+
+    expectTraitsViolation(registry, 'SUPPORT_TICKET_VIEW');
+  });
+
+  it('reports a platform right whose name has no platform prefix', () => {
+    const registry = modifyPermission('DEAL_VIEW', (value) => {
+      value.options = createTraitsOptions([], { isPlatform: true });
+    });
+
+    expectTraitsViolation(registry, 'DEAL_VIEW');
   });
 
   it.each([

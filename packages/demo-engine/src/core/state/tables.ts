@@ -18,6 +18,7 @@ import type {
   Sphere,
   Warehouse,
 } from '@skladburg/contracts/organization/v1/organization';
+import type { SupportAccessSession } from '@skladburg/contracts/support/v1/support_access';
 
 import {
   clone,
@@ -40,6 +41,7 @@ import {
   SphereSchema,
   WarehouseSchema,
 } from '@skladburg/contracts/organization/v1/organization';
+import { SupportAccessSessionSchema } from '@skladburg/contracts/support/v1/support_access';
 
 import type {
   EngineCollectionName,
@@ -85,6 +87,7 @@ export interface TableIndexesValue {
   roles: 'tenantId';
   routeLegs: never;
   spheres: never;
+  supportAccessSessions: 'organizationId' | 'staffUserId';
   users: never;
   warehouses: 'tenantId';
 }
@@ -103,6 +106,7 @@ export interface TableRecordsValue {
   roles: Role;
   routeLegs: RouteLeg;
   spheres: Sphere;
+  supportAccessSessions: SupportAccessSession;
   users: User;
   warehouses: Warehouse;
 }
@@ -159,6 +163,10 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   roles: defineMessageTable(RoleSchema, role => role.id, { tenantId: role => role.tenantId }),
   routeLegs: defineMessageTable(RouteLegSchema, leg => leg.id, {}),
   spheres: defineMessageTable(SphereSchema, sphere => sphere.id, {}),
+  supportAccessSessions: defineMessageTable(SupportAccessSessionSchema, session => session.id, {
+    organizationId: session => session.organizationId,
+    staffUserId: session => session.staffUserId,
+  }),
   users: defineMessageTable(UserSchema, user => user.id, {}),
   warehouses: defineMessageTable(WarehouseSchema, warehouse => warehouse.id, { tenantId: warehouse => warehouse.tenantId }),
 };

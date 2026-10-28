@@ -13,6 +13,7 @@ export const ENGINE_COLLECTION_NAMES = [
   'routeLegs',
   'warehouses',
   'notifications',
+  'supportAccessSessions',
   'idempotency',
   'personas',
 ] as const;
@@ -69,6 +70,7 @@ export const createEmptyCollections = (): Record<EngineCollectionName, EngineCol
   roles: new Map(),
   routeLegs: new Map(),
   spheres: new Map(),
+  supportAccessSessions: new Map(),
   users: new Map(),
   warehouses: new Map(),
 });

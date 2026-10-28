@@ -32,6 +32,13 @@ import {
   createSeedOrganizationSettings,
 } from './seedOrganizations';
 import { createSeedPersonas } from './seedPersonas';
+import {
+  createSeedPlatformMemberships,
+  createSeedPlatformOrganizations,
+  createSeedPlatformOrganizationSettings,
+  createSeedPlatformRoles,
+  createSeedPlatformUsers,
+} from './seedPlatform';
 import { createSeedSpheres } from './seedSpheres';
 import { createSeedWarehouses } from './seedWarehouses';
 
@@ -44,7 +51,7 @@ export type SeedRecordsValue = {
   [TName in TableName]: TableRecordsValue[TName][];
 };
 
-export const SEED_VERSION = 9;
+export const SEED_VERSION = 10;
 export const SEED_TIME_SCALE = 1;
 export const SEED_WORLD_START_MS = Date.UTC(2026, 9, 12, 6, 0, 0);
 export const SEED_RANDOM_SEED = 20261012;
@@ -59,15 +66,16 @@ export const createSeedRecords = (): SeedRecordsValue => ({
   cities: createSeedCities(),
   idempotency: [],
   mapNodes: createSeedMapNodes(),
-  memberships: createSeedMemberships(),
+  memberships: [...createSeedMemberships(), ...createSeedPlatformMemberships()],
   notifications: createSeedNotifications(SEED_WORLD_START_MS),
-  organizations: createSeedOrganizations(),
-  organizationSettings: createSeedOrganizationSettings(),
+  organizations: [...createSeedOrganizations(), ...createSeedPlatformOrganizations()],
+  organizationSettings: [...createSeedOrganizationSettings(), ...createSeedPlatformOrganizationSettings()],
   personas: createSeedPersonas(),
-  roles: createSeedRoles(),
+  roles: [...createSeedRoles(), ...createSeedPlatformRoles()],
   routeLegs: createSeedRouteLegs(),
   spheres: createSeedSpheres(),
-  users: createSeedUsers(),
+  supportAccessSessions: [],
+  users: [...createSeedUsers(), ...createSeedPlatformUsers()],
   warehouses: createSeedWarehouses(),
 });
 

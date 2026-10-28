@@ -77,7 +77,11 @@ const STOREKEEPER_PERMISSION_NAMES: readonly string[] = [
 ];
 
 const errors = createDomainErrors(createSeededRandom(5));
-const guard = createCallGuard({ errors, validator: createRequestValidator(errors, getContractRegistry()) });
+const guard = createCallGuard({
+  errors,
+  getWorldTimeMs: () => TEST_WORLD_TIME_MS,
+  validator: createRequestValidator(errors, getContractRegistry()),
+});
 const { read } = createEngineState(createSeedSnapshot());
 
 const headersOf = (userId: string | undefined, organizationId?: string): Headers => {
@@ -129,7 +133,7 @@ describe('createCallGuard: session', () => {
 
     expect(caller.user.id).toBe(SeedUserId.ADMIN_1);
     expect(caller.organizationId).toBeUndefined();
-    expect(caller.membership).toBeUndefined();
+    expect(caller.admission).toBeUndefined();
     expect(caller.permissions).toEqual([]);
     expect(caller.scope).toBeUndefined();
   });
@@ -138,7 +142,7 @@ describe('createCallGuard: session', () => {
     const caller = guard.guardCall(read, method, sphereRequest, headersOf(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1));
 
     expect(caller.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
-    expect(caller.membership?.userId).toBe(SeedUserId.STOREKEEPER_1);
+    expect(caller.admission?.kind === 'membership' && caller.admission.membership.userId).toBe(SeedUserId.STOREKEEPER_1);
     expect(caller.permissions).toEqual(STOREKEEPER_PERMISSION_NAMES.map(permission => ({
       isOrganizationWide: false,
       permission,
@@ -182,7 +186,7 @@ describe('createCallGuard: self', () => {
 
     expect(caller.user.id).toBe(SeedUserId.ADMIN_1);
     expect(caller.organizationId).toBeUndefined();
-    expect(caller.membership).toBeUndefined();
+    expect(caller.admission).toBeUndefined();
     expect(caller.permissions).toEqual([]);
     expect(caller.scope).toBeUndefined();
   });
@@ -219,7 +223,7 @@ describe('createCallGuard: member', () => {
     const caller = guard.guardMemberCall(read, method, settingsRequest, headersOf(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
     expect(caller.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
-    expect(caller.membership.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
+    expect(caller.admission.kind === 'membership' && caller.admission.membership.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
   });
 
   it('answers membership_required without an organization', () => {

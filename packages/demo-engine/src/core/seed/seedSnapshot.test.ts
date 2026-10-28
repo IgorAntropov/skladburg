@@ -13,6 +13,10 @@ import {
   listPresetsForProfiles,
   RolePresetKey,
 } from '../access/index';
+import {
+  isPlatformOperator,
+  PLATFORM_OPERATOR_ORGANIZATION_ID,
+} from '../platform/index';
 import { ENGINE_COLLECTION_NAMES } from '../ports/index';
 import {
   createEngineState,
@@ -41,6 +45,8 @@ import {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const createSeedReader = (): IStateReader => createEngineState(createSeedSnapshot()).read;
+
+const isClientOrganization = (organization: { id: string }): boolean => !isPlatformOperator(organization.id);
 
 const hasProfileKind = (kind: ProfileKind): ((organization: { profiles: readonly { kind: ProfileKind }[] }) => boolean) =>
   organization => organization.profiles.some(profile => profile.kind === kind);
@@ -76,7 +82,7 @@ describe('createSeedSnapshot', () => {
       worldTimeMs: SEED_WORLD_START_MS,
     });
     expect(SEED_TIME_SCALE).toBe(1);
-    expect(SEED_VERSION).toBe(9);
+    expect(SEED_VERSION).toBe(10);
   });
 
   it('carries the current schema version', () => {
@@ -122,7 +128,7 @@ describe('seed contents', () => {
   it('describes the nine organizations of the two verticals', () => {
     const reader = createSeedReader();
 
-    expect(reader.list('organizations').map(organization => organization.name).sort()).toEqual([
+    expect(reader.list('organizations').filter(isClientOrganization).map(organization => organization.name).sort()).toEqual([
       'Заказчик 1',
       'Заказчик 2',
       'Перевозчик 1',
@@ -190,6 +196,7 @@ describe('seed contents', () => {
   it('has exactly one unverified organization, with verification level 0', () => {
     const unverified = createSeedReader()
       .list('organizations')
+      .filter(isClientOrganization)
       .filter(organization => organization.profiles.every(profile => profile.verificationLevel === 0));
 
     expect(unverified.map(organization => organization.id)).toEqual([SeedOrganizationId.SUPPLIER_5]);
@@ -273,7 +280,7 @@ describe('seed contents', () => {
 
   it('gives every organization the roles of all presets offered to its profiles', () => {
     const reader = createSeedReader();
-    const organizations = reader.list('organizations');
+    const organizations = reader.list('organizations').filter(isClientOrganization);
 
     for (const organization of organizations) {
       const profiles = organization.profiles.map(profile => profile.kind);
@@ -283,7 +290,8 @@ describe('seed contents', () => {
       expect(roles.map(role => role.presetKey).sort(), organization.name).toEqual([...presetKeys].sort());
     }
 
-    expect(reader.list('roles')).toHaveLength(44);
+    expect(reader.list('roles').filter(role => !isPlatformOperator(role.tenantId))).toHaveLength(44);
+    expect(reader.list('roles')).toHaveLength(48);
   });
 
   it('counts the role presets by the profiles of each organization', () => {
@@ -300,8 +308,9 @@ describe('seed contents', () => {
   });
 
   it('gives every role a distinct stable identifier built from the organization and the preset', () => {
-    const { organizations, roles } = createSeedRecords();
-    const idsByOrganizationAndPreset = new Map<string, string>(organizations.flatMap(organization =>
+    const { organizations, roles: allRoles } = createSeedRecords();
+    const roles = allRoles.filter(role => !isPlatformOperator(role.tenantId));
+    const idsByOrganizationAndPreset = new Map<string, string>(organizations.filter(isClientOrganization).flatMap(organization =>
       Object.values(RolePresetKey).map((presetKey): [string, string] => [
         `${organization.id}:${presetKey}`,
         createSeedRoleId(organization.id, presetKey),
@@ -330,10 +339,10 @@ describe('seed contents', () => {
     expect(SeedRoleId.STOREKEEPER_CUSTOMER_2).toBe(createSeedRoleId(SeedOrganizationId.CUSTOMER_2, RolePresetKey.STOREKEEPER));
   });
 
-  it('gives every organization one director with the permissions of its profiles except funding and release', () => {
+  it('gives every client organization one director with the permissions of its profiles except funding and release', () => {
     const reader = createSeedReader();
 
-    for (const organization of reader.list('organizations')) {
+    for (const organization of reader.list('organizations').filter(isClientOrganization)) {
       const profiles = organization.profiles.map(profile => profile.kind);
       const expected = listPermissionsForProfiles(profiles)
         .map(code => getPermissionName(code))
@@ -380,7 +389,11 @@ describe('seed contents', () => {
   });
 
   it('names the people with a fictional first and last name, all different', () => {
-    const names = createSeedReader().list('users').map(user => user.displayName);
+    const reader = createSeedReader();
+    const operatorUserIds = new Set(
+      reader.listBy('memberships', 'organizationId', PLATFORM_OPERATOR_ORGANIZATION_ID).map(membership => membership.userId),
+    );
+    const names = reader.list('users').filter(user => !operatorUserIds.has(user.id)).map(user => user.displayName);
 
     expect(names).toHaveLength(11);
     expect(new Set(names).size).toBe(names.length);

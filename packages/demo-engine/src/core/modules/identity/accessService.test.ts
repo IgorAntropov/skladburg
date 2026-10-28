@@ -141,9 +141,28 @@ describe('AccessService.listPermissions', () => {
     const dealApprove = response.permissions.find(permission => permission.name === 'deal_approve');
     const marketplaceView = response.permissions.find(permission => permission.name === 'marketplace_view');
 
-    expect(codes).toHaveLength(59);
+    const platformPermissions = response.permissions.filter(permission => permission.isPlatform);
+    const supportAccessApprove = response.permissions.find(permission => permission.name === 'support_access_approve');
+    const supportTicketView = response.permissions.find(permission => permission.name === 'support_ticket_view');
+
+    expect(codes).toHaveLength(68);
     expect(response.permissions.map(permission => permission.name)).toEqual(codes.map(getPermissionName));
-    expect(response.permissions.every(permission => permission.profiles.length > 0)).toBe(true);
+    expect(response.permissions.every(permission => permission.isPlatform === (permission.profiles.length === 0))).toBe(true);
+    expect(response.permissions.map(permission => permission.isPlatform)).toEqual(codes.map(code => getPermissionTraits(code).isPlatform));
+    expect(platformPermissions.map(permission => permission.name)).toEqual([
+      'platform_dispute_approve',
+      'platform_verification_approve',
+      'support_emergency_manage',
+      'support_session_create',
+      'support_settings_edit',
+      'support_ticket_edit',
+      'support_ticket_view',
+    ]);
+    expect(platformPermissions.every(permission => !permission.isScopeApplicable && !permission.isLimitApplicable)).toBe(true);
+    expect(supportAccessApprove?.isPlatform).toBe(false);
+    expect(supportAccessApprove?.profiles).toEqual([ProfileKind.CUSTOMER, ProfileKind.SUPPLIER, ProfileKind.CARRIER]);
+    expect(supportTicketView?.isPlatform).toBe(true);
+    expect(supportTicketView?.profiles).toEqual([]);
     expect(response.permissions.map(permission => permission.profiles)).toEqual(codes.map(code => getPermissionTraits(code).profiles));
     expect(warehouseView?.feature).toBe('warehouse');
     expect(warehouseView?.action).toBe(PermissionAction.VIEW);

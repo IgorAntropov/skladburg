@@ -28,6 +28,7 @@ message Permission {
   bool is_scope_applicable = 4;
   bool is_limit_applicable = 5;
   repeated organization.v1.ProfileKind profiles = 6;
+  bool is_platform = 7;
 }
 
 message User {

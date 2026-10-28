@@ -48,6 +48,8 @@ const ERROR_CODE_TYPE_NAME = 'common.v1.ErrorCode';
 const PERMISSION_CODE_TYPE_NAME = 'access.v1.PermissionCode';
 const PERMISSION_CODE_PREFIX = 'PERMISSION_CODE_';
 const PERMISSION_FEATURE_PATTERN = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
+const PLATFORM_PERMISSION_PREFIXES: readonly string[] = ['support_', 'platform_'];
+const CLIENT_SUPPORT_PERMISSION_PREFIX = 'support_access_';
 const ERROR_DETAIL_TYPE_NAME = 'common.v1.ErrorDetail';
 const ERROR_PARAMS_ONEOF_NAME = 'params';
 const IDEMPOTENCY_KEY_FIELD_NAME = 'idempotency_key';
@@ -299,19 +301,40 @@ const isPermissionNameParsable = (name: string): boolean => {
     && listPermissionActions().includes(name.slice(separatorIndex + 1));
 };
 
+const isPlatformPermissionName = (name: string): boolean =>
+  PLATFORM_PERMISSION_PREFIXES.some(prefix => name.startsWith(prefix))
+  && !name.startsWith(CLIENT_SUPPORT_PERMISSION_PREFIX);
+
+const hasValidPermissionTraits = (name: string, traits: PermissionTraits | undefined): boolean => {
+  if (!traits) {
+    return false;
+  }
+
+  if (traits.isPlatform) {
+    return traits.profiles.length === 0
+      && !traits.isScopeApplicable
+      && !traits.isLimitApplicable
+      && isPlatformPermissionName(name);
+  }
+
+  return traits.profiles.length > 0
+    && traits.profiles.every(profile => profile !== ProfileKind.UNSPECIFIED)
+    && !isPlatformPermissionName(name);
+};
+
 const findPermissionCatalogViolations = (permissionCode: DescEnum): ContractViolationValue[] =>
   permissionCode.values
     .filter(value => value.number !== 0)
     .flatMap((value) => {
       const element = `${permissionCode.typeName}.${value.name}`;
+      const name = getPermissionCodeName(value);
       const traits = hasOption(value, permissionTraits) ? getOption(value, permissionTraits) : undefined;
-      const hasProfiles = traits !== undefined
-        && traits.profiles.length > 0
-        && traits.profiles.every(profile => profile !== ProfileKind.UNSPECIFIED);
 
       return [
-        ...(hasProfiles ? [] : [createViolation(element, ContractRule.PERMISSION_TRAITS_MISSING)]),
-        ...(isPermissionNameParsable(getPermissionCodeName(value))
+        ...(hasValidPermissionTraits(name, traits)
+          ? []
+          : [createViolation(element, ContractRule.PERMISSION_TRAITS_MISSING)]),
+        ...(isPermissionNameParsable(name)
           ? []
           : [createViolation(element, ContractRule.PERMISSION_CODE_INVALID)]),
       ];

@@ -20,6 +20,7 @@ import {
 import {
   createLiveMeta,
   createTestMembership,
+  createTestSupportAccessSession,
   createTestWarehouse,
   createVolatileMeta,
   FIRST_TENANT_ID,
@@ -70,6 +71,21 @@ describe('createEngineState reads', () => {
 
     expect(state.read.listBy('memberships', 'userId', 'user-1').map(membership => membership.id)).toEqual(['m-1', 'm-2']);
     expect(state.read.listBy('memberships', 'organizationId', FIRST_TENANT_ID).map(membership => membership.id)).toEqual(['m-1', 'm-3']);
+  });
+
+  it('finds support access sessions by organization and by staff member and reads one by id', () => {
+    const state = createEngineState(createEmptySnapshot());
+    state.transact(TEST_WORLD_TIME_MS, (transaction) => {
+      transaction.put('supportAccessSessions', createTestSupportAccessSession('s-1', FIRST_TENANT_ID, 'staff-1'));
+      transaction.put('supportAccessSessions', createTestSupportAccessSession('s-2', SECOND_TENANT_ID, 'staff-1'));
+      transaction.put('supportAccessSessions', createTestSupportAccessSession('s-3', FIRST_TENANT_ID, 'staff-2'));
+    }, createLiveMeta).apply();
+
+    expect(state.read.get('supportAccessSessions', 's-2')?.organizationId).toBe(SECOND_TENANT_ID);
+    expect(state.read.listBy('supportAccessSessions', 'staffUserId', 'staff-1').map(session => session.id)).toEqual(['s-1', 's-2']);
+    const firstTenantSessions = state.read.listBy('supportAccessSessions', 'organizationId', FIRST_TENANT_ID);
+
+    expect(firstTenantSessions.map(session => session.id)).toEqual(['s-1', 's-3']);
   });
 
   it('hands out copies: mutating a result does not touch the state', () => {

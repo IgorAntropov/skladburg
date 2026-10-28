@@ -71,6 +71,7 @@ const createTables = (): TablesValue => ({
   roles: createTable(TABLE_DEFINITIONS.roles),
   routeLegs: createTable(TABLE_DEFINITIONS.routeLegs),
   spheres: createTable(TABLE_DEFINITIONS.spheres),
+  supportAccessSessions: createTable(TABLE_DEFINITIONS.supportAccessSessions),
   users: createTable(TABLE_DEFINITIONS.users),
   warehouses: createTable(TABLE_DEFINITIONS.warehouses),
 });
@@ -87,6 +88,7 @@ const createOverlays = (tables: TablesValue): OverlaysValue => ({
   roles: tables.roles.createOverlay(),
   routeLegs: tables.routeLegs.createOverlay(),
   spheres: tables.spheres.createOverlay(),
+  supportAccessSessions: tables.supportAccessSessions.createOverlay(),
   users: tables.users.createOverlay(),
   warehouses: tables.warehouses.createOverlay(),
 });

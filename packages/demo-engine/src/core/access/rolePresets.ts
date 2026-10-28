@@ -15,6 +15,8 @@ import {
   listPermissionCodes,
 } from '@skladburg/contracts/runtime';
 
+import { PLATFORM_OPERATOR_ORGANIZATION_ID } from '../platform/index';
+import { isPlatformPermission } from './permissionArea';
 import { splitPermissionName } from './permissionParts';
 
 export const RolePresetKey = {
@@ -29,6 +31,21 @@ export const RolePresetKey = {
 
 export type RolePresetKey = (typeof RolePresetKey)[keyof typeof RolePresetKey];
 
+export const OperatorPresetKey = {
+  PLATFORM_ADMIN: 'platform_admin',
+  SUPER_ADMIN: 'super_admin',
+  SUPPORT_AGENT: 'support_agent',
+  SUPPORT_ENGINEER: 'support_engineer',
+} as const;
+
+export type OperatorPresetKey = (typeof OperatorPresetKey)[keyof typeof OperatorPresetKey];
+
+export interface OperatorPresetValue {
+  key: OperatorPresetKey;
+  name: string;
+  selectPermissions: (applicable: readonly KnownPermissionCode[]) => readonly KnownPermissionCode[];
+}
+
 export interface RolePresetValue {
   isWarehouseScoped: boolean;
   key: RolePresetKey;
@@ -38,6 +55,8 @@ export interface RolePresetValue {
 }
 
 const ALL_PROFILES: readonly ProfileKind[] = [ProfileKind.CUSTOMER, ProfileKind.SUPPLIER, ProfileKind.CARRIER];
+
+const SUPPORT_NAME_PREFIX = 'support_';
 
 const MONEY_ACTIONS: readonly PermissionAction[] = [PermissionAction.FUND, PermissionAction.RELEASE];
 
@@ -67,6 +86,8 @@ const ROLE_PRESETS: readonly RolePresetValue[] = [
       PermissionCode.NOTIFICATION_MANAGE,
       PermissionCode.ORGANIZATION_EDIT,
       PermissionCode.ORGANIZATION_MANAGE,
+      PermissionCode.SUPPORT_ACCESS_APPROVE,
+      PermissionCode.SUPPORT_ACCESS_VIEW,
     ]),
   },
   {
@@ -186,6 +207,41 @@ const ROLE_PRESETS: readonly RolePresetValue[] = [
   },
 ];
 
+const OPERATOR_PRESETS: readonly OperatorPresetValue[] = [
+  {
+    key: OperatorPresetKey.SUPPORT_AGENT,
+    name: 'Агент поддержки',
+    selectPermissions: selectListed([
+      PermissionCode.SUPPORT_TICKET_EDIT,
+      PermissionCode.SUPPORT_TICKET_VIEW,
+    ]),
+  },
+  {
+    key: OperatorPresetKey.SUPPORT_ENGINEER,
+    name: 'Инженер поддержки',
+    selectPermissions: selectListed([
+      PermissionCode.SUPPORT_SESSION_CREATE,
+      PermissionCode.SUPPORT_SETTINGS_EDIT,
+      PermissionCode.SUPPORT_TICKET_EDIT,
+      PermissionCode.SUPPORT_TICKET_VIEW,
+    ]),
+  },
+  {
+    key: OperatorPresetKey.PLATFORM_ADMIN,
+    name: 'Администратор платформы',
+    selectPermissions: selectListed([
+      PermissionCode.PLATFORM_DISPUTE_APPROVE,
+      PermissionCode.PLATFORM_VERIFICATION_APPROVE,
+      PermissionCode.SUPPORT_TICKET_VIEW,
+    ]),
+  },
+  {
+    key: OperatorPresetKey.SUPER_ADMIN,
+    name: 'Супер-администратор',
+    selectPermissions: applicable => applicable.filter(code => getPermissionName(code).startsWith(SUPPORT_NAME_PREFIX)),
+  },
+];
+
 const isProfileIncluded = (profiles: readonly ProfileKind[], candidates: readonly ProfileKind[]): boolean =>
   candidates.some(candidate => profiles.includes(candidate));
 
@@ -193,6 +249,8 @@ export const listRolePresets = (): readonly RolePresetValue[] => ROLE_PRESETS;
 
 export const listPresetsForProfiles = (profiles: readonly ProfileKind[]): readonly RolePresetValue[] =>
   ROLE_PRESETS.filter(preset => isProfileIncluded(preset.profiles, profiles));
+
+export const listOperatorPresets = (): readonly OperatorPresetValue[] => OPERATOR_PRESETS;
 
 export const listPermissionsForProfiles = (profiles: readonly ProfileKind[]): KnownPermissionCode[] =>
   listPermissionCodes().filter(code => isProfileIncluded(getPermissionTraits(code).profiles, profiles));
@@ -208,3 +266,15 @@ export const createPresetRole = (preset: RolePresetValue, organization: Organiza
     tenantId: organization.id,
   });
 };
+
+export const listPermissionsForOperator = (): KnownPermissionCode[] =>
+  listPermissionCodes().filter(code => isPlatformPermission(getPermissionName(code)));
+
+export const createOperatorPresetRole = (preset: OperatorPresetValue, roleId: string): Role =>
+  create(RoleSchema, {
+    id: roleId,
+    name: preset.name,
+    permissions: preset.selectPermissions(listPermissionsForOperator()).map(code => getPermissionName(code)),
+    presetKey: preset.key,
+    tenantId: PLATFORM_OPERATOR_ORGANIZATION_ID,
+  });

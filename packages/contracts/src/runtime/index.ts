@@ -1,4 +1,7 @@
-export { ACTING_ORGANIZATION_HEADER } from './actingHeader';
+export {
+  ACTING_ORGANIZATION_HEADER,
+  SUPPORT_SESSION_HEADER,
+} from './actingHeader';
 export {
   type ChannelValue,
   organizationChannel,

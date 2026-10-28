@@ -39,6 +39,7 @@ import {
   createModuleHarness,
   readErrorDetail,
 } from '../modules/testing/moduleHarness';
+import { isPlatformOperator } from '../platform/index';
 import {
   createSeedRecords,
   SeedCityId,
@@ -46,9 +47,13 @@ import {
   SeedOrganizationId,
   SeedUserId,
 } from '../seed/index';
+import { isPermissionInOrganizationArea } from './permissionArea';
 import {
+  listOperatorPresets,
+  listPermissionsForOperator,
   listPermissionsForProfiles,
   listRolePresets,
+  type OperatorPresetValue,
   type RolePresetValue,
 } from './rolePresets';
 import { ENGINE_SERVICES } from './serviceCatalog';
@@ -67,7 +72,7 @@ interface MatrixSubjectValue {
   assignmentWarehouseIds: readonly string[];
   grantedPermissions: ReadonlySet<string>;
   organization: Organization;
-  preset: RolePresetValue;
+  preset: OperatorPresetValue | RolePresetValue;
   role: Role;
   userId: string;
 }
@@ -82,6 +87,7 @@ const CREATE_WAREHOUSE_KEY = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
 
 const records = createSeedRecords();
 const presets = listRolePresets();
+const operatorPresets = listOperatorPresets();
 
 const isUnary = (method: DescMethod): method is DescMethodUnary => method.methodKind === 'unary';
 
@@ -98,8 +104,12 @@ const listPermissionMethods = (): PermissionMethodValue[] =>
 
 const deriveId = (prefix: string, roleId: string): string => `${prefix}${roleId.slice(1)}`;
 
-const findPreset = (role: Role): RolePresetValue => {
-  const preset = presets.find(candidate => candidate.key === role.presetKey);
+const isWarehouseScopedPreset = (preset: OperatorPresetValue | RolePresetValue): boolean =>
+  'isWarehouseScoped' in preset && preset.isWarehouseScoped;
+
+const findPreset = (role: Role): OperatorPresetValue | RolePresetValue => {
+  const candidates = isPlatformOperator(role.tenantId) ? operatorPresets : presets;
+  const preset = candidates.find(candidate => candidate.key === role.presetKey);
 
   if (preset === undefined) {
     throw new Error(`The role ${role.name} refers to an unknown preset ${role.presetKey}`);
@@ -118,14 +128,18 @@ const createSubjects = (): MatrixSubjectValue[] =>
       const preset = findPreset(role);
       const warehouseId = findFirstWarehouseId(organization.id);
 
-      if (preset.isWarehouseScoped && warehouseId === undefined) {
+      const isScoped = isWarehouseScopedPreset(preset);
+
+      if (isScoped && warehouseId === undefined) {
         return [];
       }
 
-      const applicable = listPermissionsForProfiles(organization.profiles.map(profile => profile.kind));
+      const applicable = isPlatformOperator(organization.id)
+        ? listPermissionsForOperator()
+        : listPermissionsForProfiles(organization.profiles.map(profile => profile.kind));
 
       return [{
-        assignmentWarehouseIds: preset.isWarehouseScoped && warehouseId !== undefined ? [warehouseId] : [],
+        assignmentWarehouseIds: isScoped && warehouseId !== undefined ? [warehouseId] : [],
         grantedPermissions: new Set(preset.selectPermissions(applicable).map(code => getPermissionName(code))),
         organization,
         preset,
@@ -188,12 +202,32 @@ describe('role preset matrix: inputs', () => {
 
   it('gives every organization with a warehouse-scoped preset a warehouse to assign it to', () => {
     for (const organization of records.organizations) {
-      const scopedRoles = records.roles.filter(role => role.tenantId === organization.id && findPreset(role).isWarehouseScoped);
+      const scopedRoles = records.roles.filter(role => role.tenantId === organization.id && isWarehouseScopedPreset(findPreset(role)));
 
       if (scopedRoles.length > 0) {
         expect(findFirstWarehouseId(organization.id), organization.name).toBeDefined();
       }
     }
+  });
+
+  it('grants every subject only permissions of the area of its organization', () => {
+    for (const subject of SUBJECTS) {
+      for (const permissionName of subject.grantedPermissions) {
+        const isInArea = isPermissionInOrganizationArea(permissionName, subject.organization.id);
+
+        expect(isInArea, `${subject.role.name}: ${permissionName}`).toBe(true);
+      }
+    }
+  });
+
+  it('gives support_access_approve and support_access_view to the director and the admin of a client only', () => {
+    const holders = SUBJECTS.filter(subject =>
+      subject.grantedPermissions.has('support_access_approve') || subject.grantedPermissions.has('support_access_view'));
+
+    expect(holders.length).toBeGreaterThan(0);
+    expect(new Set(holders.map(subject => subject.role.presetKey))).toEqual(new Set(['admin', 'director']));
+    expect(holders.every(subject =>
+      subject.grantedPermissions.has('support_access_approve') && subject.grantedPermissions.has('support_access_view'))).toBe(true);
   });
 
   it('produces both outcomes', () => {

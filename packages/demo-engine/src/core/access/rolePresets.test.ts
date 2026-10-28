@@ -17,11 +17,18 @@ import {
   it,
 } from 'vitest';
 
+import { PLATFORM_OPERATOR_ORGANIZATION_ID } from '../platform/index';
+import { isPlatformPermission } from './permissionArea';
 import { splitPermissionName } from './permissionParts';
 import {
+  createOperatorPresetRole,
   createPresetRole,
+  listOperatorPresets,
+  listPermissionsForOperator,
+  listPermissionsForProfiles,
   listPresetsForProfiles,
   listRolePresets,
+  OperatorPresetKey,
   RolePresetKey,
 } from './rolePresets';
 
@@ -199,5 +206,140 @@ describe('role preset invariants', () => {
       expect(accountant?.role.permissions.includes('payment_release')).toBe(supportsMoney);
       expect(accountant?.role.permissions.includes('payment_fund')).toBe(supportsMoney);
     }
+  });
+});
+
+describe('client presets and the platform area', () => {
+  it('never contain a platform permission', () => {
+    for (const { role } of appliedRoles) {
+      expect(role.permissions.filter(isPlatformPermission), role.presetKey).toEqual([]);
+    }
+  });
+
+  it('are not offered a platform permission by the profile catalog', () => {
+    for (const profiles of PROFILE_SETS) {
+      expect(listPermissionsForProfiles(profiles).map(getPermissionName).filter(isPlatformPermission)).toEqual([]);
+    }
+
+    expect(listPermissionsForProfiles([])).toEqual([]);
+  });
+
+  it('give support_access_approve and support_access_view to the director and the admin only', () => {
+    const holders = appliedRoles.filter(({ role }) =>
+      role.permissions.includes('support_access_approve') || role.permissions.includes('support_access_view'));
+
+    expect(new Set(holders.map(({ role }) => role.presetKey))).toEqual(new Set([RolePresetKey.ADMIN, RolePresetKey.DIRECTOR]));
+
+    for (const { role } of holders) {
+      expect(role.permissions).toContain('support_access_approve');
+      expect(role.permissions).toContain('support_access_view');
+    }
+  });
+
+  it('keep support_access_approve and support_access_view away from the other presets', () => {
+    const others = appliedRoles.filter(({ role }) => role.presetKey !== RolePresetKey.DIRECTOR && role.presetKey !== RolePresetKey.ADMIN);
+
+    expect(others.length).toBeGreaterThan(0);
+
+    for (const { role } of others) {
+      expect(role.permissions, role.presetKey).not.toContain('support_access_approve');
+      expect(role.permissions, role.presetKey).not.toContain('support_access_view');
+    }
+  });
+
+  it('give the admin of every profile set both support_access permissions', () => {
+    for (const profiles of PROFILE_SETS) {
+      const admin = appliedRoles.find(applied => applied.profiles === profiles && applied.role.presetKey === RolePresetKey.ADMIN);
+
+      expect(admin?.role.permissions).toEqual(expect.arrayContaining(['support_access_approve', 'support_access_view']));
+    }
+  });
+});
+
+describe('listOperatorPresets', () => {
+  const operatorRoles = listOperatorPresets().map(preset => createOperatorPresetRole(preset, preset.key));
+  const permissionsOf = (key: OperatorPresetKey): string[] =>
+    [...(operatorRoles.find(role => role.presetKey === key)?.permissions ?? [])].sort();
+
+  it('lists the four operator presets once, apart from the client presets', () => {
+    const keys = listOperatorPresets().map(preset => preset.key);
+
+    expect(keys).toEqual([
+      OperatorPresetKey.SUPPORT_AGENT,
+      OperatorPresetKey.SUPPORT_ENGINEER,
+      OperatorPresetKey.PLATFORM_ADMIN,
+      OperatorPresetKey.SUPER_ADMIN,
+    ]);
+    expect(listOperatorPresets().map(preset => preset.name)).toEqual([
+      'Агент поддержки',
+      'Инженер поддержки',
+      'Администратор платформы',
+      'Супер-администратор',
+    ]);
+
+    const operatorKeys: string[] = keys;
+    const offeredToClients: string[] = PROFILE_SETS.flatMap(profiles => listPresetsForProfiles(profiles)).map(preset => preset.key);
+    const clientKeys: string[] = listRolePresets().map(preset => preset.key);
+
+    expect(operatorKeys.some(key => clientKeys.includes(key))).toBe(false);
+    expect(operatorKeys.some(key => offeredToClients.includes(key))).toBe(false);
+  });
+
+  it('gives the roles only platform permissions of the catalog and binds them to the operator', () => {
+    for (const role of operatorRoles) {
+      expect(role.permissions.length, role.presetKey).toBeGreaterThan(0);
+      expect(role.permissions.every(name => catalogNames.has(name))).toBe(true);
+      expect(role.permissions.every(isPlatformPermission), role.presetKey).toBe(true);
+      expect(role.tenantId).toBe(PLATFORM_OPERATOR_ORGANIZATION_ID);
+    }
+  });
+
+  it('lists the platform permissions of the catalog', () => {
+    expect(listPermissionsForOperator().map(getPermissionName).sort()).toEqual([
+      'platform_dispute_approve',
+      'platform_verification_approve',
+      'support_emergency_manage',
+      'support_session_create',
+      'support_settings_edit',
+      'support_ticket_edit',
+      'support_ticket_view',
+    ]);
+  });
+
+  it('gives each preset its documented permissions', () => {
+    expect(permissionsOf(OperatorPresetKey.SUPPORT_AGENT)).toEqual(['support_ticket_edit', 'support_ticket_view']);
+    expect(permissionsOf(OperatorPresetKey.SUPPORT_ENGINEER)).toEqual([
+      'support_session_create',
+      'support_settings_edit',
+      'support_ticket_edit',
+      'support_ticket_view',
+    ]);
+    expect(permissionsOf(OperatorPresetKey.PLATFORM_ADMIN)).toEqual([
+      'platform_dispute_approve',
+      'platform_verification_approve',
+      'support_ticket_view',
+    ]);
+    expect(permissionsOf(OperatorPresetKey.SUPER_ADMIN)).toEqual([
+      'support_emergency_manage',
+      'support_session_create',
+      'support_settings_edit',
+      'support_ticket_edit',
+      'support_ticket_view',
+    ]);
+  });
+
+  it('never gives an operator role a client permission', () => {
+    const clientNames: string[] = listPermissionCodes().map(getPermissionName).filter(name => !isPlatformPermission(name));
+
+    for (const role of operatorRoles) {
+      expect(role.permissions.filter(name => clientNames.includes(name)), role.presetKey).toEqual([]);
+    }
+  });
+
+  it('names the role after the preset', () => {
+    const preset = listOperatorPresets().find(candidate => candidate.key === OperatorPresetKey.SUPER_ADMIN);
+    const role = preset === undefined ? undefined : createOperatorPresetRole(preset, ROLE_ID);
+
+    expect(role).toMatchObject({ id: ROLE_ID, name: 'Супер-администратор', presetKey: 'super_admin' });
   });
 });

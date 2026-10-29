@@ -18,6 +18,7 @@ import type {
   Sphere,
   Warehouse,
 } from '@skladburg/contracts/organization/v1/organization';
+import type { OrganizationRequisites } from '@skladburg/contracts/organization/v1/requisites';
 import type {
   SupportAccessSession,
   SupportAuditEntry,
@@ -48,6 +49,7 @@ import {
   SphereSchema,
   WarehouseSchema,
 } from '@skladburg/contracts/organization/v1/organization';
+import { OrganizationRequisitesSchema } from '@skladburg/contracts/organization/v1/requisites';
 import {
   SupportAccessSessionSchema,
   SupportAuditEntrySchema,
@@ -98,6 +100,7 @@ export interface TableIndexesValue {
   mapNodes: never;
   memberships: 'organizationId' | 'userId';
   notifications: 'userId';
+  organizationRequisites: never;
   organizations: never;
   organizationSettings: never;
   personas: never;
@@ -121,6 +124,7 @@ export interface TableRecordsValue {
   mapNodes: MapNode;
   memberships: Membership;
   notifications: NotificationRecordValue;
+  organizationRequisites: OrganizationRequisites;
   organizations: Organization;
   organizationSettings: OrganizationSettings;
   personas: DemoPersonaValue;
@@ -182,6 +186,7 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
     userId: membership => membership.userId,
   }),
   notifications: NOTIFICATION_TABLE,
+  organizationRequisites: defineMessageTable(OrganizationRequisitesSchema, requisites => requisites.organizationId, {}),
   organizations: defineMessageTable(OrganizationSchema, organization => organization.id, {}),
   organizationSettings: defineMessageTable(OrganizationSettingsSchema, settings => settings.organizationId, {}),
   personas: defineRecordTable(parseDemoPersona, serializeDemoPersona),

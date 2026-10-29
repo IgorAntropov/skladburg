@@ -61,6 +61,8 @@ const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
   'access.v1.SetMyAvatarRequest.mediaType',
   'common.v1.ObjectLink.target',
   'notification.v1.Notification.links',
+  'organization.v1.OrganizationRequisites.bank',
+  'organization.v1.OrganizationRequisites.signatories',
   'support.v1.SupportErrorRef.occurredAt',
   'support.v1.SupportTicketContext.device',
   'support.v1.SupportTicketContext.errors',
@@ -102,6 +104,22 @@ const GENERIC_STRINGS: readonly string[] = [
 ];
 
 const PATTERN_SAMPLES: Readonly<Record<string, PatternSamplesValue>> = {
+  '^04[0-9]{7}$': {
+    matching: ['040000501', '040000000', '040099999'],
+    nonMatching: [
+      '',
+      '04000050',
+      '0400005011',
+      '050000501',
+      '140000501',
+      '04000050a',
+      '04000050\n',
+      '\n04000050',
+      ' 040000501',
+      '040000501 ',
+      '٠٤٠٠٠٠٥٠١',
+    ],
+  },
   '^([a-z][a-z0-9_]*)?$': {
     matching: ['', 'a', 'abc', 'a1', 'a_b', 'a_1_b', 'deal_id', 'a__'],
     nonMatching: ['A', '1a', '_a', 'a-b', 'a b', 'a\n', '\n', 'Ab', 'я', 'a.b', ' a', 'a '],
@@ -196,6 +214,20 @@ const PATTERN_SAMPLES: Readonly<Record<string, PatternSamplesValue>> = {
       `/${'a'.repeat(33)}`,
       `/a/${'1'.repeat(65)}`,
       'https://example.test/deals',
+    ],
+  },
+  '^[0-9]{20}$': {
+    matching: ['40702810300000000001', '30101810600000000501', '00000000000000000000'],
+    nonMatching: [
+      '',
+      '4070281030000000000',
+      '407028103000000000012',
+      '4070281030000000000a',
+      '40702810300000000001\n',
+      '\n40702810300000000001',
+      ' 40702810300000000001',
+      '40702810 300000000001',
+      '٤٠٧٠٢٨١٠٣٠٠٠٠٠٠٠٠٠٠١',
     ],
   },
   '^[a-z][a-z0-9]*(_[a-z0-9]+)*_(view|create|edit|delete|approve|sign|fund|release|export|manage)$': {

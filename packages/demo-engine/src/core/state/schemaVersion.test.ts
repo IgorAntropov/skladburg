@@ -1,5 +1,6 @@
 import { create } from '@bufbuild/protobuf';
 import { NotificationSchema } from '@skladburg/contracts/notification/v1/notification';
+import { OrganizationRequisitesSchema } from '@skladburg/contracts/organization/v1/requisites';
 import {
   SupportAccessSessionSchema,
   SupportAuditEntrySchema,
@@ -239,6 +240,34 @@ const SHAPE_FINGERPRINTS: Readonly<Record<number, readonly string[]>> = {
     'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
     'meta.worldTimeMs:number',
   ],
+  10: [
+    'collection.cities:bytes',
+    'collection.idempotency:{id:string,method:string,requestBytes:bytes,responseBytes:bytes}',
+    'collection.mapNodes:bytes',
+    'collection.memberships:bytes',
+    'collection.notifications:{id:string,notificationBytes:bytes,userId:string}',
+    'collection.organizationRequisites:bytes',
+    'collection.organizationSettings:bytes',
+    'collection.organizations:bytes',
+    'collection.personas:{group:string,id:string,kind:string,organizationId:string,userId:string}',
+    'collection.roles:bytes',
+    'collection.routeLegs:bytes',
+    'collection.spheres:bytes',
+    'collection.supportAccessSessions:bytes',
+    'collection.supportAuditEntries:bytes',
+    'collection.supportBotQueue:{dueAtMs:number,id:string}',
+    'collection.supportTicketMessages:bytes',
+    'collection.supportTickets:bytes',
+    'collection.users:bytes',
+    'collection.warehouses:bytes',
+    'meta.channelSeq:record<bigint>',
+    'meta.randomState:{a:number,b:number,c:number,d:number}',
+    'meta.schedulerDueAtMs:record<number>',
+    'meta.seedVersion:number',
+    'meta.timeScale:number',
+    'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
+    'meta.worldTimeMs:number',
+  ],
 };
 
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -300,6 +329,7 @@ const populatedTask: SchedulerTaskValue = {
       organizationId: SeedOrganizationId.CUSTOMER_1,
       userId: SeedUserId.ADMIN_1,
     });
+    transaction.put('organizationRequisites', create(OrganizationRequisitesSchema, { organizationId: 'fingerprint-organization' }));
     transaction.put('supportAccessSessions', create(SupportAccessSessionSchema, { id: 'fingerprint-session' }));
     transaction.put('supportAuditEntries', create(SupportAuditEntrySchema, { id: 'fingerprint-audit-entry' }));
     transaction.put('supportTickets', create(SupportTicketSchema, { id: 'fingerprint-ticket' }));
@@ -372,8 +402,8 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 9 since the support audit entries joined the collections', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(9);
+  it('is version 10 since the organization requisites joined the collections', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(10);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
   });
 });

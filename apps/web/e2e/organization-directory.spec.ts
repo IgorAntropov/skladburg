@@ -60,17 +60,17 @@ test.describe('organization directory on a desktop', () => {
 
     await directory.tabFilters.open();
     await directory.tabFilters.selectSphere(DAIRY_SPHERE_ID);
-    await directory.expectRows([supplier1]);
+    await directory.expectRows([supplier2]);
 
     await directory.tabFilters.reset();
     await directory.expectRows(DIRECTORY_VISIBLE_ORGANIZATIONS);
 
     await directory.tabFilters.selectMinLevel(3);
-    await directory.expectRows([carrier2, supplier2, supplier3]);
+    await directory.expectRows([supplier2, supplier3, carrier2]);
 
     await directory.tabFilters.close();
     await directory.expectSummary('проверка от 3');
-    await directory.expectRows([carrier2, supplier2, supplier3]);
+    await directory.expectRows([supplier2, supplier3, carrier2]);
 
     await directory.tabFilters.open();
     await directory.tabFilters.reset();
@@ -152,8 +152,8 @@ test.describe('organization directory on a desktop', () => {
 
     await directory.tableFilters.expectOpen();
     await directory.tableFilters.selectMinLevel(3);
-    await directory.expectTableRows([carrier2, supplier2, supplier3]);
-    await directory.expectRows([carrier2, supplier2, supplier3]);
+    await directory.expectTableRows([supplier2, supplier3, carrier2]);
+    await directory.expectRows([supplier2, supplier3, carrier2]);
     await directory.expectActiveFilterCount(1);
 
     await directory.tabFilters.open();
@@ -178,12 +178,12 @@ test.describe('organization directory on a desktop', () => {
     await directory.openCompaniesTab();
     await directory.tabFilters.open();
     await directory.tabFilters.selectSphere(DAIRY_SPHERE_ID);
-    await directory.expectRows([supplier1]);
+    await directory.expectRows([supplier2]);
 
     await directory.expectNoViolationsOfAccessibility();
 
-    await directory.openRow(supplier1);
-    await directory.expectForeignCard(supplier1);
+    await directory.openRow(supplier2);
+    await directory.expectForeignCard(supplier2);
 
     await directory.expectNoViolationsOfAccessibility();
   });
@@ -226,6 +226,6 @@ test.describe('organization directory on a phone', () => {
 
     await directory.tabFilters.open();
     await directory.tabFilters.selectSphere(DAIRY_SPHERE_ID);
-    await directory.expectRows([supplier1]);
+    await directory.expectRows([supplier2]);
   });
 });

@@ -52,9 +52,9 @@ describe('listVisibleMapSites', () => {
     const own = sites.filter(site => site.organizationId === SeedOrganizationId.CUSTOMER_1);
     const foreign = sites.filter(site => site.organizationId !== SeedOrganizationId.CUSTOMER_1);
 
-    expect(sites).toHaveLength(9);
+    expect(sites).toHaveLength(12);
     expect(own.map(site => site.name)).not.toContain('');
-    expect(foreign.map(site => site.name)).toEqual(Array.from({ length: 6 }, () => ''));
+    expect(foreign.map(site => site.name)).toEqual(Array.from({ length: 9 }, () => ''));
   });
 
   it('copies the placement and the owner name from the warehouse and the organization', () => {
@@ -68,7 +68,7 @@ describe('listVisibleMapSites', () => {
       kind: MapSiteKind.WAREHOUSE,
       mapNodeId: warehouse?.mapNodeId,
       organizationId: SeedOrganizationId.SUPPLIER_1,
-      organizationName: 'Поставщик 1',
+      organizationName: 'Яблоневый край',
       profileKind: ProfileKind.SUPPLIER,
     });
   });
@@ -87,6 +87,15 @@ describe('listVisibleMapSites', () => {
 
     expect(site?.organizationLogo?.lightUrl).toBe('logos/supplier-5-light.svg');
     expect(site?.organizationLogo?.darkUrl).toBe('logos/supplier-5-dark.svg');
+  });
+
+  it('carries no logo for a verified owner that has none', () => {
+    const site = listVisibleMapSites(read, SeedOrganizationId.CUSTOMER_1).find(
+      candidate => candidate.id === SeedWarehouseId.SUPPLIER_6_WAREHOUSE_1,
+    );
+
+    expect(site?.organizationName).toBe('Утиный брод');
+    expect(site?.organizationLogo).toBeUndefined();
   });
 
   it('gives every visible site the logo of its owner', () => {

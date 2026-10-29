@@ -108,9 +108,9 @@ describe('site banners built from the demo engine', () => {
     });
 
     expect(entries).toHaveLength(new Set(model.sites.map(site => site.organizationId)).size);
-    expect(entries).toHaveLength(6);
+    expect(entries).toHaveLength(8);
     expect(entries.length).toBeLessThanOrEqual(SITE_BANNER_ATLAS_CAPACITY);
-    expect(monograms.toSorted()).toEqual(['Зак1', 'Зак2', 'Пос1', 'Пос2', 'Пос3', 'Пос4']);
+    expect(monograms.toSorted()).toEqual(['БП', 'КД', 'ПР', 'РБ', 'СК', 'ТУ', 'УБ', 'ЯК']);
     expect(new Set(monograms).size).toBe(entries.length);
     expect(new Set(cellKeys).size).toBe(entries.length);
     expect(cellKeys.filter(key => sharedKeys.includes(key))).toEqual([]);
@@ -140,21 +140,24 @@ describe('site banners built from the demo engine', () => {
     }
   });
 
-  it('gives each of the six organizations on the map the path of a light logo that is a file of the app', async () => {
+  it('gives the six organizations with a logo on the map the path of a light logo that is a file of the app', async () => {
     const model = await buildModelAs(SeedOrganizationId.CUSTOMER_1, SeedUserId.ADMIN_1);
     const layout = buildNetworkSceneLayout(model);
     const entries = listSiteBannerEntries(layout.buildings, model.sites);
     const paths = entries.map(entry => entry.logoPath);
 
-    expect(entries).toHaveLength(6);
-    expect(paths.filter(path => path !== '')).toHaveLength(6);
-    expect(new Set(paths).size).toBe(6);
+    const logoPaths = paths.filter(path => path !== '');
 
-    for (const path of paths) {
+    expect(entries).toHaveLength(8);
+    expect(logoPaths).toHaveLength(6);
+    expect(paths.filter(path => path === '')).toHaveLength(2);
+    expect(new Set(logoPaths).size).toBe(6);
+
+    for (const path of logoPaths) {
       expect(path).toMatch(/^logos\/[a-z]+-\d-light\.svg$/u);
       expect(LOGO_FILE_NAMES.has(path), path).toBe(true);
     }
 
-    expect(listSiteBannerLogoPaths(entries).toSorted()).toEqual(paths.toSorted());
+    expect(listSiteBannerLogoPaths(entries).toSorted()).toEqual(logoPaths.toSorted());
   });
 });

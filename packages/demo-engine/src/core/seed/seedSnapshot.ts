@@ -39,6 +39,7 @@ import {
   createSeedPlatformRoles,
   createSeedPlatformUsers,
 } from './seedPlatform';
+import { createSeedRequisites } from './seedRequisites';
 import { createSeedSpheres } from './seedSpheres';
 import { createSeedWarehouses } from './seedWarehouses';
 
@@ -51,7 +52,7 @@ export type SeedRecordsValue = {
   [TName in TableName]: TableRecordsValue[TName][];
 };
 
-export const SEED_VERSION = 10;
+export const SEED_VERSION = 11;
 export const SEED_TIME_SCALE = 1;
 export const SEED_WORLD_START_MS = Date.UTC(2026, 9, 12, 6, 0, 0);
 export const SEED_RANDOM_SEED = 20261012;
@@ -68,6 +69,7 @@ export const createSeedRecords = (): SeedRecordsValue => ({
   mapNodes: createSeedMapNodes(),
   memberships: [...createSeedMemberships(), ...createSeedPlatformMemberships()],
   notifications: createSeedNotifications(SEED_WORLD_START_MS),
+  organizationRequisites: createSeedRequisites(),
   organizations: [...createSeedOrganizations(), ...createSeedPlatformOrganizations()],
   organizationSettings: [...createSeedOrganizationSettings(), ...createSeedPlatformOrganizationSettings()],
   personas: createSeedPersonas(),

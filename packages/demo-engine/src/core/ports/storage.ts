@@ -4,6 +4,7 @@ import type { RandomStateValue } from './random';
 export const ENGINE_COLLECTION_NAMES = [
   'organizations',
   'organizationSettings',
+  'organizationRequisites',
   'users',
   'memberships',
   'roles',
@@ -68,6 +69,7 @@ export const createEmptyCollections = (): Record<EngineCollectionName, EngineCol
   mapNodes: new Map(),
   memberships: new Map(),
   notifications: new Map(),
+  organizationRequisites: new Map(),
   organizations: new Map(),
   organizationSettings: new Map(),
   personas: new Map(),

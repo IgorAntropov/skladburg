@@ -57,12 +57,12 @@ describe('projectOrganizationShowcase', () => {
     const projection = projectOrganizationShowcase(create(OrganizationSchema, organization));
 
     expect(projection.id).toBe(SeedOrganizationId.SUPPLIER_4);
-    expect(projection.name).toBe('Поставщик 4');
+    expect(projection.name).toBe('Серый камень');
     expect(projection.profiles.map(profile => [profile.kind, profile.verificationLevel])).toEqual([
       [ProfileKind.SUPPLIER, 2],
       [ProfileKind.CARRIER, 0],
     ]);
-    expect(projection.sphereIds).toEqual([SeedSphereId.CEMENT_AND_CONCRETE, SeedSphereId.TIMBER]);
+    expect(projection.sphereIds).toEqual([SeedSphereId.CEMENT_AND_CONCRETE]);
   });
 
   it('copies the logo of the organization without sharing the object', () => {
@@ -131,19 +131,19 @@ describe('listVisibleOrganizationShowcases', () => {
   it('lists every verified organization to a verified viewer and hides the unverified one', () => {
     const names = listNames(SeedOrganizationId.CUSTOMER_1);
 
-    expect(names).toHaveLength(8);
-    expect(names).not.toContain('Поставщик 5');
+    expect(names).toHaveLength(10);
+    expect(names).not.toContain('Южная грядка');
   });
 
   it('puts the own organization among the others without raising it', () => {
     const names = listNames(SeedOrganizationId.SUPPLIER_3);
 
     expect(names).toEqual([...names].sort(new Intl.Collator('ru').compare));
-    expect(names.indexOf('Поставщик 3')).toBeGreaterThan(0);
+    expect(names.indexOf('Прокатный ряд')).toBeGreaterThan(0);
   });
 
   it('shows an unverified viewer only its own organization', () => {
-    expect(listNames(SeedOrganizationId.SUPPLIER_5)).toEqual(['Поставщик 5']);
+    expect(listNames(SeedOrganizationId.SUPPLIER_5)).toEqual(['Южная грядка']);
   });
 
   it('applies the filter to the own organization of an unverified viewer too', () => {
@@ -156,15 +156,15 @@ describe('listVisibleOrganizationShowcases', () => {
 
   it('finds the subtree of a sphere including the node itself, but not the other way round', () => {
     expect(listNames(SeedOrganizationId.CUSTOMER_1, { sphereId: SeedSphereId.FOOD }))
-      .toEqual(['Заказчик 1', 'Перевозчик 1', 'Поставщик 1', 'Поставщик 2']);
-    expect(listNames(SeedOrganizationId.CUSTOMER_1, { sphereId: SeedSphereId.DAIRY })).toEqual(['Поставщик 1']);
+      .toEqual(['Белое поле', 'Северный холод', 'Тёплый угол', 'Утиный брод', 'Яблоневый край']);
+    expect(listNames(SeedOrganizationId.CUSTOMER_1, { sphereId: SeedSphereId.DAIRY })).toEqual(['Белое поле']);
   });
 
   it('does not find an organization with the root sphere by a branch of it', () => {
     const names = listNames(SeedOrganizationId.CUSTOMER_1, { sphereId: SeedSphereId.DAIRY });
 
-    expect(names).not.toContain('Заказчик 1');
-    expect(names).not.toContain('Перевозчик 1');
+    expect(names).not.toContain('Тёплый угол');
+    expect(names).not.toContain('Северный холод');
   });
 
   it('returns nothing for an unknown sphere', () => {
@@ -173,20 +173,20 @@ describe('listVisibleOrganizationShowcases', () => {
 
   it('filters by side', () => {
     expect(listNames(SeedOrganizationId.CUSTOMER_1, { profileKind: ProfileKind.CARRIER }))
-      .toEqual(['Перевозчик 1', 'Перевозчик 2', 'Поставщик 4']);
+      .toEqual(['Северный холод', 'Серый камень', 'Широкий путь']);
   });
 
   it('filters by the level not lower than N', () => {
     expect(listNames(SeedOrganizationId.CUSTOMER_1, { minVerificationLevel: 3 }))
-      .toEqual(['Перевозчик 2', 'Поставщик 2', 'Поставщик 3']);
+      .toEqual(['Белое поле', 'Прокатный ряд', 'Широкий путь']);
     expect(listNames(SeedOrganizationId.CUSTOMER_1, { minVerificationLevel: 4 })).toEqual([]);
   });
 
   it('checks the side and the level on the same profile', () => {
     expect(listNames(SeedOrganizationId.CUSTOMER_1, { minVerificationLevel: 1, profileKind: ProfileKind.CARRIER }))
-      .toEqual(['Перевозчик 1', 'Перевозчик 2']);
+      .toEqual(['Северный холод', 'Широкий путь']);
     expect(listNames(SeedOrganizationId.CUSTOMER_1, { minVerificationLevel: 2, profileKind: ProfileKind.SUPPLIER }))
-      .toContain('Поставщик 4');
+      .toContain('Серый камень');
   });
 
   it('does not filter by the side and the level when they are zero', () => {
@@ -200,7 +200,7 @@ describe('listVisibleOrganizationShowcases', () => {
       minVerificationLevel: 1,
       profileKind: ProfileKind.CARRIER,
       sphereId: SeedSphereId.FOOD,
-    })).toEqual(['Перевозчик 1']);
+    })).toEqual(['Северный холод']);
   });
 
   it('sorts by the name with the Russian collation, then by the id', async () => {
@@ -227,12 +227,12 @@ describe('listVisibleOrganizationShowcases', () => {
 
 describe('getVisibleOrganizationShowcase', () => {
   it('returns the projection of the own and of another verified organization', () => {
-    expect(getVisibleOrganizationShowcase(read, SeedOrganizationId.CUSTOMER_1, SeedOrganizationId.CUSTOMER_1)?.name).toBe('Заказчик 1');
-    expect(getVisibleOrganizationShowcase(read, SeedOrganizationId.CUSTOMER_1, SeedOrganizationId.SUPPLIER_2)?.name).toBe('Поставщик 2');
+    expect(getVisibleOrganizationShowcase(read, SeedOrganizationId.CUSTOMER_1, SeedOrganizationId.CUSTOMER_1)?.name).toBe('Тёплый угол');
+    expect(getVisibleOrganizationShowcase(read, SeedOrganizationId.CUSTOMER_1, SeedOrganizationId.SUPPLIER_2)?.name).toBe('Белое поле');
   });
 
   it('returns the own organization of an unverified viewer', () => {
-    expect(getVisibleOrganizationShowcase(read, SeedOrganizationId.SUPPLIER_5, SeedOrganizationId.SUPPLIER_5)?.name).toBe('Поставщик 5');
+    expect(getVisibleOrganizationShowcase(read, SeedOrganizationId.SUPPLIER_5, SeedOrganizationId.SUPPLIER_5)?.name).toBe('Южная грядка');
   });
 
   it('hides an unverified organization from others and others from an unverified viewer', () => {

@@ -37,7 +37,7 @@ const SEED_CITY_COUNT = 9;
 const SEED_ROUTE_LEG_COUNT = 11;
 const SMALL_PAGE_SIZE = 4;
 const CUSTOMER_1_OWN_SITE_COUNT = 3;
-const CUSTOMER_1_FOREIGN_SITE_COUNT = 6;
+const CUSTOMER_1_FOREIGN_SITE_COUNT = 9;
 const CREATE_WAREHOUSE_KEY = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
 
 const createNetworkClient = (): Client<typeof NetworkService> => {
@@ -166,14 +166,14 @@ describe('NetworkService.listRouteLegs', () => {
 });
 
 describe('NetworkService.listMapSites', () => {
-  it('shows the first customer three own named sites and six foreign nameless ones without the unverified supplier', async () => {
+  it('shows the first customer three own named sites and nine foreign nameless ones without the unverified supplier', async () => {
     const { mapSites } = await createNetworkClient().listMapSites({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
     const own = mapSites.filter(site => site.organizationId === SeedOrganizationId.CUSTOMER_1);
     const foreign = mapSites.filter(site => site.organizationId !== SeedOrganizationId.CUSTOMER_1);
 
     expect(mapSites).toHaveLength(CUSTOMER_1_OWN_SITE_COUNT + CUSTOMER_1_FOREIGN_SITE_COUNT);
     expect(own).toHaveLength(CUSTOMER_1_OWN_SITE_COUNT);
-    expect(own.every(site => site.name !== '' && site.organizationName === 'Заказчик 1')).toBe(true);
+    expect(own.every(site => site.name !== '' && site.organizationName === 'Тёплый угол')).toBe(true);
     expect(foreign).toHaveLength(CUSTOMER_1_FOREIGN_SITE_COUNT);
     expect(foreign.every(site => site.name === '' && site.organizationName !== '')).toBe(true);
     expect(mapSites.map(site => site.id)).not.toContain(SeedWarehouseId.SUPPLIER_5_WAREHOUSE_1);
@@ -187,7 +187,7 @@ describe('NetworkService.listMapSites', () => {
     expect(mapSites[0]?.name).not.toBe('');
   });
 
-  it('shows the carrier nine foreign nameless sites', async () => {
+  it('shows the carrier twelve foreign nameless sites', async () => {
     const { mapSites } = await createNetworkClient().listMapSites({}, callAs(SeedUserId.ADMIN_4, SeedOrganizationId.CARRIER_1));
 
     expect(mapSites).toHaveLength(CUSTOMER_1_OWN_SITE_COUNT + CUSTOMER_1_FOREIGN_SITE_COUNT);
@@ -252,7 +252,7 @@ describe('NetworkService.listMapSites', () => {
     expect(ownSite?.name).toBe('Склад 9');
     expect(foreignSite).toBeDefined();
     expect(foreignSite?.name).toBe('');
-    expect(foreignSite?.organizationName).toBe('Заказчик 1');
+    expect(foreignSite?.organizationName).toBe('Тёплый угол');
     expect(own.mapSites).toHaveLength(CUSTOMER_1_OWN_SITE_COUNT + CUSTOMER_1_FOREIGN_SITE_COUNT + 1);
   });
 });

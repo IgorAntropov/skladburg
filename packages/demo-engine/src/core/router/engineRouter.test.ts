@@ -55,6 +55,7 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
     errors,
     networkService: { listCities: unused, listMapNodes: unused, listMapSites: unused, listRouteLegs: unused },
     notificationService: { getDigest: unused, listNotifications: unused, markAllNotificationsRead: unused, markNotificationsRead: unused },
+    organizationRequisitesService: { getOrganizationRequisites: unused },
     organizationService: {
       createWarehouse: unused,
       getOrganization: unused,
@@ -108,7 +109,7 @@ describe.each([
     const response = await caller.organization.getOrganizationSettings({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
     expect(response.settings?.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
-    expect(response.settings?.brandName).toBe('Заказчик 1');
+    expect(response.settings?.brandName).toBe('Тёплый угол');
     expect(response.settings?.defaultLocale).toBe('ru');
   });
 

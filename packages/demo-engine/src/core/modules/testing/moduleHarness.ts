@@ -27,6 +27,7 @@ import {
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
+import { OrganizationRequisitesService } from '@skladburg/contracts/organization/v1/requisites';
 import { OrganizationShowcaseService } from '@skladburg/contracts/organization/v1/showcase';
 import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
 import { SupportAccessService } from '@skladburg/contracts/support/v1/support_access';
@@ -38,6 +39,7 @@ import { DEMO_USER_HEADER } from '../../protocol';
 import { createClockService } from '../clock/index';
 import {
   createAccessService,
+  createOrganizationRequisitesService,
   createOrganizationShowcaseService,
   createUserProfileService,
 } from '../identity/index';
@@ -54,6 +56,7 @@ export interface ModuleHarnessValue extends TestRuntimeValue {
   access: Client<typeof AccessService>;
   notification: Client<typeof NotificationService>;
   organization: Client<typeof OrganizationService>;
+  organizationRequisites: Client<typeof OrganizationRequisitesService>;
   supportAccess: Client<typeof SupportAccessService>;
   supportTicket: Client<typeof SupportTicketService>;
   transport: Transport;
@@ -122,6 +125,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(ClockService, createClockService(testRuntime.runtime, () => testRuntime.clock.getSnapshot()));
     service(NetworkService, createNetworkService(testRuntime.runtime));
     service(NotificationService, createNotificationService(testRuntime.runtime));
+    service(OrganizationRequisitesService, createOrganizationRequisitesService(testRuntime.runtime));
     service(OrganizationService, createOrganizationService(testRuntime.runtime));
     service(OrganizationShowcaseService, createOrganizationShowcaseService(testRuntime.runtime));
     service(SupportAccessService, createSupportAccessService(testRuntime.runtime));
@@ -134,6 +138,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     access: createClient(AccessService, transport),
     notification: createClient(NotificationService, transport),
     organization: createClient(OrganizationService, transport),
+    organizationRequisites: createClient(OrganizationRequisitesService, transport),
     supportAccess: createClient(SupportAccessService, transport),
     supportTicket: createClient(SupportTicketService, transport),
     transport,

@@ -160,7 +160,7 @@ describe('createEngine startup', () => {
     expect(personas.map(persona => persona.id)).toContain(SeedPersonaId.FRESH_CUSTOMER);
   });
 
-  it('lists the eight seed personas with organization names, ordered by id', async () => {
+  it('lists the nine seed personas with organization names, ordered by id', async () => {
     const { engine } = await createTestEngine();
 
     const personas = engine.listPersonas();
@@ -174,16 +174,18 @@ describe('createEngine startup', () => {
       SeedPersonaId.CONSTRUCTION_SUPPLIER,
       SeedPersonaId.CONSTRUCTION_CARRIER,
       SeedPersonaId.CONSTRUCTION_STOREKEEPER,
+      SeedPersonaId.FRESH_BUYER,
     ]);
     expect(personas.map(persona => [persona.kind, persona.organizationName])).toEqual([
-      ['customer', 'Заказчик 1'],
-      ['supplier', 'Поставщик 1'],
-      ['carrier', 'Перевозчик 1'],
-      ['storekeeper', 'Заказчик 1'],
-      ['customer', 'Заказчик 2'],
-      ['supplier', 'Поставщик 3'],
-      ['carrier', 'Перевозчик 2'],
-      ['storekeeper', 'Заказчик 2'],
+      ['customer', 'Тёплый угол'],
+      ['supplier', 'Яблоневый край'],
+      ['carrier', 'Северный холод'],
+      ['storekeeper', 'Тёплый угол'],
+      ['customer', 'Каменный двор'],
+      ['supplier', 'Прокатный ряд'],
+      ['carrier', 'Широкий путь'],
+      ['storekeeper', 'Каменный двор'],
+      ['customer', 'Тёплый угол'],
     ]);
   });
 
@@ -191,7 +193,7 @@ describe('createEngine startup', () => {
     const { engine } = await createTestEngine();
 
     expect(engine.listPersonas().map(persona => [persona.group, persona.userDisplayName, persona.roleName])).toEqual([
-      ['fresh', 'Анна Смирнова', 'Директор'],
+      ['fresh', 'Анна Смирнова', 'Бухгалтер, Директор'],
       ['fresh', 'Сергей Кузнецов', 'Директор'],
       ['fresh', 'Дмитрий Васильев', 'Директор'],
       ['fresh', 'Иван Соколов', 'Кладовщик'],
@@ -199,6 +201,7 @@ describe('createEngine startup', () => {
       ['construction', 'Андрей Новиков', 'Директор'],
       ['construction', 'Павел Волков', 'Директор'],
       ['construction', 'Мария Лебедева', 'Кладовщик'],
+      ['fresh', 'Кирилл Орлов', 'Закупщик'],
     ]);
   });
 
@@ -299,7 +302,7 @@ describe('createEngine startup', () => {
 
     expect(ids).not.toContain(SeedPersonaId.FRESH_SUPPLIER);
     expect(ids).not.toContain(SeedPersonaId.FRESH_CARRIER);
-    expect(ids).toHaveLength(6);
+    expect(ids).toHaveLength(7);
   });
 
   it('matches every listed organization name with the organization table of the seed', async () => {
@@ -314,7 +317,7 @@ describe('createEngine startup', () => {
   it('keeps the organization name out of the stored persona record', () => {
     const seedPersonas = createEngineState(createSeedSnapshot()).read.list('personas');
 
-    expect(seedPersonas).toHaveLength(8);
+    expect(seedPersonas).toHaveLength(9);
 
     for (const persona of seedPersonas) {
       expect(Object.keys(persona).sort()).toEqual(['group', 'id', 'kind', 'organizationId', 'userId']);
@@ -409,7 +412,7 @@ describe('createEngine startup', () => {
     expect(await storage.load()).toEqual(seeded);
     const customerPersona = engine.listPersonas().find(persona => persona.id === SeedPersonaId.FRESH_CUSTOMER);
     expect(customerPersona?.kind).toBe(DemoPersonaKind.CUSTOMER);
-    expect(customerPersona?.organizationName).toBe('Заказчик 1');
+    expect(customerPersona?.organizationName).toBe('Тёплый угол');
   });
 
   it('reseeds the snapshot left by the previous release, with personas without a group and numbered user names', async () => {
@@ -455,7 +458,7 @@ describe('createEngine startup', () => {
     expect(first?.id).toBe(SeedPersonaId.FRESH_CUSTOMER);
     expect(first?.userDisplayName).toBe('Анна Смирнова');
     expect(first?.group).toBe('fresh');
-    expect(first?.roleName).toBe('Директор');
+    expect(first?.roleName).toBe('Бухгалтер, Директор');
   });
 
   it('does not reseed a stored snapshot whose schema and seed versions are both current', async () => {
@@ -613,6 +616,7 @@ describe('events', () => {
     expect(storage.commits[0]?.meta.channelSeq).toEqual({
       [organizationChannel(SeedOrganizationId.CUSTOMER_1)]: 1n,
       [userChannel(SeedUserId.ADMIN_1)]: 1n,
+      [userChannel(SeedUserId.BUYER_1)]: 1n,
       [warehouseChannel(created.warehouse?.id ?? '')]: 1n,
     });
   });
@@ -636,6 +640,7 @@ describe('events', () => {
       [organizationChannel(SeedOrganizationId.CUSTOMER_2)]: 1n,
       [userChannel(SeedUserId.ADMIN_1)]: 2n,
       [userChannel(SeedUserId.ADMIN_5)]: 1n,
+      [userChannel(SeedUserId.BUYER_1)]: 2n,
       [warehouseChannel(first.warehouse?.id ?? '')]: 1n,
       [warehouseChannel(second.warehouse?.id ?? '')]: 1n,
       [warehouseChannel(third.warehouse?.id ?? '')]: 1n,
@@ -1486,6 +1491,7 @@ describe('reset', () => {
     expect(storage.commits.at(-1)?.meta.channelSeq).toEqual({
       [organizationChannel(SeedOrganizationId.CUSTOMER_1)]: 1n,
       [userChannel(SeedUserId.ADMIN_1)]: 1n,
+      [userChannel(SeedUserId.BUYER_1)]: 1n,
       [warehouseChannel(recreated.warehouse?.id ?? '')]: 1n,
     });
   });

@@ -20,6 +20,7 @@ import {
   SEED_WORLD_START_MS,
   SeedNotificationId,
   SeedOrganizationId,
+  SeedPersonaId,
   SeedUserId,
 } from '../../seed/index';
 import {
@@ -195,7 +196,7 @@ describe('NotificationService.listNotifications on the seed data', () => {
 
       expect(response.notifications.map(notification => notification.id), persona.id).toEqual(expectedIds);
       expect(response.unreadCount, persona.id).toBe(own.filter(notification => notification.readAt === undefined).length);
-      expect(expectedIds.length, persona.id).toBeGreaterThanOrEqual(1);
+      expect(expectedIds.length === 0, persona.id).toBe(persona.id === SeedPersonaId.FRESH_BUYER);
     }
   });
 

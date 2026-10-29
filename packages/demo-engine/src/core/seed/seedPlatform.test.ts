@@ -47,7 +47,7 @@ import {
 } from './seedSnapshot';
 
 const EXPECTED_STAFF = [
-  [SeedUserId.OPERATOR_SUPPORT_AGENT, 'Анна С.', OperatorPresetKey.SUPPORT_AGENT],
+  [SeedUserId.OPERATOR_SUPPORT_AGENT, 'Ксения Р.', OperatorPresetKey.SUPPORT_AGENT],
   [SeedUserId.OPERATOR_SUPPORT_ENGINEER, 'Илья Г.', OperatorPresetKey.SUPPORT_ENGINEER],
   [SeedUserId.OPERATOR_PLATFORM_ADMIN, 'Марина К.', OperatorPresetKey.PLATFORM_ADMIN],
   [SeedUserId.OPERATOR_SUPER_ADMIN_1, 'Олег Б.', OperatorPresetKey.SUPER_ADMIN],
@@ -283,7 +283,7 @@ describe('the isolation of the platform operator from the market', () => {
     const { engine } = await createTestEngine();
     const personas = engine.listPersonas();
 
-    expect(personas).toHaveLength(8);
+    expect(personas).toHaveLength(9);
 
     for (const persona of personas) {
       expect(persona.organizationId, persona.id).not.toBe(PLATFORM_OPERATOR_ORGANIZATION_ID);

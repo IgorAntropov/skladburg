@@ -15,6 +15,10 @@ import {
   ProfileKind,
   SphereSchema,
 } from '@skladburg/contracts/organization/v1/organization';
+import {
+  OrganizationRequisitesSchema,
+  VatMode,
+} from '@skladburg/contracts/organization/v1/requisites';
 import { SupportAccessStatus } from '@skladburg/contracts/support/v1/support_access';
 import {
   SupportMessageAuthorKind,
@@ -86,6 +90,24 @@ describe('message tables', () => {
     const settings = create(OrganizationSettingsSchema, { organizationId: 'org-1' });
 
     expect(TABLE_DEFINITIONS.organizationSettings.getId(settings)).toBe('org-1');
+  });
+
+  it('round-trip the requisites and key them by the organization id', () => {
+    const requisites = create(OrganizationRequisitesSchema, {
+      bank: { bankName: 'АО «Тестовый банк»', bik: '040000501' },
+      legalAddress: '000000, г. Москва, ул. Тестовая, д. 1',
+      organizationId: 'org-1',
+      signatories: [{ fullName: 'Тестов Тест Тестович', id: 'signatory-1', isDefault: true }],
+      timeZone: 'Europe/Moscow',
+      vatMode: VatMode.GENERAL,
+      version: 1n,
+    });
+
+    const stored = TABLE_DEFINITIONS.organizationRequisites.encode(requisites);
+
+    expect(TABLE_DEFINITIONS.organizationRequisites.decode(stored)).toEqual(requisites);
+    expect(TABLE_DEFINITIONS.organizationRequisites.getId(requisites)).toBe('org-1');
+    expect(TABLE_DEFINITIONS.organizationRequisites.indexKeys).toEqual({});
   });
 
   it('read index keys from foreign keys', () => {

@@ -42,6 +42,8 @@ const listDirectorPermissionNames = (profile: ProfileKind): string[] =>
     .filter(name => !MONEY_ACTION_SUFFIXES.some(suffix => name.endsWith(suffix)))
     .sort();
 
+const ACCOUNTANT_MONEY_PERMISSION_NAMES: readonly string[] = ['payment_fund', 'payment_release'];
+
 const STOREKEEPER_PERMISSION_NAMES: readonly string[] = [
   'inventory_edit',
   'inventory_view',
@@ -63,7 +65,9 @@ describe('AccessService.getSession', () => {
     expect(response.organizations.map(organization => organization.id)).toEqual([SeedOrganizationId.CUSTOMER_1]);
     expect(response.organizations[0]?.inn).not.toBe('');
     expect(response.actingOrganizationId).toBe(SeedOrganizationId.CUSTOMER_1);
-    expect(response.permissions.map(permission => permission.permission)).toEqual(listDirectorPermissionNames(ProfileKind.CUSTOMER));
+    expect(response.permissions.map(permission => permission.permission)).toEqual(
+      [...listDirectorPermissionNames(ProfileKind.CUSTOMER), ...ACCOUNTANT_MONEY_PERMISSION_NAMES].sort(),
+    );
     expect(response.permissions.every(permission => permission.isOrganizationWide && permission.warehouseIds.length === 0)).toBe(true);
   });
 

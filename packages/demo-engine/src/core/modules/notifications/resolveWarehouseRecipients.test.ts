@@ -34,14 +34,14 @@ describe('resolveWarehouseRecipients', () => {
     const { state } = createModuleHarness();
     const warehouse = requireWarehouse(state.read, SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1);
 
-    expect(resolveWarehouseRecipients(state.read, warehouse)).toEqual([SeedUserId.ADMIN_1, SeedUserId.STOREKEEPER_1]);
+    expect(resolveWarehouseRecipients(state.read, warehouse)).toEqual([SeedUserId.ADMIN_1, SeedUserId.STOREKEEPER_1, SeedUserId.BUYER_1]);
   });
 
   it('skips the storekeeper whose area is another warehouse of the same organization', () => {
     const { state } = createModuleHarness();
     const warehouse = requireWarehouse(state.read, SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2);
 
-    expect(resolveWarehouseRecipients(state.read, warehouse)).toEqual([SeedUserId.ADMIN_1]);
+    expect(resolveWarehouseRecipients(state.read, warehouse)).toEqual([SeedUserId.ADMIN_1, SeedUserId.BUYER_1]);
   });
 
   it('never names the members of another organization', () => {

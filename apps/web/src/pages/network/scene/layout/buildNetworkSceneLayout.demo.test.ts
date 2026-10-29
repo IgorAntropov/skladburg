@@ -137,7 +137,7 @@ describe('network scene layout built from the demo engine', () => {
   it('keeps buildings of all cities apart and inside their cities', async () => {
     const layout = await buildModelAs(SeedOrganizationId.CUSTOMER_1, SeedUserId.ADMIN_1).then(buildNetworkSceneLayout);
 
-    expect(layout.buildings.filter(building => building.isCompany)).toHaveLength(9);
+    expect(layout.buildings.filter(building => building.isCompany)).toHaveLength(12);
 
     for (const city of layout.cities) {
       const cityBuildings = layout.buildings.filter(building => building.cityId === city.id);

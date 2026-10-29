@@ -46,9 +46,9 @@ describe('OrganizationService.getOrganization', () => {
     );
 
     expect(response.organization?.id).toBe(SeedOrganizationId.SUPPLIER_1);
-    expect(response.organization?.name).toBe('Поставщик 1');
+    expect(response.organization?.name).toBe('Яблоневый край');
     expect(response.organization?.profiles.length).toBeGreaterThan(0);
-    expect(response.organization?.sphereIds).toEqual([SeedSphereId.DAIRY, SeedSphereId.FRUIT_AND_VEGETABLES]);
+    expect(response.organization?.sphereIds).toEqual([SeedSphereId.FRUIT_AND_VEGETABLES]);
     expect(response.organization?.legalName).toBe('');
     expect(response.organization?.inn).toBe('');
     expect(response.organization?.kpp).toBe('');
@@ -160,7 +160,7 @@ describe('OrganizationService.getOrganizationSettings', () => {
     const response = await organization.getOrganizationSettings({}, callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1));
 
     expect(response.settings?.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
-    expect(response.settings?.brandName).toBe('Заказчик 1');
+    expect(response.settings?.brandName).toBe('Тёплый угол');
     expect(response.settings?.defaultLocale).toBe('ru');
   });
 

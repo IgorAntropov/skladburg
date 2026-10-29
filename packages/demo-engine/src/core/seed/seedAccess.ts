@@ -46,6 +46,20 @@ export const createSeedRoleId = (organizationId: string, presetKey: RolePresetKe
 interface SeedAdminDefinitionValue {
   membershipId: string;
   organizationId: string;
+  roleIds: readonly string[];
+  userId: string;
+  userName: string;
+}
+
+interface SeedAmountLimitValue {
+  amountMinor: bigint;
+  currencyCode: string;
+}
+
+interface SeedBuyerDefinitionValue {
+  amountLimit: SeedAmountLimitValue;
+  membershipId: string;
+  organizationId: string;
   roleId: string;
   userId: string;
   userName: string;
@@ -64,65 +78,90 @@ const SEED_ADMIN_DEFINITIONS: readonly SeedAdminDefinitionValue[] = [
   {
     membershipId: SeedMembershipId.ADMIN_1,
     organizationId: SeedOrganizationId.CUSTOMER_1,
-    roleId: SeedRoleId.DIRECTOR_CUSTOMER_1,
+    roleIds: [SeedRoleId.DIRECTOR_CUSTOMER_1, SeedRoleId.ACCOUNTANT_CUSTOMER_1],
     userId: SeedUserId.ADMIN_1,
     userName: 'Анна Смирнова',
   },
   {
     membershipId: SeedMembershipId.ADMIN_2,
     organizationId: SeedOrganizationId.SUPPLIER_1,
-    roleId: SeedRoleId.DIRECTOR_SUPPLIER_1,
+    roleIds: [SeedRoleId.DIRECTOR_SUPPLIER_1],
     userId: SeedUserId.ADMIN_2,
     userName: 'Сергей Кузнецов',
   },
   {
     membershipId: SeedMembershipId.ADMIN_3,
     organizationId: SeedOrganizationId.SUPPLIER_2,
-    roleId: SeedRoleId.DIRECTOR_SUPPLIER_2,
+    roleIds: [SeedRoleId.DIRECTOR_SUPPLIER_2],
     userId: SeedUserId.ADMIN_3,
     userName: 'Ольга Попова',
   },
   {
     membershipId: SeedMembershipId.ADMIN_4,
     organizationId: SeedOrganizationId.CARRIER_1,
-    roleId: SeedRoleId.DIRECTOR_CARRIER_1,
+    roleIds: [SeedRoleId.DIRECTOR_CARRIER_1],
     userId: SeedUserId.ADMIN_4,
     userName: 'Дмитрий Васильев',
   },
   {
     membershipId: SeedMembershipId.ADMIN_5,
     organizationId: SeedOrganizationId.CUSTOMER_2,
-    roleId: SeedRoleId.DIRECTOR_CUSTOMER_2,
+    roleIds: [SeedRoleId.DIRECTOR_CUSTOMER_2],
     userId: SeedUserId.ADMIN_5,
     userName: 'Елена Морозова',
   },
   {
     membershipId: SeedMembershipId.ADMIN_6,
     organizationId: SeedOrganizationId.SUPPLIER_3,
-    roleId: SeedRoleId.DIRECTOR_SUPPLIER_3,
+    roleIds: [SeedRoleId.DIRECTOR_SUPPLIER_3],
     userId: SeedUserId.ADMIN_6,
     userName: 'Андрей Новиков',
   },
   {
     membershipId: SeedMembershipId.ADMIN_7,
     organizationId: SeedOrganizationId.SUPPLIER_4,
-    roleId: SeedRoleId.DIRECTOR_SUPPLIER_4,
+    roleIds: [SeedRoleId.DIRECTOR_SUPPLIER_4],
     userId: SeedUserId.ADMIN_7,
     userName: 'Татьяна Фёдорова',
   },
   {
     membershipId: SeedMembershipId.ADMIN_8,
     organizationId: SeedOrganizationId.CARRIER_2,
-    roleId: SeedRoleId.DIRECTOR_CARRIER_2,
+    roleIds: [SeedRoleId.DIRECTOR_CARRIER_2],
     userId: SeedUserId.ADMIN_8,
     userName: 'Павел Волков',
   },
   {
     membershipId: SeedMembershipId.ADMIN_9,
     organizationId: SeedOrganizationId.SUPPLIER_5,
-    roleId: SeedRoleId.DIRECTOR_SUPPLIER_5,
+    roleIds: [SeedRoleId.DIRECTOR_SUPPLIER_5],
     userId: SeedUserId.ADMIN_9,
     userName: 'Наталья Козлова',
+  },
+  {
+    membershipId: SeedMembershipId.ADMIN_10,
+    organizationId: SeedOrganizationId.SUPPLIER_6,
+    roleIds: [SeedRoleId.DIRECTOR_SUPPLIER_6],
+    userId: SeedUserId.ADMIN_10,
+    userName: 'Григорий Зуев',
+  },
+  {
+    membershipId: SeedMembershipId.ADMIN_11,
+    organizationId: SeedOrganizationId.SUPPLIER_7,
+    roleIds: [SeedRoleId.DIRECTOR_SUPPLIER_7],
+    userId: SeedUserId.ADMIN_11,
+    userName: 'Степан Ершов',
+  },
+];
+
+const SEED_BUYER_DEFINITIONS: readonly SeedBuyerDefinitionValue[] = [
+  {
+    amountLimit: { amountMinor: 10_000_000n, currencyCode: 'RUB' },
+    membershipId: SeedMembershipId.BUYER_1,
+    organizationId: SeedOrganizationId.CUSTOMER_1,
+    roleId: SeedRoleId.BUYER_CUSTOMER_1,
+    userId: SeedUserId.BUYER_1,
+    userName: 'Кирилл Орлов',
   },
 ];
 
@@ -147,6 +186,7 @@ const SEED_STOREKEEPER_DEFINITIONS: readonly SeedStorekeeperDefinitionValue[] = 
 
 export const createSeedUsers = (): User[] => [
   ...SEED_ADMIN_DEFINITIONS,
+  ...SEED_BUYER_DEFINITIONS,
   ...SEED_STOREKEEPER_DEFINITIONS,
 ].map(definition => create(UserSchema, {
   displayName: definition.userName,
@@ -161,7 +201,13 @@ export const createSeedMemberships = (): Membership[] => [
   ...SEED_ADMIN_DEFINITIONS.map(definition => create(MembershipSchema, {
     id: definition.membershipId,
     organizationId: definition.organizationId,
-    roleAssignments: [{ roleId: definition.roleId, warehouseIds: [] }],
+    roleAssignments: definition.roleIds.map(roleId => ({ roleId, warehouseIds: [] })),
+    userId: definition.userId,
+  })),
+  ...SEED_BUYER_DEFINITIONS.map(definition => create(MembershipSchema, {
+    id: definition.membershipId,
+    organizationId: definition.organizationId,
+    roleAssignments: [{ amountLimit: definition.amountLimit, roleId: definition.roleId, warehouseIds: [] }],
     userId: definition.userId,
   })),
   ...SEED_STOREKEEPER_DEFINITIONS.map(definition => create(MembershipSchema, {

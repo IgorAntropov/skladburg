@@ -51,7 +51,7 @@ describe('network map model built from the demo engine', () => {
     return buildNetworkMapModel({ directory, locale: 'ru', organizationId, sites });
   };
 
-  it('shows nine cities, eleven roads and nine sites to a customer, its own sites first', async () => {
+  it('shows nine cities, eleven roads and twelve sites to a customer, its own sites first', async () => {
     if (runtime === undefined) {
       throw new Error('Runtime is not started');
     }
@@ -60,7 +60,7 @@ describe('network map model built from the demo engine', () => {
 
     expect(model.cities).toHaveLength(9);
     expect(model.roads).toHaveLength(11);
-    expect(model.sites).toHaveLength(9);
+    expect(model.sites).toHaveLength(12);
     expect(model.sites.slice(0, 3).every(site => site.isOwn && site.side === 'customer')).toBe(true);
     expect(model.sites.slice(3).some(site => site.isOwn)).toBe(false);
 

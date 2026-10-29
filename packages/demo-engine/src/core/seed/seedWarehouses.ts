@@ -66,6 +66,15 @@ const SEED_WAREHOUSE_DEFINITIONS: readonly SeedWarehouseDefinitionValue[] = [
   },
   {
     capabilities: [WarehouseCapability.RAMP, WarehouseCapability.COLD],
+    cityId: SeedCityId.KRASNODAR,
+    id: SeedWarehouseId.SUPPLIER_1_WAREHOUSE_2,
+    mapNodeId: SeedMapNodeId.KRASNODAR,
+    name: 'Склад 2',
+    tenantId: SeedOrganizationId.SUPPLIER_1,
+    timeZone: MOSCOW_TIME_ZONE,
+  },
+  {
+    capabilities: [WarehouseCapability.RAMP, WarehouseCapability.COLD],
     cityId: SeedCityId.VORONEZH,
     id: SeedWarehouseId.SUPPLIER_2_WAREHOUSE_1,
     mapNodeId: SeedMapNodeId.VORONEZH,
@@ -117,6 +126,24 @@ const SEED_WAREHOUSE_DEFINITIONS: readonly SeedWarehouseDefinitionValue[] = [
     name: 'Склад 1',
     tenantId: SeedOrganizationId.SUPPLIER_4,
     timeZone: MOSCOW_TIME_ZONE,
+  },
+  {
+    capabilities: [WarehouseCapability.RAMP, WarehouseCapability.COLD],
+    cityId: SeedCityId.MOSCOW,
+    id: SeedWarehouseId.SUPPLIER_6_WAREHOUSE_1,
+    mapNodeId: SeedMapNodeId.MOSCOW,
+    name: 'Склад 1',
+    tenantId: SeedOrganizationId.SUPPLIER_6,
+    timeZone: MOSCOW_TIME_ZONE,
+  },
+  {
+    capabilities: [WarehouseCapability.RAMP, WarehouseCapability.OVERSIZE],
+    cityId: SeedCityId.NOVOSIBIRSK,
+    id: SeedWarehouseId.SUPPLIER_7_WAREHOUSE_1,
+    mapNodeId: SeedMapNodeId.NOVOSIBIRSK,
+    name: 'Склад 1',
+    tenantId: SeedOrganizationId.SUPPLIER_7,
+    timeZone: NOVOSIBIRSK_TIME_ZONE,
   },
 ];
 

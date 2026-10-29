@@ -48,7 +48,7 @@ import { createMemoryLocation } from '@/shared/routing/index.testing';
 import { App } from './App';
 import { createTestThemeStore } from './lib/testing/themeFixtures';
 
-const BRAND_NAME = 'Заказчик 1';
+const BRAND_NAME = 'Тёплый угол';
 const PRODUCT_NAME = defaultLocaleCatalog['app.productName'];
 const SEED_WAREHOUSE_COUNT = 3;
 const LIST_WAREHOUSES_PATH = '/ListWarehouses';
@@ -241,7 +241,7 @@ const formatProfileButtonName = (userDisplayName: string, organizationName: stri
 };
 
 const CUSTOMER_BUTTON_NAME = formatProfileButtonName('Анна Смирнова', BRAND_NAME);
-const CARRIER_BUTTON_NAME = formatProfileButtonName('Дмитрий Васильев', 'Перевозчик 1');
+const CARRIER_BUTTON_NAME = formatProfileButtonName('Дмитрий Васильев', 'Северный холод');
 const PROFILE_BUTTON_PATTERN = new RegExp(`^${defaultLocaleCatalog['profile.button.loading']}`);
 
 const getProductName = (): HTMLElement => within(screen.getByRole('banner')).getByText(PRODUCT_NAME);
@@ -364,7 +364,7 @@ const formatPersonaOption = (name: string, role: string, organizationName: strin
 };
 
 const STOREKEEPER_OPTION = formatPersonaOption('Иван Соколов', 'Кладовщик', BRAND_NAME);
-const CARRIER_OPTION = formatPersonaOption('Дмитрий Васильев', 'Директор', 'Перевозчик 1');
+const CARRIER_OPTION = formatPersonaOption('Дмитрий Васильев', 'Директор', 'Северный холод');
 
 const choosePersona = async (optionName: string): Promise<void> => {
   const menu = await openProfileMenu();

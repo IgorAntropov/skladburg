@@ -41,8 +41,8 @@ import { createTestRuntime } from '../testing/testRuntime';
 import { createOrganizationShowcaseService } from './showcaseHandlers';
 
 const UNKNOWN_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
-const SMALL_PAGE_SIZE = 3;
-const CUSTOMER_1_VISIBLE_COUNT = 8;
+const SMALL_PAGE_SIZE = 4;
+const CUSTOMER_1_VISIBLE_COUNT = 10;
 const FRESH_CUSTOMER = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 const UNVERIFIED_SUPPLIER = callAs(SeedUserId.ADMIN_9, SeedOrganizationId.SUPPLIER_5);
 
@@ -73,13 +73,18 @@ describe('OrganizationShowcaseService.listOrganizationShowcases', () => {
 
     expect(organizations).toHaveLength(CUSTOMER_1_VISIBLE_COUNT);
     expect(names).toEqual([...names].sort(new Intl.Collator('ru').compare));
-    expect(names).not.toContain('Поставщик 5');
+    expect(names).not.toContain('Южная грядка');
   });
 
   it('gives every listed organization its logo paths', async () => {
     const { organizations } = await createShowcaseClient().listOrganizationShowcases({}, FRESH_CUSTOMER);
 
-    expect(organizations.every(organization => organization.logo?.lightUrl !== '' && organization.logo?.darkUrl !== '')).toBe(true);
+    const withLogo = organizations.filter(organization => organization.logo !== undefined);
+
+    expect(withLogo).toHaveLength(CUSTOMER_1_VISIBLE_COUNT - 2);
+    expect(withLogo.every(organization => organization.logo?.lightUrl !== '' && organization.logo?.darkUrl !== '')).toBe(true);
+    expect(organizations.filter(organization => organization.logo === undefined).map(organization => organization.name).sort())
+      .toEqual(['Ровный брус', 'Утиный брод']);
     expect(organizations.map(organization => organization.logo?.lightUrl)).toContain('logos/supplier-2-light.svg');
   });
 
@@ -89,7 +94,7 @@ describe('OrganizationShowcaseService.listOrganizationShowcases', () => {
       FRESH_CUSTOMER,
     );
 
-    expect(organizations.map(organization => organization.name)).toEqual(['Перевозчик 1']);
+    expect(organizations.map(organization => organization.name)).toEqual(['Северный холод']);
   });
 
   it('shows an unverified viewer only its own organization', async () => {
@@ -158,10 +163,10 @@ describe('OrganizationShowcaseService.getOrganizationShowcase', () => {
       FRESH_CUSTOMER,
     );
 
-    expect(organization?.name).toBe('Поставщик 1');
+    expect(organization?.name).toBe('Яблоневый край');
     expect(organization?.logo?.lightUrl).toBe('logos/supplier-1-light.svg');
     expect(organization?.logo?.darkUrl).toBe('logos/supplier-1-dark.svg');
-    expect(organization?.sphereIds).toEqual([SeedSphereId.DAIRY, SeedSphereId.FRUIT_AND_VEGETABLES]);
+    expect(organization?.sphereIds).toEqual([SeedSphereId.FRUIT_AND_VEGETABLES]);
   });
 
   it('returns the own organization to an unverified viewer', async () => {
@@ -215,7 +220,7 @@ describe.each([
     const list = await client.listOrganizationShowcases({ sphereId: SeedSphereId.DAIRY }, FRESH_CUSTOMER);
     const single = await client.getOrganizationShowcase({ organizationId: SeedOrganizationId.SUPPLIER_1 }, FRESH_CUSTOMER);
 
-    expect(list.organizations.map(organization => organization.name)).toEqual(['Поставщик 1']);
-    expect(single.organization?.name).toBe('Поставщик 1');
+    expect(list.organizations.map(organization => organization.name)).toEqual(['Белое поле']);
+    expect(single.organization?.name).toBe('Яблоневый край');
   });
 });

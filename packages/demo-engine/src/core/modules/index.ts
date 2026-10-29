@@ -1,6 +1,7 @@
 export { createClockService } from './clock/index';
 export {
   createAccessService,
+  createOrganizationRequisitesService,
   createOrganizationShowcaseService,
   createUserProfileService,
 } from './identity/index';

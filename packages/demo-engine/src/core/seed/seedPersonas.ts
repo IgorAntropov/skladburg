@@ -19,6 +19,13 @@ export const createSeedPersonas = (): DemoPersonaValue[] => [
   },
   {
     group: DemoPersonaGroup.FRESH,
+    id: SeedPersonaId.FRESH_BUYER,
+    kind: DemoPersonaKind.CUSTOMER,
+    organizationId: SeedOrganizationId.CUSTOMER_1,
+    userId: SeedUserId.BUYER_1,
+  },
+  {
+    group: DemoPersonaGroup.FRESH,
     id: SeedPersonaId.FRESH_SUPPLIER,
     kind: DemoPersonaKind.SUPPLIER,
     organizationId: SeedOrganizationId.SUPPLIER_1,

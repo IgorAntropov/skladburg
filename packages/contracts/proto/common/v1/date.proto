@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package common.v1;
+
+import "buf/validate/validate.proto";
+
+message CalendarDate {
+  int32 year = 1 [
+    (buf.validate.field).int32.gte = 2000,
+    (buf.validate.field).int32.lte = 2100
+  ];
+  int32 month = 2 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 12
+  ];
+  int32 day = 3 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 31
+  ];
+}

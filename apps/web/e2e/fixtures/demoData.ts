@@ -11,32 +11,32 @@ const ALL_SECTIONS: readonly SectionValue[] = ['network', 'catalog', 'deals', 'w
 export const PERSONAS = {
   constructionCarrier: {
     id: '90000007-0000-4000-8000-000000000000',
-    organizationName: 'Перевозчик 2',
+    organizationName: 'Широкий путь',
     sections: ['network', 'deals'],
   },
   constructionCustomer: {
     id: '90000005-0000-4000-8000-000000000000',
-    organizationName: 'Заказчик 2',
+    organizationName: 'Каменный двор',
     sections: ALL_SECTIONS,
   },
   constructionSupplier: {
     id: '90000006-0000-4000-8000-000000000000',
-    organizationName: 'Поставщик 3',
+    organizationName: 'Прокатный ряд',
     sections: ALL_SECTIONS,
   },
   freshCarrier: {
     id: '90000003-0000-4000-8000-000000000000',
-    organizationName: 'Перевозчик 1',
+    organizationName: 'Северный холод',
     sections: ['network', 'deals'],
   },
   freshCustomer: {
     id: '90000001-0000-4000-8000-000000000000',
-    organizationName: 'Заказчик 1',
+    organizationName: 'Тёплый угол',
     sections: ALL_SECTIONS,
   },
   freshStorekeeper: {
     id: '90000004-0000-4000-8000-000000000000',
-    organizationName: 'Заказчик 1',
+    organizationName: 'Тёплый угол',
     sections: ['warehouse'],
   },
 } as const satisfies Record<string, PersonaValue>;
@@ -57,7 +57,7 @@ export const SUPPORT_TEXTS = {
   assistantName: 'Михалыч',
   categoryMoneyOption: 'Деньги · срочно',
   noPersonalData: 'Имя, телефон и почту не отправляем',
-  replyAuthor: 'Поддержка · Анна С.',
+  replyAuthor: 'Поддержка · Ксения Р.',
   tabHelp: 'Помощь',
   tabNotifications: 'Уведомления',
   ticketTitle: 'Обращение №\u00a01001',
@@ -117,7 +117,7 @@ export const FOREIGN_NETWORK_SITE = {
   cityName: 'Краснодар',
   cityNodeId: '70000004-0000-4000-8000-000000000000',
   id: '80000004-0000-4000-8000-000000000000',
-  label: 'Поставщик 1',
+  label: 'Яблоневый край',
   sideName: 'Поставщик',
 } as const satisfies NetworkSiteValue & { sideName: string };
 
@@ -125,13 +125,13 @@ export const FAR_NETWORK_SITE = {
   cityName: 'Челябинск',
   cityNodeId: '70000008-0000-4000-8000-000000000000',
   id: '80000009-0000-4000-8000-000000000000',
-  label: 'Поставщик 3',
+  label: 'Прокатный ряд',
   sideName: 'Поставщик',
 } as const satisfies NetworkSiteValue & { sideName: string };
 
 export const UNKNOWN_NETWORK_SITE_ID = 'f7000001-0000-4000-8000-000000000000';
 
-export const NETWORK_SITE_COUNT = 9;
+export const NETWORK_SITE_COUNT = 12;
 
 export const NETWORK_CITY_COUNT = 9;
 
@@ -143,14 +143,16 @@ export interface DirectoryOrganizationValue {
 }
 
 export const DIRECTORY_ORGANIZATIONS = {
-  carrier1: { id: '10000004-0000-4000-8000-000000000000', inn: '0000001044', logoKey: 'carrier-1', name: 'Перевозчик 1' },
-  carrier2: { id: '10000008-0000-4000-8000-000000000000', inn: '0000001083', logoKey: 'carrier-2', name: 'Перевозчик 2' },
-  customer1: { id: '10000001-0000-4000-8000-000000000000', inn: '0000001012', logoKey: 'customer-1', name: 'Заказчик 1' },
-  customer2: { id: '10000005-0000-4000-8000-000000000000', inn: '0000001051', logoKey: 'customer-2', name: 'Заказчик 2' },
-  supplier1: { id: '10000002-0000-4000-8000-000000000000', inn: '0000001020', logoKey: 'supplier-1', name: 'Поставщик 1' },
-  supplier2: { id: '10000003-0000-4000-8000-000000000000', inn: '0000001037', logoKey: 'supplier-2', name: 'Поставщик 2' },
-  supplier3: { id: '10000006-0000-4000-8000-000000000000', inn: '0000001069', logoKey: 'supplier-3', name: 'Поставщик 3' },
-  supplier4: { id: '10000007-0000-4000-8000-000000000000', inn: '0000001076', logoKey: 'supplier-4', name: 'Поставщик 4' },
+  carrier1: { id: '10000004-0000-4000-8000-000000000000', inn: '0000001043', logoKey: 'carrier-1', name: 'Северный холод' },
+  carrier2: { id: '10000008-0000-4000-8000-000000000000', inn: '0000001082', logoKey: 'carrier-2', name: 'Широкий путь' },
+  customer1: { id: '10000001-0000-4000-8000-000000000000', inn: '0000001011', logoKey: 'customer-1', name: 'Тёплый угол' },
+  customer2: { id: '10000005-0000-4000-8000-000000000000', inn: '0000001050', logoKey: 'customer-2', name: 'Каменный двор' },
+  supplier1: { id: '10000002-0000-4000-8000-000000000000', inn: '0000001029', logoKey: 'supplier-1', name: 'Яблоневый край' },
+  supplier2: { id: '10000003-0000-4000-8000-000000000000', inn: '0000001036', logoKey: 'supplier-2', name: 'Белое поле' },
+  supplier3: { id: '10000006-0000-4000-8000-000000000000', inn: '0000001068', logoKey: 'supplier-3', name: 'Прокатный ряд' },
+  supplier4: { id: '10000007-0000-4000-8000-000000000000', inn: '0000001075', logoKey: 'supplier-4', name: 'Серый камень' },
+  supplier6: { id: '10000010-0000-4000-8000-000000000000', inn: '0000001100', logoKey: '', name: 'Утиный брод' },
+  supplier7: { id: '10000011-0000-4000-8000-000000000000', inn: '0000001117', logoKey: '', name: 'Ровный брус' },
 } as const satisfies Record<string, DirectoryOrganizationValue>;
 
 export const MULTI_CITY_ORGANIZATION = {
@@ -159,14 +161,16 @@ export const MULTI_CITY_ORGANIZATION = {
 } as const;
 
 export const DIRECTORY_VISIBLE_ORGANIZATIONS: readonly DirectoryOrganizationValue[] = [
-  DIRECTORY_ORGANIZATIONS.customer1,
+  DIRECTORY_ORGANIZATIONS.supplier2,
   DIRECTORY_ORGANIZATIONS.customer2,
+  DIRECTORY_ORGANIZATIONS.supplier3,
+  DIRECTORY_ORGANIZATIONS.supplier7,
   DIRECTORY_ORGANIZATIONS.carrier1,
+  DIRECTORY_ORGANIZATIONS.supplier4,
+  DIRECTORY_ORGANIZATIONS.customer1,
+  DIRECTORY_ORGANIZATIONS.supplier6,
   DIRECTORY_ORGANIZATIONS.carrier2,
   DIRECTORY_ORGANIZATIONS.supplier1,
-  DIRECTORY_ORGANIZATIONS.supplier2,
-  DIRECTORY_ORGANIZATIONS.supplier3,
-  DIRECTORY_ORGANIZATIONS.supplier4,
 ];
 
 export const DAIRY_SPHERE_ID = '50000002-0000-4000-8000-000000000000';

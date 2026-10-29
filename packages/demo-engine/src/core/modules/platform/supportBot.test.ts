@@ -52,7 +52,7 @@ import {
 
 const AUTHOR = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 const REPLY_DELAY_MS = 4_000;
-const RESPONDER_NAME = 'Анна С.';
+const RESPONDER_NAME = 'Ксения Р.';
 const EXTRA_KEY = '8d14e6a2-0b3c-4f57-9a68-12cd45ef7890';
 
 const listSupportReplies = async (harness: ModuleHarnessValue, options = AUTHOR): Promise<Notification[]> =>

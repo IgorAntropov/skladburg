@@ -51,9 +51,9 @@ describe('projectOrganizationForShowcase', () => {
     const projection = projectOrganizationForShowcase(create(OrganizationSchema, organization));
 
     expect(projection.id).toBe(SeedOrganizationId.SUPPLIER_4);
-    expect(projection.name).toBe('Поставщик 4');
+    expect(projection.name).toBe('Серый камень');
     expect(projection.profiles.map(profile => profile.kind)).toEqual([ProfileKind.SUPPLIER, ProfileKind.CARRIER]);
-    expect(projection.sphereIds).toEqual([SeedSphereId.CEMENT_AND_CONCRETE, SeedSphereId.TIMBER]);
+    expect(projection.sphereIds).toEqual([SeedSphereId.CEMENT_AND_CONCRETE]);
     expect([projection.legalName, projection.inn, projection.kpp, projection.ogrn]).toEqual(['', '', '', '']);
   });
 
@@ -103,7 +103,7 @@ describe('getVisibleOrganization', () => {
     const organization = getVisibleOrganization(read, SeedOrganizationId.CUSTOMER_1, SeedOrganizationId.SUPPLIER_2);
 
     expect(organization?.id).toBe(SeedOrganizationId.SUPPLIER_2);
-    expect(organization?.name).toBe('Поставщик 2');
+    expect(organization?.name).toBe('Белое поле');
     expect(organization?.inn).toBe('');
   });
 

@@ -82,7 +82,7 @@ describe('createSeedSnapshot', () => {
       worldTimeMs: SEED_WORLD_START_MS,
     });
     expect(SEED_TIME_SCALE).toBe(1);
-    expect(SEED_VERSION).toBe(10);
+    expect(SEED_VERSION).toBe(11);
   });
 
   it('carries the current schema version', () => {
@@ -128,20 +128,22 @@ describe('seed contents', () => {
     }
   });
 
-  it('describes the nine organizations of the two verticals', () => {
+  it('describes the eleven organizations of the two verticals', () => {
     const reader = createSeedReader();
 
     expect(reader.list('organizations').filter(isClientOrganization).map(organization => organization.name).sort()).toEqual([
-      'Заказчик 1',
-      'Заказчик 2',
-      'Перевозчик 1',
-      'Перевозчик 2',
-      'Поставщик 1',
-      'Поставщик 2',
-      'Поставщик 3',
-      'Поставщик 4',
-      'Поставщик 5',
-    ]);
+      'Белое поле',
+      'Каменный двор',
+      'Прокатный ряд',
+      'Ровный брус',
+      'Северный холод',
+      'Серый камень',
+      'Тёплый угол',
+      'Утиный брод',
+      'Широкий путь',
+      'Южная грядка',
+      'Яблоневый край',
+    ].sort());
   });
 
   it('gives the first customer exactly three warehouses in three cities', () => {
@@ -180,7 +182,7 @@ describe('seed contents', () => {
     const organizations = createSeedReader().list('organizations');
 
     expect(organizations.filter(hasProfileKind(ProfileKind.CUSTOMER))).toHaveLength(2);
-    expect(organizations.filter(hasProfileKind(ProfileKind.SUPPLIER))).toHaveLength(5);
+    expect(organizations.filter(hasProfileKind(ProfileKind.SUPPLIER))).toHaveLength(7);
     expect(organizations.filter(hasProfileKind(ProfileKind.CARRIER))).toHaveLength(3);
   });
 
@@ -293,8 +295,8 @@ describe('seed contents', () => {
       expect(roles.map(role => role.presetKey).sort(), organization.name).toEqual([...presetKeys].sort());
     }
 
-    expect(reader.list('roles').filter(role => !isPlatformOperator(role.tenantId))).toHaveLength(44);
-    expect(reader.list('roles')).toHaveLength(48);
+    expect(reader.list('roles').filter(role => !isPlatformOperator(role.tenantId))).toHaveLength(54);
+    expect(reader.list('roles')).toHaveLength(58);
   });
 
   it('counts the role presets by the profiles of each organization', () => {
@@ -305,6 +307,8 @@ describe('seed contents', () => {
     expect(countOf(SeedOrganizationId.CUSTOMER_2)).toBe(5);
     expect(countOf(SeedOrganizationId.SUPPLIER_1)).toBe(5);
     expect(countOf(SeedOrganizationId.SUPPLIER_5)).toBe(5);
+    expect(countOf(SeedOrganizationId.SUPPLIER_6)).toBe(5);
+    expect(countOf(SeedOrganizationId.SUPPLIER_7)).toBe(5);
     expect(countOf(SeedOrganizationId.CARRIER_1)).toBe(4);
     expect(countOf(SeedOrganizationId.CARRIER_2)).toBe(4);
     expect(countOf(SeedOrganizationId.SUPPLIER_4)).toBe(6);
@@ -338,6 +342,10 @@ describe('seed contents', () => {
     expect(SeedRoleId.DIRECTOR_SUPPLIER_4).toBe(createSeedRoleId(SeedOrganizationId.SUPPLIER_4, RolePresetKey.DIRECTOR));
     expect(SeedRoleId.DIRECTOR_CARRIER_2).toBe(createSeedRoleId(SeedOrganizationId.CARRIER_2, RolePresetKey.DIRECTOR));
     expect(SeedRoleId.DIRECTOR_SUPPLIER_5).toBe(createSeedRoleId(SeedOrganizationId.SUPPLIER_5, RolePresetKey.DIRECTOR));
+    expect(SeedRoleId.DIRECTOR_SUPPLIER_6).toBe(createSeedRoleId(SeedOrganizationId.SUPPLIER_6, RolePresetKey.DIRECTOR));
+    expect(SeedRoleId.DIRECTOR_SUPPLIER_7).toBe(createSeedRoleId(SeedOrganizationId.SUPPLIER_7, RolePresetKey.DIRECTOR));
+    expect(SeedRoleId.ACCOUNTANT_CUSTOMER_1).toBe(createSeedRoleId(SeedOrganizationId.CUSTOMER_1, RolePresetKey.ACCOUNTANT));
+    expect(SeedRoleId.BUYER_CUSTOMER_1).toBe(createSeedRoleId(SeedOrganizationId.CUSTOMER_1, RolePresetKey.BUYER));
     expect(SeedRoleId.STOREKEEPER_CUSTOMER_1).toBe(createSeedRoleId(SeedOrganizationId.CUSTOMER_1, RolePresetKey.STOREKEEPER));
     expect(SeedRoleId.STOREKEEPER_CUSTOMER_2).toBe(createSeedRoleId(SeedOrganizationId.CUSTOMER_2, RolePresetKey.STOREKEEPER));
   });
@@ -358,8 +366,9 @@ describe('seed contents', () => {
       expect([...(directorRole?.permissions ?? [])].sort(), organization.name).toEqual([...expected].sort());
       expect(directorRole?.permissions, organization.name).toContain('member_manage');
       expect(directorMemberships, organization.name).toHaveLength(1);
-      expect(directorMemberships[0]?.roleAssignments).toHaveLength(1);
-      expect(directorMemberships[0]?.roleAssignments[0]?.warehouseIds).toEqual([]);
+      expect(directorMemberships[0]?.roleAssignments).toHaveLength(organization.id === SeedOrganizationId.CUSTOMER_1 ? 2 : 1);
+      expect(directorMemberships[0]?.roleAssignments.every(assignment => assignment.amountLimit === undefined)).toBe(true);
+      expect(directorMemberships[0]?.roleAssignments.every(assignment => assignment.warehouseIds.length === 0)).toBe(true);
     }
   });
 
@@ -398,7 +407,7 @@ describe('seed contents', () => {
     );
     const names = reader.list('users').filter(user => !operatorUserIds.has(user.id)).map(user => user.displayName);
 
-    expect(names).toHaveLength(11);
+    expect(names).toHaveLength(14);
     expect(new Set(names).size).toBe(names.length);
     names.forEach((name) => {
       expect(name).toMatch(/^[А-ЯЁ][а-яё]+ [А-ЯЁ][а-яё]+$/);
@@ -417,35 +426,54 @@ describe('seed contents', () => {
     expect(reader.get('users', SeedUserId.ADMIN_7)?.displayName).toBe('Татьяна Фёдорова');
     expect(reader.get('users', SeedUserId.ADMIN_8)?.displayName).toBe('Павел Волков');
     expect(reader.get('users', SeedUserId.ADMIN_9)?.displayName).toBe('Наталья Козлова');
+    expect(reader.get('users', SeedUserId.ADMIN_10)?.displayName).toBe('Григорий Зуев');
+    expect(reader.get('users', SeedUserId.ADMIN_11)?.displayName).toBe('Степан Ершов');
+    expect(reader.get('users', SeedUserId.BUYER_1)?.displayName).toBe('Кирилл Орлов');
     expect(reader.get('users', SeedUserId.STOREKEEPER_1)?.displayName).toBe('Иван Соколов');
     expect(reader.get('users', SeedUserId.STOREKEEPER_2)?.displayName).toBe('Мария Лебедева');
   });
 
-  it('puts the first four personas into the fresh group and the last four into the construction group', () => {
+  it('puts five personas into the fresh group and four into the construction group', () => {
     const personas = createSeedReader().list('personas');
+    const groupOf = (personaId: string): DemoPersonaGroup | undefined => personas.find(persona => persona.id === personaId)?.group;
 
-    expect(personas.map(persona => persona.group)).toEqual([
-      DemoPersonaGroup.FRESH,
-      DemoPersonaGroup.FRESH,
-      DemoPersonaGroup.FRESH,
-      DemoPersonaGroup.FRESH,
-      DemoPersonaGroup.CONSTRUCTION,
-      DemoPersonaGroup.CONSTRUCTION,
-      DemoPersonaGroup.CONSTRUCTION,
-      DemoPersonaGroup.CONSTRUCTION,
-    ]);
+    expect(personas.filter(persona => persona.group === DemoPersonaGroup.FRESH)).toHaveLength(5);
+    expect(personas.filter(persona => persona.group === DemoPersonaGroup.CONSTRUCTION)).toHaveLength(4);
+    expect(groupOf(SeedPersonaId.FRESH_BUYER)).toBe(DemoPersonaGroup.FRESH);
+    expect(groupOf(SeedPersonaId.CONSTRUCTION_CUSTOMER)).toBe(DemoPersonaGroup.CONSTRUCTION);
   });
 
-  it('gives each vertical a customer, a supplier, a carrier and a storekeeper persona', () => {
+  it('gives the fresh vertical a customer, a buyer, a supplier, a carrier and a storekeeper persona and the construction one four', () => {
     const reader = createSeedReader();
     const personas = reader.list('personas');
 
-    expect(personas).toHaveLength(8);
-    expect(personas.filter(persona => persona.kind === DemoPersonaKind.CUSTOMER)).toHaveLength(2);
+    expect(personas).toHaveLength(9);
+    expect(personas.filter(persona => persona.kind === DemoPersonaKind.CUSTOMER)).toHaveLength(3);
     expect(personas.filter(persona => persona.kind === DemoPersonaKind.SUPPLIER)).toHaveLength(2);
     expect(personas.filter(persona => persona.kind === DemoPersonaKind.CARRIER)).toHaveLength(2);
     expect(personas.filter(persona => persona.kind === DemoPersonaKind.STOREKEEPER)).toHaveLength(2);
     expect(reader.get('personas', SeedPersonaId.FRESH_CUSTOMER)?.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
+    expect(reader.get('personas', SeedPersonaId.FRESH_BUYER)).toMatchObject({
+      kind: DemoPersonaKind.CUSTOMER,
+      organizationId: SeedOrganizationId.CUSTOMER_1,
+      userId: SeedUserId.BUYER_1,
+    });
+  });
+
+  it('gives the first customer director a second role of the accountant and the buyer a limited buyer role', () => {
+    const reader = createSeedReader();
+    const director = reader.listBy('memberships', 'userId', SeedUserId.ADMIN_1)[0];
+    const buyer = reader.listBy('memberships', 'userId', SeedUserId.BUYER_1)[0];
+
+    expect(director?.roleAssignments.map(assignment => assignment.roleId)).toEqual([
+      SeedRoleId.DIRECTOR_CUSTOMER_1,
+      SeedRoleId.ACCOUNTANT_CUSTOMER_1,
+    ]);
+    expect(buyer?.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
+    expect(buyer?.roleAssignments).toHaveLength(1);
+    expect(buyer?.roleAssignments[0]?.roleId).toBe(SeedRoleId.BUYER_CUSTOMER_1);
+    expect(buyer?.roleAssignments[0]?.amountLimit?.amountMinor).toBe(10_000_000n);
+    expect(buyer?.roleAssignments[0]?.amountLimit?.currencyCode).toBe('RUB');
   });
 
   it('points every persona to a member of the persona organization', () => {

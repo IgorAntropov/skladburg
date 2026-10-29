@@ -76,10 +76,10 @@ describe('createSeedNotifications', () => {
   const records = createSeedNotifications(SEED_WORLD_START_MS);
   const personas = createSeedPersonas();
 
-  it('gives each of the eight personas one or two notifications in their own organization', () => {
-    expect(personas).toHaveLength(8);
+  it('gives each of the nine personas one or two notifications in their own organization, the buyer none', () => {
+    expect(personas).toHaveLength(9);
 
-    for (const persona of personas) {
+    for (const persona of personas.filter(candidate => candidate.id !== SeedPersonaId.FRESH_BUYER)) {
       const own = records.filter(record => record.userId === persona.userId);
 
       expect(own.length, persona.id).toBeGreaterThanOrEqual(1);
@@ -89,6 +89,9 @@ describe('createSeedNotifications', () => {
       });
     }
 
+    const buyer = personas.find(persona => persona.id === SeedPersonaId.FRESH_BUYER);
+
+    expect(records.filter(record => record.userId === buyer?.userId)).toEqual([]);
     expect(records.every(record => personas.some(persona => persona.userId === record.userId))).toBe(true);
   });
 

@@ -32,7 +32,7 @@ const deleteMembership = (state: IEngineState, membershipId: string): void => {
 
 describe('findSupportResponderName', () => {
   it('names the support agent, the smallest user id among the operator members who may reply', () => {
-    expect(findSupportResponderName(createSeedState().read)).toBe('Анна С.');
+    expect(findSupportResponderName(createSeedState().read)).toBe('Ксения Р.');
   });
 
   it('moves to the next smallest user id when the first responder has left', () => {

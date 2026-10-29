@@ -48,7 +48,7 @@ export const SEED_OPERATOR_STAFF_DEFINITIONS: readonly SeedOperatorStaffDefiniti
     membershipId: SeedMembershipId.OPERATOR_SUPPORT_AGENT,
     presetKey: OperatorPresetKey.SUPPORT_AGENT,
     userId: SeedUserId.OPERATOR_SUPPORT_AGENT,
-    userName: 'Анна С.',
+    userName: 'Ксения Р.',
   },
   {
     membershipId: SeedMembershipId.OPERATOR_SUPPORT_ENGINEER,
@@ -79,11 +79,11 @@ export const SEED_OPERATOR_STAFF_DEFINITIONS: readonly SeedOperatorStaffDefiniti
 export const createSeedPlatformOrganizations = (): Organization[] => [
   create(OrganizationSchema, {
     id: PLATFORM_OPERATOR_ORGANIZATION_ID,
-    inn: '0000001101',
-    kpp: '000001010',
+    inn: '0000001004',
+    kpp: '000001000',
     legalName: `ООО «${PLATFORM_OPERATOR_NAME}»`,
     name: PLATFORM_OPERATOR_NAME,
-    ogrn: '1000000011011',
+    ogrn: '1000000001000',
     profiles: [],
     sphereIds: [],
   }),

@@ -16,7 +16,7 @@ export interface SwitchActingContextResultValue {
 }
 
 export const useSwitchActingContext = (): SwitchActingContextResultValue => {
-  const { actingContext } = useApiRuntime();
+  const { actingContext, errorJournal } = useApiRuntime();
   const queryClient = useQueryClient();
   const [isSwitching, setIsSwitching] = useState(false);
   const isSwitchingRef = useRef(false);
@@ -35,13 +35,18 @@ export const useSwitchActingContext = (): SwitchActingContextResultValue => {
     setIsSwitching(true);
 
     try {
-      await replaceActingContext({ actingContext, context, queryClient });
+      await replaceActingContext({
+        actingContext,
+        context,
+        errorJournal,
+        queryClient,
+      });
     }
     finally {
       isSwitchingRef.current = false;
       setIsSwitching(false);
     }
-  }, [actingContext, queryClient]);
+  }, [actingContext, errorJournal, queryClient]);
 
   return { isSwitching, switchActingContext };
 };

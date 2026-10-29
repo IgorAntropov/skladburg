@@ -38,6 +38,11 @@ const lazyAssistantStartupFiles: string[] = [
   'apps/web/src/widgets/assistant/ui/AssistantLauncher.tsx',
   'apps/web/src/widgets/assistant/ui/loadAssistantHost.ts',
 ];
+const lazySupportChatStartupFiles: string[] = [
+  'apps/web/src/widgets/support-chat/index.ts',
+  'apps/web/src/widgets/support-chat/ui/SupportChatLauncher.tsx',
+  'apps/web/src/widgets/support-chat/ui/loadSupportChat.ts',
+];
 const lazyNotificationCenterChunkFiles: string[] = [
   ...lazyNotificationCenterPanelChunkFiles,
   ...lazyNotificationCenterReporterChunkFiles,
@@ -230,6 +235,24 @@ const assistantSectionImportRestriction: SceneImportRestrictionValue = {
   regex: '(^|/)assistantSection$',
 };
 
+const supportTicketEntityImportRestriction: SceneImportRestrictionValue = {
+  message: 'The support ticket entity pulls the ticket client and its descriptors into the bundle; the startup part of the '
+    + 'support chat reaches it only through its lazy chunk; use import type or move the code into the chunk',
+  regex: '^@/entities/support-ticket(/|$)',
+};
+
+const callSupportFeatureImportRestriction: SceneImportRestrictionValue = {
+  message: 'The call support feature collects the context of a ticket and is used by the lazy chunk of the support chat; '
+    + 'the startup part of the widget reaches it only through that chunk; use import type or move the code into the chunk',
+  regex: '^@/features/call-support(/|$)',
+};
+
+const supportSectionImportRestriction: SceneImportRestrictionValue = {
+  message: 'The support texts are loaded lazily by the support chat; the startup part of the widget imports neither '
+    + 'the section file nor its catalogs; use import type or move the code into the chat chunk',
+  regex: '(^|/)supportSection$',
+};
+
 const sectionCatalogImportRestrictions: SceneImportRestrictionValue[] = [sectionCatalogImportRestriction];
 
 const sourceBoundaryImportRestrictions: SceneImportRestrictionValue[] = [
@@ -280,6 +303,11 @@ const notificationCenterReporterChunkLazyRestriction: LazyModuleRestrictionValue
 const assistantHostChunkLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'the assistant host chunk',
   regex: '(^|/)host(/|$)',
+};
+
+const supportChatChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the support chat chunk',
+  regex: '(^|/)chat(/|$)',
 };
 
 const changeAvatarLazyRestriction: LazyModuleRestrictionValue = {
@@ -362,6 +390,10 @@ const notificationCenterLazyRestrictions: LazyModuleRestrictionValue[] = [
 const assistantLazyRestrictions: LazyModuleRestrictionValue[] = [
   ...appLazyRestrictions,
   assistantHostChunkLazyRestriction,
+];
+const supportChatLazyRestrictions: LazyModuleRestrictionValue[] = [
+  ...appLazyRestrictions,
+  supportChatChunkLazyRestriction,
 ];
 const startLazyRestrictions: LazyModuleRestrictionValue[] = [
   ...appLazyRestrictions,
@@ -863,6 +895,20 @@ export default defineConfig(
         notificationEntityImportRestriction,
         quietModeFeatureImportRestriction,
         assistantSectionImportRestriction,
+      ],
+    ),
+  },
+  {
+    files: lazySupportChatStartupFiles,
+    ignores: webTestFiles,
+    rules: createLazyModuleRules(
+      supportChatLazyRestrictions,
+      [
+        ...sourceBoundaryImportRestrictions,
+        serviceDescriptorImportRestriction,
+        supportTicketEntityImportRestriction,
+        callSupportFeatureImportRestriction,
+        supportSectionImportRestriction,
       ],
     ),
   },

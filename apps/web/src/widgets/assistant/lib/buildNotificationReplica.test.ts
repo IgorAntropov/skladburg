@@ -8,6 +8,7 @@ import {
   NotificationImportance,
   NotificationKind,
   NotificationSchema,
+  SupportReplyParamsSchema,
 } from '@skladburg/contracts/notification/v1/notification';
 import {
   describe,
@@ -39,7 +40,18 @@ describe('buildNotificationReplica', () => {
     expect(replica.links[0]?.kind).toBe('map');
     expect(replica.links[0]?.isFocusRequested).toBe(true);
     expect(replica.links[0]?.address).toEqual({ kind: 'object', object: { id: SITE_ID, type: 'site' } });
-    expect(replica.hasCenterLink).toBe(false);
+    expect(replica.centerAction).toBeUndefined();
+  });
+
+  it('offers to open the chat for a support reply', () => {
+    const replica = buildNotificationReplica(create(NotificationSchema, {
+      id: 'n-2',
+      importance: NotificationImportance.IMPORTANT,
+      kind: NotificationKind.SUPPORT_REPLY,
+      params: { case: 'supportReply', value: create(SupportReplyParamsSchema, { ticketId: 'ticket-1', ticketNumber: 12 }) },
+    }));
+
+    expect(replica.centerAction).toBe('openChat');
   });
 
   it.each([

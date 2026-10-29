@@ -8,6 +8,7 @@ import type {
   ReactNode,
 } from 'react';
 
+import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
 import {
@@ -35,6 +36,7 @@ import {
   vi,
 } from 'vitest';
 
+import type { ErrorJournalEntryValue } from '../errors/errorJournal';
 import type { ApiRuntimeValue } from '../runtime/apiRuntimeTypes';
 import type { IEngineConnection } from '../transport/demo';
 import type { SwitchActingContextResultValue } from './useSwitchActingContext';
@@ -52,6 +54,14 @@ import { useApiClient } from './useApiClient';
 import { useSwitchActingContext } from './useSwitchActingContext';
 
 const OTHER_USER_ID = 'f1000003-0000-4000-8000-000000000000';
+
+const createJournalEntry = (): ErrorJournalEntryValue => ({
+  code: ErrorCode.INTERNAL,
+  method: 'deal.v1.DealService/ApproveDeal',
+  occurredAt: 1,
+  params: { case: undefined },
+  traceId: 'trace-1',
+});
 
 interface RecordedRequestValue {
   organizationId: null | string;
@@ -278,6 +288,34 @@ describe('useSwitchActingContext', () => {
       });
 
       expect(calls).toEqual([`cancel:${TEST_USER_ID}`, `clear:${OTHER_USER_ID}`]);
+    });
+
+    it('forgets the error journal of the previous context when the context is replaced', async () => {
+      const runtime = createTestRuntime();
+      const queryClient = createQueryClient({ networkMode: 'always' });
+      const { result } = renderHook(useSwitchActingContext, { wrapper: createWrapper(runtime, queryClient) });
+
+      runtime.errorJournal.record(createJournalEntry());
+
+      await act(async () => {
+        await result.current.switchActingContext({ organizationId: TEST_ORGANIZATION_ID, userId: OTHER_USER_ID });
+      });
+
+      expect(runtime.errorJournal.list()).toEqual([]);
+    });
+
+    it('keeps the error journal when the chosen context is the current one', async () => {
+      const runtime = createTestRuntime();
+      const queryClient = createQueryClient({ networkMode: 'always' });
+      const { result } = renderHook(useSwitchActingContext, { wrapper: createWrapper(runtime, queryClient) });
+
+      runtime.errorJournal.record(createJournalEntry());
+
+      await act(async () => {
+        await result.current.switchActingContext({ organizationId: TEST_ORGANIZATION_ID, userId: TEST_USER_ID });
+      });
+
+      expect(runtime.errorJournal.list()).toHaveLength(1);
     });
 
     it('is switching until the queries are cancelled and keeps the old context meanwhile', async () => {

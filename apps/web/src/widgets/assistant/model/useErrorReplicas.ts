@@ -13,12 +13,13 @@ import type { ReplicaQueueInputValue } from './planReplicas';
 import { buildErrorReplica } from '../lib/buildErrorReplica';
 
 export interface UseErrorReplicasOptionsValue {
+  canCallSupport: boolean;
   dispatch: (input: ReplicaQueueInputValue) => void;
   isQuiet: boolean;
   isReady: boolean;
 }
 
-export const useErrorReplicas = ({ dispatch, isQuiet, isReady }: UseErrorReplicasOptionsValue): void => {
+export const useErrorReplicas = ({ canCallSupport, dispatch, isQuiet, isReady }: UseErrorReplicasOptionsValue): void => {
   const journal = useErrorJournal();
   const { t } = useI18n();
 
@@ -32,7 +33,7 @@ export const useErrorReplicas = ({ dispatch, isQuiet, isReady }: UseErrorReplica
     };
 
     return journal.subscribe((entry) => {
-      const replica = buildErrorReplica(entry, translateReason);
+      const replica = buildErrorReplica(entry, translateReason, canCallSupport);
 
       console.log('> useErrorReplicas -> refused:', { code: entry.code, hasReplica: replica !== undefined });
 
@@ -40,5 +41,5 @@ export const useErrorReplicas = ({ dispatch, isQuiet, isReady }: UseErrorReplica
         dispatch({ isQuiet, kind: 'enqueue', replicas: [replica] });
       }
     });
-  }, [dispatch, isQuiet, isReady, journal, t]);
+  }, [canCallSupport, dispatch, isQuiet, isReady, journal, t]);
 };

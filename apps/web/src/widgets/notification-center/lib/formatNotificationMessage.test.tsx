@@ -105,7 +105,7 @@ describe('formatNotificationMessage', () => {
       },
     });
 
-    expect(formatNotificationMessage(t, formatTime, notification)).toBe('Поддержка ответила по обращению № 1001');
+    expect(formatNotificationMessage(t, formatTime, notification)).toBe('Поддержка ответила по обращению №\u00a01001');
   });
 
   it('names the ticket number of a support access request without a thousands separator', async () => {
@@ -116,7 +116,7 @@ describe('formatNotificationMessage', () => {
     });
 
     expect(formatNotificationMessage(t, formatTime, notification)).toBe(
-      'Поддержка просит доступ к данным компании по обращению № 1001',
+      'Поддержка просит доступ к данным компании по обращению №\u00a01001',
     );
   });
 

@@ -30,7 +30,7 @@ import {
 
 const createReplica = (id: string, importance: ReplicaImportanceValue = 'important'): ReplicaValue => ({
   body: { kind: 'notification', notification: create(NotificationSchema, { id }) },
-  hasCenterLink: false,
+  centerAction: undefined,
   id,
   importance,
   links: [],
@@ -140,7 +140,7 @@ describe('planReplicas', () => {
       const more = state.pending.at(-1);
 
       expect(more?.body).toEqual({ count: 3, kind: 'more' });
-      expect(more?.hasCenterLink).toBe(true);
+      expect(more?.centerAction).toBe('notifications');
     });
 
     it('counts the arrivals of separate batches inside the window', () => {

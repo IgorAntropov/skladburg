@@ -18,7 +18,7 @@ export type AssistantLauncherProps = AssistantHostProps;
 
 const loadCachedHost = createCachedModuleLoader(loadAssistantHost);
 
-export const AssistantLauncher = ({ isPanelOpen, onOpenCenter }: AssistantLauncherProps): null | ReactElement => {
+export const AssistantLauncher = ({ canCallSupport, isPanelOpen, onOpenCenter }: AssistantLauncherProps): null | ReactElement => {
   const [Host, setHost] = useState<ComponentType<AssistantHostProps> | undefined>(() => loadCachedHost.peekLoadedModule()?.AssistantHost);
 
   useEffect(() => {
@@ -40,5 +40,5 @@ export const AssistantLauncher = ({ isPanelOpen, onOpenCenter }: AssistantLaunch
     };
   }, []);
 
-  return Host === undefined ? null : <Host isPanelOpen={isPanelOpen} onOpenCenter={onOpenCenter} />;
+  return Host === undefined ? null : <Host canCallSupport={canCallSupport} isPanelOpen={isPanelOpen} onOpenCenter={onOpenCenter} />;
 };

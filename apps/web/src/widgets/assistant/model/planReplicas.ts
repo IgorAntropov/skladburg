@@ -89,7 +89,7 @@ const foldIntoMore = (pending: readonly ReplicaValue[], nowMs: number): ReplicaV
     ...pending,
     {
       body: { count: 1, kind: 'more' },
-      hasCenterLink: true,
+      centerAction: 'notifications',
       id: `more:${String(nowMs)}`,
       importance: 'normal',
       links: [],

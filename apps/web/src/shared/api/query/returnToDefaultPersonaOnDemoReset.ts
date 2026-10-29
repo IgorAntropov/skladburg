@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { IActingContextStore } from '../context/actingContextTypes';
+import type { IErrorJournal } from '../errors/errorJournal';
 import type { IDemoControl } from '../transport/demo';
 
 import { selectInitialPersona } from '../runtime/selectInitialPersona';
@@ -10,6 +11,7 @@ export interface ReturnToDefaultPersonaOnDemoResetOptionsValue {
   actingContext: IActingContextStore;
   defaultOrganizationId: string;
   demoControl: IDemoControl | undefined;
+  errorJournal: IErrorJournal;
   queryClient: QueryClient;
 }
 
@@ -22,6 +24,7 @@ export const returnToDefaultPersonaOnDemoReset = (
     actingContext,
     defaultOrganizationId,
     demoControl,
+    errorJournal,
     queryClient,
   } = options;
 
@@ -71,7 +74,12 @@ export const returnToDefaultPersonaOnDemoReset = (
 
       console.log('> returnToDefaultPersonaOnDemoReset -> replaceActingContext:', { epoch, from: current, to: context });
 
-      await replaceActingContext({ actingContext, context, queryClient });
+      await replaceActingContext({
+        actingContext,
+        context,
+        errorJournal,
+        queryClient,
+      });
     }
     catch (error) {
       console.error('> returnToDefaultPersonaOnDemoReset -> returnToDefaultPersona:', { epoch, error });

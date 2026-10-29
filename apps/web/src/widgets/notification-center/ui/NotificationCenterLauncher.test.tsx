@@ -11,6 +11,7 @@ import {
 } from 'vitest';
 
 import type { NotificationCloseReasonValue } from '../lib/notificationCloseReason';
+import type { NotificationReplicaSlotValue } from './NotificationCenterLauncher';
 import type { NotificationCenterPanelProps } from './panel/NotificationCenterPanel';
 
 interface LauncherMocksValue {
@@ -37,9 +38,9 @@ const RETRY_NAME = defaultLocaleCatalog['common.retry'];
 
 const CLOSE_REASONS: readonly NotificationCloseReasonValue[] = ['escape', 'link', 'outside'];
 
-const FakePanel = ({ id, onClose }: NotificationCenterPanelProps): ReactElement => {
+const FakePanel = ({ id, onClose, tabRequest }: NotificationCenterPanelProps): ReactElement => {
   return (
-    <div data-testid="fake-panel" id={id}>
+    <div data-request={tabRequest.request} data-tab={tabRequest.tab} data-testid="fake-panel" id={id}>
       {CLOSE_REASONS.map(reason => (
         <button data-testid={`close-${reason}`} key={reason} onClick={() => { onClose(reason); }} type="button" />
       ))}
@@ -58,7 +59,10 @@ type TestingLibraryValue = typeof import('@testing-library/react');
 
 let renderedLibrary: TestingLibraryValue | undefined;
 
-const renderLauncher = async (unreadCount: number | undefined): Promise<TestingLibraryValue> => {
+const renderLauncher = async (
+  unreadCount: number | undefined,
+  renderReplica?: (slot: NotificationReplicaSlotValue) => null,
+): Promise<TestingLibraryValue> => {
   vi.resetModules();
 
   const [react, testingLibrary, { withTestLocalizer }, { NotificationCenterLauncher }, { useReportUnreadCount }] = await Promise.all([
@@ -81,7 +85,10 @@ const renderLauncher = async (unreadCount: number | undefined): Promise<TestingL
 
   renderedLibrary = testingLibrary;
   testingLibrary.render(withTestLocalizer(
-    <NotificationCenterLauncher unreadCountReporter={unreadCount === undefined ? undefined : <FakeReporter />} />,
+    <NotificationCenterLauncher
+      renderReplica={renderReplica}
+      unreadCountReporter={unreadCount === undefined ? undefined : <FakeReporter />}
+    />,
   ));
 
   return testingLibrary;
@@ -193,5 +200,86 @@ describe('NotificationCenterLauncher', () => {
       expect(screen.getByTestId('fake-panel')).toBeDefined();
     });
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  describe('opening the center on a tab', () => {
+    const renderWithSlot = async (): Promise<{
+      getSlot: () => NotificationReplicaSlotValue;
+      library: TestingLibraryValue;
+    }> => {
+      let slot: NotificationReplicaSlotValue | undefined;
+
+      mocks.loadPanel.mockResolvedValue(LOADED_PANEL_MODULE);
+
+      const library = await renderLauncher(0, (current) => {
+        slot = current;
+
+        return null;
+      });
+
+      const getSlot = (): NotificationReplicaSlotValue => {
+        if (slot === undefined) {
+          throw new Error('The replica slot is not rendered');
+        }
+
+        return slot;
+      };
+
+      return { getSlot, library };
+    };
+
+    it('opens a closed panel on the requested tab', async () => {
+      const { getSlot, library } = await renderWithSlot();
+
+      library.act(() => {
+        getSlot().openCenter('help');
+      });
+
+      await library.waitFor(() => {
+        expect(library.screen.getByTestId('fake-panel').dataset.tab).toBe('help');
+      });
+    });
+
+    it('switches an open panel to the requested tab and leaves it alone without a tab', async () => {
+      const { getSlot, library } = await renderWithSlot();
+
+      library.fireEvent.click(library.screen.getByRole('button', { name: BUTTON_NAME }));
+      await library.waitFor(() => {
+        expect(library.screen.getByTestId('fake-panel').dataset.tab).toBe('notifications');
+      });
+      const requestBefore = library.screen.getByTestId('fake-panel').dataset.request;
+
+      library.act(() => {
+        getSlot().openCenter();
+      });
+
+      expect(library.screen.getByTestId('fake-panel').dataset.request).toBe(requestBefore);
+
+      library.act(() => {
+        getSlot().openCenter('help');
+      });
+
+      expect(library.screen.getByTestId('fake-panel').dataset.tab).toBe('help');
+      expect(library.screen.getByTestId('fake-panel').dataset.request).not.toBe(requestBefore);
+    });
+
+    it('opens on the notifications tab when the button is pressed after a help request', async () => {
+      const { getSlot, library } = await renderWithSlot();
+
+      library.act(() => {
+        getSlot().openCenter('help');
+      });
+      await library.waitFor(() => {
+        expect(library.screen.getByTestId('fake-panel')).toBeDefined();
+      });
+      const button = library.screen.getByRole('button', { name: BUTTON_NAME });
+
+      library.fireEvent.click(button);
+      library.fireEvent.click(button);
+
+      await library.waitFor(() => {
+        expect(library.screen.getByTestId('fake-panel').dataset.tab).toBe('notifications');
+      });
+    });
   });
 });

@@ -49,7 +49,7 @@ export const buildDigestReplica = (items: readonly DigestItem[], replicaId: stri
 
   return {
     body: { kind: 'digest', lines },
-    hasCenterLink: lines.some(line => line.kind === 'count' && line.key === 'assistant.digest.unread'),
+    centerAction: lines.some(line => line.kind === 'count' && line.key === 'assistant.digest.unread') ? 'notifications' : undefined,
     id: replicaId,
     importance: 'normal',
     links: [],

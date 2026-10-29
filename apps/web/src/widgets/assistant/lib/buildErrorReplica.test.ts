@@ -19,7 +19,7 @@ const createEntry = (code: ErrorCode): ErrorJournalEntryValue => ({
 
 describe('buildErrorReplica', () => {
   it('explains a domain refusal with the reason and the hint', () => {
-    const replica = buildErrorReplica(createEntry(ErrorCode.PERMISSION_DENIED), () => 'Нет права');
+    const replica = buildErrorReplica(createEntry(ErrorCode.PERMISSION_DENIED), () => 'Нет права', true);
 
     expect(replica?.importance).toBe('important');
     expect(replica?.body).toEqual({
@@ -28,6 +28,14 @@ describe('buildErrorReplica', () => {
       reason: 'Нет права',
     });
     expect(replica?.links).toEqual([]);
+  });
+
+  it('offers to call a human only when the support can be called', () => {
+    const callable = buildErrorReplica(createEntry(ErrorCode.NOT_FOUND), () => '', true);
+    const notCallable = buildErrorReplica(createEntry(ErrorCode.NOT_FOUND), () => '', false);
+
+    expect(callable?.centerAction).toBe('callSupport');
+    expect(notCallable?.centerAction).toBeUndefined();
   });
 
   it.each([
@@ -41,15 +49,15 @@ describe('buildErrorReplica', () => {
       isReasonRequested = true;
 
       return '';
-    });
+    }, true);
 
     expect(replica).toBeUndefined();
     expect(isReasonRequested).toBe(false);
   });
 
   it('gives two refusals at different times different ids', () => {
-    const first = buildErrorReplica(createEntry(ErrorCode.NOT_FOUND), () => '');
-    const second = buildErrorReplica({ ...createEntry(ErrorCode.NOT_FOUND), occurredAt: 2000 }, () => '');
+    const first = buildErrorReplica(createEntry(ErrorCode.NOT_FOUND), () => '', true);
+    const second = buildErrorReplica({ ...createEntry(ErrorCode.NOT_FOUND), occurredAt: 2000 }, () => '', true);
 
     expect(first?.id).not.toBe(second?.id);
   });

@@ -13,9 +13,13 @@ import {
 } from '@/entities/notification';
 import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
-import { TextLink } from '@/shared/ui';
+import {
+  Button,
+  TextLink,
+} from '@/shared/ui';
 
 import type { NotificationTranslate } from '../../lib/formatNotificationMessage';
+import type { NotificationCenterTabValue } from '../../lib/notificationCenterTabs';
 
 import { formatNotificationMessage } from '../../lib/formatNotificationMessage';
 import { NotificationKindIcon } from './NotificationKindIcon';
@@ -23,6 +27,7 @@ import { NotificationKindIcon } from './NotificationKindIcon';
 interface NotificationRowProps {
   notification: Notification;
   onLinkClick: () => void;
+  onTabRequest?: ((tab: NotificationCenterTabValue) => void) | undefined;
   t: NotificationTranslate;
 }
 
@@ -32,6 +37,8 @@ const LINK_LABEL_KEY_BY_KIND = {
   organization: 'notification.link.organization',
 } as const satisfies Record<NotificationLinkKind, string>;
 
+const OPEN_CHAT_BUTTON_CLASS_NAME = '-mx-1 px-1! text-sm font-medium text-link underline underline-offset-2';
+
 const TIME_FORMAT: DateTimeFormatPartsValue = { day: 'numeric', hour: '2-digit', minute: '2-digit', month: 'short' };
 
 const ROW_CLASS_NAME = 'flex gap-3 border-b border-line pt-3 pr-4 pl-3 last:border-b-0';
@@ -40,7 +47,7 @@ const ICON_CLASS_NAME = 'relative flex size-8 shrink-0 items-center justify-cent
 
 const UNREAD_DOT_CLASS_NAME = 'absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-on-panel ring-2 ring-panel-solid';
 
-export const NotificationRow = ({ notification, onLinkClick, t }: NotificationRowProps): ReactElement => {
+export const NotificationRow = ({ notification, onLinkClick, onTabRequest, t }: NotificationRowProps): ReactElement => {
   const { formatDateTime, userTimeZone } = useI18n();
   const markRead = useMarkNotificationsRead([notification.id]);
 
@@ -49,6 +56,8 @@ export const NotificationRow = ({ notification, onLinkClick, t }: NotificationRo
   const createdAtMs = notification.createdAt === undefined ? undefined : timestampMs(notification.createdAt);
   const timeText = createdAtMs === undefined ? '' : formatDateTime(createdAtMs, { format: TIME_FORMAT, timeZone: userTimeZone });
   const formatTime = (instantMs: number): string => formatDateTime(instantMs, { timeZone: userTimeZone });
+  const isChatOpenable = notification.params.case === 'supportReply' && onTabRequest !== undefined;
+  const hasActions = links.length > 0 || isChatOpenable;
   const dateTimeValue = createdAtMs === undefined ? undefined : new Date(createdAtMs).toISOString();
 
   const handleLinkClick = (): void => {
@@ -57,6 +66,14 @@ export const NotificationRow = ({ notification, onLinkClick, t }: NotificationRo
       markRead.run();
     }
     onLinkClick();
+  };
+
+  const handleOpenChatClick = (): void => {
+    console.log('> NotificationRow -> handleOpenChatClick:', { notificationId: notification.id });
+    if (isUnread) {
+      markRead.run();
+    }
+    onTabRequest?.('help');
   };
 
   return (
@@ -77,7 +94,7 @@ export const NotificationRow = ({ notification, onLinkClick, t }: NotificationRo
         {dateTimeValue !== undefined && (
           <time className="text-sm leading-5 text-on-panel-muted" dateTime={dateTimeValue}>{timeText}</time>
         )}
-        {links.length > 0 && (
+        {hasActions && (
           <div className="flex flex-wrap gap-x-4">
             {links.map(link => (
               <TextLink
@@ -91,6 +108,16 @@ export const NotificationRow = ({ notification, onLinkClick, t }: NotificationRo
                 {t(LINK_LABEL_KEY_BY_KIND[link.kind])}
               </TextLink>
             ))}
+            {isChatOpenable && (
+              <Button
+                className={OPEN_CHAT_BUTTON_CLASS_NAME}
+                data-testid="notification-center-link-open-chat"
+                onClick={handleOpenChatClick}
+                variant="ghost"
+              >
+                {t('notification.link.openChat')}
+              </Button>
+            )}
           </div>
         )}
       </div>

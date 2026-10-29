@@ -18,7 +18,7 @@ const IMPORTANCE_BY_NOTIFICATION_IMPORTANCE = {
 
 export const buildNotificationReplica = (notification: Notification): ReplicaValue => ({
   body: { kind: 'notification', notification },
-  hasCenterLink: false,
+  centerAction: notification.params.case === 'supportReply' ? 'openChat' : undefined,
   id: `notification:${notification.id}`,
   importance: IMPORTANCE_BY_NOTIFICATION_IMPORTANCE[notification.importance],
   links: resolveNotificationLinks(notification.links),

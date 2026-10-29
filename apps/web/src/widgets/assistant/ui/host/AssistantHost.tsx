@@ -8,6 +8,8 @@ import {
 import { useAssistantName } from '@/entities/assistant';
 import { useAssistantQuietMode } from '@/features/assistant-quiet-mode';
 
+import type { ReplicaCenterTabValue } from '../../model/replicaTypes';
+
 import {
   formatReplicaText,
   getReplicaAnnouncement,
@@ -22,11 +24,12 @@ import { ReplicaAnnouncer } from './ReplicaAnnouncer';
 import { ReplicaBubble } from './ReplicaBubble';
 
 export interface AssistantHostProps {
+  canCallSupport: boolean;
   isPanelOpen: boolean;
-  onOpenCenter: () => void;
+  onOpenCenter: (tab?: ReplicaCenterTabValue) => void;
 }
 
-export const AssistantHost = ({ isPanelOpen, onOpenCenter }: AssistantHostProps): ReactElement => {
+export const AssistantHost = ({ canCallSupport, isPanelOpen, onOpenCenter }: AssistantHostProps): ReactElement => {
   const assistantName = useAssistantName();
   const { isQuiet } = useAssistantQuietMode();
   const epoch = useSessionEpoch();
@@ -35,7 +38,7 @@ export const AssistantHost = ({ isPanelOpen, onOpenCenter }: AssistantHostProps)
 
   useDigestReplica({ dispatch, epoch, isQuiet, isReady });
   usePostedReplicas({ dispatch, epochCount: epoch.count, isQuiet, isReady });
-  useErrorReplicas({ dispatch, isQuiet, isReady });
+  useErrorReplicas({ canCallSupport, dispatch, isQuiet, isReady });
 
   const replica = current?.replica;
   const text = t === undefined || replica === undefined ? undefined : formatReplicaText(t, replica);
@@ -57,10 +60,10 @@ export const AssistantHost = ({ isPanelOpen, onOpenCenter }: AssistantHostProps)
     dispatch({ kind: 'release' });
   }, [dispatch]);
 
-  const handleOpenCenter = (): void => {
-    console.log('> AssistantHost -> handleOpenCenter:', { replicaId: replica?.id });
+  const handleOpenCenter = (tab: ReplicaCenterTabValue): void => {
+    console.log('> AssistantHost -> handleOpenCenter:', { replicaId: replica?.id, tab });
     dispatch({ kind: 'dismiss' });
-    onOpenCenter();
+    onOpenCenter(tab);
   };
 
   useEffect(() => {

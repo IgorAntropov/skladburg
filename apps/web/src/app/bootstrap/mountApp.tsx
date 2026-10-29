@@ -113,6 +113,7 @@ export const mountApp = async ({
         actingContext: runtime.actingContext,
         defaultOrganizationId: defaultTenant.tenantId,
         demoControl: runtime.demoControl,
+        errorJournal: runtime.errorJournal,
         queryClient,
       }),
       step: 'stopReturnToDefaultPersona',

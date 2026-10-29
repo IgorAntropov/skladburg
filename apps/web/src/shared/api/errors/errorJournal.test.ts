@@ -65,6 +65,23 @@ describe('createErrorJournal', () => {
     expect(listener).toHaveBeenCalledWith(createEntry(1));
   });
 
+  it('forgets the records on clear and still gives new ones to the listeners', () => {
+    const journal = createErrorJournal();
+    const listener = vi.fn<(entry: ErrorJournalEntryValue) => void>();
+
+    journal.subscribe(listener);
+    journal.record(createEntry(1));
+    journal.clear();
+
+    expect(journal.list()).toEqual([]);
+
+    journal.record(createEntry(2));
+
+    expect(journal.list().map(entry => entry.occurredAt)).toEqual([2]);
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenLastCalledWith(createEntry(2));
+  });
+
   it('keeps the record and the other listeners when a listener throws', () => {
     const journal = createErrorJournal();
     const next = vi.fn<(entry: ErrorJournalEntryValue) => void>();

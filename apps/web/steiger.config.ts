@@ -6,6 +6,8 @@ export default defineConfig([
   {
     files: [
       './src/entities/network/**',
+      './src/entities/support-ticket/**',
+      './src/features/call-support/**',
       './src/features/change-avatar/**',
       './src/features/create-warehouse/**',
       './src/features/reset-demo/**',

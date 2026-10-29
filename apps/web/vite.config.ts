@@ -29,6 +29,9 @@ import { buildProfilePlugin } from './build-profile/buildProfilePlugin.ts';
 import { loadBuildProfile } from './build-profile/loadBuildProfile.ts';
 import { loadProfileMessages } from './build-profile/loadProfileMessages.ts';
 import { themeBootScriptPlugin } from './build-theme/themeBootScriptPlugin.ts';
+import { appVersionPlugin } from './build-version/appVersionPlugin.ts';
+import { createGitHeadReader } from './build-version/readGitHead.ts';
+import { resolveAppVersion } from './build-version/resolveAppVersion.ts';
 import {
   MANIFEST_BACKGROUND_COLOR,
   THEME_COLOR_BY_THEME,
@@ -62,17 +65,21 @@ const MAX_ORGANIZATION_LOGOS_KILOBYTES = 40;
 
 const MAX_ASSISTANT_PORTRAITS_KILOBYTES = 6;
 
-const MAX_NOTIFICATION_CENTER_GZIP_KILOBYTES = 32.5;
+const MAX_NOTIFICATION_CENTER_GZIP_KILOBYTES = 33.2;
 
 const MAX_NOTIFICATION_CENTER_TEXTS_GZIP_KILOBYTES = 1.5;
 
 const MAX_NOTIFICATION_UNREAD_REPORTER_GZIP_KILOBYTES = 3.5;
 
-const MAX_ASSISTANT_HOST_GZIP_KILOBYTES = 12.9;
+const MAX_ASSISTANT_HOST_GZIP_KILOBYTES = 13.4;
 
 const MAX_ASSISTANT_TEXTS_GZIP_KILOBYTES = 2;
 
 const MAX_ASSISTANT_TEXTS_INFORMAL_GZIP_KILOBYTES = 3;
+
+const MAX_SUPPORT_CHAT_GZIP_KILOBYTES = 36.5;
+
+const MAX_SUPPORT_CHAT_TEXTS_GZIP_KILOBYTES = 3;
 
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
@@ -267,6 +274,20 @@ const LAZY_ENTRY_BUDGETS = [
     maxGzipKiloBytes: MAX_ASSISTANT_TEXTS_INFORMAL_GZIP_KILOBYTES,
     name: 'assistant-texts-informal',
   },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/widgets/support-chat/ui/chat/SupportChat.tsx'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_SUPPORT_CHAT_GZIP_KILOBYTES,
+    name: 'support-chat',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/widgets/support-chat/i18n/catalogs/ru.ts', 'src/widgets/support-chat/i18n/catalogs/ru.informal.ts'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_SUPPORT_CHAT_TEXTS_GZIP_KILOBYTES,
+    name: 'support-chat-texts',
+  },
 ];
 
 const FORBIDDEN_INITIAL_PACKAGES = [
@@ -320,6 +341,8 @@ const profileMessages = await loadProfileMessages({
 
 const appName = profileMessages[APP_NAME_MESSAGE_KEY];
 
+const appVersion = resolveAppVersion({ readGitHead: createGitHeadReader(import.meta.dirname) });
+
 const thirdPartyLicenses = createThirdPartyLicenses({
   allowedLicenses: ALLOWED_BUNDLE_LICENSES,
   appRoot: import.meta.dirname,
@@ -358,6 +381,7 @@ export default defineConfig({
   },
   plugins: [
     buildProfilePlugin({ appName, profile }),
+    appVersionPlugin({ appVersion }),
     themeBootScriptPlugin(),
     bootFallbackPlugin({
       messages: { message: profileMessages[START_ERROR_MESSAGE_KEY], reload: profileMessages[RELOAD_MESSAGE_KEY] },

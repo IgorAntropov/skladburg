@@ -59,8 +59,8 @@ describe('buildDigestReplica', () => {
     const withUnread = buildDigestReplica([createItem({ count: 1, kind: DigestItemKind.UNREAD_NOTIFICATIONS })], 'digest:1');
     const withoutUnread = buildDigestReplica([createItem({ count: 1, kind: DigestItemKind.OWN_WAREHOUSES })], 'digest:1');
 
-    expect(withUnread?.hasCenterLink).toBe(true);
-    expect(withoutUnread?.hasCenterLink).toBe(false);
+    expect(withUnread?.centerAction).toBe('notifications');
+    expect(withoutUnread?.centerAction).toBeUndefined();
   });
 
   it('keeps at most four lines', () => {

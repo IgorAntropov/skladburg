@@ -22,11 +22,15 @@ export type ReplicaBodyValue
     | { kind: 'digest'; lines: readonly DigestLineValue[] }
     | { kind: 'notification'; notification: Notification };
 
+export type ReplicaCenterActionValue = 'callSupport' | 'notifications' | 'openChat';
+
+export type ReplicaCenterTabValue = 'help' | 'notifications';
+
 export type ReplicaImportanceValue = 'critical' | 'important' | 'normal';
 
 export interface ReplicaValue {
   body: ReplicaBodyValue;
-  hasCenterLink: boolean;
+  centerAction: ReplicaCenterActionValue | undefined;
   id: string;
   importance: ReplicaImportanceValue;
   links: readonly ResolvedNotificationLinkValue[];

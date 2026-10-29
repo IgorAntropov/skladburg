@@ -53,9 +53,11 @@ export const catalog = {
     'У вашей роли этого действия нет. Если оно нужно по работе, скажите администратору',
   'assistant.error.hint.versionConflict': 'Сохранение остановили, чтобы не затереть чужие правки. Обновите карточку и повторите',
   'assistant.error.lead': 'Не вышло. {reason}',
+  'assistant.link.callSupport': 'Позвать человека',
   'assistant.link.center': 'Открыть уведомления',
   'assistant.link.map': 'Показать на карте',
   'assistant.link.open': 'Открыть карточку',
+  'assistant.link.openChat': 'Открыть чат',
   'assistant.link.organization': 'Карточка компании',
   'assistant.replica.more': {
     few: 'Ещё {count} новых — в центре уведомлений',
@@ -64,9 +66,9 @@ export const catalog = {
     other: 'Ещё {count} новых — в центре уведомлений',
   },
   'assistant.replica.partnerVerified': 'Компанию «{organizationName}» проверили, теперь у неё уровень {verificationLevel}',
-  'assistant.replica.supportAccessRequested': 'Поддержка просит доступ к данным компании по обращению № {ticketNumber}',
+  'assistant.replica.supportAccessRequested': 'Поддержка просит доступ к данным компании по обращению №\u00a0{ticketNumber}',
   'assistant.replica.supportEmergencyAccessStarted': 'Поддержка включила экстренный доступ к данным компании: {staff}',
-  'assistant.replica.supportReply': 'Поддержка ответила на ваше обращение № {ticketNumber}',
+  'assistant.replica.supportReply': 'Поддержка ответила на ваше обращение №\u00a0{ticketNumber}',
   'assistant.replica.unknown': 'Пришло новое уведомление. Подробности в центре',
   'assistant.replica.verificationNextLevel':
     'Вам доступен уровень проверки {nextLevel}, сейчас у вас {currentLevel}. Загляните в карточку компании',

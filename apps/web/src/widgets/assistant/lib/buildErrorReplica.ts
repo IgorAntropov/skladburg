@@ -7,6 +7,7 @@ import { getErrorHintKey } from './getErrorHintKey';
 export const buildErrorReplica = (
   entry: ErrorJournalEntryValue,
   translateReason: (entry: ErrorJournalEntryValue) => string,
+  canCallSupport: boolean,
 ): ReplicaValue | undefined => {
   const hintKey = getErrorHintKey(entry.code);
 
@@ -16,7 +17,7 @@ export const buildErrorReplica = (
 
   return {
     body: { hintKey, kind: 'error', reason: translateReason(entry) },
-    hasCenterLink: false,
+    centerAction: canCallSupport ? 'callSupport' : undefined,
     id: `error:${entry.method}:${String(entry.occurredAt)}:${entry.traceId ?? ''}`,
     importance: 'important',
     links: [],

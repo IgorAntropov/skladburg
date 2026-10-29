@@ -28,6 +28,7 @@ export default mergeConfig(
               'build-boot-fallback/**/*.test.ts',
               'build-licenses/**/*.test.ts',
               'build-preload/**/*.test.ts',
+              'build-version/**/*.test.ts',
               'perf/**/*.test.ts',
             ],
             name: 'node',

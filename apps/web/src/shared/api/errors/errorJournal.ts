@@ -13,6 +13,7 @@ export interface ErrorJournalEntryValue {
 }
 
 export interface IErrorJournal {
+  clear: () => void;
   list: () => readonly ErrorJournalEntryValue[];
   record: (entry: ErrorJournalEntryValue) => void;
   subscribe: (listener: (entry: ErrorJournalEntryValue) => void) => () => void;
@@ -23,6 +24,9 @@ export const createErrorJournal = (capacity: number = ERROR_JOURNAL_CAPACITY): I
   const listeners = new Set<(entry: ErrorJournalEntryValue) => void>();
 
   return {
+    clear: () => {
+      entries = [];
+    },
     list: () => entries,
     record: (entry) => {
       entries = [...entries, entry].slice(-capacity);

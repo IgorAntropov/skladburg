@@ -5,6 +5,7 @@ import { QuietModeSwitch } from '@/features/assistant-quiet-mode';
 import { WidgetStates } from '@/shared/ui';
 
 import type { NotificationTranslate } from '../../lib/formatNotificationMessage';
+import type { NotificationCenterTabValue } from '../../lib/notificationCenterTabs';
 
 import { NotificationEmpty } from './NotificationEmpty';
 import { NotificationListSkeleton } from './NotificationListSkeleton';
@@ -12,13 +13,15 @@ import { NotificationPanelHeader } from './NotificationPanelHeader';
 import { NotificationRow } from './NotificationRow';
 
 interface NotificationPanelBodyProps {
+  isTitleShown: boolean;
   onLinkClick: () => void;
+  onTabRequest?: ((tab: NotificationCenterTabValue) => void) | undefined;
   t: NotificationTranslate;
 }
 
 const SCROLL_AREA_CLASS_NAME = 'scroll-shadow-y min-h-0 overflow-y-auto overscroll-contain has-[[role=alert]]:p-4';
 
-export const NotificationPanelBody = ({ onLinkClick, t }: NotificationPanelBodyProps): ReactElement => {
+export const NotificationPanelBody = ({ isTitleShown, onLinkClick, onTabRequest, t }: NotificationPanelBodyProps): ReactElement => {
   const { data, error, isError, isRefetching, refetch } = useNotificationsQuery();
 
   const isRetrying = isRefetching && isError;
@@ -31,7 +34,7 @@ export const NotificationPanelBody = ({ onLinkClick, t }: NotificationPanelBodyP
 
   return (
     <>
-      <NotificationPanelHeader t={t} unreadCount={unreadCount} />
+      <NotificationPanelHeader isTitleShown={isTitleShown} t={t} unreadCount={unreadCount} />
       <div className={SCROLL_AREA_CLASS_NAME}>
         <WidgetStates
           data={data}
@@ -50,6 +53,7 @@ export const NotificationPanelBody = ({ onLinkClick, t }: NotificationPanelBodyP
                   key={notification.id}
                   notification={notification}
                   onLinkClick={onLinkClick}
+                  onTabRequest={onTabRequest}
                   t={t}
                 />
               ))}

@@ -1,0 +1,7 @@
+import { userChannel } from '@skladburg/contracts/runtime';
+
+import type { ApiQueryMetaValue } from '@/shared/api';
+
+export const createSupportTicketQueryMeta = (userId: string | undefined): ApiQueryMetaValue => ({
+  channels: userId === undefined ? [] : [userChannel(userId)],
+});

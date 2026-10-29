@@ -19,7 +19,10 @@ import type {
   AssistantTranslate,
   ReplicaTextValue,
 } from '../../lib/formatReplicaText';
-import type { ReplicaValue } from '../../model/replicaTypes';
+import type {
+  ReplicaCenterTabValue,
+  ReplicaValue,
+} from '../../model/replicaTypes';
 
 import { ReplicaLinks } from './ReplicaLinks';
 import { useReplicaHold } from './useReplicaHold';
@@ -28,7 +31,7 @@ export interface ReplicaBubbleProps {
   assistantName: string;
   onClose: () => void;
   onHold: () => void;
-  onOpenCenter: () => void;
+  onOpenCenter: (tab: ReplicaCenterTabValue) => void;
   onRelease: () => void;
   replica: ReplicaValue;
   t: AssistantTranslate;

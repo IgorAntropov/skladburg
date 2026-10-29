@@ -15,21 +15,40 @@ interface NotificationPanelFallbackProps {
   status: SectionStatus;
 }
 
+interface NotificationPanelLoadErrorProps {
+  message: string;
+  onRetry: () => void;
+}
+
+interface NotificationPanelLoadingProps {
+  label: string;
+}
+
+export const NotificationPanelLoadError = ({ message, onRetry }: NotificationPanelLoadErrorProps): ReactElement => {
+  const { t } = useI18n();
+
+  return (
+    <div className="flex flex-col items-start gap-3 p-4">
+      <p className="text-base leading-6" role="alert">{message}</p>
+      <Button onClick={onRetry} variant="secondary">{t('common.retry')}</Button>
+    </div>
+  );
+};
+
+export const NotificationPanelLoading = ({ label }: NotificationPanelLoadingProps): ReactElement => {
+  return (
+    <SkeletonGroup isFilled label={label}>
+      <NotificationListSkeleton />
+    </SkeletonGroup>
+  );
+};
+
 export const NotificationPanelFallback = ({ onRetry, status }: NotificationPanelFallbackProps): ReactElement => {
   const { t } = useI18n();
 
   if (status === 'error') {
-    return (
-      <div className="flex flex-col items-start gap-3 p-4">
-        <p className="text-base leading-6" role="alert">{t('hud.notifications.loadError')}</p>
-        <Button onClick={onRetry} variant="secondary">{t('common.retry')}</Button>
-      </div>
-    );
+    return <NotificationPanelLoadError message={t('hud.notifications.loadError')} onRetry={onRetry} />;
   }
 
-  return (
-    <SkeletonGroup isFilled label={t('hud.notifications.button')}>
-      <NotificationListSkeleton />
-    </SkeletonGroup>
-  );
+  return <NotificationPanelLoading label={t('hud.notifications.button')} />;
 };

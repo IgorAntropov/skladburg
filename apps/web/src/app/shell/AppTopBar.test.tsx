@@ -46,6 +46,14 @@ vi.mock('@/shared/routing', () => ({
   useAddress: (): { address: undefined } => ({ address: undefined }),
 }));
 
+vi.mock('@/entities/session', () => ({
+  useProfileSummary: (): { kind: 'pending' } => ({ kind: 'pending' }),
+}));
+
+vi.mock('@/widgets/support-chat', () => ({
+  SupportChatLauncher: (): null => null,
+}));
+
 vi.mock('@/features/collapse-hud-panels', () => ({
   CollapseHudPanelsButton: (): null => null,
 }));

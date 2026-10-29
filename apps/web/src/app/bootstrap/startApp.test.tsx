@@ -362,6 +362,7 @@ describe('startApp', () => {
     expect(options?.actingContext).toBe(runtime.actingContext);
     expect(options?.defaultOrganizationId).toBe(defaultTenant.tenantId);
     expect(options?.demoControl).toBe(demoControl);
+    expect(options?.errorJournal).toBe(runtime.errorJournal);
     expect(options?.queryClient).toBeInstanceOf(QueryClient);
   });
 

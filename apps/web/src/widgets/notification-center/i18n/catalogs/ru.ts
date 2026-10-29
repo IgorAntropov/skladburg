@@ -1,14 +1,17 @@
 import type { CatalogShapeValue } from '@/shared/i18n';
 
 export const catalog = {
+  'notification.help.loadError': 'Помощь не загрузилась',
+  'notification.help.loading': 'Загружаем помощь…',
   'notification.link.map': 'Показать на карте',
   'notification.link.open': 'Открыть карточку',
+  'notification.link.openChat': 'Открыть чат',
   'notification.link.organization': 'Карточка компании',
   'notification.message.partnerVerified': 'Компания «{organizationName}» проверена, уровень {verificationLevel}',
-  'notification.message.supportAccessRequested': 'Поддержка просит доступ к данным компании по обращению № {ticketNumber}',
+  'notification.message.supportAccessRequested': 'Поддержка просит доступ к данным компании по обращению №\u00a0{ticketNumber}',
   'notification.message.supportEmergencyAccessStarted': 'Экстренный доступ поддержки: {staff}, до {expiresAt}',
   'notification.message.supportEmergencyAccessStartedOpen': 'Экстренный доступ поддержки: {staff}',
-  'notification.message.supportReply': 'Поддержка ответила по обращению № {ticketNumber}',
+  'notification.message.supportReply': 'Поддержка ответила по обращению №\u00a0{ticketNumber}',
   'notification.message.unknown': 'Новое уведомление',
   'notification.message.verificationNextLevel': 'Доступен уровень проверки {nextLevel}. Сейчас у вас уровень {currentLevel}',
   'notification.message.warehouseCreated': 'Создан склад «{warehouseName}» в городе {cityName}',
@@ -22,4 +25,7 @@ export const catalog = {
   'notification.panel.quietMode.hint': 'Мелочи не всплывают, но видны в списке. Важное и критичное придёт как обычно',
   'notification.panel.title': 'Уведомления',
   'notification.row.unread': 'Не прочитано',
+  'notification.tab.help': 'Помощь',
+  'notification.tab.notifications': 'Уведомления',
+  'notification.tabs.label': 'Разделы панели',
 } as const satisfies CatalogShapeValue;

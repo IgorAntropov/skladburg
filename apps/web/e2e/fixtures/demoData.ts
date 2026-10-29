@@ -53,6 +53,28 @@ export const RU_INFORMAL_CATALOG_DIGEST_GREETING = 'Привет! Вот что 
 
 export const DEFAULT_PERSONA: PersonaValue = PERSONAS.freshCustomer;
 
+export const SUPPORT_TEXTS = {
+  assistantName: 'Михалыч',
+  categoryMoneyOption: 'Деньги · срочно',
+  noPersonalData: 'Имя, телефон и почту не отправляем',
+  replyAuthor: 'Поддержка · Анна С.',
+  tabHelp: 'Помощь',
+  tabNotifications: 'Уведомления',
+  ticketTitle: 'Обращение №\u00a01001',
+} as const;
+
+export const DEFAULT_PERSONA_USER_NAME = 'Анна Смирнова';
+
+export const SUPPORT_FIRST_TICKET_NUMBER = '1001';
+
+export const SUPPORT_REPLY_TIMEOUT_MS = 10_000;
+
+export const SUPPORT_APP_VERSION_PATTERN = /^(dev|[0-9a-f]{7,40})$/;
+
+export const SUPPORT_DEVICE_PATTERN = /^(Компьютер|Планшет|Телефон) · .+ · .+/;
+
+export const SUPPORT_PERSONAL_DATA_PATTERNS = [/@/, /\+?\d[\d\s()-]{8,}\d/] as const;
+
 export const ORGANIZATION_NAME = DEFAULT_PERSONA.organizationName;
 
 export const WAREHOUSE_NAMES = ['Склад 1', 'Склад 2', 'Склад 3'] as const;

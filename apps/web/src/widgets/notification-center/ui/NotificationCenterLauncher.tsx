@@ -19,6 +19,11 @@ import {
   useFocusHandoff,
 } from '@/shared/ui';
 
+import type {
+  NotificationCenterTabValue,
+  NotificationTabRequestValue,
+  RenderNotificationHelpTab,
+} from '../lib/notificationCenterTabs';
 import type { NotificationCloseReasonValue } from '../lib/notificationCloseReason';
 import type { NotificationCenterPanelProps } from './panel/NotificationCenterPanel';
 
@@ -28,13 +33,14 @@ import { loadNotificationCenterPanel } from './loadNotificationCenterPanel';
 import { NotificationButton } from './NotificationButton';
 
 export interface NotificationCenterLauncherProps {
+  renderHelpTab?: RenderNotificationHelpTab | undefined;
   renderReplica?: ((slot: NotificationReplicaSlotValue) => ReactNode) | undefined;
   unreadCountReporter?: ReactNode | undefined;
 }
 
 export interface NotificationReplicaSlotValue {
   isPanelOpen: boolean;
-  openCenter: () => void;
+  openCenter: (tab?: NotificationCenterTabValue) => void;
 }
 
 type LaunchStateValue
@@ -45,6 +51,8 @@ type LaunchStateValue
 
 const IDLE_STATE: LaunchStateValue = { kind: 'idle' };
 
+const INITIAL_TAB_REQUEST: NotificationTabRequestValue = { request: 0, tab: 'notifications' };
+
 const loadCachedPanel = createCachedModuleLoader(loadNotificationCenterPanel);
 
 const LOAD_ERROR_CLASS_NAME = [
@@ -54,7 +62,11 @@ const LOAD_ERROR_CLASS_NAME = [
 
 const LOAD_ERROR_BADGE_CLASS_NAME = 'flex size-6 shrink-0 items-center justify-center rounded-full bg-status-alarm text-on-status-alarm';
 
-export const NotificationCenterLauncher = ({ renderReplica, unreadCountReporter }: NotificationCenterLauncherProps): ReactElement => {
+export const NotificationCenterLauncher = ({
+  renderHelpTab,
+  renderReplica,
+  unreadCountReporter,
+}: NotificationCenterLauncherProps): ReactElement => {
   const { locale, t } = useI18n();
   const { cancelFocus, ref: handoffRef, requestFocus } = useFocusHandoff<HTMLButtonElement>(NOTIFICATION_CENTER_FOCUS_KEY);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -63,6 +75,7 @@ export const NotificationCenterLauncher = ({ renderReplica, unreadCountReporter 
   const [launchState, setLaunchState] = useState<LaunchStateValue>(IDLE_STATE);
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [tabRequest, setTabRequest] = useState(INITIAL_TAB_REQUEST);
 
   const isLoading = launchState.kind === 'loading';
   const isLoadFailed = launchState.kind === 'error';
@@ -92,14 +105,13 @@ export const NotificationCenterLauncher = ({ renderReplica, unreadCountReporter 
     );
   };
 
-  const handleButtonClick = (): void => {
-    console.log('> NotificationCenterLauncher -> handleButtonClick:', { isOpen, kind: launchState.kind });
+  const requestTab = (tab: NotificationCenterTabValue): void => {
+    setTabRequest(current => ({ request: current.request + 1, tab }));
+  };
 
-    if (isOpen) {
-      setIsOpen(false);
-
-      return;
-    }
+  const openPanel = (tab: NotificationCenterTabValue): void => {
+    console.log('> NotificationCenterLauncher -> openPanel:', { kind: launchState.kind, tab });
+    requestTab(tab);
 
     const loadedPanel = loadCachedPanel.peekLoadedModule();
 
@@ -119,10 +131,22 @@ export const NotificationCenterLauncher = ({ renderReplica, unreadCountReporter 
         showPanel(loadedModule.NotificationCenterPanel);
       },
       (error: unknown) => {
-        console.log('> NotificationCenterLauncher -> handleButtonClick:', { error });
+        console.log('> NotificationCenterLauncher -> openPanel:', { error });
         setLaunchState({ kind: 'error' });
       },
     );
+  };
+
+  const handleButtonClick = (): void => {
+    console.log('> NotificationCenterLauncher -> handleButtonClick:', { isOpen });
+
+    if (isOpen) {
+      setIsOpen(false);
+
+      return;
+    }
+
+    openPanel('notifications');
   };
 
   const handlePanelClose = useCallback((reason: NotificationCloseReasonValue): void => {
@@ -137,14 +161,18 @@ export const NotificationCenterLauncher = ({ renderReplica, unreadCountReporter 
 
   const isPanelShown = launchState.kind === 'ready' && isOpen;
 
-  const openCenter = (): void => {
-    console.log('> NotificationCenterLauncher -> openCenter:', { isPanelShown });
+  const openCenter = (tab?: NotificationCenterTabValue): void => {
+    console.log('> NotificationCenterLauncher -> openCenter:', { isPanelShown, tab });
 
-    if (isPanelShown) {
+    if (!isPanelShown) {
+      openPanel(tab ?? 'notifications');
+
       return;
     }
 
-    handleButtonClick();
+    if (tab !== undefined) {
+      requestTab(tab);
+    }
   };
 
   return (
@@ -160,7 +188,16 @@ export const NotificationCenterLauncher = ({ renderReplica, unreadCountReporter 
         unreadCount={unreadCount}
       />
       <UnreadCountSinkContext value={setUnreadCount}>{unreadCountReporter}</UnreadCountSinkContext>
-      {isPanelShown && <launchState.Panel anchorRef={rootRef} id={panelId} onClose={handlePanelClose} />}
+      {isPanelShown && (
+        <launchState.Panel
+          anchorRef={rootRef}
+          id={panelId}
+          onClose={handlePanelClose}
+          onTabRequest={requestTab}
+          renderHelpTab={renderHelpTab}
+          tabRequest={tabRequest}
+        />
+      )}
       {renderReplica?.({ isPanelOpen: isPanelShown, openCenter })}
       {isLoadFailed && (
         <div className={LOAD_ERROR_CLASS_NAME}>

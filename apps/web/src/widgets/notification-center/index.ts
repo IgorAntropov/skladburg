@@ -1,4 +1,9 @@
 export type {
+  NotificationCenterTabValue,
+  NotificationHelpTabSlotValue,
+  RenderNotificationHelpTab,
+} from './lib/notificationCenterTabs';
+export type {
   NotificationCenterLauncherProps,
   NotificationReplicaSlotValue,
 } from './ui/NotificationCenterLauncher';

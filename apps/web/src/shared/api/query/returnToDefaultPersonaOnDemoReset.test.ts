@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 
+import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import {
   afterEach,
   beforeEach,
@@ -12,12 +13,14 @@ import {
 } from 'vitest';
 
 import type { IActingContextStore } from '../context/actingContextTypes';
+import type { IErrorJournal } from '../errors/errorJournal';
 import type {
   DemoPersonaListItemValue,
   IDemoControl,
 } from '../transport/demo';
 
 import { createActingContextStore } from '../context/createActingContextStore';
+import { createErrorJournal } from '../errors/errorJournal';
 import { DemoPersonaGroup } from '../transport/demo/demoPersonaGroup';
 import { DemoPersonaKind } from '../transport/demo/demoPersonaKind';
 import { createQueryClient } from './createQueryClient';
@@ -105,6 +108,7 @@ const createFakeDemoControl = (): FakeDemoControlValue => {
 
 describe('returnToDefaultPersonaOnDemoReset', () => {
   let actingContext: IActingContextStore;
+  let errorJournal: IErrorJournal;
   let queryClient: QueryClient;
   let fake: FakeDemoControlValue;
   let cancelQueries: MockInstance<QueryClient['cancelQueries']>;
@@ -117,6 +121,7 @@ describe('returnToDefaultPersonaOnDemoReset', () => {
       actingContext,
       defaultOrganizationId: DEFAULT_ORGANIZATION_ID,
       demoControl,
+      errorJournal,
       queryClient,
     });
     stops.push(stop);
@@ -128,6 +133,14 @@ describe('returnToDefaultPersonaOnDemoReset', () => {
 
   beforeEach(() => {
     actingContext = createActingContextStore(toContext(OTHER_PERSONA));
+    errorJournal = createErrorJournal();
+    errorJournal.record({
+      code: ErrorCode.INTERNAL,
+      method: 'unknown',
+      occurredAt: 1,
+      params: { case: undefined },
+      traceId: undefined,
+    });
     queryClient = createQueryClient({ networkMode: 'always' });
     queryClient.setQueryData(CACHED_QUERY_KEY, ['cached']);
     fake = createFakeDemoControl();
@@ -157,6 +170,7 @@ describe('returnToDefaultPersonaOnDemoReset', () => {
       expect(actingContext.get()).toEqual(toContext(DEFAULT_PERSONA));
       expect(clear).toHaveBeenCalledOnce();
       expect(queryClient.getQueryCache().findAll()).toHaveLength(0);
+      expect(errorJournal.list()).toEqual([]);
     });
 
     it('does nothing when the tab already works as the default persona', async () => {
@@ -171,6 +185,7 @@ describe('returnToDefaultPersonaOnDemoReset', () => {
       expect(clear).not.toHaveBeenCalled();
       expect(actingContext.get()).toEqual(toContext(DEFAULT_PERSONA));
       expect(queryClient.getQueryData(CACHED_QUERY_KEY)).toEqual(['cached']);
+      expect(errorJournal.list()).toHaveLength(1);
     });
 
     it('keeps the current persona when the default organization has none', async () => {

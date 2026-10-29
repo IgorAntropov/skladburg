@@ -22,9 +22,9 @@ export const catalog: SectionLocaleCatalogValue<typeof formalCatalog> = {
   'assistant.error.hint.permissionDenied':
     'У твоей роли этого действия нет. Если оно нужно по работе, скажи администратору',
   'assistant.error.hint.versionConflict': 'Сохранение остановили, чтобы не затереть чужие правки. Обнови карточку и повтори',
-  'assistant.replica.supportAccessRequested': 'Поддержка просит доступ к данным твоей компании по обращению № {ticketNumber}',
+  'assistant.replica.supportAccessRequested': 'Поддержка просит доступ к данным твоей компании по обращению №\u00a0{ticketNumber}',
   'assistant.replica.supportEmergencyAccessStarted': 'Поддержка включила экстренный доступ к данным твоей компании: {staff}',
-  'assistant.replica.supportReply': 'Поддержка ответила на твоё обращение № {ticketNumber}',
+  'assistant.replica.supportReply': 'Поддержка ответила на твоё обращение №\u00a0{ticketNumber}',
   'assistant.replica.verificationNextLevel':
     'Тебе доступен уровень проверки {nextLevel}, сейчас у тебя {currentLevel}. Загляни в карточку компании',
   'assistant.replica.warehouseCreated': 'Склад «{warehouseName}» в городе {cityName} заведён. Загляни, как он смотрится на карте',

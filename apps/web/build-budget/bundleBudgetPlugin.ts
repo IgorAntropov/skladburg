@@ -32,6 +32,7 @@ import {
   findForbiddenPackageViolations,
 } from './forbiddenPackages.ts';
 import { gzipSizeInBytes } from './gzipSizeInBytes.ts';
+import { hasEntryChunk } from './isEntryModule.ts';
 import {
   assertValidAssetBudgets,
   measureAssetBudget,
@@ -65,6 +66,7 @@ export interface BundleBudgetPluginOptionsValue {
   forbiddenPackages?: readonly string[];
   lazyEntryBudgets?: readonly LazyEntryBudgetValue[];
   maxInitialGzipKiloBytes: number;
+  targetEntries?: readonly string[];
 }
 
 export type BundleBudgetPluginValue = Omit<Plugin, 'configResolved' | 'generateBundle' | 'writeBundle'> & {
@@ -100,6 +102,9 @@ const toBudgetChunks = (bundle: Readonly<Record<string, BundleBudgetOutputValue>
 
 const toBytes = (kiloBytes: number): number => kiloBytes * BYTES_PER_KILOBYTE;
 
+const isTargetBundle = (chunks: readonly BudgetChunkValue[], targetEntries: readonly string[]): boolean =>
+  targetEntries.length === 0 || hasEntryChunk(chunks, targetEntries);
+
 const findLazyBudgetForbiddenPackageMessages = (
   measurement: LazyBudgetMeasurementValue,
   budgetChunks: readonly BudgetChunkValue[],
@@ -127,6 +132,7 @@ const assertValidLimit = (maxInitialGzipKiloBytes: number): void => {
 export const bundleBudgetPlugin = (options: BundleBudgetPluginOptionsValue): BundleBudgetPluginValue => {
   const lazyEntryBudgets = options.lazyEntryBudgets ?? [];
   const assetBudgets = options.assetBudgets ?? [];
+  const targetEntries = options.targetEntries ?? [];
   let outDir = '';
 
   assertValidLimit(options.maxInitialGzipKiloBytes);
@@ -147,6 +153,11 @@ export const bundleBudgetPlugin = (options: BundleBudgetPluginOptionsValue): Bun
     enforce: 'post',
     generateBundle(_options, bundle) {
       const budgetChunks = toBudgetChunks(bundle);
+
+      if (!isTargetBundle(budgetChunks, targetEntries)) {
+        return;
+      }
+
       const moduleIdsByFileName = new Map(budgetChunks.map(chunk => [chunk.fileName, chunk.moduleIds]));
       const initialBundles = measureInitialBundles(budgetChunks);
       const sizeViolations = initialBundles.filter(initialBundle => initialBundle.gzipBytes > limitBytes);

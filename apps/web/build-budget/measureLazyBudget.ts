@@ -6,14 +6,11 @@ import type {
   LazyEntryBudgetValue,
 } from './bundleBudgetTypes.ts';
 
-import { normalizeModuleId } from './extractPackageName.ts';
 import { assertValidForbiddenPackages } from './forbiddenPackages.ts';
-
-const isEntryModule = (moduleId: string, entry: string): boolean =>
-  normalizeModuleId(moduleId).endsWith(`/${entry}`);
+import { hasEntryModule } from './isEntryModule.ts';
 
 const findDynamicEntryChunks = (chunks: readonly BudgetChunkValue[], entry: string): BudgetChunkValue[] =>
-  chunks.filter(chunk => chunk.isDynamicEntry && chunk.moduleIds.some(moduleId => isEntryModule(moduleId, entry)));
+  chunks.filter(chunk => chunk.isDynamicEntry && hasEntryModule(chunk.moduleIds, entry));
 
 const collectInitialFileNames = (initialBundles: readonly InitialBundleValue[]): Set<string> =>
   new Set(initialBundles.flatMap(initialBundle => initialBundle.chunks.map(chunk => chunk.fileName)));

@@ -3,9 +3,9 @@ import type {
   PreloadChunkValue,
 } from './criticalPreloadTypes.ts';
 
+import { hasEntryModule } from '../build-budget/isEntryModule.ts';
 import { collectImportClosure } from './collectImportClosure.ts';
 import { toWorkerWrapperKey } from './hintPointKeys.ts';
-import { hasEntryModule } from './isEntryModule.ts';
 
 export interface CriticalPreloadPlanInputValue {
   chunks: readonly PreloadChunkValue[];

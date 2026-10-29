@@ -608,3 +608,50 @@ describe('bundleBudgetPlugin lazy budgets with a baseline', () => {
     ).toThrow('baseline "startup" that is not a lazy entry budget');
   });
 });
+
+describe('bundleBudgetPlugin target entries', () => {
+  const workerEntry = 'packages/demo-engine/src/host/worker.ts';
+  const createWorkerBundle = (entryModuleId: string): Record<string, BundleBudgetOutputValue> => ({
+    'assets/worker.js': createChunk('assets/worker.js', entryCode, { isEntry: true, moduleIds: [entryModuleId] }),
+  });
+
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('skips a bundle without a target entry and stays silent', () => {
+    const run = createOptionsRunner(
+      { maxInitialGzipKiloBytes: entryGzipKiloBytes / 2, targetEntries: [workerEntry] },
+      createWorkerBundle('/repo/apps/web/src/shared/3d/terrain/worldTerrain.worker.ts'),
+    );
+
+    expect(run).not.toThrow();
+    expect(console.log).not.toHaveBeenCalled();
+  });
+
+  it('skips a bundle that holds the target module only in a chunk that is not an entry', () => {
+    const run = createOptionsRunner(
+      { maxInitialGzipKiloBytes: entryGzipKiloBytes / 2, targetEntries: [workerEntry] },
+      {
+        ...createWorkerBundle('/repo/apps/web/src/shared/3d/terrain/worldTerrain.worker.ts'),
+        'assets/shared.js': createChunk('assets/shared.js', createNoise(500), { moduleIds: [`/repo/${workerEntry}`] }),
+      },
+    );
+
+    expect(run).not.toThrow();
+    expect(console.log).not.toHaveBeenCalled();
+  });
+
+  it('measures a bundle whose entry chunk holds a target entry', () => {
+    const run = createOptionsRunner(
+      { maxInitialGzipKiloBytes: entryGzipKiloBytes / 2, targetEntries: [workerEntry] },
+      createWorkerBundle(`/repo/${workerEntry}`),
+    );
+
+    expect(run).toThrow('assets/worker.js');
+  });
+});

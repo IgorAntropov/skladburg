@@ -7,6 +7,7 @@ import {
 } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+import type { BundleBudgetPluginOptionsValue } from './build-budget/bundleBudgetPlugin.ts';
 import type { CriticalPreloadEntryValue } from './build-preload/criticalPreloadTypes.ts';
 
 import { APP_BASE_PATH } from './build-base/appBasePath.ts';
@@ -81,6 +82,10 @@ const MAX_SUPPORT_CHAT_GZIP_KILOBYTES = 36.5;
 
 const MAX_SUPPORT_CHAT_TEXTS_GZIP_KILOBYTES = 3;
 
+const MAX_ENGINE_WORKER_GZIP_KILOBYTES = 40;
+
+const MAX_ENGINE_GZIP_KILOBYTES = 180;
+
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
 const PRECACHE_GLOB_PATTERNS = ['**/*.{js,css,html,woff2,svg,png,bin}'];
@@ -111,7 +116,9 @@ const ASSET_BUDGETS = [
   },
 ];
 
-const FORBIDDEN_PACKAGES = ['stats-gl', 'stats.js'];
+const XLSX_READER_PACKAGES = ['read-excel-file'];
+
+const FORBIDDEN_PACKAGES = [...XLSX_READER_PACKAGES, 'stats-gl', 'stats.js'];
 
 const FORBIDDEN_SCENE_PACKAGES = [
   '@bufbuild/protobuf',
@@ -151,6 +158,21 @@ const ENGINE_WORKER_ENTRIES = ['packages/demo-engine/src/host/worker.ts'];
 const ENGINE_WORKER_DYNAMIC_ENTRIES = ['packages/demo-engine/src/core/engine/index.ts'];
 
 const DEFERRED_PRELOAD_ENTRIES = [...ENGINE_WORKER_ENTRIES, ...ENGINE_WORKER_DYNAMIC_ENTRIES];
+
+const ENGINE_WORKER_BUDGET = {
+  forbiddenInitialPackages: XLSX_READER_PACKAGES,
+  lazyEntryBudgets: [
+    {
+      entries: ENGINE_WORKER_DYNAMIC_ENTRIES,
+      forbiddenPackages: XLSX_READER_PACKAGES,
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_GZIP_KILOBYTES,
+      name: 'engine',
+    },
+  ],
+  maxInitialGzipKiloBytes: MAX_ENGINE_WORKER_GZIP_KILOBYTES,
+  targetEntries: ENGINE_WORKER_ENTRIES,
+} satisfies BundleBudgetPluginOptionsValue;
 
 const isDemoTransport = loadEnv('production', import.meta.dirname, 'VITE_').VITE_API_TRANSPORT !== 'connect';
 
@@ -439,6 +461,6 @@ export default defineConfig({
   },
   worker: {
     format: 'es',
-    plugins: () => [thirdPartyLicenses.workerPlugin(), criticalPreload.workerPlugin()],
+    plugins: () => [thirdPartyLicenses.workerPlugin(), criticalPreload.workerPlugin(), bundleBudgetPlugin(ENGINE_WORKER_BUDGET)],
   },
 });

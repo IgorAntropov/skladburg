@@ -62,11 +62,13 @@ export interface OrganizationDirectoryRobotValue {
   tapTableRowCell: (organization: DirectoryOrganizationValue) => Promise<void>;
 }
 
-const readOrganizationIds = async (rows: Locator): Promise<string[]> => {
-  const ids = await Promise.all((await rows.all()).map(row => row.getAttribute('data-organization-id')));
+interface AttributeHolderValue {
+  getAttribute: (name: string) => null | string;
+}
 
-  return ids.map(id => id ?? '');
-};
+const readOrganizationIds = (rows: Locator): Promise<string[]> => rows.evaluateAll(
+  (elements: readonly AttributeHolderValue[]) => elements.map(element => element.getAttribute('data-organization-id') ?? ''),
+);
 
 const createFilters = (scope: Locator, toggle: Locator | undefined): DirectoryFiltersValue => {
   const filters = scope.getByTestId('organization-directory-filters');

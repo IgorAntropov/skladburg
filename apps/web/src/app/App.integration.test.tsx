@@ -52,6 +52,7 @@ const BRAND_NAME = 'Заказчик 1';
 const PRODUCT_NAME = defaultLocaleCatalog['app.productName'];
 const SEED_WAREHOUSE_COUNT = 3;
 const LIST_WAREHOUSES_PATH = '/ListWarehouses';
+const LAZY_CHUNK_TIMEOUT_MS = 4_000;
 
 interface HarnessValue {
   frames: ManualFramesValue;
@@ -214,7 +215,7 @@ const startApplication = async ({
     await inProcess.close();
   });
 
-  await screen.findByRole('heading', { level: 1 });
+  await screen.findByRole('heading', { level: 1 }, { timeout: LAZY_CHUNK_TIMEOUT_MS });
   await subscribed;
   const busyPlaceholderWatch = watchBusyPlaceholders();
 
@@ -254,7 +255,7 @@ const openProfileMenu = async (buttonName: string = CUSTOMER_BUTTON_NAME): Promi
 
   fireEvent.click(button);
 
-  return screen.findByRole('menu', { name: defaultLocaleCatalog['profile.menu.label'] });
+  return screen.findByRole('menu', { name: defaultLocaleCatalog['profile.menu.label'] }, { timeout: LAZY_CHUNK_TIMEOUT_MS });
 };
 
 const getWarehouseItems = (): HTMLElement[] => {

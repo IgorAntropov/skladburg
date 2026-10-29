@@ -10,6 +10,7 @@ import {
   DESKTOP_VIEWPORT,
   PHONE_VIEWPORT,
 } from './fixtures/viewports.ts';
+import { createAssistantRobot } from './robots/assistant-robot.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';
 import { createOrganizationDirectoryRobot } from './robots/organization-directory-robot.ts';
 import { createPersonaRobot } from './robots/persona-robot.ts';
@@ -212,11 +213,13 @@ test.describe('organization directory on a phone', () => {
   });
 
   test('filters the companies without the table button', async ({ page }) => {
+    const assistant = createAssistantRobot(page);
     const directory = createOrganizationDirectoryRobot(page);
     const navigation = createNavigationRobot(page);
 
     await navigation.openSection('network');
     await navigation.expectSection('network');
+    await assistant.dismissReplica('digest');
     await directory.openCompaniesTab();
     await directory.expectRows(DIRECTORY_VISIBLE_ORGANIZATIONS);
     await directory.expectNoTableButton();

@@ -1,3 +1,4 @@
+export { createCatalogService } from './catalog/index';
 export { createClockService } from './clock/index';
 export {
   createAccessService,

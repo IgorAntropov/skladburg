@@ -3,6 +3,7 @@ syntax = "proto3";
 package event.v1;
 
 import "access/v1/access.proto";
+import "catalog/v1/catalog_events.proto";
 import "google/protobuf/timestamp.proto";
 import "notification/v1/notification_events.proto";
 import "organization/v1/organization.proto";
@@ -20,5 +21,6 @@ message Event {
     notification.v1.NotificationsChanged notifications_changed = 13;
     support.v1.SupportTicketChanged support_ticket_changed = 14;
     support.v1.SupportAccessChanged support_access_changed = 15;
+    catalog.v1.ListingsChanged listings_changed = 16;
   }
 }

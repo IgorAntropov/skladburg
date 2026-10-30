@@ -21,6 +21,11 @@ export const ENGINE_COLLECTION_NAMES = [
   'supportBotQueue',
   'idempotency',
   'personas',
+  'products',
+  'listings',
+  'listingPrices',
+  'priceLists',
+  'salesTerms',
 ] as const;
 
 export interface EngineChangeSetValue {
@@ -66,6 +71,8 @@ export type StoredScalarValue = bigint | boolean | null | number | string;
 export const createEmptyCollections = (): Record<EngineCollectionName, EngineCollectionValue> => ({
   cities: new Map(),
   idempotency: new Map(),
+  listingPrices: new Map(),
+  listings: new Map(),
   mapNodes: new Map(),
   memberships: new Map(),
   notifications: new Map(),
@@ -73,8 +80,11 @@ export const createEmptyCollections = (): Record<EngineCollectionName, EngineCol
   organizations: new Map(),
   organizationSettings: new Map(),
   personas: new Map(),
+  priceLists: new Map(),
+  products: new Map(),
   roles: new Map(),
   routeLegs: new Map(),
+  salesTerms: new Map(),
   spheres: new Map(),
   supportAccessSessions: new Map(),
   supportAuditEntries: new Map(),

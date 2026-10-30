@@ -3,6 +3,13 @@ import {
   toBinary,
 } from '@bufbuild/protobuf';
 import { UserSchema } from '@skladburg/contracts/access/v1/access';
+import {
+  ListingPriceSchema,
+  ListingSchema,
+  PriceListSchema,
+  ProductSchema,
+  SalesTermsSchema,
+} from '@skladburg/contracts/catalog/v1/catalog';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import {
   CitySchema,
@@ -41,7 +48,10 @@ import {
   parseNotificationRecord,
   parseSupportBotQueueRecord,
 } from './records';
-import { TABLE_DEFINITIONS } from './tables';
+import {
+  ListingPublication,
+  TABLE_DEFINITIONS,
+} from './tables';
 import {
   createTestMembership,
   createTestSupportAccessSession,
@@ -332,5 +342,39 @@ describe('support bot queue table', () => {
     expect(() => parseSupportBotQueueRecord({ dueAtMs: '1', id: 'ticket-1' })).toThrow(TypeError);
     expect(() => parseSupportBotQueueRecord({ dueAtMs: Number.NaN, id: 'ticket-1' })).toThrow(TypeError);
     expect(() => parseSupportBotQueueRecord({ dueAtMs: Number.POSITIVE_INFINITY, id: 'ticket-1' })).toThrow(TypeError);
+  });
+});
+
+describe('catalog tables', () => {
+  it('key a product and a price list by the id and index them by the tenant', () => {
+    const product = create(ProductSchema, { id: 'product-1', tenantId: 'org-1' });
+    const priceList = create(PriceListSchema, { id: 'price-list-1', tenantId: 'org-2' });
+
+    expect(TABLE_DEFINITIONS.products.getId(product)).toBe('product-1');
+    expect(TABLE_DEFINITIONS.products.indexKeys.tenantId(product)).toBe('org-1');
+    expect(TABLE_DEFINITIONS.products.decode(TABLE_DEFINITIONS.products.encode(product))).toEqual(product);
+    expect(TABLE_DEFINITIONS.priceLists.getId(priceList)).toBe('price-list-1');
+    expect(TABLE_DEFINITIONS.priceLists.indexKeys.tenantId(priceList)).toBe('org-2');
+  });
+
+  it('key a listing price by the listing and sales terms by the organization', () => {
+    const price = create(ListingPriceSchema, { listingId: 'listing-1', tenantId: 'org-1' });
+    const terms = create(SalesTermsSchema, { organizationId: 'org-3' });
+
+    expect(TABLE_DEFINITIONS.listingPrices.getId(price)).toBe('listing-1');
+    expect(TABLE_DEFINITIONS.listingPrices.indexKeys.tenantId(price)).toBe('org-1');
+    expect(TABLE_DEFINITIONS.salesTerms.getId(terms)).toBe('org-3');
+    expect(TABLE_DEFINITIONS.salesTerms.decode(TABLE_DEFINITIONS.salesTerms.encode(terms))).toEqual(terms);
+  });
+
+  it('index a listing by the tenant and by the publication state', () => {
+    const draft = create(ListingSchema, { id: 'listing-1', isPublished: false, tenantId: 'org-1' });
+    const published = create(ListingSchema, { id: 'listing-2', isPublished: true, tenantId: 'org-1' });
+
+    expect(TABLE_DEFINITIONS.listings.getId(draft)).toBe('listing-1');
+    expect(TABLE_DEFINITIONS.listings.indexKeys.tenantId(draft)).toBe('org-1');
+    expect(TABLE_DEFINITIONS.listings.indexKeys.publication(draft)).toBe(ListingPublication.DRAFT);
+    expect(TABLE_DEFINITIONS.listings.indexKeys.publication(published)).toBe(ListingPublication.PUBLISHED);
+    expect(ListingPublication).toEqual({ DRAFT: 'draft', PUBLISHED: 'published' });
   });
 });

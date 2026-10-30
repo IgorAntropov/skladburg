@@ -8,6 +8,7 @@ import {
   OrganizationLogoSchema,
   OrganizationProfileSchema,
   OrganizationSchema,
+  type ProfileKind,
 } from '@skladburg/contracts/organization/v1/organization';
 
 import type { IStateReader } from '../state/index';
@@ -16,6 +17,9 @@ export const MIN_SHOWCASE_VERIFICATION_LEVEL = 1;
 
 export const isOrganizationVerified = (organization: Organization): boolean =>
   organization.profiles.some(profile => profile.verificationLevel >= MIN_SHOWCASE_VERIFICATION_LEVEL);
+
+export const isProfileVerified = (organization: Organization, kind: ProfileKind): boolean =>
+  organization.profiles.some(profile => profile.kind === kind && profile.verificationLevel >= MIN_SHOWCASE_VERIFICATION_LEVEL);
 
 export const cloneOrganizationLogo = (organization: Organization): OrganizationLogo | undefined =>
   organization.logo === undefined ? undefined : clone(OrganizationLogoSchema, organization.logo);

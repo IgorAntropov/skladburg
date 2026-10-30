@@ -14,6 +14,7 @@ describe('getFieldCheckRuleId', () => {
     ['bik', 'field_check.bik'],
     ['settlementAccount', 'field_check.settlement_account'],
     ['correspondentAccount', 'field_check.correspondent_account'],
+    ['gtin', 'field_check.gtin'],
   ] as const)('names the rule of %s as %s', (kind, ruleId) => {
     expect(getFieldCheckRuleId(kind)).toBe(ruleId);
   });

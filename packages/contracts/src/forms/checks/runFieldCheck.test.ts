@@ -18,9 +18,11 @@ describe('runFieldCheck', () => {
     expect(runFieldCheck({ kind: 'ogrn' }, '1020000123451', undefined)).toBe('field_check.ogrn');
     expect(runFieldCheck({ kind: 'bik' }, '040000777', undefined)).toBeUndefined();
     expect(runFieldCheck({ kind: 'bik' }, '050000777', undefined)).toBe('field_check.bik');
+    expect(runFieldCheck({ kind: 'gtin' }, '2000000000008', undefined)).toBeUndefined();
+    expect(runFieldCheck({ kind: 'gtin' }, '2000000000009', undefined)).toBe('field_check.gtin');
   });
 
-  it.each(['inn', 'kpp', 'ogrn', 'bik', 'settlementAccount', 'correspondentAccount'] as const)(
+  it.each(['inn', 'kpp', 'ogrn', 'bik', 'gtin', 'settlementAccount', 'correspondentAccount'] as const)(
     'does not check an empty value of %s',
     (kind) => {
       expect(runFieldCheck({ kind }, '', '040000777')).toBeUndefined();

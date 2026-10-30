@@ -13,6 +13,7 @@ export {
   getVisibleOrganization,
   isOrganizationVerified,
   isOrganizationVisibleToViewer,
+  isProfileVerified,
   MIN_SHOWCASE_VERIFICATION_LEVEL,
   projectOrganizationForShowcase,
 } from './organizationVisibility';

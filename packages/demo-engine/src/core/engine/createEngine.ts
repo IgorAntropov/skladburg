@@ -24,6 +24,7 @@ import {
 import { createIdempotencyGuard } from '../idempotency/index';
 import {
   createAccessService,
+  createCatalogService,
   createClockService,
   createNetworkService,
   createNotificationService,
@@ -161,6 +162,7 @@ export const createEngineWithTasks = async (
   };
   const handler = createEngineHandler({
     accessService: createAccessService(runtime),
+    catalogService: createCatalogService(runtime),
     clockService: createClockService(runtime, () => clock.getSnapshot()),
     errors,
     networkService: createNetworkService(runtime),

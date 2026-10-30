@@ -1,0 +1,375 @@
+syntax = "proto3";
+
+package catalog.v1;
+
+import "buf/validate/validate.proto";
+import "common/v1/date.proto";
+import "common/v1/field_options.proto";
+import "common/v1/method_options.proto";
+import "common/v1/money.proto";
+import "common/v1/page.proto";
+
+enum BaseUnit {
+  BASE_UNIT_UNSPECIFIED = 0;
+  BASE_UNIT_PIECE = 1;
+  BASE_UNIT_GRAM = 2;
+  BASE_UNIT_MILLILITER = 3;
+}
+
+enum MarkingMode {
+  MARKING_MODE_UNSPECIFIED = 0;
+  MARKING_MODE_NONE = 1;
+  MARKING_MODE_UNIT = 2;
+  MARKING_MODE_VOLUME = 3;
+}
+
+enum VatRate {
+  VAT_RATE_UNSPECIFIED = 0;
+  VAT_RATE_NONE = 1;
+  VAT_RATE_10 = 2;
+  VAT_RATE_22 = 3;
+}
+
+enum AvailabilityStatus {
+  AVAILABILITY_STATUS_UNSPECIFIED = 0;
+  AVAILABILITY_STATUS_IN_STOCK = 1;
+  AVAILABILITY_STATUS_LOW = 2;
+  AVAILABILITY_STATUS_ON_ORDER = 3;
+}
+
+message TemperatureRange {
+  int32 min_celsius = 1 [
+    (buf.validate.field).int32.gte = -60,
+    (buf.validate.field).int32.lte = 60
+  ];
+  int32 max_celsius = 2 [
+    (buf.validate.field).int32.gte = -60,
+    (buf.validate.field).int32.lte = 60
+  ];
+}
+
+message Packaging {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  string name = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.max_len = 80
+  ];
+  int64 base_quantity = 3 [(buf.validate.field).int64.gt = 0];
+  int64 gross_weight_grams = 4 [(buf.validate.field).int64.gt = 0];
+  int64 volume_cubic_centimeters = 5 [(buf.validate.field).int64.gt = 0];
+  int32 length_millimeters = 6 [(buf.validate.field).int32.gt = 0];
+  int32 width_millimeters = 7 [(buf.validate.field).int32.gt = 0];
+  int32 height_millimeters = 8 [(buf.validate.field).int32.gt = 0];
+}
+
+message Product {
+  string id = 1;
+  string tenant_id = 2;
+  string name = 3;
+  string sku = 4;
+  string gtin = 5;
+  BaseUnit base_unit = 6;
+  repeated Packaging packagings = 7;
+  TemperatureRange storage_temperature = 8;
+  int32 shelf_life_days = 9;
+  MarkingMode marking_mode = 10;
+  VatRate vat_rate = 11;
+  common.v1.Money min_price = 12;
+  bool is_discount_forbidden = 13;
+  int64 version = 14;
+}
+
+message PriceUnit {
+  string name = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.max_len = 20
+  ];
+  int64 base_quantity = 2 [(buf.validate.field).int64.gt = 0];
+}
+
+message WarehouseAvailability {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  AvailabilityStatus status = 2 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+  int64 quantity = 3 [(buf.validate.field).int64.gte = 0];
+}
+
+message Listing {
+  string id = 1;
+  string tenant_id = 2;
+  string product_id = 3;
+  repeated string sphere_ids = 4;
+  PriceUnit price_unit = 5;
+  int64 min_order_quantity = 6;
+  int64 order_step = 7;
+  repeated WarehouseAvailability availability = 8;
+  bool is_published = 9;
+  int64 version = 10;
+}
+
+message OwnListing {
+  Listing listing = 1;
+  Product product = 2;
+}
+
+message PriceTier {
+  int64 min_quantity = 1 [(buf.validate.field).int64.gt = 0];
+  common.v1.Money price = 2 [(buf.validate.field).required = true];
+}
+
+message PriceList {
+  string id = 1;
+  string tenant_id = 2;
+  common.v1.CalendarDate valid_until = 3;
+  int64 version = 4;
+}
+
+message ListingPrice {
+  string listing_id = 1;
+  string tenant_id = 2;
+  string price_list_id = 3;
+  repeated PriceTier tiers = 4;
+  int64 version = 5;
+}
+
+message OwnDeliveryTerms {
+  common.v1.Money price_per_km = 1 [(buf.validate.field).required = true];
+  common.v1.Money minimum_charge = 2 [(buf.validate.field).required = true];
+}
+
+message SalesTerms {
+  string organization_id = 1;
+  OwnDeliveryTerms own_delivery = 2;
+  int32 preparation_working_days = 3;
+  bool is_auto_confirm_enabled = 4;
+  int64 version = 5;
+}
+
+message ListProductsRequest {
+  common.v1.PageRequest page = 1;
+  string query = 2 [(buf.validate.field).string.max_len = 100];
+}
+
+message ListProductsResponse {
+  repeated Product products = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message SaveProductRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int64 expected_version = 2 [(buf.validate.field).int64.gte = 0];
+  string product_id = 3 [(buf.validate.field).string.uuid = true];
+  string name = 4 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.max_len = 200
+  ];
+  string sku = 5 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.max_len = 64
+  ];
+  string gtin = 6 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.pattern = "^([0-9]{8}|[0-9]{12,14})$",
+    (common.v1.field_check) = FIELD_CHECK_GTIN
+  ];
+  BaseUnit base_unit = 7 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+  repeated Packaging packagings = 8 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 10
+  ];
+  TemperatureRange storage_temperature = 9;
+  int32 shelf_life_days = 10 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 3650
+  ];
+  MarkingMode marking_mode = 11 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+  VatRate vat_rate = 12 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+  common.v1.Money min_price = 13;
+  bool is_discount_forbidden = 14;
+}
+
+message SaveProductResponse {
+  Product product = 1;
+}
+
+message ListOwnListingsRequest {
+  common.v1.PageRequest page = 1;
+  string query = 2 [(buf.validate.field).string.max_len = 100];
+}
+
+message ListOwnListingsResponse {
+  repeated OwnListing listings = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message GetOwnListingRequest {
+  string listing_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetOwnListingResponse {
+  OwnListing listing = 1;
+}
+
+message SaveListingRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int64 expected_version = 2 [(buf.validate.field).int64.gte = 0];
+  string listing_id = 3 [(buf.validate.field).string.uuid = true];
+  string product_id = 4 [(buf.validate.field).string.uuid = true];
+  repeated string sphere_ids = 5 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 8,
+    (buf.validate.field).repeated.unique = true,
+    (buf.validate.field).repeated.items.string.uuid = true
+  ];
+  PriceUnit price_unit = 6 [(buf.validate.field).required = true];
+  int64 min_order_quantity = 7 [(buf.validate.field).int64.gt = 0];
+  int64 order_step = 8 [(buf.validate.field).int64.gt = 0];
+  repeated WarehouseAvailability availability = 9 [(buf.validate.field).repeated.max_items = 50];
+}
+
+message SaveListingResponse {
+  Listing listing = 1;
+}
+
+message SetListingPublishedRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int64 expected_version = 2 [(buf.validate.field).int64.gte = 0];
+  string listing_id = 3 [(buf.validate.field).string.uuid = true];
+  bool is_published = 4;
+}
+
+message SetListingPublishedResponse {
+  Listing listing = 1;
+}
+
+message ListListingPricesRequest {
+  common.v1.PageRequest page = 1;
+  repeated string listing_ids = 2 [
+    (buf.validate.field).repeated.max_items = 200,
+    (buf.validate.field).repeated.unique = true,
+    (buf.validate.field).repeated.items.string.uuid = true
+  ];
+}
+
+message ListListingPricesResponse {
+  repeated ListingPrice prices = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message SaveListingPriceRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int64 expected_version = 2 [(buf.validate.field).int64.gte = 0];
+  string listing_id = 3 [(buf.validate.field).string.uuid = true];
+  repeated PriceTier tiers = 4 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 10
+  ];
+}
+
+message SaveListingPriceResponse {
+  ListingPrice price = 1;
+}
+
+message GetPriceListRequest {}
+
+message GetPriceListResponse {
+  PriceList price_list = 1;
+}
+
+message SavePriceListRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int64 expected_version = 2 [(buf.validate.field).int64.gte = 0];
+  common.v1.CalendarDate valid_until = 3;
+}
+
+message SavePriceListResponse {
+  PriceList price_list = 1;
+}
+
+message GetSalesTermsRequest {}
+
+message GetSalesTermsResponse {
+  SalesTerms terms = 1;
+}
+
+message SaveSalesTermsRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int64 expected_version = 2 [(buf.validate.field).int64.gte = 0];
+  OwnDeliveryTerms own_delivery = 3;
+  int32 preparation_working_days = 4 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 30
+  ];
+  bool is_auto_confirm_enabled = 5;
+}
+
+message SaveSalesTermsResponse {
+  SalesTerms terms = 1;
+}
+
+service CatalogService {
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "catalog_view";
+  }
+
+  rpc SaveProduct(SaveProductRequest) returns (SaveProductResponse) {
+    option (common.v1.access).permission.name = "catalog_edit";
+  }
+
+  rpc ListOwnListings(ListOwnListingsRequest) returns (ListOwnListingsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "catalog_view";
+  }
+
+  rpc GetOwnListing(GetOwnListingRequest) returns (GetOwnListingResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "catalog_view";
+  }
+
+  rpc SaveListing(SaveListingRequest) returns (SaveListingResponse) {
+    option (common.v1.access).permission.name = "catalog_edit";
+  }
+
+  rpc SetListingPublished(SetListingPublishedRequest) returns (SetListingPublishedResponse) {
+    option (common.v1.access).permission.name = "catalog_edit";
+  }
+
+  rpc ListListingPrices(ListListingPricesRequest) returns (ListListingPricesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "price_list_view";
+  }
+
+  rpc SaveListingPrice(SaveListingPriceRequest) returns (SaveListingPriceResponse) {
+    option (common.v1.access).permission.name = "price_list_edit";
+  }
+
+  rpc GetPriceList(GetPriceListRequest) returns (GetPriceListResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "price_list_view";
+  }
+
+  rpc SavePriceList(SavePriceListRequest) returns (SavePriceListResponse) {
+    option (common.v1.access).permission.name = "price_list_edit";
+  }
+
+  rpc GetSalesTerms(GetSalesTermsRequest) returns (GetSalesTermsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "catalog_view";
+  }
+
+  rpc SaveSalesTerms(SaveSalesTermsRequest) returns (SaveSalesTermsResponse) {
+    option (common.v1.access).permission.name = "catalog_edit";
+  }
+}

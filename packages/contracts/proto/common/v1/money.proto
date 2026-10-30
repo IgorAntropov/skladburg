@@ -5,6 +5,6 @@ package common.v1;
 import "buf/validate/validate.proto";
 
 message Money {
-  int64 amount_minor = 1;
+  int64 amount_minor = 1 [(buf.validate.field).int64.gte = 0];
   string currency_code = 2 [(buf.validate.field).string.pattern = "^[A-Z]{3}$"];
 }

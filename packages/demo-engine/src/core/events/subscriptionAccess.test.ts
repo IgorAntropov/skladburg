@@ -1,12 +1,19 @@
+import { create } from '@bufbuild/protobuf';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import {
   ErrorCode,
   type ErrorDetail,
 } from '@skladburg/contracts/common/v1/error';
 import {
+  OrganizationProfileSchema,
+  OrganizationSchema,
+  ProfileKind,
+} from '@skladburg/contracts/organization/v1/organization';
+import {
   ACTING_ORGANIZATION_HEADER,
   getPermissionName,
   listPermissionCodes,
+  marketChannel,
   organizationChannel,
   userChannel,
   warehouseChannel,
@@ -32,6 +39,7 @@ import {
 } from '../seed/index';
 import {
   createSubscriptionAccess,
+  MARKET_CHANNEL_PERMISSION,
   WAREHOUSE_CHANNEL_PERMISSION,
 } from './subscriptionAccess';
 
@@ -160,6 +168,111 @@ describe('subscription access to a warehouse channel', () => {
     expect(check(organizationChannel(SeedOrganizationId.CUSTOMER_1), SeedUserId.ADMIN_1)).toBeUndefined();
     expect(check(userChannel(SeedUserId.ADMIN_1), SeedUserId.ADMIN_1)).toBeUndefined();
     expect(check(organizationChannel(SeedOrganizationId.SUPPLIER_1), SeedUserId.ADMIN_1)?.code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
+  });
+});
+
+describe('market channel permission', () => {
+  it('is a permission of the contract catalog', () => {
+    expect(listPermissionCodes().map(getPermissionName)).toContain(MARKET_CHANNEL_PERMISSION);
+  });
+});
+
+describe('subscription access to the market channel', () => {
+  const market = marketChannel();
+
+  const readEntity = (detail: ErrorDetail | undefined): EntityKind | undefined =>
+    detail?.params.case === 'notFound' ? detail.params.value.entity : undefined;
+
+  const replaceProfiles = async (
+    harness: FixtureValue,
+    organizationId: string,
+    profiles: { kind: ProfileKind; verificationLevel: number }[],
+  ): Promise<void> => {
+    const organization = create(OrganizationSchema, harness.state.read.get('organizations', organizationId));
+
+    organization.profiles = profiles.map(profile => create(OrganizationProfileSchema, profile));
+
+    await harness.runtime.command((transaction) => {
+      transaction.put('organizations', organization);
+    });
+  };
+
+  it('lets the director of a verified customer subscribe', () => {
+    const { check } = createFixture();
+
+    expect(check(market, SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1)).toBeUndefined();
+  });
+
+  it('lets the buyer of a verified customer subscribe', () => {
+    const { check } = createFixture();
+
+    expect(check(market, SeedUserId.BUYER_1, SeedOrganizationId.CUSTOMER_1)).toBeUndefined();
+  });
+
+  it('denies a supplier and a carrier with permission_denied naming marketplace_view', () => {
+    const { check } = createFixture();
+
+    const supplier = check(market, SeedUserId.ADMIN_2, SeedOrganizationId.SUPPLIER_1);
+    const carrier = check(market, SeedUserId.ADMIN_4, SeedOrganizationId.CARRIER_1);
+
+    for (const detail of [supplier, carrier]) {
+      expect(detail?.code).toBe(ErrorCode.PERMISSION_DENIED);
+      expect(readPermission(detail)).toEqual({ permission: 'marketplace_view', warehouseId: '' });
+    }
+  });
+
+  it('answers membership_required without an acting organization', () => {
+    const { check } = createFixture();
+
+    expect(check(market, SeedUserId.ADMIN_1)?.code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
+  });
+
+  it('answers membership_required for an organization the user is not a member of', () => {
+    const { check } = createFixture();
+
+    expect(check(market, SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_2)?.code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
+    expect(check(market, SeedUserId.ADMIN_1, UNKNOWN_ID)?.code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
+  });
+
+  it('answers session_required before looking at the organization', () => {
+    const { check } = createFixture();
+
+    expect(check(market, undefined, SeedOrganizationId.CUSTOMER_1)?.code).toBe(ErrorCode.SESSION_REQUIRED);
+  });
+
+  it('answers not_found for the channel when the customer profile is not verified', async () => {
+    const harness = createFixture();
+
+    await replaceProfiles(harness, SeedOrganizationId.CUSTOMER_1, [{ kind: ProfileKind.CUSTOMER, verificationLevel: 0 }]);
+
+    const detail = harness.check(market, SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
+
+    expect(detail?.code).toBe(ErrorCode.NOT_FOUND);
+    expect(readEntity(detail)).toBe(EntityKind.CHANNEL);
+  });
+
+  it('answers not_found for the channel when only another profile is verified', async () => {
+    const harness = createFixture();
+
+    await replaceProfiles(harness, SeedOrganizationId.CUSTOMER_1, [
+      { kind: ProfileKind.CUSTOMER, verificationLevel: 0 },
+      { kind: ProfileKind.CARRIER, verificationLevel: 1 },
+    ]);
+
+    const detail = harness.check(market, SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
+
+    expect(detail?.code).toBe(ErrorCode.NOT_FOUND);
+    expect(readEntity(detail)).toBe(EntityKind.CHANNEL);
+  });
+
+  it('does not draw from the main random stream when it denies', () => {
+    const { check, random } = createFixture();
+    const before = random.getState();
+
+    check(market, SeedUserId.ADMIN_2, SeedOrganizationId.SUPPLIER_1);
+    check(market, SeedUserId.ADMIN_1);
+
+    expect(random.getState()).toEqual(before);
   });
 });
 

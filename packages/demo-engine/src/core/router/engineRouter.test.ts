@@ -51,6 +51,20 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
   };
   const handler = createEngineHandler({
     accessService: { getSession, listPermissions: unused, listRoles: unused },
+    catalogService: {
+      getOwnListing: unused,
+      getPriceList: unused,
+      getSalesTerms: unused,
+      listListingPrices: unused,
+      listOwnListings: unused,
+      listProducts: unused,
+      saveListing: unused,
+      saveListingPrice: unused,
+      savePriceList: unused,
+      saveProduct: unused,
+      saveSalesTerms: unused,
+      setListingPublished: unused,
+    },
     clockService: { getWorldClock: unused },
     errors,
     networkService: { listCities: unused, listMapNodes: unused, listMapSites: unused, listRouteLegs: unused },

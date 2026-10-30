@@ -4,6 +4,7 @@ export {
 } from './actingHeader';
 export {
   type ChannelValue,
+  marketChannel,
   organizationChannel,
   parseChannel,
   userChannel,

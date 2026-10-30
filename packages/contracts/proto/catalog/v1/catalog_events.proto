@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package catalog.v1;
+
+message ListingsChanged {
+  string supplier_organization_id = 1;
+}

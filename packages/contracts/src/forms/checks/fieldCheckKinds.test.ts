@@ -14,6 +14,7 @@ describe('toFieldCheckKind', () => {
     ['FIELD_CHECK_BIK', 'bik'],
     ['FIELD_CHECK_SETTLEMENT_ACCOUNT', 'settlementAccount'],
     ['FIELD_CHECK_CORRESPONDENT_ACCOUNT', 'correspondentAccount'],
+    ['FIELD_CHECK_GTIN', 'gtin'],
   ])('turns the enum value %s into the kind %s', (name, kind) => {
     expect(toFieldCheckKind(name)).toBe(kind);
   });

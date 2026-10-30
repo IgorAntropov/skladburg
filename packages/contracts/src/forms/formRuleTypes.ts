@@ -15,6 +15,7 @@ export interface FormEnumRuleValue {
 export type FormFieldCheckKindValue
   = | 'bik'
     | 'correspondentAccount'
+    | 'gtin'
     | 'inn'
     | 'kpp'
     | 'ogrn'

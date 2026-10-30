@@ -12,6 +12,7 @@ enum FieldCheck {
   FIELD_CHECK_BIK = 4;
   FIELD_CHECK_SETTLEMENT_ACCOUNT = 5;
   FIELD_CHECK_CORRESPONDENT_ACCOUNT = 6;
+  FIELD_CHECK_GTIN = 7;
 }
 
 extend google.protobuf.FieldOptions {

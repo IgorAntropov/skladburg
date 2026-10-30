@@ -19,6 +19,8 @@ import { createEngineState } from '../state/index';
 import {
   getVisibleOrganization,
   isOrganizationVerified,
+  isProfileVerified,
+  MIN_SHOWCASE_VERIFICATION_LEVEL,
   projectOrganizationForShowcase,
 } from './organizationVisibility';
 
@@ -39,6 +41,37 @@ describe('isOrganizationVerified', () => {
 
     expect(isOrganizationVerified(unverified)).toBe(false);
     expect(isOrganizationVerified(create(OrganizationSchema))).toBe(false);
+  });
+});
+
+describe('isProfileVerified', () => {
+  it('is true when the profile of the kind is exactly at the verification threshold', () => {
+    const organization = create(OrganizationSchema, {
+      profiles: [{ kind: ProfileKind.CUSTOMER, verificationLevel: MIN_SHOWCASE_VERIFICATION_LEVEL }],
+    });
+
+    expect(isProfileVerified(organization, ProfileKind.CUSTOMER)).toBe(true);
+  });
+
+  it('is false when the profile of the kind is below the threshold', () => {
+    const organization = create(OrganizationSchema, {
+      profiles: [{ kind: ProfileKind.CUSTOMER, verificationLevel: MIN_SHOWCASE_VERIFICATION_LEVEL - 1 }],
+    });
+
+    expect(isProfileVerified(organization, ProfileKind.CUSTOMER)).toBe(false);
+  });
+
+  it('is false when only a profile of another kind is verified', () => {
+    const organization = create(OrganizationSchema, {
+      profiles: [{ kind: ProfileKind.CUSTOMER, verificationLevel: 0 }, { kind: ProfileKind.CARRIER, verificationLevel: 1 }],
+    });
+
+    expect(isOrganizationVerified(organization)).toBe(true);
+    expect(isProfileVerified(organization, ProfileKind.CUSTOMER)).toBe(false);
+  });
+
+  it('is false when the organization has no profile of the kind', () => {
+    expect(isProfileVerified(create(OrganizationSchema), ProfileKind.CUSTOMER)).toBe(false);
   });
 });
 

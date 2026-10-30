@@ -1,4 +1,5 @@
 const CHANNEL_SEPARATOR = ':';
+const MARKET_CHANNEL = 'market';
 const ORGANIZATION_CHANNEL_PREFIX = 'org';
 const USER_CHANNEL_PREFIX = 'user';
 const WAREHOUSE_CHANNEL_PREFIX = 'warehouse';
@@ -10,9 +11,12 @@ const CHANNEL_PREFIXES = [
 const CHANNEL_PATTERN = new RegExp(`^(${CHANNEL_PREFIXES.join('|')})${CHANNEL_SEPARATOR}([A-Za-z0-9_-]+)$`);
 
 export type ChannelValue
-  = | { kind: 'organization'; organizationId: string }
+  = | { kind: 'market' }
+    | { kind: 'organization'; organizationId: string }
     | { kind: 'user'; userId: string }
     | { kind: 'warehouse'; warehouseId: string };
+
+export const marketChannel = (): string => MARKET_CHANNEL;
 
 export const organizationChannel = (organizationId: string): string =>
   `${ORGANIZATION_CHANNEL_PREFIX}${CHANNEL_SEPARATOR}${organizationId}`;
@@ -24,6 +28,10 @@ export const warehouseChannel = (warehouseId: string): string =>
   `${WAREHOUSE_CHANNEL_PREFIX}${CHANNEL_SEPARATOR}${warehouseId}`;
 
 export const parseChannel = (channel: string): ChannelValue | undefined => {
+  if (channel === MARKET_CHANNEL) {
+    return { kind: 'market' };
+  }
+
   const match = CHANNEL_PATTERN.exec(channel);
   const [, prefix, id] = match ?? [];
 

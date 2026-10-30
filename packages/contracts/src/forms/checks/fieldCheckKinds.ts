@@ -5,6 +5,7 @@ const FIELD_CHECK_ENUM_PREFIX = 'FIELD_CHECK_';
 const KIND_REGISTRY: Readonly<Record<FormFieldCheckKindValue, true>> = {
   bik: true,
   correspondentAccount: true,
+  gtin: true,
   inn: true,
   kpp: true,
   ogrn: true,

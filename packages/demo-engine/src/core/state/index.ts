@@ -22,6 +22,7 @@ export {
 export type { IStateReader } from './stateReader';
 export { compareIds } from './table';
 export {
+  ListingPublication,
   TABLE_DEFINITIONS,
   type TableIndexesValue,
   type TableName,

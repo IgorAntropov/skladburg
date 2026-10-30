@@ -6,6 +6,7 @@ import {
   type ErrorDetail,
   ErrorDetailSchema,
 } from '@skladburg/contracts/common/v1/error';
+import { ProfileKind } from '@skladburg/contracts/organization/v1/organization';
 import {
   getPermissionName,
   parseChannel,
@@ -19,8 +20,10 @@ import {
   resolveEffectivePermissions,
 } from '../access/index';
 import { readActingContext } from '../context/index';
+import { isProfileVerified } from '../visibility/index';
 
 export const WAREHOUSE_CHANNEL_PERMISSION = getPermissionName(PermissionCode.WAREHOUSE_VIEW);
+export const MARKET_CHANNEL_PERMISSION = getPermissionName(PermissionCode.MARKETPLACE_VIEW);
 
 export interface EngineChannelPositionValue {
   epoch: string;
@@ -69,6 +72,31 @@ export const createSubscriptionAccess = (errors: IDomainErrors): ISubscriptionAc
     }
   };
 
+  const evaluateMarket = (reader: IStateReader, headers: Headers, userId: string): void => {
+    const { organizationId } = readActingContext(headers);
+    const membership = organizationId === undefined
+      ? undefined
+      : reader.listBy('memberships', 'userId', userId).find(candidate => candidate.organizationId === organizationId);
+
+    if (organizationId === undefined || membership === undefined) {
+      throw errors.membershipRequired();
+    }
+
+    const isPermitted = resolveEffectivePermissions(reader, membership).some(
+      candidate => candidate.permission === MARKET_CHANNEL_PERMISSION,
+    );
+
+    if (!isPermitted) {
+      throw errors.permissionDenied(MARKET_CHANNEL_PERMISSION);
+    }
+
+    const organization = reader.get('organizations', organizationId);
+
+    if (organization === undefined || !isProfileVerified(organization, ProfileKind.CUSTOMER)) {
+      throw errors.notFound(EntityKind.CHANNEL);
+    }
+  };
+
   const evaluate = (reader: IStateReader, channel: string, headers: Headers): void => {
     const { userId } = readActingContext(headers);
 
@@ -86,6 +114,12 @@ export const createSubscriptionAccess = (errors: IDomainErrors): ISubscriptionAc
       if (parsed.userId !== userId) {
         throw errors.notFound(EntityKind.CHANNEL);
       }
+
+      return;
+    }
+
+    if (parsed.kind === 'market') {
+      evaluateMarket(reader, headers, userId);
 
       return;
     }

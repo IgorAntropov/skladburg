@@ -44,12 +44,20 @@ describe('Money', () => {
     ]);
   });
 
-  it('accepts negative and large amounts in minor units', () => {
-    const negative = create(MoneySchema, { amountMinor: -1n, currencyCode: 'RUB' });
+  it('accepts zero and large amounts in minor units', () => {
+    const zero = create(MoneySchema, { amountMinor: 0n, currencyCode: 'RUB' });
     const large = create(MoneySchema, { amountMinor: 9_007_199_254_740_993n, currencyCode: 'RUB' });
 
-    expect(collectViolations(MoneySchema, negative)).toEqual([]);
+    expect(collectViolations(MoneySchema, zero)).toEqual([]);
     expect(collectViolations(MoneySchema, large)).toEqual([]);
+  });
+
+  it('rejects a negative amount', () => {
+    const negative = create(MoneySchema, { amountMinor: -1n, currencyCode: 'RUB' });
+
+    expect(collectViolations(MoneySchema, negative)).toEqual([
+      { fieldPath: 'amount_minor', ruleId: 'int64.gte' },
+    ]);
   });
 });
 

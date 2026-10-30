@@ -6,6 +6,7 @@ import {
   isSettlementAccountValid,
 } from './isBankAccountValid';
 import { isBikValid } from './isBikValid';
+import { isGtinValid } from './isGtinValid';
 import { isInnValid } from './isInnValid';
 import { isKppValid } from './isKppValid';
 import { isOgrnValid } from './isOgrnValid';
@@ -16,6 +17,8 @@ const isValueAcceptable = (check: FormFieldCheckValue, value: string, peerValue:
       return isBikValid(value);
     case 'correspondentAccount':
       return peerValue === undefined || !isBikValid(peerValue) || isCorrespondentAccountValid(peerValue, value);
+    case 'gtin':
+      return isGtinValid(value);
     case 'inn':
       return isInnValid(value);
     case 'kpp':

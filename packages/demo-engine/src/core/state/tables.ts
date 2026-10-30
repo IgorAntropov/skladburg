@@ -8,6 +8,13 @@ import type {
   User,
 } from '@skladburg/contracts/access/v1/access';
 import type {
+  Listing,
+  ListingPrice,
+  PriceList,
+  Product,
+  SalesTerms,
+} from '@skladburg/contracts/catalog/v1/catalog';
+import type {
   City,
   MapNode,
   RouteLeg,
@@ -38,6 +45,13 @@ import {
   RoleSchema,
   UserSchema,
 } from '@skladburg/contracts/access/v1/access';
+import {
+  ListingPriceSchema,
+  ListingSchema,
+  PriceListSchema,
+  ProductSchema,
+  SalesTermsSchema,
+} from '@skladburg/contracts/catalog/v1/catalog';
 import {
   CitySchema,
   MapNodeSchema,
@@ -82,6 +96,11 @@ import {
   serializeSupportBotQueueRecord,
 } from './records';
 
+export const ListingPublication = {
+  DRAFT: 'draft',
+  PUBLISHED: 'published',
+} as const;
+
 export interface TableDefinition<TRecord, TIndex extends string> {
   clone: (record: TRecord) => TRecord;
   decode: (stored: StoredRecordValue) => TRecord;
@@ -97,6 +116,8 @@ export type TableDefinitionsValue = {
 export interface TableIndexesValue {
   cities: never;
   idempotency: never;
+  listingPrices: 'tenantId';
+  listings: 'publication' | 'tenantId';
   mapNodes: never;
   memberships: 'organizationId' | 'userId';
   notifications: 'userId';
@@ -104,8 +125,11 @@ export interface TableIndexesValue {
   organizations: never;
   organizationSettings: never;
   personas: never;
+  priceLists: 'tenantId';
+  products: 'tenantId';
   roles: 'tenantId';
   routeLegs: never;
+  salesTerms: never;
   spheres: never;
   supportAccessSessions: 'organizationId' | 'staffUserId';
   supportAuditEntries: 'organizationId';
@@ -121,6 +145,8 @@ export type TableName = EngineCollectionName;
 export interface TableRecordsValue {
   cities: City;
   idempotency: IdempotencyRecordValue;
+  listingPrices: ListingPrice;
+  listings: Listing;
   mapNodes: MapNode;
   memberships: Membership;
   notifications: NotificationRecordValue;
@@ -128,8 +154,11 @@ export interface TableRecordsValue {
   organizations: Organization;
   organizationSettings: OrganizationSettings;
   personas: DemoPersonaValue;
+  priceLists: PriceList;
+  products: Product;
   roles: Role;
   routeLegs: RouteLeg;
+  salesTerms: SalesTerms;
   spheres: Sphere;
   supportAccessSessions: SupportAccessSession;
   supportAuditEntries: SupportAuditEntry;
@@ -180,6 +209,11 @@ const NOTIFICATION_TABLE: TableDefinition<NotificationRecordValue, 'userId'> = {
 export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   cities: defineMessageTable(CitySchema, city => city.id, {}),
   idempotency: defineRecordTable(parseIdempotencyRecord, serializeIdempotencyRecord),
+  listingPrices: defineMessageTable(ListingPriceSchema, price => price.listingId, { tenantId: price => price.tenantId }),
+  listings: defineMessageTable(ListingSchema, listing => listing.id, {
+    publication: listing => (listing.isPublished ? ListingPublication.PUBLISHED : ListingPublication.DRAFT),
+    tenantId: listing => listing.tenantId,
+  }),
   mapNodes: defineMessageTable(MapNodeSchema, node => node.id, {}),
   memberships: defineMessageTable(MembershipSchema, membership => membership.id, {
     organizationId: membership => membership.organizationId,
@@ -190,8 +224,11 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   organizations: defineMessageTable(OrganizationSchema, organization => organization.id, {}),
   organizationSettings: defineMessageTable(OrganizationSettingsSchema, settings => settings.organizationId, {}),
   personas: defineRecordTable(parseDemoPersona, serializeDemoPersona),
+  priceLists: defineMessageTable(PriceListSchema, priceList => priceList.id, { tenantId: priceList => priceList.tenantId }),
+  products: defineMessageTable(ProductSchema, product => product.id, { tenantId: product => product.tenantId }),
   roles: defineMessageTable(RoleSchema, role => role.id, { tenantId: role => role.tenantId }),
   routeLegs: defineMessageTable(RouteLegSchema, leg => leg.id, {}),
+  salesTerms: defineMessageTable(SalesTermsSchema, terms => terms.organizationId, {}),
   spheres: defineMessageTable(SphereSchema, sphere => sphere.id, {}),
   supportAccessSessions: defineMessageTable(SupportAccessSessionSchema, session => session.id, {
     organizationId: session => session.organizationId,

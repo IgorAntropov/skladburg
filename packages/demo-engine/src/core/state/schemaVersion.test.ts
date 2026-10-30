@@ -1,4 +1,11 @@
 import { create } from '@bufbuild/protobuf';
+import {
+  ListingPriceSchema,
+  ListingSchema,
+  PriceListSchema,
+  ProductSchema,
+  SalesTermsSchema,
+} from '@skladburg/contracts/catalog/v1/catalog';
 import { NotificationSchema } from '@skladburg/contracts/notification/v1/notification';
 import { OrganizationRequisitesSchema } from '@skladburg/contracts/organization/v1/requisites';
 import {
@@ -268,6 +275,39 @@ const SHAPE_FINGERPRINTS: Readonly<Record<number, readonly string[]>> = {
     'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
     'meta.worldTimeMs:number',
   ],
+  11: [
+    'collection.cities:bytes',
+    'collection.idempotency:{id:string,method:string,requestBytes:bytes,responseBytes:bytes}',
+    'collection.listingPrices:bytes',
+    'collection.listings:bytes',
+    'collection.mapNodes:bytes',
+    'collection.memberships:bytes',
+    'collection.notifications:{id:string,notificationBytes:bytes,userId:string}',
+    'collection.organizationRequisites:bytes',
+    'collection.organizationSettings:bytes',
+    'collection.organizations:bytes',
+    'collection.personas:{group:string,id:string,kind:string,organizationId:string,userId:string}',
+    'collection.priceLists:bytes',
+    'collection.products:bytes',
+    'collection.roles:bytes',
+    'collection.routeLegs:bytes',
+    'collection.salesTerms:bytes',
+    'collection.spheres:bytes',
+    'collection.supportAccessSessions:bytes',
+    'collection.supportAuditEntries:bytes',
+    'collection.supportBotQueue:{dueAtMs:number,id:string}',
+    'collection.supportTicketMessages:bytes',
+    'collection.supportTickets:bytes',
+    'collection.users:bytes',
+    'collection.warehouses:bytes',
+    'meta.channelSeq:record<bigint>',
+    'meta.randomState:{a:number,b:number,c:number,d:number}',
+    'meta.schedulerDueAtMs:record<number>',
+    'meta.seedVersion:number',
+    'meta.timeScale:number',
+    'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
+    'meta.worldTimeMs:number',
+  ],
 };
 
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -338,6 +378,11 @@ const populatedTask: SchedulerTaskValue = {
       ticketId: 'fingerprint-ticket',
     }));
     transaction.put('supportBotQueue', { dueAtMs: 1, id: 'fingerprint-ticket' });
+    transaction.put('products', create(ProductSchema, { id: 'fingerprint-product' }));
+    transaction.put('listings', create(ListingSchema, { id: 'fingerprint-listing' }));
+    transaction.put('listingPrices', create(ListingPriceSchema, { listingId: 'fingerprint-listing' }));
+    transaction.put('priceLists', create(PriceListSchema, { id: 'fingerprint-price-list' }));
+    transaction.put('salesTerms', create(SalesTermsSchema, { organizationId: 'fingerprint-organization' }));
   },
 };
 
@@ -402,8 +447,8 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 10 since the organization requisites joined the collections', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(10);
+  it('is version 11 since the catalog collections joined', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(11);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
   });
 });

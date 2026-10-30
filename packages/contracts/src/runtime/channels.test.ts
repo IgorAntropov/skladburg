@@ -5,6 +5,7 @@ import {
 } from 'vitest';
 
 import {
+  marketChannel,
   organizationChannel,
   parseChannel,
   userChannel,
@@ -16,6 +17,10 @@ const userId = '8d14e6a2-0b3c-4f57-9a68-12cd45ef7890';
 const warehouseId = 'c5a3e9f1-7b24-4d86-a0c1-5e9d3b7f2a64';
 
 describe('channel names', () => {
+  it('builds the market channel without an identifier', () => {
+    expect(marketChannel()).toBe('market');
+  });
+
   it('builds an organization channel', () => {
     expect(organizationChannel(organizationId)).toBe(`org:${organizationId}`);
   });
@@ -30,6 +35,10 @@ describe('channel names', () => {
 });
 
 describe('parseChannel', () => {
+  it('parses the market channel', () => {
+    expect(parseChannel(marketChannel())).toEqual({ kind: 'market' });
+  });
+
   it('parses an organization channel', () => {
     expect(parseChannel(organizationChannel(organizationId))).toEqual({ kind: 'organization', organizationId });
   });
@@ -59,6 +68,13 @@ describe('parseChannel', () => {
     'warehouse:3f2b8c1e:extra',
     'xwarehouse:3f2b8c1e',
     'warehouse: 3f2b8c1e',
+    'market:',
+    'market:3f2b8c1e',
+    'market:x',
+    'MARKET',
+    'market\n',
+    ' market',
+    'markets',
   ])('returns undefined for the malformed channel %j', (channel) => {
     expect(parseChannel(channel)).toBeUndefined();
   });

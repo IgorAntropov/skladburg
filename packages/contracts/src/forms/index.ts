@@ -5,6 +5,7 @@ export {
   isSettlementAccountValid,
 } from './checks/isBankAccountValid';
 export { isBikValid } from './checks/isBikValid';
+export { isGtinValid } from './checks/isGtinValid';
 export { isInnValid } from './checks/isInnValid';
 export { isKppValid } from './checks/isKppValid';
 export { isOgrnValid } from './checks/isOgrnValid';

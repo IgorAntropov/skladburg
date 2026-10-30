@@ -52,6 +52,16 @@ const hasProfileKind = (kind: ProfileKind): ((organization: { profiles: readonly
   organization => organization.profiles.some(profile => profile.kind === kind);
 
 describe('createSeedSnapshot', () => {
+  it('starts with empty catalog collections', () => {
+    const records = createSeedRecords();
+
+    expect(records.products).toEqual([]);
+    expect(records.listings).toEqual([]);
+    expect(records.listingPrices).toEqual([]);
+    expect(records.priceLists).toEqual([]);
+    expect(records.salesTerms).toEqual([]);
+  });
+
   it('is deterministic: two calls give equal snapshots', () => {
     expect(createSeedSnapshot()).toEqual(createSeedSnapshot());
   });

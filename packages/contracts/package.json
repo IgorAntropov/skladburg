@@ -7,6 +7,7 @@
     "./forms/*": "./src/gen/forms/*_rules.ts",
     "./registry": "./src/registry/index.ts",
     "./runtime": "./src/runtime/index.ts",
+    "./uuid": "./src/runtime/randomUuid.ts",
     "./*": "./src/gen/*_pb.ts"
   },
   "scripts": {

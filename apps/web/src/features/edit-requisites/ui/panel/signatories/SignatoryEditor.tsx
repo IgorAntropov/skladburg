@@ -23,6 +23,7 @@ import type {
 } from '@/shared/lib/form';
 
 import { useCommandAccess } from '@/entities/session';
+import { createUuid } from '@/shared/api';
 import { cn } from '@/shared/lib/cn';
 import {
   ActionButton,
@@ -75,7 +76,7 @@ export const SignatoryEditor = ({
   signatory,
   t,
 }: SignatoryEditorProps): ReactElement => {
-  const [signatoryId] = useState(() => signatory?.id ?? crypto.randomUUID());
+  const [signatoryId] = useState(() => signatory?.id ?? createUuid());
   const [defaultValues] = useState(() => toSignatoryFormValues(signatory));
   const form = useSignatoryForm({
     defaultValues,

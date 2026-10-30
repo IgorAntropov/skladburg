@@ -1,1 +1,3 @@
-export const createIdempotencyKey = (): string => crypto.randomUUID();
+import { createUuid } from '../ids/createUuid';
+
+export const createIdempotencyKey = (): string => createUuid();

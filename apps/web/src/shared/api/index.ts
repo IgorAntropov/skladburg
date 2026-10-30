@@ -29,6 +29,7 @@ export { parseApiError } from './errors/parseApiError';
 export { translateApiError } from './errors/translateApiError';
 export { translatePermissionDenial } from './errors/translatePermissionDenial';
 export { createIdempotencyKey } from './idempotency/createIdempotencyKey';
+export { createUuid } from './ids/createUuid';
 export {
   COLLECTED_PAGE_SIZE,
   collectPages,

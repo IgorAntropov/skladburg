@@ -6,6 +6,7 @@ import {
 
 import {
   createRandomUuid,
+  createUuidGenerator,
   formatUuidV4,
 } from './randomUuid';
 
@@ -54,5 +55,48 @@ describe('createRandomUuid', () => {
     const uuid = createRandomUuid(bytes => crypto.getRandomValues(bytes));
 
     expect(uuid).toMatch(UUID_V4_PATTERN);
+  });
+});
+
+describe('createUuidGenerator', () => {
+  it('uses randomUUID of the source when it is there', () => {
+    const source = {
+      getRandomValues: (bytes: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer> => bytes.fill(0xab),
+      randomUUID: (): string => 'source-uuid',
+    };
+
+    expect(createUuidGenerator(source)()).toBe('source-uuid');
+  });
+
+  it('calls randomUUID with the source as this', () => {
+    const source = {
+      getRandomValues: (bytes: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer> => bytes,
+      prefix: 'bound',
+      randomUUID(this: { prefix: string }): string {
+        return `${this.prefix}-uuid`;
+      },
+    };
+
+    expect(createUuidGenerator(source)()).toBe('bound-uuid');
+  });
+
+  it('builds UUID v4 from random values when randomUUID is missing outside a secure context', () => {
+    const generate = createUuidGenerator({
+      getRandomValues: bytes => bytes.fill(0x5a),
+      randomUUID: undefined,
+    });
+
+    expect(generate()).toBe('5a5a5a5a-5a5a-4a5a-9a5a-5a5a5a5a5a5a');
+  });
+
+  it('gives a new identifier on every call from the platform random values', () => {
+    const generate = createUuidGenerator({ getRandomValues: bytes => crypto.getRandomValues(bytes) });
+
+    const first = generate();
+    const second = generate();
+
+    expect(first).toMatch(UUID_V4_PATTERN);
+    expect(second).toMatch(UUID_V4_PATTERN);
+    expect(first).not.toBe(second);
   });
 });

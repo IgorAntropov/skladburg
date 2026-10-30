@@ -10,6 +10,11 @@ const GROUP_BOUNDARIES = [4, 6, 8, 10] as const;
 
 export type FillRandomBytesValue = (bytes: Uint8Array<ArrayBuffer>) => unknown;
 
+export interface IUuidSource {
+  getRandomValues: FillRandomBytesValue;
+  randomUUID?: (() => string) | undefined;
+}
+
 const toHex = (byte: number): string => byte.toString(HEX_RADIX).padStart(2, '0');
 
 export const formatUuidV4 = (randomBytes: Uint8Array<ArrayBuffer>): string => {
@@ -27,4 +32,12 @@ export const createRandomUuid = (fillRandomBytes: FillRandomBytesValue): string 
   fillRandomBytes(bytes);
 
   return formatUuidV4(bytes);
+};
+
+export const createUuidGenerator = (source: IUuidSource): (() => string) => {
+  const { randomUUID } = source;
+
+  return randomUUID === undefined
+    ? () => createRandomUuid(bytes => source.getRandomValues(bytes))
+    : () => randomUUID.call(source);
 };

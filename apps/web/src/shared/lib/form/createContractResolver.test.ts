@@ -6,7 +6,10 @@ import type {
 
 import { runFieldCheck } from '@skladburg/contracts/forms';
 import { CreateWarehouseRequestFormRules } from '@skladburg/contracts/forms/organization/v1/organization';
-import { UpdateOrganizationRequisitesRequestFormRules } from '@skladburg/contracts/forms/organization/v1/requisites';
+import {
+  SaveSignatoryRequestFormRules,
+  UpdateOrganizationRequisitesRequestFormRules,
+} from '@skladburg/contracts/forms/organization/v1/requisites';
 import {
   describe,
   expect,
@@ -68,6 +71,40 @@ const REQUISITES_FIELDS = [
   'legalAddress',
   'vatMode',
 ];
+
+const SIGNATORY_FIELDS = [
+  'signatory.basis',
+  'signatory.fullName',
+  'signatory.position',
+  'signatory.powerOfAttorneyDate',
+  'signatory.powerOfAttorneyNumber',
+];
+
+const SIGNATORY_DATE_FIELDS = [
+  ...SIGNATORY_FIELDS,
+  'signatory.powerOfAttorneyDate.day',
+  'signatory.powerOfAttorneyDate.month',
+  'signatory.powerOfAttorneyDate.year',
+];
+
+const validSignatory = (overrides: TestValues = {}): TestValues => ({
+  signatory: {
+    basis: '2',
+    fullName: 'Тестов Тест Тестович',
+    position: 'Заместитель директора',
+    powerOfAttorneyDate: '2026-01-12',
+    powerOfAttorneyNumber: '7',
+    ...overrides,
+  },
+});
+
+const resolveSignatory = async (
+  values: TestValues,
+  fieldNames: readonly string[] = SIGNATORY_FIELDS,
+): Promise<ResolverResult<TestValues>> => createContractResolver<TestValues>(
+  SaveSignatoryRequestFormRules,
+  fieldNames,
+)(values, undefined, OPTIONS);
 
 const validRequisites = (bankOverrides: TestValues = {}, overrides: TestValues = {}): TestValues => ({
   bank: {
@@ -337,6 +374,54 @@ describe('createContractResolver', () => {
       );
 
       expect(result.errors).toEqual({ bank: { bik: { type: 'string.pattern' } } });
+    });
+  });
+
+  describe('ancestors of nested fields', () => {
+    it('returns the signatory values with the coerced enum and the date text untouched', async () => {
+      const result = await resolveSignatory(validSignatory());
+
+      expect(result.errors).toEqual({});
+      expect(result.values).toEqual(validSignatory({ basis: 2 }));
+    });
+
+    it('reports the broken fields of a set ancestor under their paths', async () => {
+      const result = await resolveSignatory(validSignatory({ fullName: '', position: 'д'.repeat(121) }));
+
+      expect(result.errors).toEqual({
+        signatory: {
+          fullName: { type: 'required' },
+          position: { type: 'string.max_len' },
+        },
+      });
+    });
+
+    it('does not report the parts of an empty date: its ancestor is passed as not set', async () => {
+      const result = await resolveSignatory(
+        validSignatory({ powerOfAttorneyDate: undefined }),
+        SIGNATORY_DATE_FIELDS,
+      );
+
+      expect(result.errors).toEqual({});
+    });
+
+    it('reports a part of a date that is set and out of its range', async () => {
+      const result = await resolveSignatory(
+        validSignatory({
+          powerOfAttorneyDate: { day: 1, month: 1, year: 1999 },
+        }),
+        SIGNATORY_DATE_FIELDS,
+      );
+
+      expect(result.errors).toEqual({
+        signatory: { powerOfAttorneyDate: { year: { type: 'int32.gte_lte' } } },
+      });
+    });
+
+    it('does not check a required field whose ancestor has no value at all', async () => {
+      const result = await resolveSignatory({}, ['signatory.fullName']);
+
+      expect(result.errors).toEqual({});
     });
   });
 });

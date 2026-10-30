@@ -3,5 +3,6 @@ export type {
   CommandFormValue,
   FormFieldBindingValue,
   FormFieldOptionsValue,
+  FormFieldPathValue,
 } from './commandFormTypes';
 export { useCommandForm } from './useCommandForm';

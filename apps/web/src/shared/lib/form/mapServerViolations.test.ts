@@ -3,7 +3,10 @@ import type { FieldViolation } from '@skladburg/contracts/common/v1/error';
 import { create } from '@bufbuild/protobuf';
 import { FieldViolationSchema } from '@skladburg/contracts/common/v1/error';
 import { CreateWarehouseRequestFormRules } from '@skladburg/contracts/forms/organization/v1/organization';
-import { UpdateOrganizationRequisitesRequestFormRules } from '@skladburg/contracts/forms/organization/v1/requisites';
+import {
+  SaveSignatoryRequestFormRules,
+  UpdateOrganizationRequisitesRequestFormRules,
+} from '@skladburg/contracts/forms/organization/v1/requisites';
 import {
   describe,
   expect,
@@ -29,6 +32,14 @@ const REQUISITES_FIELD_NAMES = [
   'bank.settlementAccount',
   'legalAddress',
   'vatMode',
+];
+
+const SIGNATORY_FIELD_NAMES = [
+  'signatory.basis',
+  'signatory.fullName',
+  'signatory.position',
+  'signatory.powerOfAttorneyDate',
+  'signatory.powerOfAttorneyNumber',
 ];
 
 const violation = (fieldPath: string, ruleId: string): FieldViolation => create(FieldViolationSchema, { fieldPath, ruleId });
@@ -69,7 +80,7 @@ describe('mapServerViolations', () => {
   it('leaves a violation of a field that is not on the form in the remainder', () => {
     const unknown = violation('idempotency_key', 'string.uuid');
     const empty = violation('', 'headers.invalid');
-    const nested = violation('address.city_id', 'string.uuid');
+    const nested = violation('contact.city_id', 'string.uuid');
 
     const result = mapServerViolations(CreateWarehouseRequestFormRules, [unknown, empty, nested], FIELD_NAMES);
 
@@ -157,6 +168,73 @@ describe('mapServerViolations', () => {
         'bank.settlementAccount',
         'legalAddress',
       ]);
+    });
+  });
+
+  describe('nearest ancestor', () => {
+    it('puts a violation of a part of a date under the date field of the form', () => {
+      const result = mapServerViolations(
+        SaveSignatoryRequestFormRules,
+        [violation('signatory.power_of_attorney_date.year', 'int32.gte_lte')],
+        SIGNATORY_FIELD_NAMES,
+      );
+
+      expect(result.fieldIssues).toEqual([{ field: 'signatory.powerOfAttorneyDate', ruleId: 'int32.gte_lte' }]);
+      expect(result.unmatched).toEqual([]);
+    });
+
+    it('puts a violation of a field of a list element under the list field of the form', () => {
+      const result = mapServerViolations(
+        { fields: {} },
+        [violation('items[2].price.amount', 'int64.gte')],
+        ['items', 'name'],
+      );
+
+      expect(result.fieldIssues).toEqual([{ field: 'items', ruleId: 'int64.gte' }]);
+    });
+
+    it('prefers the exact field to its ancestor', () => {
+      const result = mapServerViolations(
+        SaveSignatoryRequestFormRules,
+        [
+          violation('signatory.power_of_attorney_date.year', 'int32.gte_lte'),
+          violation('signatory.power_of_attorney_date', 'calendar_date.exists'),
+        ],
+        [...SIGNATORY_FIELD_NAMES, 'signatory.powerOfAttorneyDate.year'],
+      );
+
+      expect(result.fieldIssues).toEqual([
+        { field: 'signatory.powerOfAttorneyDate', ruleId: 'calendar_date.exists' },
+        { field: 'signatory.powerOfAttorneyDate.year', ruleId: 'int32.gte_lte' },
+      ]);
+    });
+
+    it('keeps the first violation of a field that several nested paths came to', () => {
+      const result = mapServerViolations(
+        SaveSignatoryRequestFormRules,
+        [
+          violation('signatory.power_of_attorney_date.month', 'int32.gte_lte'),
+          violation('signatory.power_of_attorney_date.year', 'int32.gte_lte'),
+          violation('signatory.power_of_attorney_date', 'calendar_date.exists'),
+        ],
+        SIGNATORY_FIELD_NAMES,
+      );
+
+      expect(result.fieldIssues).toEqual([{ field: 'signatory.powerOfAttorneyDate', ruleId: 'int32.gte_lte' }]);
+    });
+
+    it('leaves a violation in the remainder when no ancestor is on the form', () => {
+      const unplaced = violation('signatory.is_default', 'signatory.default_required');
+      const wholeMessage = violation('signatory', 'signatory.count_max');
+
+      const result = mapServerViolations(
+        SaveSignatoryRequestFormRules,
+        [unplaced, wholeMessage],
+        SIGNATORY_FIELD_NAMES,
+      );
+
+      expect(result.fieldIssues).toEqual([]);
+      expect(result.unmatched).toEqual([unplaced, wholeMessage]);
     });
   });
 });

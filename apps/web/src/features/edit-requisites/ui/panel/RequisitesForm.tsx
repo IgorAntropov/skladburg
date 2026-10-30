@@ -5,12 +5,14 @@ import type {
 } from 'react';
 
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
-import { useId } from 'react';
+import {
+  useEffect,
+  useId,
+} from 'react';
 
 import { useCommandAccess } from '@/entities/session';
 import {
   ActionButton,
-  Button,
   CommandErrorNotice,
   SelectField,
 } from '@/shared/ui';
@@ -21,9 +23,9 @@ import type { RequisitesFieldBinder } from './requisitesFormTypes';
 import { useRequisitesForm } from '../../api/useRequisitesForm';
 import { VAT_MODE_OPTIONS } from '../../config/vatModeOptions';
 import { LegalAddressField } from './LegalAddressField';
+import { ReloadActualButton } from './ReloadActualButton';
 import { RequisitesBankSection } from './RequisitesBankSection';
 import { RequisitesCompanyBlock } from './RequisitesCompanyBlock';
-import { RequisitesSignatoriesList } from './RequisitesSignatoriesList';
 import {
   REQUISITES_ACTIONS_CLASS_NAME,
   REQUISITES_GROUP_CLASS_NAME,
@@ -31,7 +33,9 @@ import {
 } from './requisitesStyles';
 
 export interface RequisitesFormProps {
+  formVersion: bigint;
   isReloading: boolean;
+  onDirtyChange: (isDirty: boolean) => void;
   onReload: () => void;
   onSaved: (requisites: OrganizationRequisites) => void;
   requisites: OrganizationRequisites;
@@ -39,18 +43,26 @@ export interface RequisitesFormProps {
 }
 
 export const RequisitesForm = ({
+  formVersion,
   isReloading,
+  onDirtyChange,
   onReload,
   onSaved,
   requisites,
   t,
 }: RequisitesFormProps): ReactElement => {
-  const form = useRequisitesForm({ onSaved, requisites, t });
+  const form = useRequisitesForm({
+    formVersion,
+    onSaved,
+    requisites,
+    t,
+  });
   const access = useCommandAccess(form.command.method);
   const legalHeadingId = useId();
 
   const isReadOnly = access.status !== 'allowed';
   const isVersionConflict = form.command.apiError?.code === ErrorCode.VERSION_CONFLICT;
+  const { isDirty } = form;
 
   const bind: RequisitesFieldBinder = (name, options) => {
     const binding = form.getFieldProps(name, options);
@@ -70,10 +82,13 @@ export const RequisitesForm = ({
     form.handleSubmit(event);
   };
 
-  const handleReloadClick = (): void => {
-    console.log('> RequisitesForm -> handleReloadClick:', { version: String(requisites.version) });
-    onReload();
-  };
+  useEffect(() => {
+    onDirtyChange(isDirty);
+
+    return (): void => {
+      onDirtyChange(false);
+    };
+  }, [isDirty, onDirtyChange]);
 
   return (
     <form className="flex flex-col gap-4" data-testid="requisites-form" noValidate onSubmit={handleSubmit}>
@@ -89,7 +104,6 @@ export const RequisitesForm = ({
         </SelectField>
       </section>
       <RequisitesBankSection bind={bind} t={t} />
-      <RequisitesSignatoriesList signatories={requisites.signatories} t={t} />
       <div className={REQUISITES_ACTIONS_CLASS_NAME}>
         <ActionButton
           access={access}
@@ -102,15 +116,7 @@ export const RequisitesForm = ({
         </ActionButton>
         <CommandErrorNotice command={form.command} />
         {isVersionConflict && (
-          <Button
-            data-testid="requisites-reload"
-            onClick={handleReloadClick}
-            pending={isReloading}
-            pendingLabel={t('requisites.reloading')}
-            variant="secondary"
-          >
-            {t('requisites.reload')}
-          </Button>
+          <ReloadActualButton isReloading={isReloading} onReload={onReload} t={t} testId="requisites-reload" />
         )}
       </div>
     </form>

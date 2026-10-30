@@ -17,20 +17,22 @@ const toUtcMs = (year: number, month: number, day: number): number => {
   return date.getTime();
 };
 
-const isExistingDate = (year: number, month: number, day: number): boolean => {
+export const isCalendarDateExisting = (date: CalendarDateValue): boolean => {
+  const { day, month, year } = date;
+
   if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
     return false;
   }
 
-  const date = new Date(toUtcMs(year, month, day));
+  const utcDate = new Date(toUtcMs(year, month, day));
 
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  return utcDate.getUTCFullYear() === year && utcDate.getUTCMonth() === month - 1 && utcDate.getUTCDate() === day;
 };
 
 const formatCalendarDateForMessage = (date: CalendarDateValue): string => `${String(date.year)}-${String(date.month)}-${String(date.day)}`;
 
 const assertExistingDate = (date: CalendarDateValue): void => {
-  if (!isExistingDate(date.year, date.month, date.day)) {
+  if (!isCalendarDateExisting(date)) {
     throw new RangeError(`Calendar date does not exist: ${formatCalendarDateForMessage(date)}`);
   }
 };
@@ -74,7 +76,7 @@ export const parseCalendarDate = (isoDate: string): CalendarDateValue => {
     year: Number(match[1]),
   };
 
-  if (!isExistingDate(date.year, date.month, date.day)) {
+  if (!isCalendarDateExisting(date)) {
     throw new RangeError(`Calendar date does not exist: "${isoDate}"`);
   }
 

@@ -24,6 +24,15 @@ export interface ContractResolverOptionsValue {
   runCheck?: FieldCheckRunnerValue | undefined;
 }
 
+const collectAncestorNames = (rules: FormRulesValue, name: string): string[] => {
+  const parts = name.split('.');
+
+  return parts
+    .slice(0, -1)
+    .map((_part, index) => parts.slice(0, index + 1).join('.'))
+    .filter(prefix => Object.hasOwn(rules.fields, prefix));
+};
+
 export const createContractResolver = <TInput extends FieldValues, TOutput = TInput>(
   rules: FormRulesValue,
   fieldNames: readonly string[],
@@ -46,6 +55,10 @@ export const createContractResolver = <TInput extends FieldValues, TOutput = TIn
     }
 
     flatValues[name] = get(coerced, name);
+
+    for (const ancestor of collectAncestorNames(rules, name)) {
+      flatValues[ancestor] = get(coerced, ancestor);
+    }
   }
 
   const issues = [

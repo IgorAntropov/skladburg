@@ -1,18 +1,12 @@
 import type {
   FormFieldBindingValue,
   FormFieldOptionsValue,
+  FormFieldPathValue,
 } from '@/shared/lib/form';
 
+import type { RequisitesFormValues } from '../../model/requisitesFormValues';
+
 export type RequisitesFieldBinder = (
-  name: RequisitesFieldNameValue,
+  name: FormFieldPathValue<RequisitesFormValues>,
   options?: FormFieldOptionsValue,
 ) => FormFieldBindingValue;
-
-export type RequisitesFieldNameValue
-  = | 'bank.bankName'
-    | 'bank.bik'
-    | 'bank.correspondentAccount'
-    | 'bank.settlementAccount'
-    | 'legalAddress'
-    | 'vatMode';
-

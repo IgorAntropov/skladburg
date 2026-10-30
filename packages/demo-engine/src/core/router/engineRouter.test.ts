@@ -55,7 +55,12 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
     errors,
     networkService: { listCities: unused, listMapNodes: unused, listMapSites: unused, listRouteLegs: unused },
     notificationService: { getDigest: unused, listNotifications: unused, markAllNotificationsRead: unused, markNotificationsRead: unused },
-    organizationRequisitesService: { getOrganizationRequisites: unused, updateOrganizationRequisites: unused },
+    organizationRequisitesService: {
+      getOrganizationRequisites: unused,
+      removeSignatory: unused,
+      saveSignatory: unused,
+      updateOrganizationRequisites: unused,
+    },
     organizationService: {
       createWarehouse: unused,
       getOrganization: unused,

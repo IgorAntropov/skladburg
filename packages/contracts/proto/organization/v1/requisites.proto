@@ -104,6 +104,26 @@ message UpdateOrganizationRequisitesResponse {
   OrganizationRequisites requisites = 1;
 }
 
+message SaveSignatoryRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int64 expected_version = 2 [(buf.validate.field).int64.gte = 1];
+  Signatory signatory = 3 [(buf.validate.field).required = true];
+}
+
+message SaveSignatoryResponse {
+  OrganizationRequisites requisites = 1;
+}
+
+message RemoveSignatoryRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int64 expected_version = 2 [(buf.validate.field).int64.gte = 1];
+  string signatory_id = 3 [(buf.validate.field).string.uuid = true];
+}
+
+message RemoveSignatoryResponse {
+  OrganizationRequisites requisites = 1;
+}
+
 service OrganizationRequisitesService {
   rpc GetOrganizationRequisites(GetOrganizationRequisitesRequest) returns (GetOrganizationRequisitesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -111,6 +131,14 @@ service OrganizationRequisitesService {
   }
 
   rpc UpdateOrganizationRequisites(UpdateOrganizationRequisitesRequest) returns (UpdateOrganizationRequisitesResponse) {
+    option (common.v1.access).permission.name = "organization_manage";
+  }
+
+  rpc SaveSignatory(SaveSignatoryRequest) returns (SaveSignatoryResponse) {
+    option (common.v1.access).permission.name = "organization_manage";
+  }
+
+  rpc RemoveSignatory(RemoveSignatoryRequest) returns (RemoveSignatoryResponse) {
     option (common.v1.access).permission.name = "organization_manage";
   }
 }

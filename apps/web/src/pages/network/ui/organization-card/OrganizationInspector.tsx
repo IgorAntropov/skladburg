@@ -1,10 +1,14 @@
-import type { ReactElement } from 'react';
+import type {
+  ReactElement,
+  Ref,
+} from 'react';
 
 import { ChevronRight } from 'lucide-react';
 import {
   useEffect,
   useId,
   useMemo,
+  useRef,
 } from 'react';
 
 import type {
@@ -43,6 +47,7 @@ interface OrganizationCardBodyProps {
   card: OrganizationCardValue;
   cities: readonly NetworkMapCityValue[];
   isOwn: boolean;
+  requisitesButtonRef: Ref<HTMLButtonElement>;
   sites: readonly NetworkMapSiteValue[];
 }
 
@@ -61,7 +66,13 @@ const SITE_LINK_CLASS_NAME = [
   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
 ].join(' ');
 
-const OrganizationCardBody = ({ card, cities, isOwn, sites }: OrganizationCardBodyProps): ReactElement => {
+const OrganizationCardBody = ({
+  card,
+  cities,
+  isOwn,
+  requisitesButtonRef,
+  sites,
+}: OrganizationCardBodyProps): ReactElement => {
   const { t } = useI18n();
   const profilesHeadingId = useId();
   const sitesHeadingId = useId();
@@ -152,7 +163,7 @@ const OrganizationCardBody = ({ card, cities, isOwn, sites }: OrganizationCardBo
             )
           : <p className="text-base text-on-panel-muted">{t('organization.directory.noCities')}</p>}
       </section>
-      {isOwn && <OrganizationRequisites />}
+      {isOwn && <OrganizationRequisites ref={requisitesButtonRef} />}
     </div>
   );
 };
@@ -167,6 +178,9 @@ export const OrganizationInspector = ({ cities, organizationId, sites }: Organiz
     open: openRequisites,
   } = useRequisitesView();
 
+  const requisitesButtonRef = useRef<HTMLButtonElement>(null);
+  const wasRequisitesPanelShownRef = useRef(false);
+
   const isOwn = organizationId === actingOrganizationId;
   const isRequisitesPanelShown = isOwn && isRequisitesOpen;
 
@@ -179,6 +193,16 @@ export const OrganizationInspector = ({ cities, organizationId, sites }: Organiz
 
     return closeRequisites;
   }, [closeRequisites, isRequisitesPanelShown, openRequisites]);
+
+  useEffect(() => {
+    const wasPanelShown = wasRequisitesPanelShownRef.current;
+
+    wasRequisitesPanelShownRef.current = isRequisitesPanelShown;
+
+    if (wasPanelShown && !isRequisitesPanelShown) {
+      requisitesButtonRef.current?.focus();
+    }
+  }, [isRequisitesPanelShown]);
 
   if (isRequisitesPanelShown) {
     return (
@@ -205,7 +229,15 @@ export const OrganizationInspector = ({ cities, organizationId, sites }: Organiz
       onRetry={card.retry}
       skeleton={<NetworkInspectorSkeleton isOwn={isOwn} kind="organization" />}
     >
-      {data => <OrganizationCardBody card={data} cities={cities} isOwn={isOwn} sites={sites} />}
+      {data => (
+        <OrganizationCardBody
+          card={data}
+          cities={cities}
+          isOwn={isOwn}
+          requisitesButtonRef={requisitesButtonRef}
+          sites={sites}
+        />
+      )}
     </WidgetStates>
   );
 };

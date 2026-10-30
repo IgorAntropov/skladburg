@@ -15,6 +15,8 @@ import {
 
 import type { IModuleRuntime } from '../moduleRuntime';
 
+import { createSignatoryHandlers } from './signatoryHandlers';
+
 export const createOrganizationRequisitesService = (runtime: IModuleRuntime): ServiceImpl<typeof OrganizationRequisitesService> => {
   const {
     command,
@@ -25,6 +27,7 @@ export const createOrganizationRequisitesService = (runtime: IModuleRuntime): Se
   } = runtime;
 
   return {
+    ...createSignatoryHandlers(runtime),
     getOrganizationRequisites: (request, context) => {
       const caller = guard.guardMemberCall(
         read,
@@ -61,7 +64,7 @@ export const createOrganizationRequisitesService = (runtime: IModuleRuntime): Se
           }
 
           if (request.bank === undefined) {
-            throw errors.internal();
+            throw errors.validationFailed([{ fieldPath: 'bank', ruleId: 'required' }]);
           }
 
           const requisites = clone(OrganizationRequisitesSchema, current);

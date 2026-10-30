@@ -14,6 +14,7 @@ import type {
   DefaultValues,
   FieldValues,
   Path,
+  PathValue,
 } from 'react-hook-form';
 
 import type { CommandValue } from '@/shared/api';
@@ -27,13 +28,17 @@ export interface CommandFormOptionsValue<TInput extends FieldValues, TResult, TO
   rules: FormRulesValue;
   runCheck?: FieldCheckRunnerValue | undefined;
   translateViolation?: ((ruleId: string) => string | undefined) | undefined;
+  watchedFields?: readonly Path<TInput>[] | undefined;
 }
 
 export interface CommandFormValue<TInput extends FieldValues> {
   command: CommandValue;
   getFieldProps: (name: Path<TInput>, options?: FormFieldOptionsValue) => FormFieldBindingValue;
   handleSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
+  isDirty: boolean;
   isRequired: (name: Path<TInput>) => boolean;
+  setFieldValue: <TName extends Path<TInput>>(name: TName, value: PathValue<TInput, TName>) => void;
+  watchField: <TName extends Path<TInput>>(name: TName) => PathValue<TInput, TName>;
 }
 
 export interface FormFieldBindingValue {
@@ -51,3 +56,5 @@ export interface FormFieldBindingValue {
 export interface FormFieldOptionsValue {
   mask?: InputMaskValue | undefined;
 }
+
+export type FormFieldPathValue<TInput extends FieldValues> = Path<TInput>;

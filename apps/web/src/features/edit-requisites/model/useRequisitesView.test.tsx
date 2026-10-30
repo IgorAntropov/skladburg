@@ -29,6 +29,7 @@ import {
 import type { RequisitesViewValue } from './useRequisitesView';
 
 import { useRequisitesView } from './useRequisitesView';
+import { useRequisitesViewStore } from './useRequisitesViewStore';
 
 const OTHER_ORGANIZATION_ID = 'f0000009-0000-4000-8000-000000000000';
 
@@ -42,12 +43,7 @@ const renderViewHook = (runtime: ApiRuntimeValue): RenderHookResult<RequisitesVi
 
 describe('useRequisitesView', () => {
   beforeEach(() => {
-    const { result, unmount } = renderViewHook(createTestRuntime());
-
-    act(() => {
-      result.current.close();
-    });
-    unmount();
+    useRequisitesViewStore.setState({ requestedFor: undefined });
   });
 
   afterEach(() => {

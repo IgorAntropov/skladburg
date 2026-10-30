@@ -30,6 +30,8 @@ export { FileButton } from './file-button/FileButton';
 export { FocusHandoffProvider } from './focus-handoff/FocusHandoffProvider';
 export type { FocusHandoffValue } from './focus-handoff/useFocusHandoff';
 export { useFocusHandoff } from './focus-handoff/useFocusHandoff';
+export type { DateFieldProps } from './form-field/DateField';
+export { DateField } from './form-field/DateField';
 export type { SelectFieldProps } from './form-field/SelectField';
 export { SelectField } from './form-field/SelectField';
 export type { TextFieldProps } from './form-field/TextField';

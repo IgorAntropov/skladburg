@@ -13,6 +13,7 @@ import type {
   ViolationValue,
 } from '../errors/index';
 
+import { collectCalendarDateViolations } from './calendarDateChecks';
 import { collectFieldCheckViolations } from './fieldChecks';
 
 export interface IRequestValidator {
@@ -37,7 +38,11 @@ export const createRequestValidator = (errors: IDomainErrors, registry: FileRegi
     }));
     const violatedPaths = new Set(violations.map(violation => violation.fieldPath));
 
-    return [...violations, ...collectFieldCheckViolations(ruleSchema, message, violatedPaths)];
+    return [
+      ...violations,
+      ...collectFieldCheckViolations(ruleSchema, message, violatedPaths),
+      ...collectCalendarDateViolations(ruleSchema, message, violatedPaths),
+    ];
   };
 
   const validate = <TDesc extends DescMessage>(schema: TDesc, message: MessageShape<TDesc>): void => {

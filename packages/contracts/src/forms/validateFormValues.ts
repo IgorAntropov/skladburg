@@ -1,6 +1,5 @@
 import type {
   FieldCheckRunnerValue,
-  FormEnumRuleValue,
   FormFieldCommonValue,
   FormFieldIssueValue,
   FormFieldRulesValue,
@@ -10,6 +9,7 @@ import type {
   FormScalarRuleValue,
 } from './formRuleTypes';
 
+import { checkEnumRule } from './checkEnumRule';
 import { checkStringRule } from './checkStringRule';
 import { getFormField } from './getFormField';
 
@@ -87,32 +87,10 @@ const checkInteger = (rule: FormIntegerRuleValue, value: IntegerValue): string[]
   return [];
 };
 
-const checkEnum = (rule: FormEnumRuleValue, value: number): string[] => {
-  const ruleIds: string[] = [];
-
-  if (rule.definedValues !== undefined && !rule.definedValues.includes(value)) {
-    ruleIds.push('enum.defined_only');
-  }
-
-  if (rule.equalTo !== undefined && value !== rule.equalTo) {
-    ruleIds.push('enum.const');
-  }
-
-  if (rule.in !== undefined && rule.in.length > 0 && !rule.in.includes(value)) {
-    ruleIds.push('enum.in');
-  }
-
-  if (rule.notIn?.includes(value) === true) {
-    ruleIds.push('enum.not_in');
-  }
-
-  return ruleIds;
-};
-
 const checkListElement = (rule: FormScalarRuleValue, element: unknown): string[] => {
   switch (rule.kind) {
     case 'enum':
-      return isEnumNumber(element) ? checkEnum(rule, element) : [];
+      return isEnumNumber(element) ? checkEnumRule(rule, element) : [];
     case 'integer':
       return isIntegerValue(element) ? checkInteger(rule, element) : [];
     case 'string':
@@ -186,7 +164,7 @@ const collectFieldRuleIds = (field: FormFieldRulesValue, raw: unknown): string[]
   switch (field.kind) {
     case 'enum':
       return evaluateField(field, raw, {
-        check: value => checkEnum(field, value),
+        check: value => checkEnumRule(field, value),
         coerce: value => (isEnumNumber(value) ? value : undefined),
         isZero: value => value === 0,
         zero: 0,
@@ -274,6 +252,29 @@ const collectCheckRuleId = (
   return peerValue === undefined ? undefined : runCheck(check, raw, peerValue);
 };
 
+const isUnsetValue = (values: Readonly<Record<string, unknown>>, name: string): boolean =>
+  Object.hasOwn(values, name) && (values[name] === undefined || values[name] === null);
+
+const hasUnsetAncestor = (
+  rules: FormRulesValue,
+  values: Readonly<Record<string, unknown>>,
+  name: string,
+): boolean => {
+  let separatorIndex = name.indexOf('.');
+
+  while (separatorIndex !== -1) {
+    const ancestor = name.slice(0, separatorIndex);
+
+    if (getFormField(rules, ancestor) !== undefined && isUnsetValue(values, ancestor)) {
+      return true;
+    }
+
+    separatorIndex = name.indexOf('.', separatorIndex + 1);
+  }
+
+  return false;
+};
+
 export const validateFormValues = (
   rules: FormRulesValue,
   values: Readonly<Record<string, unknown>>,
@@ -286,7 +287,7 @@ export const validateFormValues = (
   for (const name of fieldNames) {
     const field = getFormField(rules, name);
 
-    if (field === undefined || field.isServerOnly === true) {
+    if (field === undefined || field.isServerOnly === true || hasUnsetAncestor(rules, values, name)) {
       continue;
     }
 

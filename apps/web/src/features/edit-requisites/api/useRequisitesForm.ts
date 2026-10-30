@@ -19,15 +19,18 @@ import type {
 
 import { translateRequisitesViolation } from '../lib/translateRequisitesViolation';
 import { toRequisitesFormValues } from '../model/requisitesFormValues';
+import { readSavedRequisites } from './readSavedRequisites';
 import { useRequisitesQueryKey } from './useRequisitesQueryKey';
 
 export interface UseRequisitesFormOptions {
+  formVersion: bigint;
   onSaved: (requisites: OrganizationRequisites) => void;
   requisites: OrganizationRequisites;
   t: RequisitesTranslate;
 }
 
 export const useRequisitesForm = ({
+  formVersion,
   onSaved,
   requisites,
   t,
@@ -40,17 +43,13 @@ export const useRequisitesForm = ({
   const execute = async (values: RequisitesUpdateValue, idempotencyKey: string): Promise<OrganizationRequisites> => {
     const response = await client.service(OrganizationRequisitesService).updateOrganizationRequisites({
       bank: values.bank,
-      expectedVersion: requisites.version,
+      expectedVersion: formVersion,
       idempotencyKey,
       legalAddress: values.legalAddress,
       vatMode: values.vatMode,
     });
 
-    if (response.requisites === undefined) {
-      throw new TypeError('The server did not return the saved requisites');
-    }
-
-    return response.requisites;
+    return readSavedRequisites(response);
   };
 
   const handleSaved = (saved: OrganizationRequisites): void => {

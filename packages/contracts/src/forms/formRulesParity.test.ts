@@ -103,6 +103,14 @@ const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
   'organization.v1.UpdateOrganizationRequisitesResponse.requisites',
   'organization.v1.UpdateOrganizationRequisitesResponse.requisites.bank',
   'organization.v1.UpdateOrganizationRequisitesResponse.requisites.signatories',
+  'organization.v1.SaveSignatoryRequest.signatory',
+  'organization.v1.SaveSignatoryRequest.signatory.powerOfAttorneyDate',
+  'organization.v1.SaveSignatoryResponse.requisites',
+  'organization.v1.SaveSignatoryResponse.requisites.bank',
+  'organization.v1.SaveSignatoryResponse.requisites.signatories',
+  'organization.v1.RemoveSignatoryResponse.requisites',
+  'organization.v1.RemoveSignatoryResponse.requisites.bank',
+  'organization.v1.RemoveSignatoryResponse.requisites.signatories',
   'organization.v1.ListOrganizationShowcasesRequest.page',
   'support.v1.ListSupportAccessSessionsRequest.page',
   'support.v1.ListSupportAuditEntriesRequest.page',
@@ -802,6 +810,37 @@ describe('form rules parity with protovalidate', () => {
         expect(comparison.skipped).toBeLessThan(comparison.compared);
       },
     );
+    const nestedFields = ruleFields.filter(entry => entry.path.length > 0);
+
+    if (nestedFields.length > 0) {
+      it.each(nestedFields.map(entry => [entry.key, entry] as const))(
+        'reports nothing at protovalidate and on the client for %s when its parent is not set',
+        async (_fieldName, entry) => {
+          const rules = await loadTable(item);
+
+          expect(rules).toBeDefined();
+
+          if (rules === undefined) {
+            return;
+          }
+
+          const parentKey = entry.path.map(step => step.localName).join('.');
+          const values: CaseValue = { [parentKey]: undefined };
+          const violations = collectViolations(item.message, reflect(item.message).message);
+          const expected = sortedUnique(
+            violations
+              .filter(violation => findFormField(rules, violation.fieldPath) === entry.key)
+              .map(violation => violation.ruleId),
+          );
+          const actual = sortedUnique(
+            validateFormValues(rules, values, [entry.key], { runCheck: runFieldCheck }).map(issue => issue.ruleId),
+          );
+
+          expect(expected).toEqual([]);
+          expect(actual).toEqual(expected);
+        },
+      );
+    }
   });
 
   it.each(['name', 'timeZone'])('requires %s of CreateWarehouseRequest on the client and at protovalidate', async (fieldName) => {

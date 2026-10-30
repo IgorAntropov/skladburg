@@ -1,4 +1,7 @@
-import type { ReactElement } from 'react';
+import type {
+  ReactElement,
+  Ref,
+} from 'react';
 
 import { Lock } from 'lucide-react';
 import { useId } from 'react';
@@ -20,6 +23,10 @@ interface RequisiteValueProps {
 }
 
 const NUMERIC_CLASS_NAME = 'tabular-nums break-all';
+
+export interface OrganizationRequisitesProps {
+  ref?: Ref<HTMLButtonElement> | undefined;
+}
 
 const REQUISITE_SKELETON_IDS = ['legalName', 'inn', 'kpp', 'ogrn'] as const;
 
@@ -48,7 +55,7 @@ const RequisitesSkeleton = (): ReactElement => (
   </div>
 );
 
-export const OrganizationRequisites = (): ReactElement => {
+export const OrganizationRequisites = ({ ref }: OrganizationRequisitesProps): ReactElement => {
   const { t } = useI18n();
   const headingId = useId();
   const {
@@ -113,6 +120,7 @@ export const OrganizationRequisites = (): ReactElement => {
         className="self-start"
         data-testid="organization-requisites-open"
         onClick={handleRequisitesOpenClick}
+        ref={ref}
         variant="secondary"
       >
         {t('organization.card.requisitesOpen')}

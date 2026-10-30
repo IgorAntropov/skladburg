@@ -11,6 +11,7 @@ export {
   compareCalendarDates,
   formatCalendarDateIso,
   getIsoWeekday,
+  isCalendarDateExisting,
   parseCalendarDate,
 } from './calendarDate';
 export {

@@ -667,3 +667,86 @@ describe('validateFormValues: without a check runner', () => {
     expect(calls).toEqual(['bik:040000777:-', 'bik:040000777:-']);
   });
 });
+
+describe('validateFormValues: nested fields and unset ancestors', () => {
+  const rules: FormRulesValue = {
+    fields: {
+      'bank': { hasPresence: true, isRequired: true, isServerOnly: true, kind: 'opaque', protoName: 'bank' },
+      'bank.bankName': { isRequired: true, kind: 'string', maxLen: 10, protoName: 'bank_name' },
+      'bank.bik': {
+        check: { kind: 'bik' },
+        kind: 'string',
+        protoName: 'bik',
+      },
+      'date': { isServerOnly: true, kind: 'opaque', protoName: 'date' },
+      'date.day': { gte: 1, kind: 'integer', lte: 31, protoName: 'day', type: 'int32' },
+      'deep': { isServerOnly: true, kind: 'opaque', protoName: 'deep' },
+      'deep.inner': { isServerOnly: true, kind: 'opaque', protoName: 'inner' },
+      'deep.inner.name': { isRequired: true, kind: 'string', protoName: 'name' },
+    },
+  };
+  const fieldNames = ['bank.bankName', 'bank.bik', 'date.day', 'deep.inner.name'];
+
+  it('checks nested fields as before when the ancestor is absent from the values', () => {
+    expect(validateFormValues(rules, {}, fieldNames, { runCheck: runFieldCheck })).toEqual([
+      { field: 'bank.bankName', ruleId: 'required' },
+      { field: 'date.day', ruleId: 'int32.gte_lte' },
+      { field: 'deep.inner.name', ruleId: 'required' },
+    ]);
+  });
+
+  it('skips the nested fields of an ancestor that is set to undefined', () => {
+    const values = { bank: undefined, date: undefined, deep: undefined };
+
+    expect(validateFormValues(rules, values, fieldNames, { runCheck: runFieldCheck })).toEqual([]);
+  });
+
+  it('skips the nested fields of an ancestor that is set to null', () => {
+    expect(validateFormValues(rules, { bank: null, date: null, deep: null }, fieldNames, { runCheck: runFieldCheck })).toEqual([]);
+  });
+
+  it('skips the field when the nearest ancestor is set and a farther one is unset', () => {
+    expect(validateFormValues(rules, { 'deep': undefined, 'deep.inner': {} }, ['deep.inner.name'])).toEqual([]);
+  });
+
+  it('skips the field when only the nearest ancestor is unset', () => {
+    expect(validateFormValues(rules, { 'deep.inner': undefined }, ['deep.inner.name'])).toEqual([]);
+  });
+
+  it('checks the field when its ancestors are set to values', () => {
+    expect(validateFormValues(rules, { 'bank': {}, 'deep': {}, 'deep.inner': {} }, ['bank.bankName', 'deep.inner.name'])).toEqual([
+      { field: 'bank.bankName', ruleId: 'required' },
+      { field: 'deep.inner.name', ruleId: 'required' },
+    ]);
+  });
+
+  it('does not run the field check of a field with an unset ancestor', () => {
+    const calls: string[] = [];
+    const runCheck: FieldCheckRunnerValue = (_check, value) => {
+      calls.push(value);
+
+      return 'field_check.bik';
+    };
+
+    expect(validateFormValues(rules, { 'bank': undefined, 'bank.bik': '040000501' }, ['bank.bik'], { runCheck })).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
+  it('does not take a prefix without a table entry for an ancestor', () => {
+    const bare: FormRulesValue = {
+      fields: { 'group.value': { isRequired: true, kind: 'string', protoName: 'value' } },
+    };
+
+    expect(validateFormValues(bare, { group: undefined }, ['group.value'])).toEqual([
+      { field: 'group.value', ruleId: 'required' },
+    ]);
+  });
+
+  it('does not read an inherited key as the ancestor value', () => {
+    const inherited = Object.create({ bank: undefined }) as Record<string, unknown>;
+
+    expect(validateFormValues(rules, inherited, ['bank.bankName'])).toEqual([
+      { field: 'bank.bankName', ruleId: 'required' },
+    ]);
+  });
+});

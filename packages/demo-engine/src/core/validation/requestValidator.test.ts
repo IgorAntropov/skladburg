@@ -21,6 +21,9 @@ import {
 } from '@skladburg/contracts/organization/v1/organization';
 import {
   BankAccountSchema,
+  SaveSignatoryRequestSchema,
+  SignatoryBasis,
+  SignatorySchema,
   UpdateOrganizationRequisitesRequestSchema,
   VatMode,
 } from '@skladburg/contracts/organization/v1/requisites';
@@ -201,6 +204,52 @@ describe('createRequestValidator.collect field checks', () => {
     expect(details?.code).toBe(ErrorCode.VALIDATION_FAILED);
     expect(details?.params.value).toMatchObject({
       violations: [{ fieldPath: 'bank.settlement_account', ruleId: 'field_check.settlement_account' }],
+    });
+  });
+});
+
+describe('createRequestValidator.collect calendar dates', () => {
+  const createSaveSignatoryRequest = (
+    date: { day: number; month: number; year: number },
+  ): MessageShape<typeof SaveSignatoryRequestSchema> => create(SaveSignatoryRequestSchema, {
+    expectedVersion: 1n,
+    idempotencyKey: UUID,
+    signatory: create(SignatorySchema, {
+      basis: SignatoryBasis.POWER_OF_ATTORNEY,
+      fullName: 'Тестов Тест Тестович',
+      id: OTHER_UUID,
+      position: 'менеджер',
+      powerOfAttorneyDate: date,
+      powerOfAttorneyNumber: '№ 1',
+    }),
+  });
+
+  it('adds calendar_date.exists for a date that does not exist', () => {
+    const request = createSaveSignatoryRequest({ day: 29, month: 2, year: 2027 });
+
+    expect(createValidatorForTest().collect(SaveSignatoryRequestSchema, request)).toEqual([
+      { fieldPath: 'signatory.power_of_attorney_date', ruleId: 'calendar_date.exists' },
+    ]);
+  });
+
+  it('accepts a leap day and keeps the range violation instead of the existence one', () => {
+    const validator = createValidatorForTest();
+
+    expect(validator.collect(SaveSignatoryRequestSchema, createSaveSignatoryRequest({ day: 29, month: 2, year: 2028 }))).toEqual([]);
+    expect(validator.collect(SaveSignatoryRequestSchema, createSaveSignatoryRequest({ day: 30, month: 2, year: 1999 }))).toEqual([
+      { fieldPath: 'signatory.power_of_attorney_date.year', ruleId: 'int32.gte_lte' },
+    ]);
+  });
+
+  it('throws validation_failed with the existence rule id in the detail', () => {
+    const error = captureError(() => {
+      createValidatorForTest().validate(SaveSignatoryRequestSchema, createSaveSignatoryRequest({ day: 31, month: 4, year: 2026 }));
+    });
+    const details = ConnectError.from(error).findDetails(ErrorDetailSchema)[0];
+
+    expect(details?.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(details?.params.value).toMatchObject({
+      violations: [{ fieldPath: 'signatory.power_of_attorney_date', ruleId: 'calendar_date.exists' }],
     });
   });
 });

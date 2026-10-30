@@ -12,6 +12,7 @@ export interface ServerViolationMappingValue {
 }
 
 const TRAILING_INDEX_PATTERN = /\[\d+\]$/;
+const TRAILING_SEGMENT_PATTERN = /(?:\.[^.[\]]+|\[\d+\])$/;
 const SNAKE_SEGMENT_PATTERN = /_([a-z0-9])/g;
 
 const toCamelCasePath = (fieldPath: string): string =>
@@ -19,7 +20,7 @@ const toCamelCasePath = (fieldPath: string): string =>
     .replace(TRAILING_INDEX_PATTERN, '')
     .replace(SNAKE_SEGMENT_PATTERN, (_match, letter: string) => letter.toUpperCase());
 
-const resolveFormField = (
+const resolveExactFormField = (
   rules: FormRulesValue,
   fieldPath: string,
   fieldNames: ReadonlySet<string>,
@@ -33,6 +34,22 @@ const resolveFormField = (
   const camelCasePath = toCamelCasePath(fieldPath);
 
   return fieldNames.has(camelCasePath) ? camelCasePath : undefined;
+};
+
+const resolveFormField = (
+  rules: FormRulesValue,
+  fieldPath: string,
+  fieldNames: ReadonlySet<string>,
+): string | undefined => {
+  const field = resolveExactFormField(rules, fieldPath, fieldNames);
+
+  if (field !== undefined) {
+    return field;
+  }
+
+  const parentPath = fieldPath.replace(TRAILING_SEGMENT_PATTERN, '');
+
+  return parentPath === fieldPath ? undefined : resolveFormField(rules, parentPath, fieldNames);
 };
 
 export const mapServerViolations = (

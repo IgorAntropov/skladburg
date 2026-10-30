@@ -12,6 +12,14 @@ const rules: FormRulesValue = {
   fields: {
     always: { ignore: 'always', isRequired: true, kind: 'string', protoName: 'always' },
     containsNonEmpty: { contains: 'x', kind: 'string', protoName: 'contains_non_empty' },
+    enumConstZero: { equalTo: 0, kind: 'enum', protoName: 'enum_const_zero' },
+    enumDefinedOnly: { definedValues: [0, 1, 2], kind: 'enum', protoName: 'enum_defined_only' },
+    enumDefinedWithoutZero: { definedValues: [1, 2], kind: 'enum', protoName: 'enum_defined_without_zero' },
+    enumInWithoutZero: { in: [1, 2], kind: 'enum', protoName: 'enum_in_without_zero' },
+    enumInWithZero: { in: [0, 1], kind: 'enum', protoName: 'enum_in_with_zero' },
+    enumNotInOther: { kind: 'enum', notIn: [2], protoName: 'enum_not_in_other' },
+    enumNotInZero: { definedValues: [0, 1, 2], kind: 'enum', notIn: [0], protoName: 'enum_not_in_zero' },
+    enumPlain: { kind: 'enum', protoName: 'enum_plain' },
     ifZeroRequired: { ignore: 'ifZeroValue', isRequired: true, kind: 'string', protoName: 'if_zero_required' },
     ifZeroUuid: { ignore: 'ifZeroValue', isUuid: true, kind: 'string', protoName: 'if_zero_uuid' },
     integerMin: { gte: 1, kind: 'integer', protoName: 'integer_min', type: 'int32' },
@@ -71,6 +79,20 @@ describe('isFormFieldRequired', () => {
     expect(isFormFieldRequired(rules, 'patternAllowsEmpty')).toBe(false);
     expect(isFormFieldRequired(rules, 'patternBroken')).toBe(false);
     expect(isFormFieldRequired(rules, 'prefixEmpty')).toBe(false);
+  });
+
+  it('is true when the enum rules reject the zero value', () => {
+    expect(isFormFieldRequired(rules, 'enumNotInZero')).toBe(true);
+    expect(isFormFieldRequired(rules, 'enumInWithoutZero')).toBe(true);
+    expect(isFormFieldRequired(rules, 'enumDefinedWithoutZero')).toBe(true);
+  });
+
+  it('is false when the enum rules accept the zero value', () => {
+    expect(isFormFieldRequired(rules, 'enumPlain')).toBe(false);
+    expect(isFormFieldRequired(rules, 'enumDefinedOnly')).toBe(false);
+    expect(isFormFieldRequired(rules, 'enumInWithZero')).toBe(false);
+    expect(isFormFieldRequired(rules, 'enumNotInOther')).toBe(false);
+    expect(isFormFieldRequired(rules, 'enumConstZero')).toBe(false);
   });
 
   it('lets ifZeroValue and explicit presence skip the pattern of an empty value', () => {

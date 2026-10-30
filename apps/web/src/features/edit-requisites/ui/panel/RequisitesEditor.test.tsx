@@ -117,10 +117,12 @@ const createServer = (initial: OrganizationRequisites): ServerValue => {
   return server;
 };
 
+const ignoreUnsavedChange = (): void => undefined;
+
 const Editor = ({ initial }: { initial: OrganizationRequisites }): null | ReactElement => {
   const { t } = useCatalogSection(requisitesSection);
 
-  return t === undefined ? null : <RequisitesEditor requisites={initial} t={t} />;
+  return t === undefined ? null : <RequisitesEditor onUnsavedChange={ignoreUnsavedChange} requisites={initial} t={t} />;
 };
 
 const renderEditor = (server: ServerValue): void => {

@@ -8,6 +8,7 @@ import type {
   FieldErrors,
   FieldValues,
   Path,
+  PathValue,
 } from 'react-hook-form';
 
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
@@ -57,17 +58,22 @@ export const useCommandForm = <TInput extends FieldValues, TResult, TOutput = TI
     rules,
     runCheck,
     translateViolation,
+    watchedFields,
   } = options;
   const { t } = useI18n();
   const announce = useAnnounce();
   const [fieldNames] = useState(() => collectFieldNames(defaultValues));
   const [resolver] = useState(() => createContractResolver<TInput, TOutput>(rules, fieldNames, { runCheck }));
   const {
+    clearErrors,
     formState,
     getFieldState,
+    getValues,
     handleSubmit: handleFormSubmit,
     register,
+    reset: resetForm,
     setError,
+    setValue,
     subscribe,
   } = useForm<TInput, unknown, TOutput>({
     defaultValues,
@@ -76,10 +82,18 @@ export const useCommandForm = <TInput extends FieldValues, TResult, TOutput = TI
     reValidateMode: 'onChange',
     shouldFocusError: false,
   });
+  const [, setValuesRevision] = useState(0);
+
   const submittedValuesRef = useRef<TOutput | undefined>(undefined);
   const handledServerErrorRef = useRef<Error | null>(null);
   const fieldElementsRef = useRef(new Map<string, FieldElementValue>());
   const [unplacedError, setUnplacedError] = useState<Error | null>(null);
+
+  const handleCommandSuccess = (result: TResult): void => {
+    console.log('> useCommandForm -> handleCommandSuccess:', { method: method?.name });
+    resetForm(getValues(), { keepValues: true });
+    onSuccess?.(result);
+  };
 
   const command = useCommand<TResult>({
     execute: (idempotencyKey) => {
@@ -90,7 +104,7 @@ export const useCommandForm = <TInput extends FieldValues, TResult, TOutput = TI
         : execute(values, idempotencyKey);
     },
     method,
-    onSuccess,
+    onSuccess: handleCommandSuccess,
   });
   const {
     apiError,
@@ -150,6 +164,13 @@ export const useCommandForm = <TInput extends FieldValues, TResult, TOutput = TI
 
   const isRequired = (name: Path<TInput>): boolean => isFormFieldRequired(rules, name);
 
+  const watchField = <TName extends Path<TInput>>(name: TName): PathValue<TInput, TName> => getValues(name);
+
+  const setFieldValue = <TName extends Path<TInput>>(name: TName, value: PathValue<TInput, TName>): void => {
+    setValue(name, value, { shouldDirty: true });
+    clearErrors(name);
+  };
+
   const getFieldProps = (name: Path<TInput>, fieldOptions?: FormFieldOptionsValue): FormFieldBindingValue => {
     const mask = fieldOptions?.mask;
     const registration = mask === undefined ? register(name) : register(name, { setValueAs: mask.unmask });
@@ -192,6 +213,20 @@ export const useCommandForm = <TInput extends FieldValues, TResult, TOutput = TI
       ref: handleRef,
     };
   };
+
+  useEffect(() => {
+    if (watchedFields === undefined || watchedFields.length === 0) {
+      return undefined;
+    }
+
+    return subscribe({
+      callback: () => {
+        setValuesRevision(revision => revision + 1);
+      },
+      formState: { values: true },
+      name: watchedFields,
+    });
+  }, [subscribe, watchedFields]);
 
   useEffect(() => {
     if (!hasCommandError || isPending) {
@@ -244,6 +279,9 @@ export const useCommandForm = <TInput extends FieldValues, TResult, TOutput = TI
     command: visibleCommand,
     getFieldProps,
     handleSubmit,
+    isDirty: formState.isDirty,
     isRequired,
+    setFieldValue,
+    watchField,
   };
 };

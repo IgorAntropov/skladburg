@@ -16,12 +16,19 @@ import {
   validateFormValues,
 } from '../forms/index';
 import { CalendarDateSchema } from '../gen/common/v1/date_pb';
-import { UpdateOrganizationRequisitesRequestFormRules } from '../gen/forms/organization/v1/requisites_rules';
+import {
+  SaveSignatoryRequestFormRules,
+  UpdateOrganizationRequisitesRequestFormRules,
+} from '../gen/forms/organization/v1/requisites_rules';
 import {
   type BankAccount,
   BankAccountSchema,
   type OrganizationRequisites,
   OrganizationRequisitesSchema,
+  type RemoveSignatoryRequest,
+  RemoveSignatoryRequestSchema,
+  type SaveSignatoryRequest,
+  SaveSignatoryRequestSchema,
   type Signatory,
   SignatoryBasis,
   SignatorySchema,
@@ -404,5 +411,145 @@ describe('the bank checks in the table of UpdateOrganizationRequisitesRequest', 
       names,
       { runCheck: runFieldCheck },
     )).toEqual([{ field: 'bank.bik', ruleId: 'string.pattern' }]);
+  });
+});
+
+const createSaveSignatoryRequest = (
+  overrides: MessageInitShape<typeof SaveSignatoryRequestSchema> = {},
+): SaveSignatoryRequest =>
+  create(SaveSignatoryRequestSchema, {
+    expectedVersion: 1n,
+    idempotencyKey: validUuid,
+    signatory: createSignatory(),
+    ...overrides,
+  });
+
+const createRemoveSignatoryRequest = (
+  overrides: MessageInitShape<typeof RemoveSignatoryRequestSchema> = {},
+): RemoveSignatoryRequest =>
+  create(RemoveSignatoryRequestSchema, {
+    expectedVersion: 1n,
+    idempotencyKey: validUuid,
+    signatoryId: otherUuid,
+    ...overrides,
+  });
+
+describe('SaveSignatoryRequest', () => {
+  it('accepts a complete request', () => {
+    expect(collectViolations(SaveSignatoryRequestSchema, createSaveSignatoryRequest())).toEqual([]);
+  });
+
+  it('rejects an idempotency key that is not a UUID', () => {
+    expect(collectViolations(SaveSignatoryRequestSchema, createSaveSignatoryRequest({ idempotencyKey: 'key-1' }))).toEqual([
+      { fieldPath: 'idempotency_key', ruleId: 'string.uuid' },
+    ]);
+  });
+
+  it.each([0n, -1n])('rejects the expected version %s', (expectedVersion) => {
+    expect(collectViolations(SaveSignatoryRequestSchema, createSaveSignatoryRequest({ expectedVersion }))).toEqual([
+      { fieldPath: 'expected_version', ruleId: 'int64.gte' },
+    ]);
+  });
+
+  it('rejects a request without a signatory', () => {
+    expect(collectViolations(SaveSignatoryRequestSchema, createSaveSignatoryRequest({ signatory: undefined }))).toEqual([
+      { fieldPath: 'signatory', ruleId: 'required' },
+    ]);
+  });
+
+  it('validates the signatory inside with the nested path', () => {
+    expect(collectViolations(
+      SaveSignatoryRequestSchema,
+      createSaveSignatoryRequest({ signatory: createSignatory({ fullName: '', id: 'new' }) }),
+    )).toEqual([
+      { fieldPath: 'signatory.id', ruleId: 'string.uuid' },
+      { fieldPath: 'signatory.full_name', ruleId: 'required' },
+    ]);
+  });
+
+  it('validates the parts of the power of attorney date inside the signatory', () => {
+    expect(collectViolations(
+      SaveSignatoryRequestSchema,
+      createSaveSignatoryRequest({
+        signatory: createSignatory({ powerOfAttorneyDate: create(CalendarDateSchema, { day: 1, month: 1, year: 1999 }) }),
+      }),
+    )).toEqual([
+      { fieldPath: 'signatory.power_of_attorney_date.year', ruleId: 'int32.gte_lte' },
+    ]);
+  });
+});
+
+describe('RemoveSignatoryRequest', () => {
+  it('accepts a complete request', () => {
+    expect(collectViolations(RemoveSignatoryRequestSchema, createRemoveSignatoryRequest())).toEqual([]);
+  });
+
+  it('rejects an idempotency key and a signatory id that are not UUIDs', () => {
+    expect(collectViolations(
+      RemoveSignatoryRequestSchema,
+      createRemoveSignatoryRequest({ idempotencyKey: 'key-1', signatoryId: 'new' }),
+    )).toEqual([
+      { fieldPath: 'idempotency_key', ruleId: 'string.uuid' },
+      { fieldPath: 'signatory_id', ruleId: 'string.uuid' },
+    ]);
+  });
+
+  it.each([0n, -1n])('rejects the expected version %s', (expectedVersion) => {
+    expect(collectViolations(RemoveSignatoryRequestSchema, createRemoveSignatoryRequest({ expectedVersion }))).toEqual([
+      { fieldPath: 'expected_version', ruleId: 'int64.gte' },
+    ]);
+  });
+});
+
+describe('the table of SaveSignatoryRequest', () => {
+  const names = [
+    'signatory.fullName',
+    'signatory.position',
+    'signatory.basis',
+    'signatory.powerOfAttorneyNumber',
+    'signatory.powerOfAttorneyDate.year',
+    'signatory.powerOfAttorneyDate.month',
+    'signatory.powerOfAttorneyDate.day',
+  ];
+
+  it('checks the parts of an absent ancestor as before when the values do not mention it', () => {
+    expect(validateFormValues(
+      SaveSignatoryRequestFormRules,
+      { 'signatory.basis': SignatoryBasis.CHARTER, 'signatory.fullName': 'Тестов Тест Тестович', 'signatory.position': 'директор' },
+      names,
+    )).toEqual([
+      { field: 'signatory.powerOfAttorneyDate.year', ruleId: 'int32.gte_lte' },
+      { field: 'signatory.powerOfAttorneyDate.month', ruleId: 'int32.gte_lte' },
+      { field: 'signatory.powerOfAttorneyDate.day', ruleId: 'int32.gte_lte' },
+    ]);
+  });
+
+  it('skips the parts of the date while the date is not set', () => {
+    expect(validateFormValues(
+      SaveSignatoryRequestFormRules,
+      {
+        'signatory.basis': SignatoryBasis.CHARTER,
+        'signatory.fullName': 'Тестов Тест Тестович',
+        'signatory.position': 'директор',
+        'signatory.powerOfAttorneyDate': undefined,
+      },
+      names,
+    )).toEqual([]);
+  });
+
+  it('checks the parts of the date once the date is set', () => {
+    expect(validateFormValues(
+      SaveSignatoryRequestFormRules,
+      {
+        'signatory.basis': SignatoryBasis.POWER_OF_ATTORNEY,
+        'signatory.fullName': 'Тестов Тест Тестович',
+        'signatory.position': 'менеджер',
+        'signatory.powerOfAttorneyDate': {},
+        'signatory.powerOfAttorneyDate.day': 12,
+        'signatory.powerOfAttorneyDate.month': 1,
+        'signatory.powerOfAttorneyDate.year': 1999,
+      },
+      names,
+    )).toEqual([{ field: 'signatory.powerOfAttorneyDate.year', ruleId: 'int32.gte_lte' }]);
   });
 });

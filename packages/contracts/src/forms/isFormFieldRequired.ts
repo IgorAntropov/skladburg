@@ -3,12 +3,14 @@ import type {
   FormRulesValue,
 } from './formRuleTypes';
 
+import { checkEnumRule } from './checkEnumRule';
 import { checkStringRule } from './checkStringRule';
 import { getFormField } from './getFormField';
 
 const isEmptyForbiddenByRules = (field: FormFieldRulesValue): boolean => {
   switch (field.kind) {
     case 'enum':
+      return checkEnumRule(field, 0).length > 0;
     case 'integer':
     case 'opaque':
       return false;

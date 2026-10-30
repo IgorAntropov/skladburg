@@ -17,7 +17,12 @@ import {
 } from 'vitest';
 
 import { resolvePermissionGrants } from '../access/index';
+import {
+  isCalendarDateExisting,
+  toCalendarDate,
+} from '../calendar/index';
 import { createDomainErrors } from '../errors/index';
+import { collectSignatoryViolations } from '../modules/identity/signatoryRules';
 import { isPlatformOperator } from '../platform/index';
 import { createSeededRandom } from '../ports/index';
 import {
@@ -34,6 +39,7 @@ import {
 import {
   createSeedRecords,
   createSeedSnapshot,
+  SEED_WORLD_START_MS,
 } from './seedSnapshot';
 
 const TECHNICAL_ORGANIZATION_NAME_PATTERN = /^(Заказчик|Поставщик|Перевозчик) \d+$/;
@@ -50,12 +56,6 @@ const BIK_REGION_START = 2;
 const BIK_REGION_END = 4;
 const ACCOUNT_LENGTH = 20;
 const BUYER_LIMIT_MINOR = 10_000_000n;
-
-const isCalendarDateExisting = (year: number, month: number, day: number): boolean => {
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
-};
 
 const isTimeZoneExisting = (timeZone: string): boolean => {
   try {
@@ -214,11 +214,11 @@ describe('seed requisites', () => {
         expect(signatory.powerOfAttorneyNumber, signatory.fullName).not.toBe('');
         expect(signatory.powerOfAttorneyDate, signatory.fullName).toBeDefined();
         expect(
-          isCalendarDateExisting(
-            signatory.powerOfAttorneyDate?.year ?? 0,
-            signatory.powerOfAttorneyDate?.month ?? 0,
-            signatory.powerOfAttorneyDate?.day ?? 0,
-          ),
+          isCalendarDateExisting({
+            day: signatory.powerOfAttorneyDate?.day ?? 0,
+            month: signatory.powerOfAttorneyDate?.month ?? 0,
+            year: signatory.powerOfAttorneyDate?.year ?? 0,
+          }),
           signatory.fullName,
         ).toBe(true);
       }
@@ -226,6 +226,16 @@ describe('seed requisites', () => {
         expect(signatory.basis, signatory.fullName).toBe(SignatoryBasis.CHARTER);
         expect(signatory.powerOfAttorneyNumber, signatory.fullName).toBe('');
         expect(signatory.powerOfAttorneyDate, signatory.fullName).toBeUndefined();
+      }
+    }
+  });
+
+  it('lets every signatory pass the domain checks at the start of the world in the zone of its organization', () => {
+    for (const entry of requisites) {
+      const today = toCalendarDate(SEED_WORLD_START_MS, entry.timeZone);
+
+      for (const signatory of entry.signatories) {
+        expect(collectSignatoryViolations(signatory, today), signatory.fullName).toEqual([]);
       }
     }
   });

@@ -6,6 +6,10 @@ import {
   type User,
   UserSchema,
 } from '@skladburg/contracts/access/v1/access';
+import {
+  type Money,
+  MoneySchema,
+} from '@skladburg/contracts/common/v1/money';
 
 import {
   createPresetRole,
@@ -51,13 +55,8 @@ interface SeedAdminDefinitionValue {
   userName: string;
 }
 
-interface SeedAmountLimitValue {
-  amountMinor: bigint;
-  currencyCode: string;
-}
-
 interface SeedBuyerDefinitionValue {
-  amountLimit: SeedAmountLimitValue;
+  amountLimit: Money;
   membershipId: string;
   organizationId: string;
   roleId: string;
@@ -156,7 +155,7 @@ const SEED_ADMIN_DEFINITIONS: readonly SeedAdminDefinitionValue[] = [
 
 const SEED_BUYER_DEFINITIONS: readonly SeedBuyerDefinitionValue[] = [
   {
-    amountLimit: { amountMinor: 10_000_000n, currencyCode: 'RUB' },
+    amountLimit: create(MoneySchema, { amountMinor: 10_000_000n, currencyCode: 'RUB' }),
     membershipId: SeedMembershipId.BUYER_1,
     organizationId: SeedOrganizationId.CUSTOMER_1,
     roleId: SeedRoleId.BUYER_CUSTOMER_1,

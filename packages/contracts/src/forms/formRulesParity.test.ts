@@ -30,8 +30,10 @@ import type {
   FormStringRuleValue,
 } from './formRuleTypes';
 
+import { field_check as fieldCheckExtension } from '../gen/common/v1/field_options_pb';
 import { getContractRegistry } from '../registry/contractRegistry';
 import { collectViolations } from '../validation/collectViolations';
+import { runFieldCheck } from './checks/runFieldCheck';
 import { findFormField } from './findFormField';
 import { validateFormValues } from './validateFormValues';
 
@@ -48,25 +50,80 @@ interface PatternSamplesValue {
   nonMatching: readonly string[];
 }
 
+interface RuleFieldValue {
+  field: DescField;
+  key: string;
+  path: readonly DescField[];
+}
+
 interface RuleMessageValue {
   exportName: string;
   file: DescFile;
   message: DescMessage;
 }
 
+const MAX_NESTING_DEPTH = 3;
+const CHECK_RULE_PREFIX = 'field_check.';
+
 const EXTERNAL_FILE_PREFIXES: readonly string[] = ['buf/validate/', 'google/'];
 
 const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
+  'common.v1.MethodAccess.permission',
+  'organization.v1.ListSpheresRequest.page',
+  'organization.v1.ListWarehousesRequest.page',
+  'access.v1.RoleAssignment.amountLimit',
+  'access.v1.EffectivePermission.amountLimit',
+  'access.v1.ListPermissionsRequest.page',
+  'access.v1.ListRolesRequest.page',
   'access.v1.SetMyAvatarRequest.image',
   'access.v1.SetMyAvatarRequest.mediaType',
+  'common.v1.LimitExceededParams.limit',
+  'common.v1.LimitExceededParams.requested',
+  'common.v1.ErrorDetail.limitExceeded',
+  'common.v1.ErrorDetail.limitExceeded.limit',
+  'common.v1.ErrorDetail.limitExceeded.requested',
+  'common.v1.ObjectLink.cameraFocus',
   'common.v1.ObjectLink.target',
+  'network.v1.ListCitiesRequest.page',
+  'network.v1.ListMapNodesRequest.page',
+  'network.v1.ListRouteLegsRequest.page',
+  'network.v1.ListMapSitesRequest.page',
   'notification.v1.Notification.links',
+  'notification.v1.DigestItem.link',
+  'notification.v1.DigestItem.link.cameraFocus',
+  'notification.v1.DigestItem.link.target',
+  'notification.v1.ListNotificationsRequest.page',
+  'organization.v1.Signatory.powerOfAttorneyDate',
   'organization.v1.OrganizationRequisites.bank',
   'organization.v1.OrganizationRequisites.signatories',
+  'organization.v1.GetOrganizationRequisitesResponse.requisites',
+  'organization.v1.GetOrganizationRequisitesResponse.requisites.bank',
+  'organization.v1.GetOrganizationRequisitesResponse.requisites.signatories',
+  'organization.v1.UpdateOrganizationRequisitesRequest.bank',
+  'organization.v1.UpdateOrganizationRequisitesResponse.requisites',
+  'organization.v1.UpdateOrganizationRequisitesResponse.requisites.bank',
+  'organization.v1.UpdateOrganizationRequisitesResponse.requisites.signatories',
+  'organization.v1.ListOrganizationShowcasesRequest.page',
+  'support.v1.ListSupportAccessSessionsRequest.page',
+  'support.v1.ListSupportAuditEntriesRequest.page',
   'support.v1.SupportErrorRef.occurredAt',
   'support.v1.SupportTicketContext.device',
   'support.v1.SupportTicketContext.errors',
+  'support.v1.SupportTicket.context',
+  'support.v1.SupportTicket.context.device',
+  'support.v1.SupportTicket.context.errors',
   'support.v1.CreateSupportTicketRequest.context',
+  'support.v1.CreateSupportTicketRequest.context.device',
+  'support.v1.CreateSupportTicketRequest.context.errors',
+  'support.v1.CreateSupportTicketResponse.ticket',
+  'support.v1.CreateSupportTicketResponse.ticket.context',
+  'support.v1.CreateSupportTicketResponse.ticket.context.device',
+  'support.v1.CreateSupportTicketResponse.ticket.context.errors',
+  'support.v1.ListMySupportTicketsRequest.page',
+  'support.v1.GetSupportTicketResponse.ticket',
+  'support.v1.GetSupportTicketResponse.ticket.context',
+  'support.v1.GetSupportTicketResponse.ticket.context.device',
+  'support.v1.GetSupportTicketResponse.ticket.context.errors',
 ];
 const EXPECTED_SERVER_ONLY_MESSAGES: readonly string[] = ['common.v1.MethodAccess'];
 
@@ -354,10 +411,46 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isFormRules = (value: unknown): value is FormRulesValue =>
   isRecord(value) && isRecord(value.fields);
 
+const hasOwnFieldRules = (field: DescField): boolean =>
+  hasOption(field, fieldRulesExtension) || hasOption(field, fieldCheckExtension);
+
+const hasOwnMessageRules = (message: DescMessage): boolean =>
+  message.oneofs.some(oneof => hasOption(oneof, oneofRulesExtension)) || hasOption(message, messageRulesExtension);
+
+const isNestable = (field: DescField, ancestors: readonly string[]): field is DescField & { fieldKind: 'message' } =>
+  field.fieldKind === 'message'
+  && ancestors.length <= MAX_NESTING_DEPTH
+  && !ancestors.includes(field.message.typeName);
+
+const collectRuleFields = (
+  message: DescMessage,
+  ancestors: readonly string[] = [message.typeName],
+  path: readonly DescField[] = [],
+): RuleFieldValue[] =>
+  message.fields.flatMap((field) => {
+    const own = hasOwnFieldRules(field)
+      ? [{ field, key: [...path, field].map(step => step.localName).join('.'), path }]
+      : [];
+
+    if (!isNestable(field, ancestors)) {
+      return own;
+    }
+
+    const nested = collectRuleFields(field.message, [...ancestors, field.message.typeName], [...path, field]);
+    const parent = !hasOwnFieldRules(field) && nested.length > 0
+      ? [{ field, key: [...path, field].map(step => step.localName).join('.'), path }]
+      : [];
+
+    return [...own, ...parent, ...nested];
+  });
+
+const hasNestedMessageRules = (message: DescMessage, ancestors: readonly string[] = [message.typeName]): boolean =>
+  message.fields.some(field => isNestable(field, ancestors)
+    && (hasOwnMessageRules(field.message)
+      || hasNestedMessageRules(field.message, [...ancestors, field.message.typeName])));
+
 const hasContractRules = (message: DescMessage): boolean =>
-  message.fields.some(field => hasOption(field, fieldRulesExtension))
-  || message.oneofs.some(oneof => hasOption(oneof, oneofRulesExtension))
-  || hasOption(message, messageRulesExtension);
+  collectRuleFields(message).length > 0 || hasOwnMessageRules(message) || hasNestedMessageRules(message);
 
 const collectMessages = (messages: readonly DescMessage[]): DescMessage[] =>
   messages.flatMap(message => [message, ...collectMessages(message.nestedMessages)]);
@@ -560,8 +653,7 @@ const getElementRule = (rule: Extract<FormFieldRulesValue, { kind: 'repeated' }>
   return { kind: 'integer', type: 'int32' };
 };
 
-const buildFieldCorpus = (rule: FormFieldRulesValue, field: DescField): CaseValue[] => {
-  const name = field.localName;
+const buildFieldCorpus = (rule: FormFieldRulesValue, field: DescField, name: string): CaseValue[] => {
   const definedValues = getDefinedValues(field);
   const values = ((): unknown[] => {
     switch (rule.kind) {
@@ -594,12 +686,24 @@ const setFieldValue = (reflected: ReturnType<typeof reflect>, field: DescField, 
   }
 };
 
-const buildMessageWithValue = (message: DescMessage, field: DescField, values: CaseValue): ReturnType<typeof reflect> | undefined => {
+const buildMessageWithValue = (message: DescMessage, entry: RuleFieldValue, values: CaseValue): ReturnType<typeof reflect> | undefined => {
   const reflected = reflect(message);
+  let current = reflected;
 
-  if (Object.hasOwn(values, field.localName)) {
+  for (const step of entry.path) {
+    if (step.fieldKind !== 'message') {
+      return undefined;
+    }
+
+    const next = reflect(step.message);
+
+    current.set(step, next);
+    current = next;
+  }
+
+  if (Object.hasOwn(values, entry.key)) {
     try {
-      setFieldValue(reflected, field, values[field.localName]);
+      setFieldValue(current, entry.field, values[entry.key]);
     }
     catch {
       return undefined;
@@ -619,13 +723,13 @@ interface ComparisonValue {
 const compareField = (
   item: RuleMessageValue,
   rules: FormRulesValue,
-  field: DescField,
+  entry: RuleFieldValue,
   corpus: readonly CaseValue[],
 ): ComparisonValue => {
   const result: ComparisonValue = { compared: 0, skipped: 0 };
 
   for (const values of corpus) {
-    const reflected = buildMessageWithValue(item.message, field, values);
+    const reflected = buildMessageWithValue(item.message, entry, values);
 
     if (reflected === undefined) {
       result.skipped += 1;
@@ -639,11 +743,13 @@ const compareField = (
       .map(violation => violation.fieldPath);
     const expected = sortedUnique(
       violations
-        .filter(violation => findFormField(rules, violation.fieldPath) === field.localName)
+        .filter(violation => findFormField(rules, violation.fieldPath) === entry.key)
         .map(violation => violation.ruleId),
     );
     const actual = sortedUnique(
-      validateFormValues(rules, values, [field.localName]).map(issue => issue.ruleId),
+      validateFormValues(rules, values, [entry.key], { runCheck: runFieldCheck })
+        .map(issue => issue.ruleId)
+        .filter(ruleId => !ruleId.startsWith(CHECK_RULE_PREFIX)),
     );
 
     expect({ actual, unresolvedPaths, values }).toEqual({ actual: expected, unresolvedPaths: [], values });
@@ -667,25 +773,20 @@ describe('form rules parity with protovalidate', () => {
   });
 
   describe.each(ruleMessages.map(item => [typeName(item), item] as const))('%s', (_name, item) => {
+    const ruleFields = collectRuleFields(item.message);
+
     it('has a generated table with one entry per field that has rules', async () => {
       const rules = await loadTable(item);
 
       expect(rules, `${item.exportName} is not generated for ${item.file.name}`).toBeDefined();
-      expect(Object.keys(rules?.fields ?? {}).toSorted()).toEqual(
-        item.message.fields
-          .filter(field => hasOption(field, fieldRulesExtension))
-          .map(field => field.localName)
-          .toSorted(),
-      );
+      expect(Object.keys(rules?.fields ?? {}).toSorted()).toEqual(ruleFields.map(entry => entry.key).toSorted());
     });
 
-    const ruleFields = item.message.fields.filter(field => hasOption(field, fieldRulesExtension));
-
-    it.each(ruleFields.map(field => [field.localName, field] as const))(
+    it.each(ruleFields.map(entry => [entry.key, entry] as const))(
       'reports the same rule ids as protovalidate for %s',
-      async (_fieldName, field) => {
+      async (_fieldName, entry) => {
         const rules = await loadTable(item);
-        const fieldRules = rules?.fields[field.localName];
+        const fieldRules = rules?.fields[entry.key];
 
         expect(rules).toBeDefined();
         expect(fieldRules).toBeDefined();
@@ -694,8 +795,8 @@ describe('form rules parity with protovalidate', () => {
           return;
         }
 
-        const corpus = buildFieldCorpus(fieldRules, field);
-        const comparison = compareField(item, rules, field, corpus);
+        const corpus = buildFieldCorpus(fieldRules, entry.field, entry.key);
+        const comparison = compareField(item, rules, entry, corpus);
 
         expect(comparison.compared).toBeGreaterThan(0);
         expect(comparison.skipped).toBeLessThan(comparison.compared);
@@ -716,7 +817,7 @@ describe('form rules parity with protovalidate', () => {
       return;
     }
 
-    const emptyMessage = buildMessageWithValue(item.message, field, { [fieldName]: '' });
+    const emptyMessage = buildMessageWithValue(item.message, { field, key: fieldName, path: [] }, { [fieldName]: '' });
     const violations = emptyMessage === undefined ? [] : collectViolations(item.message, emptyMessage.message);
 
     expect(violations.filter(violation => violation.fieldPath === field.name).map(violation => violation.ruleId)).toEqual(['required']);

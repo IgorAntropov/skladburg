@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 
 import { ChevronRight } from 'lucide-react';
 import {
+  useEffect,
   useId,
   useMemo,
 } from 'react';
@@ -11,6 +12,10 @@ import type {
   NetworkMapSiteValue,
 } from '@/entities/network';
 
+import {
+  loadRequisitesPanel,
+  useRequisitesView,
+} from '@/features/edit-requisites';
 import { useActingContext } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
@@ -28,6 +33,7 @@ import {
   INSPECTOR_LINK_CLASS_NAME,
 } from '../inspector/inspectorStyles';
 import { ShowOnMapButton } from '../inspector/ShowOnMapButton';
+import { NetworkChunkSlot } from '../NetworkChunkSlot';
 import { NetworkInspectorSkeleton } from '../NetworkInspectorSkeleton';
 import { OrganizationCardLogo } from './OrganizationCardLogo';
 import { OrganizationProfileCard } from './OrganizationProfileCard';
@@ -155,8 +161,36 @@ export const OrganizationInspector = ({ cities, organizationId, sites }: Organiz
   const { t } = useI18n();
   const { organizationId: actingOrganizationId } = useActingContext();
   const card = useOrganizationCard(organizationId);
+  const {
+    close: closeRequisites,
+    isOpen: isRequisitesOpen,
+    open: openRequisites,
+  } = useRequisitesView();
 
   const isOwn = organizationId === actingOrganizationId;
+  const isRequisitesPanelShown = isOwn && isRequisitesOpen;
+
+  useEffect(() => {
+    if (!isRequisitesPanelShown) {
+      return undefined;
+    }
+
+    openRequisites();
+
+    return closeRequisites;
+  }, [closeRequisites, isRequisitesPanelShown, openRequisites]);
+
+  if (isRequisitesPanelShown) {
+    return (
+      <NetworkChunkSlot
+        loader={loadRequisitesPanel}
+        loadingLabel={t('organization.card.requisitesLoading')}
+        skeleton={<NetworkInspectorSkeleton isOwn kind="organization" />}
+      >
+        {({ RequisitesPanel }) => <RequisitesPanel onClose={closeRequisites} />}
+      </NetworkChunkSlot>
+    );
+  }
 
   if (card.isNotFound) {
     return <InspectorNotFound />;

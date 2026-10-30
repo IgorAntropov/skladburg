@@ -4,8 +4,10 @@ import { Lock } from 'lucide-react';
 import { useId } from 'react';
 
 import { useActingOrganizationQuery } from '@/entities/organization';
+import { useRequisitesView } from '@/features/edit-requisites';
 import { useI18n } from '@/shared/i18n';
 import {
+  Button,
   Skeleton,
   WidgetStates,
 } from '@/shared/ui';
@@ -55,6 +57,12 @@ export const OrganizationRequisites = (): ReactElement => {
     isFetching,
     refetch,
   } = useActingOrganizationQuery();
+  const { open: openRequisites } = useRequisitesView();
+
+  const handleRequisitesOpenClick = (): void => {
+    console.log('> OrganizationRequisites -> handleRequisitesOpenClick:', {});
+    openRequisites();
+  };
 
   const handleRetry = (): void => {
     console.log('> OrganizationRequisites -> handleRetry:', { hasError: error !== null });
@@ -101,6 +109,14 @@ export const OrganizationRequisites = (): ReactElement => {
           </dl>
         )}
       </WidgetStates>
+      <Button
+        className="self-start"
+        data-testid="organization-requisites-open"
+        onClick={handleRequisitesOpenClick}
+        variant="secondary"
+      >
+        {t('organization.card.requisitesOpen')}
+      </Button>
     </section>
   );
 };

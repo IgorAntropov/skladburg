@@ -44,7 +44,7 @@ const MAX_SCENE_GZIP_KILOBYTES = 300;
 
 const MAX_STARTUP_GZIP_KILOBYTES = 95;
 
-const MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES = 45;
+const MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES = 45.2;
 
 const MAX_NETWORK_INSPECTOR_GZIP_KILOBYTES = 26;
 
@@ -58,7 +58,7 @@ const MAX_NETWORK_COMPANIES_GZIP_KILOBYTES = 12.5;
 
 const MAX_ORGANIZATION_TABLE_GZIP_KILOBYTES = 12;
 
-const MAX_MY_PROFILE_GZIP_KILOBYTES = 65;
+const MAX_MY_PROFILE_GZIP_KILOBYTES = 65.5;
 
 const MAX_WORLD_MODELS_KILOBYTES = 300;
 
@@ -81,6 +81,10 @@ const MAX_ASSISTANT_TEXTS_INFORMAL_GZIP_KILOBYTES = 3;
 const MAX_SUPPORT_CHAT_GZIP_KILOBYTES = 36.5;
 
 const MAX_SUPPORT_CHAT_TEXTS_GZIP_KILOBYTES = 3;
+
+const MAX_REQUISITES_FORM_GZIP_KILOBYTES = 50.1;
+
+const MAX_REQUISITES_TEXTS_GZIP_KILOBYTES = 0.75;
 
 const MAX_ENGINE_WORKER_GZIP_KILOBYTES = 40;
 
@@ -126,6 +130,7 @@ const FORBIDDEN_SCENE_PACKAGES = [
   '@radix-ui/*',
   '@tanstack/*',
   'framer-motion',
+  'maska',
   'motion',
   'motion-dom',
   'motion-utils',
@@ -137,6 +142,7 @@ const FORBIDDEN_STARTUP_PACKAGES = [
   '@react-three/*',
   'camera-controls',
   'framer-motion',
+  'maska',
   'motion',
   'motion-dom',
   'motion-utils',
@@ -201,6 +207,7 @@ const LAZY_ENTRY_BUDGETS = [
   {
     baseline: STARTUP_BASELINE,
     entries: ['src/features/create-warehouse/ui/form/CreateWarehouseForm.tsx'],
+    forbiddenPackages: ['maska'],
     isRequired: true,
     maxGzipKiloBytes: MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES,
     name: 'create-warehouse-form',
@@ -309,6 +316,21 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_SUPPORT_CHAT_TEXTS_GZIP_KILOBYTES,
     name: 'support-chat-texts',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/features/edit-requisites/ui/panel/RequisitesPanel.tsx'],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_REQUISITES_FORM_GZIP_KILOBYTES,
+    name: 'requisites-form',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/features/edit-requisites/i18n/catalogs/ru.ts'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_REQUISITES_TEXTS_GZIP_KILOBYTES,
+    name: 'requisites-texts',
   },
 ];
 

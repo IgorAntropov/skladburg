@@ -10,10 +10,13 @@ import { findFormField } from './findFormField';
 
 const rules: FormRulesValue = {
   fields: {
-    capabilities: { kind: 'repeated', protoName: 'capabilities' },
-    cityId: { isUuid: true, kind: 'string', protoName: 'city_id' },
-    name: { kind: 'string', protoName: 'name' },
-    shipTo: { isServerOnly: true, kind: 'opaque', protoName: 'ship_to' },
+    'bank': { isServerOnly: true, kind: 'opaque', protoName: 'bank' },
+    'bank.bik': { kind: 'string', protoName: 'bank.bik' },
+    'bank.settlementAccount': { kind: 'string', protoName: 'bank.settlement_account' },
+    'capabilities': { kind: 'repeated', protoName: 'capabilities' },
+    'cityId': { isUuid: true, kind: 'string', protoName: 'city_id' },
+    'name': { kind: 'string', protoName: 'name' },
+    'shipTo': { isServerOnly: true, kind: 'opaque', protoName: 'ship_to' },
   },
 };
 
@@ -31,6 +34,19 @@ describe('findFormField', () => {
 
   it('maps server-only fields too', () => {
     expect(findFormField(rules, 'ship_to')).toBe('shipTo');
+  });
+
+  it('maps a path through nested messages to the dotted form field', () => {
+    expect(findFormField(rules, 'bank.bik')).toBe('bank.bik');
+    expect(findFormField(rules, 'bank.settlement_account')).toBe('bank.settlementAccount');
+    expect(findFormField(rules, 'bank')).toBe('bank');
+  });
+
+  it('does not map a nested path without a field in the table', () => {
+    expect(findFormField(rules, 'bank.unknown')).toBeUndefined();
+    expect(findFormField(rules, 'bank.bik.digit')).toBeUndefined();
+    expect(findFormField(rules, 'bank.bik[0]')).toBeUndefined();
+    expect(findFormField(rules, 'bank.settlementAccount')).toBeUndefined();
   });
 
   it('does not map nested paths', () => {

@@ -30,6 +30,7 @@
     "@skladburg/demo-engine": "workspace:*",
     "@tanstack/react-query": "5.104.1",
     "lucide-react": "1.52.0",
+    "maska": "3.2.2",
     "motion": "13.5.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

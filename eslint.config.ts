@@ -67,6 +67,19 @@ const lazyCreateWarehouseFormTestFiles: string[] = [
   'apps/web/src/features/create-warehouse/ui/form/**/*.test.{ts,tsx}',
 ];
 const lazyCreateWarehouseFeatureFiles: string[] = ['apps/web/src/features/create-warehouse/**/*.{ts,tsx}'];
+const maskSegmentFiles: string[] = ['apps/web/src/shared/lib/mask/**/*.{ts,tsx}'];
+const maskSegmentTestFiles: string[] = ['apps/web/src/shared/lib/mask/**/*.test.{ts,tsx}'];
+const lazyEditRequisitesFormFiles: string[] = [
+  'apps/web/src/features/edit-requisites/api/**/*.{ts,tsx}',
+  'apps/web/src/features/edit-requisites/config/**/*.{ts,tsx}',
+  'apps/web/src/features/edit-requisites/ui/panel/**/*.{ts,tsx}',
+];
+const lazyEditRequisitesFormTestFiles: string[] = [
+  'apps/web/src/features/edit-requisites/api/**/*.test.{ts,tsx}',
+  'apps/web/src/features/edit-requisites/config/**/*.test.{ts,tsx}',
+  'apps/web/src/features/edit-requisites/ui/panel/**/*.test.{ts,tsx}',
+];
+const lazyEditRequisitesFeatureFiles: string[] = ['apps/web/src/features/edit-requisites/**/*.{ts,tsx}'];
 const lazySceneViewportFiles: string[] = ['apps/web/src/widgets/scene-viewport/**/*.{ts,tsx}'];
 const lazySceneCameraControlsChunkFiles: string[] = ['apps/web/src/widgets/scene-viewport/ui/controls/**/*.{ts,tsx}'];
 const lazyNetworkPageFiles: string[] = ['apps/web/src/pages/network/**/*.{ts,tsx}'];
@@ -143,7 +156,15 @@ const formSegmentRestriction: BoundaryRestrictionValue = {
 
 const formRestrictions: BoundaryRestrictionValue[] = [formPackageRestriction, formSegmentRestriction];
 
-const libraryRestrictions: BoundaryRestrictionValue[] = [...motionRestrictions, ...formRestrictions];
+const maskPackageRestriction: BoundaryRestrictionValue = {
+  importPattern: '^maska(/|$)',
+  message: 'The mask library is imported only inside shared/lib/mask; take createDigitMask from it in a lazy chunk',
+  selectorPattern: '^maska($|[^-a-z0-9_])',
+};
+
+const maskRestrictions: BoundaryRestrictionValue[] = [maskPackageRestriction];
+
+const libraryRestrictions: BoundaryRestrictionValue[] = [...motionRestrictions, ...formRestrictions, ...maskRestrictions];
 
 const apiTestingEntryRestriction: BoundaryRestrictionValue = {
   importPattern: '^@/shared/api/index\\.testing$',
@@ -253,13 +274,24 @@ const supportSectionImportRestriction: SceneImportRestrictionValue = {
   regex: '(^|/)supportSection$',
 };
 
+const maskSegmentImportRestriction: SceneImportRestrictionValue = {
+  message: 'shared/lib/mask pulls the mask library into the bundle; create a mask only in a lazy chunk of a form and pass it '
+    + 'to the field as a prop; use import type',
+  regex: '^@/shared/lib/mask(/|$)',
+};
+
 const sectionCatalogImportRestrictions: SceneImportRestrictionValue[] = [sectionCatalogImportRestriction];
 
-const sourceBoundaryImportRestrictions: SceneImportRestrictionValue[] = [
+const chunkBoundaryImportRestrictions: SceneImportRestrictionValue[] = [
   ...sceneBoundaryImportRestrictions,
   ...sectionCatalogImportRestrictions,
   showcaseDescriptorImportRestriction,
   profileDescriptorImportRestriction,
+];
+
+const sourceBoundaryImportRestrictions: SceneImportRestrictionValue[] = [
+  ...chunkBoundaryImportRestrictions,
+  maskSegmentImportRestriction,
 ];
 
 const lazyModuleMessageSuffix = 'is loaded lazily through import(); a static value import pulls it into the initial bundle; '
@@ -318,6 +350,11 @@ const changeAvatarLazyRestriction: LazyModuleRestrictionValue = {
 const profileMyProfileChunkLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'the profile plate chunk',
   regex: '(^|/)my-profile(/|$)',
+};
+
+const editRequisitesPanelChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the requisites panel chunk',
+  regex: '(^|/)panel(/|$)',
 };
 
 const createWarehouseFormChunkLazyRestriction: LazyModuleRestrictionValue = {
@@ -781,24 +818,65 @@ export default defineConfig(
   {
     files: motionSegmentFiles,
     rules: createBoundaryRules(
-      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...formRestrictions],
+      [
+        engineRestriction,
+        registryRestriction,
+        apiTestingEntryRestriction,
+        routingTestingEntryRestriction,
+        ...formRestrictions,
+        ...maskRestrictions,
+      ],
       webSourceSyntaxRestrictions,
     ),
   },
   {
     files: motionSegmentTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction, ...formRestrictions], webSyntaxRestrictions),
+    rules: createBoundaryRules(
+      [engineRestrictionForTests, registryRestriction, ...formRestrictions, ...maskRestrictions],
+      webSyntaxRestrictions,
+    ),
   },
   {
     files: formSegmentFiles,
     rules: createBoundaryRules(
-      [engineRestriction, registryRestriction, apiTestingEntryRestriction, routingTestingEntryRestriction, ...motionRestrictions],
+      [
+        engineRestriction,
+        registryRestriction,
+        apiTestingEntryRestriction,
+        routingTestingEntryRestriction,
+        ...motionRestrictions,
+        ...maskRestrictions,
+      ],
       webSourceSyntaxRestrictions,
     ),
   },
   {
     files: formSegmentTestFiles,
-    rules: createBoundaryRules([engineRestrictionForTests, registryRestriction, ...motionRestrictions], webSyntaxRestrictions),
+    rules: createBoundaryRules(
+      [engineRestrictionForTests, registryRestriction, ...motionRestrictions, ...maskRestrictions],
+      webSyntaxRestrictions,
+    ),
+  },
+  {
+    files: maskSegmentFiles,
+    rules: createBoundaryRules(
+      [
+        engineRestriction,
+        registryRestriction,
+        apiTestingEntryRestriction,
+        routingTestingEntryRestriction,
+        ...motionRestrictions,
+        ...formRestrictions,
+      ],
+      webSourceSyntaxRestrictions,
+    ),
+  },
+  {
+    files: maskSegmentTestFiles,
+    rules: createBoundaryRules(
+      [engineRestrictionForTests, registryRestriction, ...motionRestrictions, ...formRestrictions],
+      webSyntaxRestrictions,
+    ),
   },
   {
     files: lazyProfileMenuChunkFiles,
@@ -810,6 +888,7 @@ export default defineConfig(
         routingTestingEntryRestriction,
         motionPackageRestriction,
         ...formRestrictions,
+        ...maskRestrictions,
       ],
       webSourceSyntaxRestrictions,
     ),
@@ -817,7 +896,7 @@ export default defineConfig(
   {
     files: lazyProfileMenuChunkTestFiles,
     rules: createBoundaryRules(
-      [engineRestrictionForTests, registryRestriction, motionPackageRestriction, ...formRestrictions],
+      [engineRestrictionForTests, registryRestriction, motionPackageRestriction, ...formRestrictions, ...maskRestrictions],
       webSyntaxRestrictions,
     ),
   },
@@ -831,12 +910,34 @@ export default defineConfig(
         routingTestingEntryRestriction,
         ...motionRestrictions,
         formPackageRestriction,
+        ...maskRestrictions,
       ],
       webSourceSyntaxRestrictions,
     ),
   },
   {
     files: lazyCreateWarehouseFormTestFiles,
+    rules: createBoundaryRules(
+      [engineRestrictionForTests, registryRestriction, ...motionRestrictions, formPackageRestriction, ...maskRestrictions],
+      webSyntaxRestrictions,
+    ),
+  },
+  {
+    files: lazyEditRequisitesFormFiles,
+    rules: createBoundaryRules(
+      [
+        engineRestriction,
+        registryRestriction,
+        apiTestingEntryRestriction,
+        routingTestingEntryRestriction,
+        ...motionRestrictions,
+        formPackageRestriction,
+      ],
+      webSourceSyntaxRestrictions,
+    ),
+  },
+  {
+    files: lazyEditRequisitesFormTestFiles,
     rules: createBoundaryRules(
       [engineRestrictionForTests, registryRestriction, ...motionRestrictions, formPackageRestriction],
       webSyntaxRestrictions,
@@ -924,6 +1025,16 @@ export default defineConfig(
     files: lazyCreateWarehouseFeatureFiles,
     ignores: [...webTestFiles, ...lazyCreateWarehouseFormFiles, ...sceneSegmentFiles],
     rules: createLazyModuleRules([createWarehouseFormChunkLazyRestriction], sourceBoundaryImportRestrictions),
+  },
+  {
+    files: lazyEditRequisitesFeatureFiles,
+    ignores: [...webTestFiles, ...lazyEditRequisitesFormFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([editRequisitesPanelChunkLazyRestriction], sourceBoundaryImportRestrictions),
+  },
+  {
+    files: lazyEditRequisitesFormFiles,
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([], chunkBoundaryImportRestrictions),
   },
   {
     files: lazyNetworkPageFiles,

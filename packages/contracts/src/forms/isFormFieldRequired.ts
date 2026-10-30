@@ -3,6 +3,7 @@ import type {
   FormRulesValue,
 } from './formRuleTypes';
 
+import { checkStringRule } from './checkStringRule';
 import { getFormField } from './getFormField';
 
 const isEmptyForbiddenByRules = (field: FormFieldRulesValue): boolean => {
@@ -14,7 +15,7 @@ const isEmptyForbiddenByRules = (field: FormFieldRulesValue): boolean => {
     case 'repeated':
       return (field.minItems ?? 0) >= 1;
     case 'string':
-      return (field.minLen ?? 0) >= 1 || (field.len ?? 0) >= 1 || field.isUuid === true;
+      return checkStringRule(field, '').length > 0;
   }
 };
 

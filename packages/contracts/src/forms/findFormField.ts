@@ -1,6 +1,6 @@
 import type { FormRulesValue } from './formRuleTypes';
 
-const FIELD_PATH_PATTERN = /^([A-Za-z_][A-Za-z0-9_]*)(\[\d+\])?$/;
+const FIELD_PATH_PATTERN = /^([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)(\[\d+\])?$/;
 
 export const findFormField = (rules: FormRulesValue, fieldPath: string): string | undefined => {
   const match = FIELD_PATH_PATTERN.exec(fieldPath);

@@ -1,12 +1,4 @@
-const isPlainRecord = (value: unknown): value is Record<string, unknown> => {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-
-  const prototype: unknown = Object.getPrototypeOf(value);
-
-  return prototype === Object.prototype || prototype === null;
-};
+import { isPlainRecord } from './isPlainRecord';
 
 export const areFormValuesEqual = (current: unknown, prev: unknown): boolean => {
   if (Object.is(current, prev)) {

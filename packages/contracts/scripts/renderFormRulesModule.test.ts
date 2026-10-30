@@ -100,6 +100,23 @@ describe('renderFormRulesLiteral', () => {
     expect(literal).toContain('ok_1: 2');
   });
 
+  it('quotes dotted keys of nested fields and renders the check object sorted', () => {
+    const table = {
+      fields: {
+        'bank.settlementAccount': {
+          check: { kind: 'settlementAccount', peerField: 'bank.bik' },
+          kind: 'string',
+          protoName: 'bank.settlement_account',
+        },
+      },
+    };
+    const literal = renderFormRulesLiteral(table);
+
+    expect(literal).toContain('"bank.settlementAccount": {');
+    expect(literal).toContain('check: {\n        kind: "settlementAccount",\n        peerField: "bank.bik",\n      },');
+    expect(evaluateLiteral(literal)).toEqual(table);
+  });
+
   it('puts primitive lists on one line and lists of objects on separate lines', () => {
     expect(renderFormRulesLiteral({ list: [0, 1, 2] })).toBe('{\n  list: [0, 1, 2],\n}');
     expect(renderFormRulesLiteral({ list: [] })).toBe('{\n  list: [],\n}');

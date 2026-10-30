@@ -1,12 +1,19 @@
 import type {
   ChangeEventHandler,
   FocusEventHandler,
+  InputEventHandler,
   InputHTMLAttributes,
   ReactElement,
   Ref,
 } from 'react';
 
-import { useId } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+} from 'react';
+
+import type { InputMaskValue } from '@/shared/lib/mask';
 
 import { cn } from '@/shared/lib/cn';
 
@@ -50,11 +57,14 @@ export interface TextFieldProps {
   isOptional?: boolean | undefined;
   isReadOnly?: boolean | undefined;
   label: string;
+  mask?: InputMaskValue | undefined;
   name: string;
   onBlur?: FocusEventHandler<HTMLInputElement> | undefined;
   onChange?: ChangeEventHandler<HTMLInputElement> | undefined;
+  onInput?: InputEventHandler<HTMLInputElement> | undefined;
   placeholder?: string | undefined;
   ref?: Ref<HTMLInputElement> | undefined;
+  spellCheck?: boolean | undefined;
   type?: 'email' | 'tel' | 'text' | 'url' | undefined;
 }
 
@@ -68,19 +78,52 @@ export const TextField = ({
   isOptional = false,
   isReadOnly = false,
   label,
+  mask,
   name,
   onBlur,
   onChange,
+  onInput,
   placeholder,
   ref,
+  spellCheck,
   type = 'text',
 }: TextFieldProps): ReactElement => {
   const controlId = useId();
   const messageId = `${controlId}-message`;
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const isInvalid = error !== undefined;
   const isMessageShown = isInvalid || hint !== undefined;
   const borderClassName = getFieldBorderClassName({ isInvalid, isReadOnly });
+
+  const handleRef = (instance: HTMLInputElement | null): void => {
+    inputRef.current = instance;
+
+    if (typeof ref === 'function') {
+      ref(instance);
+    }
+    else if (ref !== undefined && ref !== null) {
+      ref.current = instance;
+    }
+  };
+
+  useEffect(() => {
+    const input = inputRef.current;
+
+    if (mask === undefined || input === null) {
+      return undefined;
+    }
+
+    return mask.attach(input);
+  }, [mask]);
+
+  useEffect(() => {
+    const input = inputRef.current;
+
+    if (mask !== undefined && input !== null) {
+      mask.refresh(input);
+    }
+  });
 
   return (
     <FieldFrame
@@ -100,13 +143,15 @@ export const TextField = ({
         defaultValue={defaultValue}
         enterKeyHint={enterKeyHint}
         id={controlId}
-        inputMode={inputMode}
+        inputMode={inputMode ?? mask?.inputMode}
         name={name}
         onBlur={onBlur}
         onChange={onChange}
-        placeholder={placeholder ?? EMPTY_PLACEHOLDER}
+        onInput={onInput}
+        placeholder={placeholder ?? mask?.template ?? EMPTY_PLACEHOLDER}
         readOnly={isReadOnly}
-        ref={ref}
+        ref={mask === undefined ? ref : handleRef}
+        spellCheck={spellCheck ?? (mask === undefined ? undefined : false)}
         type={type}
       />
     </FieldFrame>

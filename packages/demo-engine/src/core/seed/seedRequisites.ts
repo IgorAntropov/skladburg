@@ -1,5 +1,9 @@
 import { create } from '@bufbuild/protobuf';
 import {
+  type CalendarDate,
+  CalendarDateSchema,
+} from '@skladburg/contracts/common/v1/date';
+import {
   BankAccountSchema,
   type OrganizationRequisites,
   OrganizationRequisitesSchema,
@@ -16,12 +20,6 @@ import {
   YEKATERINBURG_TIME_ZONE,
 } from './seedNetwork';
 
-interface SeedCalendarDateValue {
-  day: number;
-  month: number;
-  year: number;
-}
-
 interface SeedRequisitesDefinitionValue {
   legalAddress: string;
   organizationId: string;
@@ -36,7 +34,7 @@ interface SeedSignatoryDefinitionValue {
   id: string;
   isDefault: boolean;
   position: string;
-  powerOfAttorneyDate?: SeedCalendarDateValue;
+  powerOfAttorneyDate?: CalendarDate;
   powerOfAttorneyNumber?: string;
 }
 
@@ -80,7 +78,7 @@ const SEED_REQUISITES_DEFINITIONS: readonly SeedRequisitesDefinitionValue[] = [
         id: 'c0000012-0000-4000-8000-000000000000',
         isDefault: false,
         position: 'коммерческий директор',
-        powerOfAttorneyDate: { day: 12, month: 1, year: 2026 },
+        powerOfAttorneyDate: create(CalendarDateSchema, { day: 12, month: 1, year: 2026 }),
         powerOfAttorneyNumber: '7',
       },
     ],

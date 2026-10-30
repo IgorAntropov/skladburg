@@ -4,7 +4,9 @@ import type {
   ResolverResult,
 } from 'react-hook-form';
 
+import { runFieldCheck } from '@skladburg/contracts/forms';
 import { CreateWarehouseRequestFormRules } from '@skladburg/contracts/forms/organization/v1/organization';
+import { UpdateOrganizationRequisitesRequestFormRules } from '@skladburg/contracts/forms/organization/v1/requisites';
 import {
   describe,
   expect,
@@ -57,6 +59,37 @@ const NUMBER_RULES = {
 } as const satisfies FormRulesValue;
 
 const NUMBER_FIELDS = ['kind', 'kinds', 'note', 'quantity', 'volume'];
+
+const REQUISITES_FIELDS = [
+  'bank.bankName',
+  'bank.bik',
+  'bank.correspondentAccount',
+  'bank.settlementAccount',
+  'legalAddress',
+  'vatMode',
+];
+
+const validRequisites = (bankOverrides: TestValues = {}, overrides: TestValues = {}): TestValues => ({
+  bank: {
+    bankName: 'Банк «Север»',
+    bik: '040000501',
+    correspondentAccount: '30101810600000000501',
+    settlementAccount: '40702810300000000001',
+    ...bankOverrides,
+  },
+  legalAddress: 'г. Вымышленск, ул. Тестовая, д. 1',
+  vatMode: '1',
+  ...overrides,
+});
+
+const resolveRequisites = async (
+  values: TestValues,
+  options?: Parameters<typeof createContractResolver>[2],
+): Promise<ResolverResult<TestValues>> => createContractResolver<TestValues>(
+  UpdateOrganizationRequisitesRequestFormRules,
+  REQUISITES_FIELDS,
+  options,
+)(values, undefined, OPTIONS);
 
 const validWarehouse = (overrides: TestValues = {}): TestValues => ({
   address: '',
@@ -247,6 +280,63 @@ describe('createContractResolver', () => {
       const result = await resolveWarehouse(validWarehouse({ address: '' }));
 
       expect(result.values).toHaveProperty('address', '');
+    });
+  });
+
+  describe('nested fields', () => {
+    it('returns the nested values with the coerced numbers and without errors', async () => {
+      const result = await resolveRequisites(validRequisites());
+
+      expect(result.errors).toEqual({});
+      expect(result.values).toEqual({
+        bank: validRequisites().bank,
+        legalAddress: 'г. Вымышленск, ул. Тестовая, д. 1',
+        vatMode: 1,
+      });
+    });
+
+    it('does not change the nested values it was given', async () => {
+      const values = validRequisites();
+
+      await resolveRequisites(values);
+
+      expect(values).toEqual(validRequisites());
+    });
+
+    it('reports a violation of a nested field under the nested path', async () => {
+      const result = await resolveRequisites(validRequisites({ bankName: '', bik: '12' }));
+
+      expect(result.errors).toEqual({
+        bank: {
+          bankName: { type: 'required' },
+          bik: { type: 'string.pattern' },
+        },
+      });
+      expect(result.values).toEqual({});
+    });
+
+    it('does not run a check when the check runner is not given', async () => {
+      const result = await resolveRequisites(validRequisites({ settlementAccount: '40702810400000000001' }));
+
+      expect(result.errors).toEqual({});
+    });
+
+    it('reports a failed check of a nested field with the rule id of the check', async () => {
+      const result = await resolveRequisites(
+        validRequisites({ settlementAccount: '40702810400000000001' }),
+        { runCheck: runFieldCheck },
+      );
+
+      expect(result.errors).toEqual({ bank: { settlementAccount: { type: 'field_check.settlement_account' } } });
+    });
+
+    it('does not check an account while the BIK next to it breaks its own rules', async () => {
+      const result = await resolveRequisites(
+        validRequisites({ bik: '12', settlementAccount: '40702810400000000001' }),
+        { runCheck: runFieldCheck },
+      );
+
+      expect(result.errors).toEqual({ bank: { bik: { type: 'string.pattern' } } });
     });
   });
 });

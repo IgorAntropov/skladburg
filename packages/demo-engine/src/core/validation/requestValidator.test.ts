@@ -19,6 +19,11 @@ import {
   ListWarehousesRequestSchema,
   WarehouseCapability,
 } from '@skladburg/contracts/organization/v1/organization';
+import {
+  BankAccountSchema,
+  UpdateOrganizationRequisitesRequestSchema,
+  VatMode,
+} from '@skladburg/contracts/organization/v1/requisites';
 import { getContractRegistry } from '@skladburg/contracts/registry';
 import {
   describe,
@@ -52,6 +57,22 @@ const createWarehouseRequest = (
   name: 'Склад 1',
   timeZone: 'Europe/Moscow',
   ...overrides,
+});
+
+const createRequisitesRequest = (
+  overrides: Partial<MessageShape<typeof BankAccountSchema>> = {},
+): MessageShape<typeof UpdateOrganizationRequisitesRequestSchema> => create(UpdateOrganizationRequisitesRequestSchema, {
+  bank: create(BankAccountSchema, {
+    bankName: 'АО «Банк Складбург»',
+    bik: '040000501',
+    correspondentAccount: '30101810600000000501',
+    settlementAccount: '40702810300000000001',
+    ...overrides,
+  }),
+  expectedVersion: 1n,
+  idempotencyKey: UUID,
+  legalAddress: '000000, г. Москва, Чайный пер., д. 4',
+  vatMode: VatMode.GENERAL,
 });
 
 const captureError = (action: () => void): unknown => {
@@ -126,6 +147,61 @@ describe('createRequestValidator.collect', () => {
     expect(createValidatorForTest().collect(ListWarehousesRequestSchema, request)).toEqual([
       { fieldPath: 'page.page_size', ruleId: 'int32.gte_lte' },
     ]);
+  });
+});
+
+describe('createRequestValidator.collect field checks', () => {
+  const collectRequisites = (overrides: Partial<MessageShape<typeof BankAccountSchema>> = {}): ReturnType<IRequestValidator['collect']> =>
+    createValidatorForTest().collect(UpdateOrganizationRequisitesRequestSchema, createRequisitesRequest(overrides));
+
+  it('accepts accounts with a correct key', () => {
+    expect(collectRequisites()).toEqual([]);
+  });
+
+  it('adds the check violation of the nested settlement account after the violations of protovalidate', () => {
+    expect(collectRequisites({ settlementAccount: '40702810400000000001' })).toEqual([
+      { fieldPath: 'bank.settlement_account', ruleId: 'field_check.settlement_account' },
+    ]);
+  });
+
+  it('adds the check violation of the nested correspondent account', () => {
+    expect(collectRequisites({ correspondentAccount: '30101810700000000501' })).toEqual([
+      { fieldPath: 'bank.correspondent_account', ruleId: 'field_check.correspondent_account' },
+    ]);
+  });
+
+  it('keeps the violation of protovalidate and skips the check of the same field', () => {
+    expect(collectRequisites({ settlementAccount: '4070281040000000000' })).toEqual([
+      { fieldPath: 'bank.settlement_account', ruleId: 'string.pattern' },
+    ]);
+  });
+
+  it('skips the accounts while the BIK is wrong', () => {
+    expect(collectRequisites({ bik: '050000501', settlementAccount: '40702810400000000001' })).toEqual([
+      { fieldPath: 'bank.bik', ruleId: 'string.pattern' },
+    ]);
+  });
+
+  it('reports both protovalidate and check violations of different fields together', () => {
+    expect(collectRequisites({ bankName: '', settlementAccount: '40702810400000000001' })).toEqual([
+      { fieldPath: 'bank.bank_name', ruleId: 'required' },
+      { fieldPath: 'bank.settlement_account', ruleId: 'field_check.settlement_account' },
+    ]);
+  });
+
+  it('throws validation_failed with the check rule id in the detail', () => {
+    const error = captureError(() => {
+      createValidatorForTest().validate(
+        UpdateOrganizationRequisitesRequestSchema,
+        createRequisitesRequest({ settlementAccount: '40702810400000000001' }),
+      );
+    });
+    const details = ConnectError.from(error).findDetails(ErrorDetailSchema)[0];
+
+    expect(details?.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(details?.params.value).toMatchObject({
+      violations: [{ fieldPath: 'bank.settlement_account', ruleId: 'field_check.settlement_account' }],
+    });
   });
 });
 

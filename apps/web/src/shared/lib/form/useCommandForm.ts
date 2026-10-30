@@ -1,6 +1,7 @@
 import type {
   ChangeEvent,
   FocusEvent,
+  InputEvent,
   SyntheticEvent,
 } from 'react';
 import type {
@@ -32,9 +33,12 @@ import type {
   CommandFormOptionsValue,
   CommandFormValue,
   FormFieldBindingValue,
+  FormFieldOptionsValue,
 } from './commandFormTypes';
 
 import { areFormValuesEqual } from './areFormValuesEqual';
+import { collectErrorPaths } from './collectErrorPaths';
+import { collectFieldNames } from './collectFieldNames';
 import { createContractResolver } from './createContractResolver';
 import { focusTopmostField } from './focusTopmostField';
 import { mapServerViolations } from './mapServerViolations';
@@ -42,20 +46,22 @@ import { translateFieldViolation } from './translateFieldViolation';
 
 type FieldElementValue = HTMLInputElement | HTMLSelectElement;
 
-export const useCommandForm = <TValues extends FieldValues, TResult>(
-  options: CommandFormOptionsValue<TValues, TResult>,
-): CommandFormValue<TValues> => {
+export const useCommandForm = <TInput extends FieldValues, TResult, TOutput = TInput>(
+  options: CommandFormOptionsValue<TInput, TResult, TOutput>,
+): CommandFormValue<TInput> => {
   const {
     defaultValues,
     execute,
     method,
     onSuccess,
     rules,
+    runCheck,
+    translateViolation,
   } = options;
   const { t } = useI18n();
   const announce = useAnnounce();
-  const [fieldNames] = useState(() => Object.keys(defaultValues));
-  const [resolver] = useState(() => createContractResolver<TValues>(rules, fieldNames));
+  const [fieldNames] = useState(() => collectFieldNames(defaultValues));
+  const [resolver] = useState(() => createContractResolver<TInput, TOutput>(rules, fieldNames, { runCheck }));
   const {
     formState,
     getFieldState,
@@ -63,14 +69,14 @@ export const useCommandForm = <TValues extends FieldValues, TResult>(
     register,
     setError,
     subscribe,
-  } = useForm<TValues>({
+  } = useForm<TInput, unknown, TOutput>({
     defaultValues,
     mode: 'onSubmit',
     resolver,
     reValidateMode: 'onChange',
     shouldFocusError: false,
   });
-  const submittedValuesRef = useRef<TValues | undefined>(undefined);
+  const submittedValuesRef = useRef<TOutput | undefined>(undefined);
   const handledServerErrorRef = useRef<Error | null>(null);
   const fieldElementsRef = useRef(new Map<string, FieldElementValue>());
   const [unplacedError, setUnplacedError] = useState<Error | null>(null);
@@ -113,7 +119,7 @@ export const useCommandForm = <TValues extends FieldValues, TResult>(
       }
     : command;
 
-  const handleValidSubmit = (values: TValues): void => {
+  const handleValidSubmit = (values: TOutput): void => {
     console.log('> useCommandForm -> handleValidSubmit:', { isPending, method: method?.name });
 
     if (isPending) {
@@ -130,8 +136,8 @@ export const useCommandForm = <TValues extends FieldValues, TResult>(
     command.run();
   };
 
-  const handleInvalidSubmit = (errors: FieldErrors<TValues>): void => {
-    const invalidFields = Object.keys(errors);
+  const handleInvalidSubmit = (errors: FieldErrors<TInput>): void => {
+    const invalidFields = collectErrorPaths(errors);
 
     console.log('> useCommandForm -> handleInvalidSubmit:', { invalidCount: invalidFields.length, method: method?.name });
     focusTopmostField(fieldElementsRef.current, invalidFields);
@@ -142,17 +148,25 @@ export const useCommandForm = <TValues extends FieldValues, TResult>(
     void handleFormSubmit(handleValidSubmit, handleInvalidSubmit)(event);
   };
 
-  const isRequired = (name: Path<TValues>): boolean => isFormFieldRequired(rules, name);
+  const isRequired = (name: Path<TInput>): boolean => isFormFieldRequired(rules, name);
 
-  const getFieldProps = (name: Path<TValues>): FormFieldBindingValue => {
-    const registration = register(name);
+  const getFieldProps = (name: Path<TInput>, fieldOptions?: FormFieldOptionsValue): FormFieldBindingValue => {
+    const mask = fieldOptions?.mask;
+    const registration = mask === undefined ? register(name) : register(name, { setValueAs: mask.unmask });
     const errorType = getFieldState(name, formState).error?.type;
+    const errorText = errorType === undefined
+      ? undefined
+      : (translateViolation?.(errorType) ?? translateFieldViolation(t, errorType));
 
     const handleBlur = (event: FocusEvent<FieldElementValue>): void => {
       void registration.onBlur(event);
     };
 
     const handleChange = (event: ChangeEvent<FieldElementValue>): void => {
+      void registration.onChange(event);
+    };
+
+    const handleInput = (event: InputEvent<FieldElementValue>): void => {
       void registration.onChange(event);
     };
 
@@ -168,9 +182,10 @@ export const useCommandForm = <TValues extends FieldValues, TResult>(
     };
 
     return {
-      error: errorType === undefined ? undefined : translateFieldViolation(t, errorType),
+      error: errorText,
       isOptional: !isRequired(name),
       isReadOnly: isPending,
+      ...(mask === undefined ? {} : { mask, onInput: handleInput }),
       name: registration.name,
       onBlur: handleBlur,
       onChange: handleChange,
@@ -197,7 +212,7 @@ export const useCommandForm = <TValues extends FieldValues, TResult>(
       return;
     }
 
-    const isFieldPath = (candidate: string): candidate is Path<TValues> => fieldNames.includes(candidate);
+    const isFieldPath = (candidate: string): candidate is Path<TInput> => fieldNames.includes(candidate);
     const issueFields = serverMapping.fieldIssues.map(issue => issue.field);
     const isEveryFieldMounted = issueFields.every(field => fieldElementsRef.current.has(field));
 

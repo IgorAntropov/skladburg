@@ -5,10 +5,13 @@ import {
 } from 'vitest';
 
 import type {
+  FieldCheckRunnerValue,
+  FormFieldIssueValue,
   FormFieldRulesValue,
   FormRulesValue,
 } from './formRuleTypes';
 
+import { runFieldCheck } from './checks/runFieldCheck';
 import { validateFormValues } from './validateFormValues';
 
 const singleField = (field: FormFieldRulesValue): FormRulesValue => ({ fields: { value: field } });
@@ -486,5 +489,181 @@ describe('validateFormValues: field selection', () => {
 
   it('returns nothing for valid values', () => {
     expect(validateFormValues(rules, { first: 'a', second: 'b' }, ['first', 'second'])).toEqual([]);
+  });
+});
+
+describe('validateFormValues: field checks', () => {
+  const validateWithChecks = (
+    rules: FormRulesValue,
+    values: Readonly<Record<string, unknown>>,
+    fieldNames: readonly string[],
+  ): FormFieldIssueValue[] => validateFormValues(rules, values, fieldNames, { runCheck: runFieldCheck });
+
+  const rules: FormRulesValue = {
+    fields: {
+      'bank.bik': {
+        check: { kind: 'bik' },
+        kind: 'string',
+        pattern: '^04[0-9]{7}$',
+        protoName: 'bank.bik',
+      },
+      'bank.correspondentAccount': {
+        check: { kind: 'correspondentAccount', peerField: 'bank.bik' },
+        kind: 'string',
+        pattern: '^[0-9]{20}$',
+        protoName: 'bank.correspondent_account',
+      },
+      'bank.settlementAccount': {
+        check: { kind: 'settlementAccount', peerField: 'bank.bik' },
+        kind: 'string',
+        pattern: '^[0-9]{20}$',
+        protoName: 'bank.settlement_account',
+      },
+      'inn': {
+        check: { kind: 'inn' },
+        kind: 'string',
+        maxLen: 12,
+        protoName: 'inn',
+      },
+    },
+  };
+  const names = ['bank.bik', 'bank.settlementAccount', 'bank.correspondentAccount', 'inn'];
+  const validValues = {
+    'bank.bik': '040000777',
+    'bank.correspondentAccount': '30101810900000000777',
+    'bank.settlementAccount': '40702810700000000123',
+    'inn': '0000000018',
+  };
+
+  it('accepts correct values', () => {
+    expect(validateWithChecks(rules, validValues, names)).toEqual([]);
+  });
+
+  it('reports the rule id of a failed check', () => {
+    expect(validateWithChecks(rules, { ...validValues, inn: '0000000019' }, names)).toEqual([
+      { field: 'inn', ruleId: 'field_check.inn' },
+    ]);
+    expect(validateWithChecks(rules, { ...validValues, 'bank.settlementAccount': '40702810800000000123' }, names)).toEqual([
+      { field: 'bank.settlementAccount', ruleId: 'field_check.settlement_account' },
+    ]);
+    expect(validateWithChecks(rules, { ...validValues, 'bank.correspondentAccount': '30101810800000000777' }, names)).toEqual([
+      { field: 'bank.correspondentAccount', ruleId: 'field_check.correspondent_account' },
+    ]);
+  });
+
+  it('does not check an empty value', () => {
+    expect(validateWithChecks(rules, { ...validValues, inn: '' }, names)).toEqual([]);
+    expect(validateWithChecks(rules, { ...validValues, 'bank.settlementAccount': '' }, names)).toEqual([
+      { field: 'bank.settlementAccount', ruleId: 'string.pattern' },
+    ]);
+  });
+
+  it('does not run the check of a field that already broke its own rules', () => {
+    expect(validateWithChecks(rules, { ...validValues, inn: '0000000019000' }, names)).toEqual([
+      { field: 'inn', ruleId: 'string.max_len' },
+    ]);
+    expect(validateWithChecks(rules, { ...validValues, 'bank.settlementAccount': '4070281080000000012' }, names)).toEqual([
+      { field: 'bank.settlementAccount', ruleId: 'string.pattern' },
+    ]);
+  });
+
+  it('skips an account while the BIK is empty or broke its rules or its check', () => {
+    const wrongAccounts = {
+      'bank.correspondentAccount': '30101810800000000777',
+      'bank.settlementAccount': '40702810800000000123',
+    };
+
+    expect(validateWithChecks(rules, { ...wrongAccounts, 'bank.bik': '' }, names)).toEqual([
+      { field: 'bank.bik', ruleId: 'string.pattern' },
+    ]);
+    expect(validateWithChecks(rules, { ...wrongAccounts, 'bank.bik': '' }, ['bank.settlementAccount'])).toEqual([]);
+    expect(validateWithChecks(rules, { ...wrongAccounts, 'bank.bik': '04000077' }, names)).toEqual([
+      { field: 'bank.bik', ruleId: 'string.pattern' },
+    ]);
+    expect(validateWithChecks(rules, wrongAccounts, ['bank.settlementAccount', 'bank.correspondentAccount'])).toEqual([]);
+  });
+
+  it('reads the BIK of the neighbour even when the BIK is not among the checked names', () => {
+    expect(validateWithChecks(
+      rules,
+      { 'bank.bik': '040000777', 'bank.settlementAccount': '40702810800000000123' },
+      ['bank.settlementAccount'],
+    )).toEqual([{ field: 'bank.settlementAccount', ruleId: 'field_check.settlement_account' }]);
+  });
+
+  it('does not run the check of a field that only the server checks', () => {
+    const serverOnly: FormRulesValue = {
+      fields: { inn: { check: { kind: 'inn' }, isServerOnly: true, kind: 'string', protoName: 'inn' } },
+    };
+
+    expect(validateWithChecks(serverOnly, { inn: '0000000019' }, ['inn'])).toEqual([]);
+  });
+
+  it('ignores a value that is not a string', () => {
+    expect(validateWithChecks(rules, { ...validValues, inn: 5 }, ['inn'])).toEqual([]);
+    expect(validateWithChecks(rules, { ...validValues, inn: undefined }, ['inn'])).toEqual([]);
+  });
+
+  it('does not run the check of a field with ignore always', () => {
+    const ignored: FormRulesValue = {
+      fields: { inn: { check: { kind: 'inn' }, ignore: 'always', kind: 'string', protoName: 'inn' } },
+    };
+
+    expect(validateWithChecks(ignored, { inn: '0000000019' }, ['inn'])).toEqual([]);
+  });
+});
+
+describe('validateFormValues: without a check runner', () => {
+  const rules: FormRulesValue = {
+    fields: {
+      'bank.bik': {
+        check: { kind: 'bik' },
+        kind: 'string',
+        pattern: '^04[0-9]{7}$',
+        protoName: 'bank.bik',
+      },
+      'bank.settlementAccount': {
+        check: { kind: 'settlementAccount', peerField: 'bank.bik' },
+        kind: 'string',
+        pattern: '^[0-9]{20}$',
+        protoName: 'bank.settlement_account',
+      },
+      'inn': {
+        check: { kind: 'inn' },
+        kind: 'string',
+        maxLen: 12,
+        protoName: 'inn',
+      },
+    },
+  };
+  const names = ['bank.bik', 'bank.settlementAccount', 'inn'];
+  const wrongValues = {
+    'bank.bik': '040000777',
+    'bank.settlementAccount': '40702810800000000123',
+    'inn': '0000000019',
+  };
+
+  it('leaves the checksum to the server and keeps the own rules', () => {
+    expect(validateFormValues(rules, wrongValues, names)).toEqual([]);
+    expect(validateFormValues(rules, wrongValues, names, {})).toEqual([]);
+    expect(validateFormValues(rules, wrongValues, names, { runCheck: undefined })).toEqual([]);
+    expect(validateFormValues(rules, { ...wrongValues, inn: '0000000019000' }, names)).toEqual([
+      { field: 'inn', ruleId: 'string.max_len' },
+    ]);
+  });
+
+  it('runs the given runner only for fields without own violations', () => {
+    const calls: string[] = [];
+    const runCheck: FieldCheckRunnerValue = (check, value, peerValue) => {
+      calls.push(`${check.kind}:${value}:${peerValue ?? '-'}`);
+
+      return `custom.${check.kind}`;
+    };
+
+    expect(validateFormValues(rules, { ...wrongValues, inn: '0000000019000' }, names, { runCheck })).toEqual([
+      { field: 'bank.bik', ruleId: 'custom.bik' },
+      { field: 'inn', ruleId: 'string.max_len' },
+    ]);
+    expect(calls).toEqual(['bik:040000777:-', 'bik:040000777:-']);
   });
 });

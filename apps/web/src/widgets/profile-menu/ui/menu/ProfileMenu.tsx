@@ -3,7 +3,9 @@ import type {
   Ref,
 } from 'react';
 
+import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import {
+  Building2,
   RotateCcw,
   UserRound,
 } from 'lucide-react';
@@ -14,6 +16,8 @@ import {
 
 import type { AppSectionValue } from '@/shared/routing';
 
+import { useCan } from '@/entities/session';
+import { useRequisitesView } from '@/features/edit-requisites';
 import {
   InstallAppMenuItem,
   useIsInstallAppAvailable,
@@ -25,9 +29,13 @@ import {
 import { GraphicsMenuRadioGroup } from '@/features/scene-settings';
 import { PersonaMenuGroups } from '@/features/switch-persona';
 import { ThemeMenuRadioGroup } from '@/features/switch-theme';
-import { useDemoControl } from '@/shared/api';
+import {
+  useActingContext,
+  useDemoControl,
+} from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
 import { useViewportClass } from '@/shared/lib/viewport';
+import { useNavigate } from '@/shared/routing';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -94,6 +102,10 @@ const ProfileMenuItems = ({
 }: ProfileMenuItemsProps): ReactElement => {
   const { t } = useI18n();
   const demoControl = useDemoControl();
+  const { organizationId } = useActingContext();
+  const canViewNetwork = useCan(PermissionCode.NETWORK_VIEW);
+  const navigate = useNavigate();
+  const { open: openRequisites } = useRequisitesView();
   const viewportClass = useViewportClass();
   const isDemoResetAvailable = useIsDemoResetAvailable();
   const isInstallAppAvailable = useIsInstallAppAvailable();
@@ -108,6 +120,17 @@ const ProfileMenuItems = ({
   const handleMyProfileSelect = (): void => {
     console.log('> ProfileMenu -> handleMyProfileSelect:', {});
     onMyProfileRequest();
+  };
+
+  const handleMyCompanySelect = (): void => {
+    console.log('> ProfileMenu -> handleMyCompanySelect:', { organizationId });
+
+    if (organizationId === undefined) {
+      return;
+    }
+
+    navigate({ kind: 'object', object: { id: organizationId, type: 'organization' } });
+    openRequisites();
   };
 
   const handleResetSelect = (): void => {
@@ -130,6 +153,12 @@ const ProfileMenuItems = ({
           <UserRound aria-hidden className="size-4 shrink-0 text-on-panel-muted" />
           {t('profile.myProfile.menuItem')}
         </DropdownMenuItem>
+        {canViewNetwork && (
+          <DropdownMenuItem onSelect={handleMyCompanySelect} testId="profile-menu-my-company">
+            <Building2 aria-hidden className="size-4 shrink-0 text-on-panel-muted" />
+            {t('profile.myCompany.menuItem')}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
       </div>
       {isScrollPartShown && (

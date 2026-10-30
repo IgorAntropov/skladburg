@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package common.v1;
+
+import "google/protobuf/descriptor.proto";
+
+enum FieldCheck {
+  FIELD_CHECK_UNSPECIFIED = 0;
+  FIELD_CHECK_INN = 1;
+  FIELD_CHECK_KPP = 2;
+  FIELD_CHECK_OGRN = 3;
+  FIELD_CHECK_BIK = 4;
+  FIELD_CHECK_SETTLEMENT_ACCOUNT = 5;
+  FIELD_CHECK_CORRESPONDENT_ACCOUNT = 6;
+}
+
+extend google.protobuf.FieldOptions {
+  FieldCheck field_check = 50004;
+}

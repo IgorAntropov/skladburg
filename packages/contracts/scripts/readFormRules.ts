@@ -1,4 +1,5 @@
 import type {
+  DescExtension,
   DescField,
   DescFile,
   DescMessage,
@@ -21,6 +22,7 @@ import type {
 } from '@bufbuild/protovalidate/gen/buf/validate/validate_pb.js';
 
 import {
+  create,
   getOption,
   hasOption,
   isFieldSet,
@@ -50,6 +52,7 @@ import {
 
 import type {
   FormEnumRuleValue,
+  FormFieldCheckValue,
   FormFieldCommonValue,
   FormFieldRulesValue,
   FormIgnoreValue,
@@ -61,6 +64,7 @@ import type {
   FormStringRuleValue,
 } from '../src/forms/formRuleTypes.ts';
 
+import { toFieldCheckKind } from '../src/forms/checks/fieldCheckKinds.ts';
 import { isPortableRegexPattern } from './isPortableRegexPattern.ts';
 
 export interface MessageFormRulesValue {
@@ -428,33 +432,67 @@ const hasExplicitPresence = (field: DescField): boolean =>
 const readFieldRule = (
   field: DescField,
   type: TypedRulesValue,
+  protoName: string,
 ): { isServerOnly: boolean; rule: FormFieldRulesValue } => {
   if (field.fieldKind === 'list') {
     const result = readRepeatedRule(field, type);
 
-    return { isServerOnly: result.isServerOnly, rule: { ...result.rule, protoName: field.name } };
+    return { isServerOnly: result.isServerOnly, rule: { ...result.rule, protoName } };
   }
 
   const element = describeElement(field);
 
   if (element === undefined) {
-    return { isServerOnly: true, rule: { kind: 'opaque', protoName: field.name } };
+    return { isServerOnly: true, rule: { kind: 'opaque', protoName } };
   }
 
   const result = readElementRule(element, type);
 
-  return { isServerOnly: result.isServerOnly, rule: { ...result.rule, protoName: field.name } };
+  return { isServerOnly: result.isServerOnly, rule: { ...result.rule, protoName } };
 };
 
-const readField = (field: DescField, isInMessageOneof: boolean): FormFieldRulesValue | undefined => {
-  if (!hasOption(field, fieldRulesExtension)) {
+const readFieldCheckKind = (field: DescField, extension: DescExtension): FormFieldCheckValue | undefined => {
+  if (extension.fieldKind !== 'enum' || !hasOption(field, extension)) {
     return undefined;
   }
 
-  const fieldRules = getOption(field, fieldRulesExtension);
-  const result = readFieldRule(field, fieldRules.type);
-  const common: FormFieldCommonValue = { protoName: field.name };
+  const value: unknown = getOption(field, extension);
+  const enumValueName = extension.enum.values.find(candidate => candidate.number === value)?.name;
+  const kind = enumValueName === undefined ? undefined : toFieldCheckKind(enumValueName);
+
+  if (kind === undefined) {
+    return undefined;
+  }
+
+  const isString = field.fieldKind === 'scalar' && field.scalar === ScalarType.STRING;
+
+  if (!isString) {
+    throw new Error(`The field check ${kind} of ${field.parent.typeName}.${field.name} needs a string field`);
+  }
+
+  return { kind };
+};
+
+const readField = (
+  field: DescField,
+  isInMessageOneof: boolean,
+  protoName: string,
+  check: FormFieldCheckValue | undefined,
+): FormFieldRulesValue | undefined => {
+  const hasRules = hasOption(field, fieldRulesExtension);
+
+  if (!hasRules && check === undefined) {
+    return undefined;
+  }
+
+  const fieldRules = hasRules ? getOption(field, fieldRulesExtension) : create(FieldRulesSchema);
+  const result = readFieldRule(field, fieldRules.type, protoName);
+  const common: FormFieldCommonValue = { protoName };
   const ignore = readIgnore(fieldRules, isInMessageOneof);
+
+  if (check !== undefined) {
+    common.check = check;
+  }
 
   if (hasExplicitPresence(field)) {
     common.hasPresence = true;
@@ -486,20 +524,116 @@ const hasServerOnlyMessageRules = (message: DescMessage): boolean => {
     || hasRequiredOneof;
 };
 
-export const readMessageFormRules = (message: DescMessage): FormRulesValue | undefined => {
-  const messageRules = getOption(message, messageRulesExtension);
-  const messageOneofFields = new Set(messageRules.oneof.flatMap(rule => rule.fields));
-  const fields: Record<string, FormFieldRulesValue> = {};
+interface MessageReadValue {
+  fields: Record<string, FormFieldRulesValue>;
+  hasServerOnlyMessageRules: boolean;
+}
 
-  for (const field of message.fields) {
-    const fieldRules = readField(field, messageOneofFields.has(field.name));
+interface NestingValue {
+  ancestors: readonly string[];
+  keyPrefix: string;
+  protoPrefix: string;
+}
 
-    if (fieldRules !== undefined) {
-      fields[field.localName] = fieldRules;
-    }
+const MAX_NESTING_DEPTH = 3;
+
+const resolvePeerFields = (
+  message: DescMessage,
+  nesting: NestingValue,
+  extension: DescExtension,
+): Map<string, string> => {
+  const peers = new Map<string, string>();
+  const bikFields = message.fields.filter(field => readFieldCheckKind(field, extension)?.kind === 'bik');
+  const accountFields = message.fields.filter((field) => {
+    const kind = readFieldCheckKind(field, extension)?.kind;
+
+    return kind === 'settlementAccount' || kind === 'correspondentAccount';
+  });
+
+  if (bikFields.length > 1) {
+    throw new Error(`${message.typeName} has ${String(bikFields.length)} fields with the BIK check, an account needs exactly one`);
   }
 
-  if (hasServerOnlyMessageRules(message)) {
+  const [bikField] = bikFields;
+
+  for (const account of accountFields) {
+    if (bikField === undefined) {
+      throw new Error(`${message.typeName}.${account.name} has an account check but no field with the BIK check`);
+    }
+
+    peers.set(account.name, `${nesting.keyPrefix}${bikField.localName}`);
+  }
+
+  return peers;
+};
+
+const readMessageFields = (
+  message: DescMessage,
+  nesting: NestingValue,
+  extension: DescExtension,
+): MessageReadValue => {
+  const messageRules = getOption(message, messageRulesExtension);
+  const messageOneofFields = new Set(messageRules.oneof.flatMap(rule => rule.fields));
+  const peers = resolvePeerFields(message, nesting, extension);
+  const result: MessageReadValue = { fields: {}, hasServerOnlyMessageRules: false };
+
+  for (const field of message.fields) {
+    const key = `${nesting.keyPrefix}${field.localName}`;
+    const protoName = `${nesting.protoPrefix}${field.name}`;
+    const check = readFieldCheckKind(field, extension);
+    const peerField = peers.get(field.name);
+    const fieldCheck = check === undefined || peerField === undefined ? check : { ...check, peerField };
+    const ownRules = readField(field, messageOneofFields.has(field.name), protoName, fieldCheck);
+
+    if (ownRules !== undefined) {
+      result.fields[key] = ownRules;
+    }
+
+    const isNestable = field.fieldKind === 'message'
+      && nesting.ancestors.length <= MAX_NESTING_DEPTH
+      && !nesting.ancestors.includes(field.message.typeName);
+
+    if (!isNestable) {
+      continue;
+    }
+
+    const nested = readMessageFields(
+      field.message,
+      {
+        ancestors: [...nesting.ancestors, field.message.typeName],
+        keyPrefix: `${key}.`,
+        protoPrefix: `${protoName}.`,
+      },
+      extension,
+    );
+
+    result.hasServerOnlyMessageRules ||= nested.hasServerOnlyMessageRules;
+
+    if (Object.keys(nested.fields).length === 0) {
+      continue;
+    }
+
+    result.fields[key] ??= { isServerOnly: true, kind: 'opaque', protoName };
+    Object.assign(result.fields, nested.fields);
+  }
+
+  result.hasServerOnlyMessageRules ||= hasServerOnlyMessageRules(message);
+
+  return result;
+};
+
+export const readMessageFormRules = (message: DescMessage, checkExtension: DescExtension): FormRulesValue | undefined => {
+  const { fields, hasServerOnlyMessageRules: hasServerOnly } = readMessageFields(
+    message,
+    {
+      ancestors: [message.typeName],
+      keyPrefix: '',
+      protoPrefix: '',
+    },
+    checkExtension,
+  );
+
+  if (hasServerOnly) {
     return { fields, hasServerOnlyMessageRules: true };
   }
 
@@ -516,9 +650,9 @@ const getExportName = (message: DescMessage): string => {
 const collectMessages = (messages: readonly DescMessage[]): DescMessage[] =>
   messages.flatMap(message => [message, ...collectMessages(message.nestedMessages)]);
 
-export const readFileFormRules = (file: DescFile): MessageFormRulesValue[] =>
+export const readFileFormRules = (file: DescFile, checkExtension: DescExtension): MessageFormRulesValue[] =>
   collectMessages(file.messages).flatMap((message) => {
-    const rules = readMessageFormRules(message);
+    const rules = readMessageFormRules(message, checkExtension);
 
     return rules === undefined ? [] : [{ exportName: getExportName(message), rules }];
   });

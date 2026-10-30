@@ -11,6 +11,7 @@ import { isFormFieldRequired } from './isFormFieldRequired';
 const rules: FormRulesValue = {
   fields: {
     always: { ignore: 'always', isRequired: true, kind: 'string', protoName: 'always' },
+    containsNonEmpty: { contains: 'x', kind: 'string', protoName: 'contains_non_empty' },
     ifZeroRequired: { ignore: 'ifZeroValue', isRequired: true, kind: 'string', protoName: 'if_zero_required' },
     ifZeroUuid: { ignore: 'ifZeroValue', isUuid: true, kind: 'string', protoName: 'if_zero_uuid' },
     integerMin: { gte: 1, kind: 'integer', protoName: 'integer_min', type: 'int32' },
@@ -21,7 +22,14 @@ const rules: FormRulesValue = {
     maxOnly: { kind: 'string', maxLen: 10, protoName: 'max_only' },
     minOne: { kind: 'string', minLen: 1, protoName: 'min_one' },
     minZero: { kind: 'string', minLen: 0, protoName: 'min_zero' },
+    patternAllowsEmpty: { kind: 'string', pattern: '^([0-9]{9})?$', protoName: 'pattern_allows_empty' },
+    patternBroken: { kind: 'string', pattern: '^(', protoName: 'pattern_broken' },
+    patternForbidsEmpty: { kind: 'string', pattern: '^[0-9]{20}$', protoName: 'pattern_forbids_empty' },
+    patternIfZero: { ignore: 'ifZeroValue', kind: 'string', pattern: '^[0-9]{20}$', protoName: 'pattern_if_zero' },
+    patternPresence: { hasPresence: true, kind: 'string', pattern: '^[0-9]{20}$', protoName: 'pattern_presence' },
     plain: { kind: 'string', protoName: 'plain' },
+    prefixEmpty: { kind: 'string', prefix: '', protoName: 'prefix_empty' },
+    prefixNonEmpty: { kind: 'string', prefix: '04', protoName: 'prefix_non_empty' },
     presenceItems: { hasPresence: true, kind: 'repeated', minItems: 1, protoName: 'presence_items' },
     presenceMinOne: { hasPresence: true, kind: 'string', minLen: 1, protoName: 'presence_min_one' },
     presenceRequired: { hasPresence: true, isRequired: true, kind: 'string', minLen: 1, protoName: 'presence_required' },
@@ -29,6 +37,7 @@ const rules: FormRulesValue = {
     requiredEnum: { isRequired: true, kind: 'enum', protoName: 'required_enum' },
     serverOnlyRequired: { isRequired: true, isServerOnly: true, kind: 'opaque', protoName: 'server_only_required' },
     serverOnlyUuid: { isServerOnly: true, isUuid: true, kind: 'string', protoName: 'server_only_uuid' },
+    suffixNonEmpty: { kind: 'string', protoName: 'suffix_non_empty', suffix: '.ru' },
     uuid: { isUuid: true, kind: 'string', protoName: 'uuid' },
   },
 };
@@ -49,6 +58,24 @@ describe('isFormFieldRequired', () => {
     expect(isFormFieldRequired(rules, 'maxOnly')).toBe(false);
     expect(isFormFieldRequired(rules, 'itemsMax')).toBe(false);
     expect(isFormFieldRequired(rules, 'integerMin')).toBe(false);
+  });
+
+  it('is true when the pattern, prefix, suffix or contains rejects an empty string', () => {
+    expect(isFormFieldRequired(rules, 'patternForbidsEmpty')).toBe(true);
+    expect(isFormFieldRequired(rules, 'prefixNonEmpty')).toBe(true);
+    expect(isFormFieldRequired(rules, 'suffixNonEmpty')).toBe(true);
+    expect(isFormFieldRequired(rules, 'containsNonEmpty')).toBe(true);
+  });
+
+  it('is false when the pattern accepts an empty string, is not compilable or the prefix is empty', () => {
+    expect(isFormFieldRequired(rules, 'patternAllowsEmpty')).toBe(false);
+    expect(isFormFieldRequired(rules, 'patternBroken')).toBe(false);
+    expect(isFormFieldRequired(rules, 'prefixEmpty')).toBe(false);
+  });
+
+  it('lets ifZeroValue and explicit presence skip the pattern of an empty value', () => {
+    expect(isFormFieldRequired(rules, 'patternIfZero')).toBe(false);
+    expect(isFormFieldRequired(rules, 'patternPresence')).toBe(false);
   });
 
   it('lets ifZeroValue allow an empty value but keeps explicit required', () => {

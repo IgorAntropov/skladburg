@@ -1,3 +1,9 @@
+export type FieldCheckRunnerValue = (
+  check: FormFieldCheckValue,
+  value: string,
+  peerValue: string | undefined,
+) => string | undefined;
+
 export interface FormEnumRuleValue {
   definedValues?: readonly number[];
   equalTo?: number;
@@ -6,7 +12,21 @@ export interface FormEnumRuleValue {
   notIn?: readonly number[];
 }
 
+export type FormFieldCheckKindValue
+  = | 'bik'
+    | 'correspondentAccount'
+    | 'inn'
+    | 'kpp'
+    | 'ogrn'
+    | 'settlementAccount';
+
+export interface FormFieldCheckValue {
+  kind: FormFieldCheckKindValue;
+  peerField?: string;
+}
+
 export interface FormFieldCommonValue {
+  check?: FormFieldCheckValue;
   hasPresence?: boolean;
   ignore?: FormIgnoreValue;
   isRequired?: boolean;

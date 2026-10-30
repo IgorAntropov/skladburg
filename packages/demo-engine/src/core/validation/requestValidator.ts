@@ -13,6 +13,8 @@ import type {
   ViolationValue,
 } from '../errors/index';
 
+import { collectFieldCheckViolations } from './fieldChecks';
+
 export interface IRequestValidator {
   collect: <TDesc extends DescMessage>(schema: TDesc, message: MessageShape<TDesc>) => ViolationValue[];
   validate: <TDesc extends DescMessage>(schema: TDesc, message: MessageShape<TDesc>) => void;
@@ -22,16 +24,20 @@ export const createRequestValidator = (errors: IDomainErrors, registry: FileRegi
   const validator = createValidator();
 
   const collect = <TDesc extends DescMessage>(schema: TDesc, message: MessageShape<TDesc>): ViolationValue[] => {
-    const result = validator.validate(getRuleSchema(registry, schema), message);
+    const ruleSchema = getRuleSchema(registry, schema);
+    const result = validator.validate(ruleSchema, message);
 
     if (result.kind === 'error') {
       throw errors.internal(result.error);
     }
 
-    return (result.violations ?? []).map(violation => ({
+    const violations = (result.violations ?? []).map(violation => ({
       fieldPath: pathToString(violation.field),
       ruleId: violation.ruleId,
     }));
+    const violatedPaths = new Set(violations.map(violation => violation.fieldPath));
+
+    return [...violations, ...collectFieldCheckViolations(ruleSchema, message, violatedPaths)];
   };
 
   const validate = <TDesc extends DescMessage>(schema: TDesc, message: MessageShape<TDesc>): void => {

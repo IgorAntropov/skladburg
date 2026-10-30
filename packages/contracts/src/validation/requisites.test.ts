@@ -9,7 +9,14 @@ import {
   it,
 } from 'vitest';
 
+import {
+  isCorrespondentAccountValid,
+  isSettlementAccountValid,
+  runFieldCheck,
+  validateFormValues,
+} from '../forms/index';
 import { CalendarDateSchema } from '../gen/common/v1/date_pb';
+import { UpdateOrganizationRequisitesRequestFormRules } from '../gen/forms/organization/v1/requisites_rules';
 import {
   type BankAccount,
   BankAccountSchema,
@@ -18,6 +25,8 @@ import {
   type Signatory,
   SignatoryBasis,
   SignatorySchema,
+  type UpdateOrganizationRequisitesRequest,
+  UpdateOrganizationRequisitesRequestSchema,
   VatMode,
 } from '../gen/organization/v1/requisites_pb';
 import { collectViolations } from './collectViolations';
@@ -31,6 +40,18 @@ const createBank = (overrides: MessageInitShape<typeof BankAccountSchema> = {}):
     bik: '040000501',
     correspondentAccount: '30101810600000000501',
     settlementAccount: '40702810300000000001',
+    ...overrides,
+  });
+
+const createUpdateRequest = (
+  overrides: MessageInitShape<typeof UpdateOrganizationRequisitesRequestSchema> = {},
+): UpdateOrganizationRequisitesRequest =>
+  create(UpdateOrganizationRequisitesRequestSchema, {
+    bank: createBank(),
+    expectedVersion: 1n,
+    idempotencyKey: validUuid,
+    legalAddress: '000000, г. Москва, Чайный пер., д. 4',
+    vatMode: VatMode.GENERAL,
     ...overrides,
   });
 
@@ -292,5 +313,96 @@ describe('OrganizationRequisites', () => {
     expect(collectViolations(OrganizationRequisitesSchema, requisites)).toEqual([
       { fieldPath: 'signatories[1].full_name', ruleId: 'required' },
     ]);
+  });
+});
+
+describe('UpdateOrganizationRequisitesRequest', () => {
+  it('accepts a complete request', () => {
+    expect(collectViolations(UpdateOrganizationRequisitesRequestSchema, createUpdateRequest())).toEqual([]);
+  });
+
+  it('rejects an idempotency key that is not a UUID', () => {
+    expect(collectViolations(UpdateOrganizationRequisitesRequestSchema, createUpdateRequest({ idempotencyKey: 'key-1' }))).toEqual([
+      { fieldPath: 'idempotency_key', ruleId: 'string.uuid' },
+    ]);
+  });
+
+  it.each([0n, -1n])('rejects the expected version %s', (expectedVersion) => {
+    expect(collectViolations(UpdateOrganizationRequisitesRequestSchema, createUpdateRequest({ expectedVersion }))).toEqual([
+      { fieldPath: 'expected_version', ruleId: 'int64.gte' },
+    ]);
+  });
+
+  it('rejects an empty legal address and accepts 500 characters', () => {
+    expect(collectViolations(UpdateOrganizationRequisitesRequestSchema, createUpdateRequest({ legalAddress: '' }))).toEqual([
+      { fieldPath: 'legal_address', ruleId: 'required' },
+    ]);
+    expect(collectViolations(
+      UpdateOrganizationRequisitesRequestSchema,
+      createUpdateRequest({ legalAddress: 'a'.repeat(500) }),
+    )).toEqual([]);
+    expect(collectViolations(UpdateOrganizationRequisitesRequestSchema, createUpdateRequest({ legalAddress: 'a'.repeat(501) }))).toEqual([
+      { fieldPath: 'legal_address', ruleId: 'string.max_len' },
+    ]);
+  });
+
+  it('rejects the unspecified VAT mode', () => {
+    expect(collectViolations(UpdateOrganizationRequisitesRequestSchema, createUpdateRequest({ vatMode: VatMode.UNSPECIFIED }))).toEqual([
+      { fieldPath: 'vat_mode', ruleId: 'enum.not_in' },
+    ]);
+  });
+
+  it('rejects a request without a bank and validates the bank inside', () => {
+    expect(collectViolations(UpdateOrganizationRequisitesRequestSchema, createUpdateRequest({ bank: undefined }))).toEqual([
+      { fieldPath: 'bank', ruleId: 'required' },
+    ]);
+    expect(collectViolations(
+      UpdateOrganizationRequisitesRequestSchema,
+      createUpdateRequest({ bank: createBank({ bankName: '' }) }),
+    )).toEqual([
+      { fieldPath: 'bank.bank_name', ruleId: 'required' },
+    ]);
+  });
+});
+
+describe('the bank checks in the table of UpdateOrganizationRequisitesRequest', () => {
+  const names = ['bank.bik', 'bank.settlementAccount', 'bank.correspondentAccount'];
+  const values = {
+    'bank.bik': '040000501',
+    'bank.correspondentAccount': '30101810600000000501',
+    'bank.settlementAccount': '40702810300000000001',
+  };
+
+  it('accepts the accounts of the test bank', () => {
+    expect(isSettlementAccountValid(values['bank.bik'], values['bank.settlementAccount'])).toBe(true);
+    expect(isCorrespondentAccountValid(values['bank.bik'], values['bank.correspondentAccount'])).toBe(true);
+    expect(validateFormValues(UpdateOrganizationRequisitesRequestFormRules, values, names, { runCheck: runFieldCheck })).toEqual([]);
+  });
+
+  it('reports a wrong key of the settlement account on the nested field', () => {
+    expect(validateFormValues(
+      UpdateOrganizationRequisitesRequestFormRules,
+      { ...values, 'bank.settlementAccount': '40702810400000000001' },
+      names,
+      { runCheck: runFieldCheck },
+    )).toEqual([{ field: 'bank.settlementAccount', ruleId: 'field_check.settlement_account' }]);
+  });
+
+  it('reports a wrong key of the correspondent account on the nested field', () => {
+    expect(validateFormValues(
+      UpdateOrganizationRequisitesRequestFormRules,
+      { ...values, 'bank.correspondentAccount': '30101810700000000501' },
+      names,
+      { runCheck: runFieldCheck },
+    )).toEqual([{ field: 'bank.correspondentAccount', ruleId: 'field_check.correspondent_account' }]);
+  });
+
+  it('keeps silent about the accounts while the BIK is wrong', () => {
+    expect(validateFormValues(
+      UpdateOrganizationRequisitesRequestFormRules,
+      { ...values, 'bank.bik': '04000050', 'bank.settlementAccount': '40702810400000000001' },
+      names,
+      { runCheck: runFieldCheck },
+    )).toEqual([{ field: 'bank.bik', ruleId: 'string.pattern' }]);
   });
 });

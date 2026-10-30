@@ -1,4 +1,5 @@
 import type {
+  FieldCheckRunnerValue,
   FormEnumRuleValue,
   FormFieldCommonValue,
   FormFieldIssueValue,
@@ -7,10 +8,14 @@ import type {
   FormRepeatedRuleValue,
   FormRulesValue,
   FormScalarRuleValue,
-  FormStringRuleValue,
 } from './formRuleTypes';
 
+import { checkStringRule } from './checkStringRule';
 import { getFormField } from './getFormField';
+
+export interface ValidateFormValuesOptionsValue {
+  runCheck?: FieldCheckRunnerValue | undefined;
+}
 
 interface FieldHandlerValue<TValue> {
   check: (value: TValue) => string[];
@@ -26,49 +31,6 @@ interface IntegerBoundValue {
 
 type IntegerValue = bigint | number;
 
-const compiledPatterns = new Map<string, RegExp | undefined>();
-
-const matchesPattern = (source: string, value: string): boolean => {
-  if (!compiledPatterns.has(source)) {
-    try {
-      compiledPatterns.set(source, new RegExp(source, 'u'));
-    }
-    catch {
-      compiledPatterns.set(source, undefined);
-    }
-  }
-
-  return compiledPatterns.get(source)?.test(value) ?? true;
-};
-
-const UUID_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-
-const HIGH_SURROGATE_START = 0xd800;
-const HIGH_SURROGATE_END = 0xdbff;
-const LOW_SURROGATE_START = 0xdc00;
-const LOW_SURROGATE_END = 0xdfff;
-
-const countCodePoints = (value: string): number => {
-  let count = 0;
-
-  for (let index = 0; index < value.length; index += 1) {
-    const unit = value.charCodeAt(index);
-    const nextUnit = value.charCodeAt(index + 1);
-    const isSurrogatePair = unit >= HIGH_SURROGATE_START
-      && unit <= HIGH_SURROGATE_END
-      && nextUnit >= LOW_SURROGATE_START
-      && nextUnit <= LOW_SURROGATE_END;
-
-    if (isSurrogatePair) {
-      index += 1;
-    }
-
-    count += 1;
-  }
-
-  return count;
-};
-
 const isIntegerValue = (value: unknown): value is IntegerValue =>
   typeof value === 'bigint' || (typeof value === 'number' && Number.isInteger(value));
 
@@ -77,54 +39,6 @@ const isEnumNumber = (value: unknown): value is number =>
 
 const isComparableElement = (value: unknown): value is IntegerValue | string =>
   typeof value === 'string' || typeof value === 'bigint' || (typeof value === 'number' && !Number.isNaN(value));
-
-const checkString = (rule: FormStringRuleValue, value: string): string[] => {
-  const ruleIds: string[] = [];
-  const length = countCodePoints(value);
-
-  if (rule.len !== undefined && length !== rule.len) {
-    ruleIds.push('string.len');
-  }
-
-  if (rule.minLen !== undefined && length < rule.minLen) {
-    ruleIds.push('string.min_len');
-  }
-
-  if (rule.maxLen !== undefined && length > rule.maxLen) {
-    ruleIds.push('string.max_len');
-  }
-
-  if (rule.pattern !== undefined && !matchesPattern(rule.pattern, value)) {
-    ruleIds.push('string.pattern');
-  }
-
-  if (rule.prefix !== undefined && !value.startsWith(rule.prefix)) {
-    ruleIds.push('string.prefix');
-  }
-
-  if (rule.suffix !== undefined && !value.endsWith(rule.suffix)) {
-    ruleIds.push('string.suffix');
-  }
-
-  if (rule.contains !== undefined && !value.includes(rule.contains)) {
-    ruleIds.push('string.contains');
-  }
-
-  if (rule.notContains !== undefined && value.includes(rule.notContains)) {
-    ruleIds.push('string.not_contains');
-  }
-
-  if (rule.isUuid === true) {
-    if (value === '') {
-      ruleIds.push('string.uuid_empty');
-    }
-    else if (!UUID_PATTERN.test(value)) {
-      ruleIds.push('string.uuid');
-    }
-  }
-
-  return ruleIds;
-};
 
 const getLowerBound = (rule: FormIntegerRuleValue): IntegerBoundValue | undefined => {
   if (rule.gt !== undefined) {
@@ -202,7 +116,7 @@ const checkListElement = (rule: FormScalarRuleValue, element: unknown): string[]
     case 'integer':
       return isIntegerValue(element) ? checkInteger(rule, element) : [];
     case 'string':
-      return typeof element === 'string' ? checkString(rule, element) : [];
+      return typeof element === 'string' ? checkStringRule(rule, element) : [];
   }
 };
 
@@ -295,7 +209,7 @@ const collectFieldRuleIds = (field: FormFieldRulesValue, raw: unknown): string[]
       });
     case 'string':
       return evaluateField(field, raw, {
-        check: value => checkString(field, value),
+        check: value => checkStringRule(field, value),
         coerce: value => (typeof value === 'string' ? value : undefined),
         isZero: value => value === '',
         zero: '',
@@ -303,11 +217,70 @@ const collectFieldRuleIds = (field: FormFieldRulesValue, raw: unknown): string[]
   }
 };
 
+const readValue = (values: Readonly<Record<string, unknown>>, name: string): unknown =>
+  Object.hasOwn(values, name) ? values[name] : undefined;
+
+const toText = (raw: unknown): string => (typeof raw === 'string' ? raw : '');
+
+const collectOwnRuleIds = (field: FormFieldRulesValue, raw: unknown): string[] => [
+  ...new Set(collectFieldRuleIds(field, raw)),
+];
+
+const collectPeerViolationFreeValue = (
+  rules: FormRulesValue,
+  values: Readonly<Record<string, unknown>>,
+  peerName: string,
+  runCheck: FieldCheckRunnerValue,
+): string | undefined => {
+  const peer = getFormField(rules, peerName);
+  const peerValue = toText(readValue(values, peerName));
+
+  if (peer === undefined || peerValue === '') {
+    return undefined;
+  }
+
+  const hasOwnViolations = peer.isServerOnly !== true && collectOwnRuleIds(peer, peerValue).length > 0;
+
+  if (hasOwnViolations) {
+    return undefined;
+  }
+
+  const hasCheckViolation = peer.check !== undefined && runCheck(peer.check, peerValue, undefined) !== undefined;
+
+  return hasCheckViolation ? undefined : peerValue;
+};
+
+const collectCheckRuleId = (
+  rules: FormRulesValue,
+  values: Readonly<Record<string, unknown>>,
+  field: FormFieldRulesValue,
+  raw: unknown,
+  runCheck: FieldCheckRunnerValue,
+): string | undefined => {
+  const { check } = field;
+
+  if (check === undefined || field.ignore === 'always' || typeof raw !== 'string') {
+    return undefined;
+  }
+
+  const peerName = check.peerField;
+
+  if (peerName === undefined) {
+    return runCheck(check, raw, undefined);
+  }
+
+  const peerValue = collectPeerViolationFreeValue(rules, values, peerName, runCheck);
+
+  return peerValue === undefined ? undefined : runCheck(check, raw, peerValue);
+};
+
 export const validateFormValues = (
   rules: FormRulesValue,
   values: Readonly<Record<string, unknown>>,
   fieldNames: readonly string[],
+  options?: ValidateFormValuesOptionsValue,
 ): FormFieldIssueValue[] => {
+  const runCheck = options?.runCheck;
   const issues: FormFieldIssueValue[] = [];
 
   for (const name of fieldNames) {
@@ -317,9 +290,18 @@ export const validateFormValues = (
       continue;
     }
 
-    const raw = Object.hasOwn(values, name) ? values[name] : undefined;
+    const raw = readValue(values, name);
+    const ruleIds = collectOwnRuleIds(field, raw);
 
-    for (const ruleId of new Set(collectFieldRuleIds(field, raw))) {
+    if (ruleIds.length === 0 && runCheck !== undefined) {
+      const checkRuleId = collectCheckRuleId(rules, values, field, raw, runCheck);
+
+      if (checkRuleId !== undefined) {
+        ruleIds.push(checkRuleId);
+      }
+    }
+
+    for (const ruleId of ruleIds) {
       issues.push({ field: name, ruleId });
     }
   }

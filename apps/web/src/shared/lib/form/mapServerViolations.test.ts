@@ -3,6 +3,7 @@ import type { FieldViolation } from '@skladburg/contracts/common/v1/error';
 import { create } from '@bufbuild/protobuf';
 import { FieldViolationSchema } from '@skladburg/contracts/common/v1/error';
 import { CreateWarehouseRequestFormRules } from '@skladburg/contracts/forms/organization/v1/organization';
+import { UpdateOrganizationRequisitesRequestFormRules } from '@skladburg/contracts/forms/organization/v1/requisites';
 import {
   describe,
   expect,
@@ -19,6 +20,15 @@ const FIELD_NAMES = [
   'contactPhone',
   'name',
   'timeZone',
+];
+
+const REQUISITES_FIELD_NAMES = [
+  'bank.bankName',
+  'bank.bik',
+  'bank.correspondentAccount',
+  'bank.settlementAccount',
+  'legalAddress',
+  'vatMode',
 ];
 
 const violation = (fieldPath: string, ruleId: string): FieldViolation => create(FieldViolationSchema, { fieldPath, ruleId });
@@ -90,6 +100,63 @@ describe('mapServerViolations', () => {
     expect(mapServerViolations(CreateWarehouseRequestFormRules, [], FIELD_NAMES)).toEqual({
       fieldIssues: [],
       unmatched: [],
+    });
+  });
+
+  describe('nested fields', () => {
+    it('puts a violation of a nested field under the nested path of the form', () => {
+      const result = mapServerViolations(
+        UpdateOrganizationRequisitesRequestFormRules,
+        [violation('bank.settlement_account', 'field_check.settlement_account')],
+        REQUISITES_FIELD_NAMES,
+      );
+
+      expect(result.fieldIssues).toEqual([{ field: 'bank.settlementAccount', ruleId: 'field_check.settlement_account' }]);
+      expect(result.unmatched).toEqual([]);
+    });
+
+    it('turns snake_case into camelCase in every segment of a nested path that has no rules', () => {
+      const rules = { fields: {} };
+
+      const result = mapServerViolations(
+        rules,
+        [violation('bank.bank_name', 'string.max_len')],
+        REQUISITES_FIELD_NAMES,
+      );
+
+      expect(result.fieldIssues).toEqual([{ field: 'bank.bankName', ruleId: 'string.max_len' }]);
+    });
+
+    it('leaves a violation of a nested field that is not on the form in the remainder', () => {
+      const unknown = violation('bank.unknown_field', 'string.max_len');
+      const listItem = violation('signatories[0].full_name', 'string.min_len');
+
+      const result = mapServerViolations(
+        UpdateOrganizationRequisitesRequestFormRules,
+        [unknown, listItem],
+        REQUISITES_FIELD_NAMES,
+      );
+
+      expect(result.fieldIssues).toEqual([]);
+      expect(result.unmatched).toEqual([unknown, listItem]);
+    });
+
+    it('orders nested issues by the form fields', () => {
+      const result = mapServerViolations(
+        UpdateOrganizationRequisitesRequestFormRules,
+        [
+          violation('bank.settlement_account', 'field_check.settlement_account'),
+          violation('legal_address', 'string.max_len'),
+          violation('bank.bik', 'field_check.bik'),
+        ],
+        REQUISITES_FIELD_NAMES,
+      );
+
+      expect(result.fieldIssues.map(issue => issue.field)).toEqual([
+        'bank.bik',
+        'bank.settlementAccount',
+        'legalAddress',
+      ]);
     });
   });
 });

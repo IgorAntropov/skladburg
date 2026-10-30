@@ -49,6 +49,10 @@ import {
 } from 'vitest';
 
 import { loadContractRegistry } from '../src/conventions/loadContractRegistry';
+import {
+  FieldCheck,
+  field_check as fieldCheckExtension,
+} from '../src/gen/common/v1/field_options_pb';
 import { isPortableRegexPattern } from './isPortableRegexPattern';
 import {
   readFileFormRules,
@@ -57,6 +61,7 @@ import {
 
 type FieldRulesInit = MessageInitShape<typeof FieldRulesSchema>;
 interface FieldSpec {
+  check?: FieldCheck;
   isProto3Optional?: boolean;
   isRepeated?: boolean;
   name: string;
@@ -94,6 +99,10 @@ const createFieldProto = (spec: FieldSpec): ReturnType<typeof create<typeof Fiel
 
   if (spec.rules !== undefined) {
     setExtension(options, fieldRulesExtension, create(FieldRulesSchema, spec.rules));
+  }
+
+  if (spec.check !== undefined) {
+    setExtension(options, fieldCheckExtension, spec.check);
   }
 
   return create(FieldDescriptorProtoSchema, {
@@ -195,7 +204,7 @@ const readProbeRules = (fields: FieldSpec[], extras: Partial<MessageSpec> = {}):
     throw new Error('Probe message is missing');
   }
 
-  return readMessageFormRules(message);
+  return readMessageFormRules(message, fieldCheckExtension);
 };
 
 const readSingleField = (field: Omit<FieldSpec, 'name' | 'number'>): unknown =>
@@ -591,7 +600,7 @@ describe('readMessageFormRules opaque fields', () => {
     }]);
     const message = file.messages[0];
 
-    expect(message === undefined ? undefined : readMessageFormRules(message)?.fields.labels).toEqual({
+    expect(message === undefined ? undefined : readMessageFormRules(message, fieldCheckExtension)?.fields.labels).toEqual({
       isServerOnly: true,
       kind: 'opaque',
       protoName: 'labels',
@@ -720,6 +729,229 @@ describe('readMessageFormRules message rules', () => {
   });
 });
 
+const readNamedRules = (messages: MessageSpec[], name: string): ReturnType<typeof readMessageFormRules> => {
+  const file = createProbeFile(messages);
+  const message = file.messages.find(candidate => candidate.name === name);
+
+  if (message === undefined) {
+    throw new Error(`Probe message ${name} is missing`);
+  }
+
+  return readMessageFormRules(message, fieldCheckExtension);
+};
+
+const bankFields: FieldSpec[] = [
+  { check: FieldCheck.BIK, name: 'bik', number: 1, rules: stringRules({ len: 9n }), type: STRING },
+  { check: FieldCheck.SETTLEMENT_ACCOUNT, name: 'settlement_account', number: 2, rules: stringRules({ len: 20n }), type: STRING },
+  { check: FieldCheck.CORRESPONDENT_ACCOUNT, name: 'correspondent_account', number: 3, type: STRING },
+];
+
+describe('readMessageFormRules field checks', () => {
+  it('reads the kind of the check and points an account to the BIK of the same message', () => {
+    expect(readProbeRules(bankFields)?.fields).toEqual({
+      bik: { check: { kind: 'bik' }, kind: 'string', len: 9, protoName: 'bik' },
+      correspondentAccount: {
+        check: { kind: 'correspondentAccount', peerField: 'bik' },
+        kind: 'string',
+        protoName: 'correspondent_account',
+      },
+      settlementAccount: {
+        check: { kind: 'settlementAccount', peerField: 'bik' },
+        kind: 'string',
+        len: 20,
+        protoName: 'settlement_account',
+      },
+    });
+  });
+
+  it('keeps a field that has a check but no validation rules', () => {
+    expect(readSingleField({ check: FieldCheck.INN, type: STRING })).toEqual({
+      check: { kind: 'inn' },
+      kind: 'string',
+      protoName: 'sample_value',
+    });
+  });
+
+  it.each([
+    [FieldCheck.INN, 'inn'],
+    [FieldCheck.KPP, 'kpp'],
+    [FieldCheck.OGRN, 'ogrn'],
+  ])('gives %s a check without a neighbour', (check, kind) => {
+    expect(readSingleField({ check, type: STRING })).toMatchObject({ check: { kind } });
+    expect(readSingleField({ check, type: STRING })).not.toHaveProperty('check.peerField');
+  });
+
+  it('ignores an unspecified check', () => {
+    expect(readProbeRules([{ check: FieldCheck.UNSPECIFIED, name: 'plain', number: 1, type: STRING }])).toBeUndefined();
+  });
+
+  it('refuses a check on a field that is not a string', () => {
+    expect(() => readSingleField({ check: FieldCheck.INN, type: INT32 })).toThrow('needs a string field');
+  });
+
+  it('refuses two BIK fields in one message', () => {
+    expect(() => readProbeRules([
+      { check: FieldCheck.BIK, name: 'first', number: 1, type: STRING },
+      { check: FieldCheck.BIK, name: 'second', number: 2, type: STRING },
+      { check: FieldCheck.SETTLEMENT_ACCOUNT, name: 'account', number: 3, type: STRING },
+    ])).toThrow('2 fields with the BIK check');
+  });
+
+  it('refuses an account without a BIK field in the message', () => {
+    expect(() => readProbeRules([
+      { check: FieldCheck.SETTLEMENT_ACCOUNT, name: 'account', number: 1, type: STRING },
+    ])).toThrow('no field with the BIK check');
+  });
+
+  it('allows a BIK field without an account', () => {
+    expect(readProbeRules([{ check: FieldCheck.BIK, name: 'bik', number: 1, type: STRING }])?.fields.bik)
+      .toEqual({ check: { kind: 'bik' }, kind: 'string', protoName: 'bik' });
+  });
+});
+
+describe('readMessageFormRules nested messages', () => {
+  const nameRules = stringRules({ maxLen: 5n });
+
+  it('lists the fields of a message field without rules by dotted keys and marks the parent opaque and server only', () => {
+    const rules = readNamedRules([
+      { fields: [{ name: 'tag_name', number: 1, rules: nameRules, type: STRING }], name: 'Inner' },
+      { fields: [{ name: 'inner_part', number: 1, type: MESSAGE, typeName: '.probe.v1.Inner' }], name: 'Outer' },
+    ], 'Outer');
+
+    expect(rules).toEqual({
+      fields: {
+        'innerPart': { isServerOnly: true, kind: 'opaque', protoName: 'inner_part' },
+        'innerPart.tagName': { kind: 'string', maxLen: 5, protoName: 'inner_part.tag_name' },
+      },
+    });
+  });
+
+  it('keeps the own rules of a message field and still lists its fields', () => {
+    const rules = readNamedRules([
+      { fields: [{ name: 'tag_name', number: 1, rules: nameRules, type: STRING }], name: 'Inner' },
+      {
+        fields: [{ name: 'inner_part', number: 1, rules: { required: true }, type: MESSAGE, typeName: '.probe.v1.Inner' }],
+        name: 'Outer',
+      },
+    ], 'Outer');
+
+    expect(rules?.fields.innerPart).toEqual({
+      isRequired: true,
+      isServerOnly: true,
+      kind: 'opaque',
+      protoName: 'inner_part',
+    });
+    expect(rules?.fields['innerPart.tagName']).toMatchObject({ protoName: 'inner_part.tag_name' });
+  });
+
+  it('leaves a message field out when its type has no rules', () => {
+    expect(readNamedRules([
+      { fields: [{ name: 'plain', number: 1, type: STRING }], name: 'Inner' },
+      { fields: [{ name: 'inner_part', number: 1, type: MESSAGE, typeName: '.probe.v1.Inner' }], name: 'Outer' },
+    ], 'Outer')).toBeUndefined();
+  });
+
+  it('points an account of a nested message to the full key of its BIK', () => {
+    const rules = readNamedRules([
+      { fields: bankFields, name: 'Bank' },
+      { fields: [{ name: 'bank', number: 1, type: MESSAGE, typeName: '.probe.v1.Bank' }], name: 'Request' },
+    ], 'Request');
+
+    expect(rules?.fields['bank.settlementAccount']).toMatchObject({
+      check: { kind: 'settlementAccount', peerField: 'bank.bik' },
+      protoName: 'bank.settlement_account',
+    });
+    expect(rules?.fields['bank.correspondentAccount']).toMatchObject({
+      check: { kind: 'correspondentAccount', peerField: 'bank.bik' },
+    });
+  });
+
+  it('goes three levels down and no further', () => {
+    const level = (name: string, next: string | undefined): MessageSpec => ({
+      fields: [
+        { name: 'value', number: 1, rules: nameRules, type: STRING },
+        ...(next === undefined ? [] : [{ name: 'next', number: 2, type: MESSAGE, typeName: `.probe.v1.${next}` }]),
+      ],
+      name,
+    });
+    const rules = readNamedRules([
+      level('Root', 'Second'),
+      level('Second', 'Third'),
+      level('Third', 'Fourth'),
+      level('Fourth', 'Fifth'),
+      level('Fifth', undefined),
+    ], 'Root');
+
+    expect(Object.keys(rules?.fields ?? {}).toSorted()).toEqual([
+      'next',
+      'next.next',
+      'next.next.next',
+      'next.next.next.value',
+      'next.next.value',
+      'next.value',
+      'value',
+    ]);
+  });
+
+  it('does not walk into a message that is already on the path', () => {
+    const rules = readNamedRules([
+      {
+        fields: [
+          { name: 'value', number: 1, rules: nameRules, type: STRING },
+          { name: 'next', number: 2, type: MESSAGE, typeName: '.probe.v1.Node' },
+        ],
+        name: 'Node',
+      },
+    ], 'Node');
+
+    expect(Object.keys(rules?.fields ?? {})).toEqual(['value']);
+  });
+
+  it('does not walk back through two messages that point at each other', () => {
+    const rules = readNamedRules([
+      {
+        fields: [
+          { name: 'value', number: 1, rules: nameRules, type: STRING },
+          { name: 'other', number: 2, type: MESSAGE, typeName: '.probe.v1.Second' },
+        ],
+        name: 'First',
+      },
+      {
+        fields: [
+          { name: 'value', number: 1, rules: nameRules, type: STRING },
+          { name: 'back', number: 2, type: MESSAGE, typeName: '.probe.v1.First' },
+        ],
+        name: 'Second',
+      },
+    ], 'First');
+
+    expect(Object.keys(rules?.fields ?? {}).toSorted()).toEqual(['other', 'other.value', 'value']);
+  });
+
+  it('does not open lists of messages', () => {
+    expect(readNamedRules([
+      { fields: [{ name: 'tag_name', number: 1, rules: nameRules, type: STRING }], name: 'Inner' },
+      {
+        fields: [{ isRepeated: true, name: 'items', number: 1, type: MESSAGE, typeName: '.probe.v1.Inner' }],
+        name: 'Outer',
+      },
+    ], 'Outer')).toBeUndefined();
+  });
+
+  it('flags the root when a nested message keeps rules on the server', () => {
+    const rules = readNamedRules([
+      {
+        fields: [{ name: 'tag_name', number: 1, type: STRING }],
+        messageRules: { cel: [{ expression: 'true', id: 'always' }] },
+        name: 'Inner',
+      },
+      { fields: [{ name: 'inner_part', number: 1, type: MESSAGE, typeName: '.probe.v1.Inner' }], name: 'Outer' },
+    ], 'Outer');
+
+    expect(rules).toEqual({ fields: {}, hasServerOnlyMessageRules: true });
+  });
+});
+
 describe('readFileFormRules', () => {
   it('names exports after the message and nested messages after their parents', () => {
     const file = createProbeFile([
@@ -741,7 +973,7 @@ describe('readFileFormRules', () => {
       { fields: [{ name: 'note', number: 1, rules: stringRules({ maxLen: 9n }), type: STRING }], name: 'Note' },
     ]);
 
-    expect(readFileFormRules(file).map(message => message.exportName)).toEqual([
+    expect(readFileFormRules(file, fieldCheckExtension).map(message => message.exportName)).toEqual([
       'OuterFormRules',
       'Outer_InnerFormRules',
       'Outer_Inner_DeepFormRules',
@@ -760,7 +992,7 @@ describe('readFileFormRules on the current contract', () => {
       throw new Error('The contract image has no organization file');
     }
 
-    const message = readFileFormRules(file).find(entry => entry.exportName === 'CreateWarehouseRequestFormRules');
+    const message = readFileFormRules(file, fieldCheckExtension).find(entry => entry.exportName === 'CreateWarehouseRequestFormRules');
 
     expect(message?.rules).toEqual({
       fields: {
@@ -782,6 +1014,49 @@ describe('readFileFormRules on the current contract', () => {
           protoName: 'time_zone',
         },
       },
+    });
+  });
+
+  it('builds the table of UpdateOrganizationRequisitesRequest with the bank fields and their checks', () => {
+    const file = registry.getFile('organization/v1/requisites.proto');
+    const extension = registry.getExtension('common.v1.field_check');
+
+    if (file === undefined || extension === undefined) {
+      throw new Error('The contract image has no requisites file or no field check extension');
+    }
+
+    const message = readFileFormRules(file, extension).find(entry => entry.exportName === 'UpdateOrganizationRequisitesRequestFormRules');
+
+    expect(Object.keys(message?.rules.fields ?? {}).toSorted()).toEqual([
+      'bank',
+      'bank.bankName',
+      'bank.bik',
+      'bank.correspondentAccount',
+      'bank.settlementAccount',
+      'expectedVersion',
+      'idempotencyKey',
+      'legalAddress',
+      'vatMode',
+    ]);
+    expect(message?.rules.fields.bank).toEqual({
+      isRequired: true,
+      isServerOnly: true,
+      kind: 'opaque',
+      protoName: 'bank',
+    });
+    expect(message?.rules.fields['bank.bik']).toEqual({
+      check: { kind: 'bik' },
+      kind: 'string',
+      pattern: '^04[0-9]{7}$',
+      protoName: 'bank.bik',
+    });
+    expect(message?.rules.fields['bank.settlementAccount']).toMatchObject({
+      check: { kind: 'settlementAccount', peerField: 'bank.bik' },
+      protoName: 'bank.settlement_account',
+    });
+    expect(message?.rules.fields['bank.correspondentAccount']).toMatchObject({
+      check: { kind: 'correspondentAccount', peerField: 'bank.bik' },
+      protoName: 'bank.correspondent_account',
     });
   });
 

@@ -1,4 +1,11 @@
 import {
+  isCorrespondentAccountValid,
+  isInnValid,
+  isKppValid,
+  isOgrnValid,
+  isSettlementAccountValid,
+} from '@skladburg/contracts/forms';
+import {
   OrganizationRequisitesSchema,
   SignatoryBasis,
 } from '@skladburg/contracts/organization/v1/requisites';
@@ -39,36 +46,10 @@ const OPERATOR_USER_NAME_PATTERN = /^[А-ЯЁ][а-яё]+ [А-ЯЁ]\.$/;
 const OPERATOR_ROLE_NAME_PATTERN = /^(Агент поддержки|Инженер поддержки|Администратор платформы|Супер-администратор)$/;
 const LEGAL_ADDRESS_CITY_PATTERN = /^000000, г\. ([^,]+),/;
 
-const INN_WEIGHTS: readonly number[] = [2, 4, 10, 3, 5, 9, 4, 6, 8];
-const INN_BODY_LENGTH = 9;
-const OGRN_BODY_LENGTH = 12;
-const ACCOUNT_KEY_WEIGHTS: readonly number[] = [7, 1, 3];
 const BIK_REGION_START = 2;
 const BIK_REGION_END = 4;
-const BIK_SETTLEMENT_PREFIX_START = 6;
-const BIK_CORRESPONDENT_PREFIX_START = 4;
-const BIK_CORRESPONDENT_PREFIX_END = 6;
 const ACCOUNT_LENGTH = 20;
 const BUYER_LIMIT_MINOR = 10_000_000n;
-
-const toDigits = (value: string): number[] => Array.from(value, Number);
-
-const computeInnCheckDigit = (body: string): number =>
-  (toDigits(body).reduce((sum, digit, position) => sum + digit * (INN_WEIGHTS[position] ?? 0), 0) % 11) % 10;
-
-const computeOgrnCheckDigit = (body: string): number => Number(BigInt(body) % 11n) % 10;
-
-const isAccountKeyValid = (prefix: string, account: string): boolean =>
-  toDigits(`${prefix}${account}`).reduce(
-    (sum, digit, position) => sum + (digit * (ACCOUNT_KEY_WEIGHTS[position % ACCOUNT_KEY_WEIGHTS.length] ?? 0)) % 10,
-    0,
-  ) % 10 === 0;
-
-const isSettlementAccountValid = (bik: string, account: string): boolean =>
-  isAccountKeyValid(bik.slice(BIK_SETTLEMENT_PREFIX_START), account);
-
-const isCorrespondentAccountValid = (bik: string, account: string): boolean =>
-  isAccountKeyValid(`0${bik.slice(BIK_CORRESPONDENT_PREFIX_START, BIK_CORRESPONDENT_PREFIX_END)}`, account);
 
 const isCalendarDateExisting = (year: number, month: number, day: number): boolean => {
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -95,14 +76,20 @@ describe('seed organization identifiers', () => {
   it('uses an INN of ten digits with a correct check digit', () => {
     for (const { inn, name } of organizations) {
       expect(inn, name).toMatch(/^\d{10}$/);
-      expect(computeInnCheckDigit(inn.slice(0, INN_BODY_LENGTH)), name).toBe(Number(inn.slice(INN_BODY_LENGTH)));
+      expect(isInnValid(inn), name).toBe(true);
     }
   });
 
   it('uses an OGRN of thirteen digits with a correct check digit', () => {
     for (const { name, ogrn } of organizations) {
       expect(ogrn, name).toMatch(/^[15]\d{12}$/);
-      expect(computeOgrnCheckDigit(ogrn.slice(0, OGRN_BODY_LENGTH)), name).toBe(Number(ogrn.slice(OGRN_BODY_LENGTH)));
+      expect(isOgrnValid(ogrn), name).toBe(true);
+    }
+  });
+
+  it('gives every KPP the format of the tax service', () => {
+    for (const { kpp, name } of organizations) {
+      expect(isKppValid(kpp), name).toBe(true);
     }
   });
 
@@ -125,22 +112,6 @@ describe('seed organization identifiers', () => {
     expect(new Set(organizations.map(organization => organization.inn)).size).toBe(organizations.length);
     expect(new Set(organizations.map(organization => organization.ogrn)).size).toBe(organizations.length);
     expect(new Set(organizations.map(organization => organization.kpp)).size).toBe(organizations.length);
-  });
-
-  it.each([
-    ['000000001', 8],
-    ['100000000', 2],
-    ['000006000', 0],
-  ])('computes the INN check digit of %s as %s by the tax service algorithm', (body, expected) => {
-    expect(computeInnCheckDigit(body)).toBe(expected);
-  });
-
-  it.each([
-    ['000000000012', 1],
-    ['000000000011', 0],
-    ['000000000010', 0],
-  ])('computes the OGRN check digit of %s as %s by the tax service algorithm', (body, expected) => {
-    expect(computeOgrnCheckDigit(body)).toBe(expected);
   });
 });
 
@@ -172,24 +143,21 @@ describe('seed bank details', () => {
 
     expect(new Set(accounts).size).toBe(requisites.length);
   });
-
-  it('accepts a correct settlement account and rejects the same account with a changed key or a changed BIK', () => {
-    expect(isSettlementAccountValid('040000501', '40702810300000000001')).toBe(true);
-    expect(isSettlementAccountValid('040000501', '40702810400000000001')).toBe(false);
-    expect(isSettlementAccountValid('040000502', '40702810300000000001')).toBe(false);
-  });
-
-  it('accepts a correct correspondent account and rejects the same account with a changed key or a changed BIK', () => {
-    expect(isCorrespondentAccountValid('040000501', '30101810600000000501')).toBe(true);
-    expect(isCorrespondentAccountValid('040000501', '30101810700000000501')).toBe(false);
-    expect(isCorrespondentAccountValid('040010501', '30101810600000000501')).toBe(false);
-  });
 });
 
 describe('seed requisites', () => {
   const records = createSeedRecords();
   const requisites = records.organizationRequisites;
   const validator = createRequestValidator(createDomainErrors(createSeededRandom(1)), getContractRegistry());
+
+  it('gives the bank accounts of every organization a correct key', () => {
+    expect(requisites.length).toBeGreaterThan(0);
+
+    for (const entry of requisites) {
+      expect(isSettlementAccountValid(entry.bank?.bik ?? '', entry.bank?.settlementAccount ?? ''), entry.organizationId).toBe(true);
+      expect(isCorrespondentAccountValid(entry.bank?.bik ?? '', entry.bank?.correspondentAccount ?? ''), entry.organizationId).toBe(true);
+    }
+  });
 
   it('gives every organization, the operator included, exactly one record', () => {
     expect(requisites).toHaveLength(records.organizations.length);

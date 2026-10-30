@@ -35,6 +35,12 @@ const registry = createFileRegistry(
   fromBinary(FileDescriptorSetSchema, readFileSync(join(sourceDirectory, 'gen', 'contract.binpb'))),
 );
 
+const checkExtension = registry.getExtension('common.v1.field_check');
+
+if (checkExtension === undefined) {
+  throw new Error('The contract image has no common.v1.field_check extension');
+}
+
 const contractFiles = [...registry.files]
   .filter(file => !EXTERNAL_FILE_PREFIXES.some(prefix => file.name.startsWith(prefix)))
   .toSorted((current, next) => current.name.localeCompare(next.name));
@@ -42,7 +48,7 @@ const contractFiles = [...registry.files]
 rmSync(generatedFormsDirectory, { force: true, recursive: true });
 
 for (const file of contractFiles) {
-  const messages = readFileFormRules(file);
+  const messages = readFileFormRules(file, checkExtension);
 
   if (messages.length === 0) {
     continue;

@@ -40,7 +40,7 @@ const TOGGLE_CLASS_NAME = 'relative m-1.5 shrink-0 aria-expanded:bg-transparent'
 
 const HANDLE_CLASS_NAME = 'absolute top-1 left-1/2 h-1 w-9 -translate-x-1/2 rounded-full bg-line-strong';
 
-const CONTENT_CLASS_NAME = 'flex min-h-0 flex-col overflow-y-auto px-4 pt-2 pb-4 @container';
+const CONTENT_CLASS_NAME = 'relative flex min-h-0 flex-col overflow-y-auto px-4 pt-2 pb-4 @container';
 
 export const InspectorSheet = ({ canCollapse, children, isInitiallyCollapsed }: InspectorSheetProps): ReactElement => {
   const { t } = useI18n();

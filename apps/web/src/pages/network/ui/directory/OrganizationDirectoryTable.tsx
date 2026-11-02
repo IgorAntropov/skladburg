@@ -16,7 +16,7 @@ interface OrganizationDirectoryTableProps {
 }
 
 const FRAME_CLASS_NAME = [
-  'isolate max-h-[min(28rem,45vh)] overflow-auto rounded-control border border-line bg-panel-solid',
+  'relative isolate max-h-[min(28rem,45vh)] overflow-auto rounded-control border border-line bg-panel-solid',
   '@max-lg:border-0 @max-lg:bg-transparent',
 ].join(' ');
 

@@ -47,7 +47,7 @@ const TRIGGER_CLASS_NAME = [
 const COUNT_CLASS_NAME = 'inline-block min-w-6 rounded-full bg-skeleton px-2 text-center text-sm text-on-panel tabular-nums';
 
 const CONTENT_CLASS_NAME = [
-  'flex min-h-0 flex-1 flex-col overflow-y-auto rounded-control p-3',
+  'relative flex min-h-0 flex-1 flex-col overflow-y-auto rounded-control p-3',
   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
 ].join(' ');
 

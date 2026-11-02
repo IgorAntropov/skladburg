@@ -41,7 +41,10 @@ export type {
 export type { CommandAccessValue } from './permissions/commandAccessTypes';
 export type { PermissionMessageKeyValue } from './permissions/getPermissionMessageKey';
 export { getPermissionMessageKey } from './permissions/getPermissionMessageKey';
-export type { ApiQueryMetaValue } from './query/apiQueryMetaTypes';
+export type {
+  ApiQueryMetaValue,
+  RealtimeEventCaseValue,
+} from './query/apiQueryMetaTypes';
 export type { CreateQueryClientOptionsValue } from './query/createQueryClient';
 export { createQueryClient } from './query/createQueryClient';
 export { invalidateQueriesByChannel } from './query/invalidateQueriesByChannel';

@@ -1,6 +1,13 @@
 import type { QueryClient } from '@tanstack/react-query';
 
+import { create } from '@bufbuild/protobuf';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
+import {
+  type Event,
+  EventSchema,
+} from '@skladburg/contracts/event/v1/event';
+import { WarehouseChangedSchema } from '@skladburg/contracts/organization/v1/organization';
+import { SupportAccessChangedSchema } from '@skladburg/contracts/support/v1/support_events';
 import {
   afterEach,
   beforeEach,
@@ -17,6 +24,7 @@ import type { IRealtimeChannel } from '../realtime/realtimeTypes';
 import type { FakeRealtimeSourceValue } from '../realtime/testing/createFakeRealtimeSource';
 import type { ManualFrameSchedulerValue } from '../realtime/testing/createManualFrameScheduler';
 import type { IDemoControl } from '../transport/demo';
+import type { RealtimeEventCaseValue } from './apiQueryMetaTypes';
 
 import { createActingContextStore } from '../context/createActingContextStore';
 import { createRealtimeChannel } from '../realtime/createRealtimeChannel';
@@ -37,6 +45,19 @@ const DENIED_ERROR: ApiErrorValue = {
   params: { case: undefined, value: undefined },
   traceId: undefined,
 };
+
+const createOrganizationEvent = (seq: number, payload: Event['payload']): Event => create(EventSchema, {
+  channel: ORGANIZATION_CHANNEL,
+  epoch: 'epoch-1',
+  payload,
+  seq: BigInt(seq),
+});
+
+const createWarehouseChangedEvent = (seq: number): Event =>
+  createOrganizationEvent(seq, { case: 'warehouseChanged', value: create(WarehouseChangedSchema, {}) });
+
+const createSupportAccessChangedEvent = (seq: number): Event =>
+  createOrganizationEvent(seq, { case: 'supportAccessChanged', value: create(SupportAccessChangedSchema, {}) });
 
 interface FakeDemoControlValue {
   control: IDemoControl;
@@ -92,6 +113,14 @@ describe('syncQueriesWithRealtime', () => {
   const addQuery = async (key: string, channels: readonly string[] | undefined): Promise<void> => {
     await queryClient.query({
       meta: channels === undefined ? undefined : { channels },
+      queryFn: () => Promise.resolve(key),
+      queryKey: [key],
+    });
+  };
+
+  const addOrganizationQuery = async (key: string, eventCases: readonly RealtimeEventCaseValue[]): Promise<void> => {
+    await queryClient.query({
+      meta: { channels: [ORGANIZATION_CHANNEL], eventCases },
       queryFn: () => Promise.resolve(key),
       queryKey: [key],
     });
@@ -277,6 +306,46 @@ describe('syncQueriesWithRealtime', () => {
       expect(invalidateSpy).toHaveBeenCalledTimes(1);
       expect(isInvalidated('warehouses')).toBe(true);
       expect(isInvalidated('deal')).toBe(false);
+    });
+
+    it('invalidates only the queries waiting for the event cases of an events batch', async () => {
+      await addOrganizationQuery('warehouses', ['warehouseChanged', 'warehouseCreated']);
+      await addOrganizationQuery('session', ['supportAccessChanged']);
+      await addOrganizationQuery('listings', ['listingsChanged']);
+      await addQuery('organization', [ORGANIZATION_CHANNEL]);
+      sync();
+      const subscription = openChannel(ORGANIZATION_CHANNEL);
+
+      subscription.emit([createWarehouseChangedEvent(1), createSupportAccessChangedEvent(2)]);
+      frames.flushFrame();
+
+      expect(invalidateSpy).toHaveBeenCalledTimes(1);
+      expect(isInvalidated('warehouses')).toBe(true);
+      expect(isInvalidated('session')).toBe(true);
+      expect(isInvalidated('listings')).toBe(false);
+      expect(isInvalidated('organization')).toBe(true);
+    });
+
+    it('invalidates every query of the channel when an event of the batch has no case', async () => {
+      await addOrganizationQuery('listings', ['listingsChanged']);
+      sync();
+      const subscription = openChannel(ORGANIZATION_CHANNEL);
+
+      subscription.emit([createWarehouseChangedEvent(1), createTestEvent(ORGANIZATION_CHANNEL, 2)]);
+      frames.flushFrame();
+
+      expect(isInvalidated('listings')).toBe(true);
+    });
+
+    it('invalidates every query of the channel for a resync batch', async () => {
+      await addOrganizationQuery('listings', ['listingsChanged']);
+      sync();
+      const subscription = openChannel(ORGANIZATION_CHANNEL);
+
+      subscription.emit([createWarehouseChangedEvent(5)]);
+      frames.flushFrame();
+
+      expect(isInvalidated('listings')).toBe(true);
     });
 
     it('warns about a denied channel and invalidates nothing', async () => {

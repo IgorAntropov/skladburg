@@ -70,7 +70,7 @@ describe('useMapSitesQuery', () => {
     expect(listMapSites).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe('idle');
     expect(result.current.data).toBeUndefined();
-    expect(query?.meta).toEqual({ channels: [] });
+    expect(query?.meta).toEqual({ channels: [], eventCases: ['warehouseChanged', 'warehouseCreated'] });
   });
 
   it('stores all pages under the organization key and declares the organization channel', async () => {
@@ -98,7 +98,7 @@ describe('useMapSitesQuery', () => {
 
     const query = queryClient.getQueryCache().find({ exact: true, queryKey: networkKeys.mapSites(TEST_ORGANIZATION_ID) });
 
-    expect(query?.meta).toEqual({ channels: [`org:${TEST_ORGANIZATION_ID}`] });
+    expect(query?.meta).toEqual({ channels: [`org:${TEST_ORGANIZATION_ID}`], eventCases: ['warehouseChanged', 'warehouseCreated'] });
     expect(result.current.data?.map(site => site.id)).toEqual(['site-1', 'site-2', 'site-3']);
     expect(listMapSites).toHaveBeenCalledTimes(2);
     expect(listMapSites.mock.calls[0]?.[0].page?.pageSize).toBe(200);

@@ -7,6 +7,8 @@ import {
   useQuery,
 } from '@tanstack/react-query';
 
+import type { RealtimeEventCaseValue } from '@/shared/api';
+
 import {
   collectPages,
   createOrganizationQueryMeta,
@@ -17,12 +19,14 @@ import {
 
 import { warehouseKeys } from './warehouseKeys';
 
+const WAREHOUSE_EVENT_CASES: readonly RealtimeEventCaseValue[] = ['warehouseChanged', 'warehouseCreated'];
+
 export const useWarehousesQuery = (): UseQueryResult<readonly Warehouse[]> => {
   const client = useApiClient();
   const { organizationId } = useActingContext();
 
   return useQuery({
-    meta: createOrganizationQueryMeta(organizationId),
+    meta: { ...createOrganizationQueryMeta(organizationId), eventCases: WAREHOUSE_EVENT_CASES },
     queryFn: organizationId === undefined
       ? skipToken
       : (): Promise<readonly Warehouse[]> => collectPages(async (page) => {

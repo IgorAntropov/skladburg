@@ -1,3 +1,4 @@
+import type { Event } from '@skladburg/contracts/event/v1/event';
 import type { QueryClient } from '@tanstack/react-query';
 
 import type {
@@ -5,6 +6,7 @@ import type {
   RealtimeBatchValue,
 } from '../realtime/realtimeTypes';
 import type { IDemoControl } from '../transport/demo';
+import type { RealtimeEventCaseValue } from './apiQueryMetaTypes';
 
 import { invalidateQueriesByChannel } from './invalidateQueriesByChannel';
 
@@ -13,6 +15,20 @@ export interface SyncQueriesWithRealtimeOptionsValue {
   queryClient: QueryClient;
   realtime: IRealtimeChannel;
 }
+
+const collectEventCases = (events: readonly Event[]): ReadonlySet<RealtimeEventCaseValue> | undefined => {
+  const eventCases = new Set<RealtimeEventCaseValue>();
+
+  for (const { payload } of events) {
+    if (payload.case === undefined) {
+      return undefined;
+    }
+
+    eventCases.add(payload.case);
+  }
+
+  return eventCases;
+};
 
 export const syncQueriesWithRealtime = (options: SyncQueriesWithRealtimeOptionsValue): () => void => {
   const { demoControl, queryClient, realtime } = options;
@@ -39,7 +55,9 @@ export const syncQueriesWithRealtime = (options: SyncQueriesWithRealtimeOptionsV
       return;
     }
 
-    void invalidateQueriesByChannel(queryClient, channel);
+    const eventCases = batch.kind === 'events' ? collectEventCases(batch.events) : undefined;
+
+    void invalidateQueriesByChannel(queryClient, channel, eventCases);
   };
 
   const reconcileChannels = (): void => {

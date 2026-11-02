@@ -160,6 +160,7 @@ describe('notification queries and read commands', () => {
     expect(handlers.listNotifications).toHaveBeenCalledTimes(1);
     expect(queryClient.getQueryCache().find({ exact: true, queryKey: listKey })?.meta).toEqual({
       channels: [`user:${TEST_USER_ID}`],
+      eventCases: ['notificationsChanged'],
     });
   });
 

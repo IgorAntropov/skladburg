@@ -101,7 +101,10 @@ describe('useSessionQuery', () => {
     });
 
     expect(query?.state.data).toBe(result.current.data);
-    expect(query?.meta).toEqual({ channels: [`org:${TEST_ORGANIZATION_ID}`, `user:${TEST_USER_ID}`] });
+    expect(query?.meta).toEqual({
+      channels: [`org:${TEST_ORGANIZATION_ID}`, `user:${TEST_USER_ID}`],
+      eventCases: ['supportAccessChanged', 'userChanged'],
+    });
   });
 
   it('sends the acting organization header', async () => {
@@ -141,7 +144,7 @@ describe('useSessionQuery', () => {
 
     const query = queryClient.getQueryCache().find({ exact: true, queryKey: sessionKeys.current('none', TEST_USER_ID) });
 
-    expect(query?.meta).toEqual({ channels: [`user:${TEST_USER_ID}`] });
+    expect(query?.meta).toEqual({ channels: [`user:${TEST_USER_ID}`], eventCases: ['supportAccessChanged', 'userChanged'] });
   });
 
   it('does not request anything while there is no acting user', async () => {
@@ -159,7 +162,7 @@ describe('useSessionQuery', () => {
 
     const query = queryClient.getQueryCache().find({ exact: true, queryKey: sessionKeys.current(TEST_ORGANIZATION_ID, 'none') });
 
-    expect(query?.meta).toEqual({ channels: [`org:${TEST_ORGANIZATION_ID}`] });
+    expect(query?.meta).toEqual({ channels: [`org:${TEST_ORGANIZATION_ID}`], eventCases: ['supportAccessChanged', 'userChanged'] });
   });
 
   it('requests the session again when the acting user changes', async () => {

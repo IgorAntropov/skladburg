@@ -94,7 +94,7 @@ describe('support ticket queries', () => {
 
     const query = queryClient.getQueryCache().find({ exact: true, queryKey: supportTicketKeys.mine(TEST_ORGANIZATION_ID) });
 
-    expect(query?.meta).toEqual({ channels: [`user:${TEST_USER_ID}`] });
+    expect(query?.meta).toEqual({ channels: [`user:${TEST_USER_ID}`], eventCases: ['supportTicketChanged'] });
     expect(listMySupportTickets).toHaveBeenCalledTimes(1);
     expect(listMySupportTickets.mock.calls[0]?.[0].page?.pageSize).toBe(30);
     expect(result.current.data?.tickets[0]?.number).toBe(7);
@@ -109,7 +109,7 @@ describe('support ticket queries', () => {
 
     expect(listMySupportTickets).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe('idle');
-    expect(query?.meta).toEqual({ channels: [] });
+    expect(query?.meta).toEqual({ channels: [], eventCases: ['supportTicketChanged'] });
   });
 
   it('requests a ticket by id under the organization key and listens to the user channel', async () => {
@@ -126,7 +126,7 @@ describe('support ticket queries', () => {
       queryKey: supportTicketKeys.detail(TEST_ORGANIZATION_ID, TICKET_ID),
     });
 
-    expect(query?.meta).toEqual({ channels: [`user:${TEST_USER_ID}`] });
+    expect(query?.meta).toEqual({ channels: [`user:${TEST_USER_ID}`], eventCases: ['supportTicketChanged'] });
     expect(getSupportTicket.mock.calls[0]?.[0].ticketId).toBe(TICKET_ID);
   });
 

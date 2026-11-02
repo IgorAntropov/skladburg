@@ -105,6 +105,7 @@ describe('usePersonasQuery', () => {
 
     expect(queryClient.getQueryCache().find({ exact: true, queryKey: personaKeys.list })?.meta).toEqual({
       channels: [userChannel(TEST_USER_ID)],
+      eventCases: ['userChanged'],
     });
   });
 

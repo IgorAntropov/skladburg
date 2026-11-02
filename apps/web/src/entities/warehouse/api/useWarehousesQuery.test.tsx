@@ -73,7 +73,7 @@ describe('useWarehousesQuery', () => {
     expect(listWarehouses).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe('idle');
     expect(result.current.data).toBeUndefined();
-    expect(query?.meta).toEqual({ channels: [] });
+    expect(query?.meta).toEqual({ channels: [], eventCases: ['warehouseChanged', 'warehouseCreated'] });
   });
 
   it('stores all pages under the organization key and declares the organization channel', async () => {
@@ -101,7 +101,7 @@ describe('useWarehousesQuery', () => {
 
     const query = queryClient.getQueryCache().find({ exact: true, queryKey: warehouseKeys.list(TEST_ORGANIZATION_ID) });
 
-    expect(query?.meta).toEqual({ channels: [`org:${TEST_ORGANIZATION_ID}`] });
+    expect(query?.meta).toEqual({ channels: [`org:${TEST_ORGANIZATION_ID}`], eventCases: ['warehouseChanged', 'warehouseCreated'] });
     expect(result.current.data?.map(warehouse => warehouse.id)).toEqual(['warehouse-1', 'warehouse-2', 'warehouse-3']);
     expect(listWarehouses).toHaveBeenCalledTimes(2);
     expect(listWarehouses.mock.calls[0]?.[0].page?.pageSize).toBe(200);

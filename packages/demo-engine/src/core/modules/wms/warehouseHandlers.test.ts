@@ -395,6 +395,20 @@ describe('OrganizationService.createWarehouse', () => {
     expect(commits).toHaveLength(0);
   });
 
+  it.each(['Asia/Novosibirsk', 'Foo/Bar'])('rejects the time zone %s other than the one of the city', async (timeZone) => {
+    const { commits, events, organization } = createModuleHarness();
+
+    const error = await captureError(organization.createWarehouse(
+      createRequest({ timeZone }),
+      callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1),
+    ));
+
+    expect(readErrorDetail(error).code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(getViolations(readErrorDetail(error))).toEqual([{ fieldPath: 'time_zone', ruleId: 'warehouse.time_zone_mismatch' }]);
+    expect(commits).toHaveLength(0);
+    expect(events).toHaveLength(0);
+  });
+
   it('writes nothing and sends no events when the body is invalid', async () => {
     const { commits, events, organization } = createModuleHarness();
 

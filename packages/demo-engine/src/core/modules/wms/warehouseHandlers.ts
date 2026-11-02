@@ -34,6 +34,9 @@ import { paginate } from '../pagination';
 
 export type WarehouseHandlersValue = Pick<ServiceImpl<typeof OrganizationService>, 'createWarehouse' | 'listWarehouses'>;
 
+const TIME_ZONE_PATH = 'time_zone';
+const TIME_ZONE_MISMATCH_RULE_ID = 'warehouse.time_zone_mismatch';
+
 export const createWarehouseHandlers = (runtime: IModuleRuntime): WarehouseHandlersValue => {
   const {
     command,
@@ -60,6 +63,10 @@ export const createWarehouseHandlers = (runtime: IModuleRuntime): WarehouseHandl
 
           if (transaction.get('mapNodes', request.mapNodeId)?.cityId !== request.cityId) {
             throw errors.notFound(EntityKind.MAP_NODE);
+          }
+
+          if (request.timeZone !== city.timeZone) {
+            throw errors.validationFailed([{ fieldPath: TIME_ZONE_PATH, ruleId: TIME_ZONE_MISMATCH_RULE_ID }]);
           }
 
           const warehouse = create(WarehouseSchema, {

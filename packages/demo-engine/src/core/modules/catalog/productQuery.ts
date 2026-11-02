@@ -5,15 +5,17 @@ import { compareIds } from '../../state/index';
 const QUERY_LOCALE = 'ru';
 const nameCollator = new Intl.Collator(QUERY_LOCALE);
 
+export const normalizeCatalogQuery = (query: string): string => query.trim().toLocaleLowerCase(QUERY_LOCALE);
+
+export const isTextIncludingQuery = (text: string, normalizedQuery: string): boolean =>
+  text.toLocaleLowerCase(QUERY_LOCALE).includes(normalizedQuery);
+
 export const isCatalogQueryMatched = (product: Product, query: string): boolean => {
-  const normalized = query.trim().toLocaleLowerCase(QUERY_LOCALE);
+  const normalized = normalizeCatalogQuery(query);
 
-  if (normalized === '') {
-    return true;
-  }
-
-  return product.name.toLocaleLowerCase(QUERY_LOCALE).includes(normalized)
-    || product.sku.toLocaleLowerCase(QUERY_LOCALE).includes(normalized);
+  return normalized === ''
+    || isTextIncludingQuery(product.name, normalized)
+    || isTextIncludingQuery(product.sku, normalized);
 };
 
 export const compareProductsByName = (current: Product, prev: Product): number => {

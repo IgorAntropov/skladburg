@@ -8,7 +8,6 @@ import {
   BusinessCalendarDataError,
   BusinessCalendarRangeError,
   createBusinessCalendar,
-  RU_BUSINESS_CALENDAR,
 } from './businessCalendar';
 import {
   type CalendarDateValue,
@@ -24,6 +23,7 @@ import {
   type CalendarDayKindValue,
   CalendarYearStatus,
 } from './calendarTypes';
+import { RU_BUSINESS_CALENDAR } from './ruBusinessCalendar';
 import { RU_BUSINESS_CALENDAR_YEARS } from './ruBusinessCalendarData';
 
 const date = (isoDate: string): CalendarDateValue => parseCalendarDate(isoDate);

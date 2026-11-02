@@ -29,6 +29,7 @@ import type {
 } from './catalogRules';
 
 import {
+  AMOUNT_ABOVE_LIMIT_RULE_ID,
   AVAILABILITY_QUANTITY_REQUIRED_RULE_ID,
   BASE_UNIT_LOCKED_RULE_ID,
   collectListingPriceViolations,
@@ -43,11 +44,14 @@ import {
   LISTING_PRODUCT_LOCKED_RULE_ID,
   LISTING_PRODUCT_TAKEN_RULE_ID,
   LISTING_WAREHOUSE_REQUIRED_RULE_ID,
+  MAX_CATALOG_AMOUNT_MINOR,
+  MAX_CATALOG_QUANTITY,
   MIN_ORDER_NOT_MULTIPLE_OF_STEP_RULE_ID,
   MIN_PRICE_ABOVE_TIER_RULE_ID,
   PACKAGING_ID_DUPLICATE_RULE_ID,
   PRICE_BELOW_MINIMUM_RULE_ID,
   PRICE_UNIT_LOCKED_RULE_ID,
+  QUANTITY_ABOVE_LIMIT_RULE_ID,
   SKU_TAKEN_RULE_ID,
   SPHERE_EXISTS_RULE_ID,
   TEMPERATURE_RANGE_ORDER_RULE_ID,
@@ -312,6 +316,83 @@ describe('collectSalesTermsViolations', () => {
     expect(violations).toEqual([
       { fieldPath: 'own_delivery.price_per_km.currency_code', ruleId: CURRENCY_UNSUPPORTED_RULE_ID },
       { fieldPath: 'own_delivery.minimum_charge.currency_code', ruleId: CURRENCY_UNSUPPORTED_RULE_ID },
+    ]);
+  });
+});
+
+describe('catalog upper bounds', () => {
+  const quantityLimit = MAX_CATALOG_QUANTITY;
+  const amountLimit = MAX_CATALOG_AMOUNT_MINOR;
+
+  it('accepts values equal to the limits in every collector', () => {
+    const delivery = create(OwnDeliveryTermsSchema, { minimumCharge: rub(amountLimit), pricePerKm: rub(amountLimit) });
+
+    expect(collectProductViolations(buildProductInput({ minPrice: rub(amountLimit) }))).toEqual([]);
+    expect(collectListingViolations(buildListingInput({
+      availability: [entry(WAREHOUSE_A, AvailabilityStatus.IN_STOCK, quantityLimit)],
+      minOrderQuantity: quantityLimit,
+      orderStep: 5n,
+    }))).toEqual([]);
+    expect(collectListingViolations(buildListingInput({ minOrderQuantity: 0n, orderStep: quantityLimit }))).toEqual([]);
+    expect(collectListingPriceViolations(buildPriceInput({
+      tiers: [tier(10n, 9000n), tier(quantityLimit, amountLimit)],
+    }))).toEqual([]);
+    expect(collectSalesTermsViolations(delivery)).toEqual([]);
+  });
+
+  const productCases: RuleCaseTupleValue<ProductRulesInputValue>[] = [
+    ['minimum price above the amount limit', { minPrice: rub(amountLimit + 1n) }, 'min_price.amount_minor', AMOUNT_ABOVE_LIMIT_RULE_ID],
+  ];
+
+  it.each(productCases)('reports %s in a product', (_name, overrides, fieldPath, ruleId) => {
+    expect(collectProductViolations(buildProductInput(overrides))).toEqual([{ fieldPath, ruleId }]);
+  });
+
+  const listingCases: RuleCaseTupleValue<ListingRulesInputValue>[] = [
+    [
+      'minimum order above the quantity limit',
+      { minOrderQuantity: quantityLimit + 1n, orderStep: 1n },
+      'min_order_quantity',
+      QUANTITY_ABOVE_LIMIT_RULE_ID,
+    ],
+    ['step above the quantity limit', { minOrderQuantity: 0n, orderStep: quantityLimit + 1n }, 'order_step', QUANTITY_ABOVE_LIMIT_RULE_ID],
+    [
+      'availability above the quantity limit',
+      { availability: [entry(WAREHOUSE_A, AvailabilityStatus.IN_STOCK, quantityLimit + 1n)] },
+      'availability[0].quantity',
+      QUANTITY_ABOVE_LIMIT_RULE_ID,
+    ],
+  ];
+
+  it.each(listingCases)('reports %s in a listing', (_name, overrides, fieldPath, ruleId) => {
+    expect(collectListingViolations(buildListingInput(overrides))).toEqual([{ fieldPath, ruleId }]);
+  });
+
+  const priceCases: RuleCaseTupleValue<ListingPriceRulesInputValue>[] = [
+    [
+      'tier threshold above the quantity limit',
+      { tiers: [tier(10n, 9000n), tier(quantityLimit + 1n, 8500n)] },
+      'tiers[1].min_quantity',
+      QUANTITY_ABOVE_LIMIT_RULE_ID,
+    ],
+    [
+      'tier price above the amount limit',
+      { tiers: [tier(10n, 9000n), tier(100n, amountLimit + 1n)] },
+      'tiers[1].price.amount_minor',
+      AMOUNT_ABOVE_LIMIT_RULE_ID,
+    ],
+  ];
+
+  it.each(priceCases)('reports %s in a price', (_name, overrides, fieldPath, ruleId) => {
+    expect(collectListingPriceViolations(buildPriceInput(overrides))).toEqual([{ fieldPath, ruleId }]);
+  });
+
+  it('reports each own delivery tariff above the amount limit on its own path', () => {
+    const delivery = create(OwnDeliveryTermsSchema, { minimumCharge: rub(amountLimit + 1n), pricePerKm: rub(amountLimit + 1n) });
+
+    expect(collectSalesTermsViolations(delivery)).toEqual([
+      { fieldPath: 'own_delivery.price_per_km.amount_minor', ruleId: AMOUNT_ABOVE_LIMIT_RULE_ID },
+      { fieldPath: 'own_delivery.minimum_charge.amount_minor', ruleId: AMOUNT_ABOVE_LIMIT_RULE_ID },
     ]);
   });
 });

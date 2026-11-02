@@ -1,9 +1,15 @@
 import {
+  dirname,
+  resolve,
+} from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
   describe,
   expect,
   it,
 } from 'vitest';
 
+import { collectRuntimeModules } from '../../testing/runtimeImportGraph';
 import {
   addCalendarDays,
   BusinessCalendarRangeError,
@@ -13,9 +19,11 @@ import {
   getIsoWeekday,
   getStartOfDayInstant,
   parseCalendarDate,
-  RU_BUSINESS_CALENDAR,
   toCalendarDate,
 } from './index';
+import { RU_BUSINESS_CALENDAR } from './ruBusinessCalendar';
+
+const CALENDAR_ROOT = dirname(fileURLToPath(import.meta.url));
 
 describe('core/calendar public entry', () => {
   it('computes a deadline in the time zone of a warehouse', () => {
@@ -41,5 +49,12 @@ describe('core/calendar public entry', () => {
     expect(getIsoWeekday(parseCalendarDate('2026-10-12'))).toBe(1);
     expect(createBusinessCalendar([]).getCoveredYears()).toEqual([]);
     expect(() => RU_BUSINESS_CALENDAR.isWorkingDay(parseCalendarDate('2030-01-01'))).toThrow(BusinessCalendarRangeError);
+  });
+
+  it('does not pull the calendar data into the runtime graph of the entry', () => {
+    const modules = collectRuntimeModules(resolve(CALENDAR_ROOT, 'index.ts'));
+
+    expect(modules).not.toContain(resolve(CALENDAR_ROOT, 'ruBusinessCalendarData.ts'));
+    expect(modules).not.toContain(resolve(CALENDAR_ROOT, 'ruBusinessCalendar.ts'));
   });
 });

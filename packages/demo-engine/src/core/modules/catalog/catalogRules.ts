@@ -34,6 +34,13 @@ export const PRICE_BELOW_MINIMUM_RULE_ID = 'catalog.price_below_minimum';
 export const PRICE_UNIT_LOCKED_RULE_ID = 'catalog.price_unit_locked';
 export const LISTING_PRODUCT_LOCKED_RULE_ID = 'catalog.listing_product_locked';
 export const BASE_UNIT_LOCKED_RULE_ID = 'catalog.base_unit_locked';
+export const QUANTITY_BELOW_MINIMUM_RULE_ID = 'catalog.quantity_below_minimum';
+export const QUANTITY_NOT_MULTIPLE_OF_STEP_RULE_ID = 'catalog.quantity_not_multiple_of_step';
+export const QUANTITY_ABOVE_LIMIT_RULE_ID = 'catalog.quantity_above_limit';
+export const AMOUNT_ABOVE_LIMIT_RULE_ID = 'catalog.amount_above_limit';
+
+export const MAX_CATALOG_QUANTITY = 10_000_000_000n;
+export const MAX_CATALOG_AMOUNT_MINOR = 500_000_000n;
 
 export interface ListingPriceRulesInputValue {
   minOrderQuantity: bigint;
@@ -89,6 +96,15 @@ const collectCurrencyViolations = (money: Money | undefined, fieldPath: string):
     ? [{ fieldPath, ruleId: CURRENCY_UNSUPPORTED_RULE_ID }]
     : [];
 
+const collectLimitViolations = (value: bigint, limit: bigint, fieldPath: string, ruleId: string): ViolationValue[] =>
+  value > limit ? [{ fieldPath, ruleId }] : [];
+
+export const collectQuantityLimitViolations = (quantity: bigint, fieldPath: string): ViolationValue[] =>
+  collectLimitViolations(quantity, MAX_CATALOG_QUANTITY, fieldPath, QUANTITY_ABOVE_LIMIT_RULE_ID);
+
+const collectAmountLimitViolations = (money: Money | undefined, fieldPath: string): ViolationValue[] =>
+  money === undefined ? [] : collectLimitViolations(money.amountMinor, MAX_CATALOG_AMOUNT_MINOR, fieldPath, AMOUNT_ABOVE_LIMIT_RULE_ID);
+
 const collectDuplicatePackagingViolations = (packagings: readonly Packaging[]): ViolationValue[] => {
   const seenIds = new Set<string>();
   const violations: ViolationValue[] = [];
@@ -127,6 +143,7 @@ export const collectProductViolations = (input: ProductRulesInputValue): Violati
   }
 
   violations.push(...collectCurrencyViolations(minPrice, 'min_price.currency_code'));
+  violations.push(...collectAmountLimitViolations(minPrice, 'min_price.amount_minor'));
 
   if (minPrice !== undefined && input.tierAmounts.some(amount => amount < minPrice.amountMinor)) {
     violations.push({ fieldPath: 'min_price.amount_minor', ruleId: MIN_PRICE_ABOVE_TIER_RULE_ID });
@@ -152,9 +169,13 @@ const collectAvailabilityViolations = (input: ListingRulesInputValue): Violation
 
     seenWarehouseIds.add(entry.warehouseId);
 
+    const quantityPath = indexedPath('availability', index, 'quantity');
+
     if (isQuantityRequired && entry.quantity === 0n) {
-      violations.push({ fieldPath: indexedPath('availability', index, 'quantity'), ruleId: AVAILABILITY_QUANTITY_REQUIRED_RULE_ID });
+      violations.push({ fieldPath: quantityPath, ruleId: AVAILABILITY_QUANTITY_REQUIRED_RULE_ID });
     }
+
+    violations.push(...collectQuantityLimitViolations(entry.quantity, quantityPath));
   });
 
   return violations;
@@ -184,6 +205,8 @@ export const collectListingViolations = (input: ListingRulesInputValue): Violati
   });
 
   violations.push(...collectAvailabilityViolations(input));
+  violations.push(...collectQuantityLimitViolations(input.minOrderQuantity, 'min_order_quantity'));
+  violations.push(...collectQuantityLimitViolations(input.orderStep, 'order_step'));
 
   if (input.orderStep > 0n && input.minOrderQuantity % input.orderStep !== 0n) {
     violations.push({ fieldPath: 'min_order_quantity', ruleId: MIN_ORDER_NOT_MULTIPLE_OF_STEP_RULE_ID });
@@ -222,6 +245,8 @@ export const collectListingPriceViolations = (input: ListingPriceRulesInputValue
 
   tiers.forEach((tier, index) => {
     violations.push(...collectCurrencyViolations(tier.price, indexedPath('tiers', index, 'price.currency_code')));
+    violations.push(...collectQuantityLimitViolations(tier.minQuantity, indexedPath('tiers', index, 'min_quantity')));
+    violations.push(...collectAmountLimitViolations(tier.price, indexedPath('tiers', index, 'price.amount_minor')));
 
     const previous = tiers[index - 1];
 
@@ -246,4 +271,6 @@ export const collectListingPriceViolations = (input: ListingPriceRulesInputValue
 export const collectSalesTermsViolations = (ownDelivery: OwnDeliveryTerms | undefined): ViolationValue[] => [
   ...collectCurrencyViolations(ownDelivery?.pricePerKm, 'own_delivery.price_per_km.currency_code'),
   ...collectCurrencyViolations(ownDelivery?.minimumCharge, 'own_delivery.minimum_charge.currency_code'),
+  ...collectAmountLimitViolations(ownDelivery?.pricePerKm, 'own_delivery.price_per_km.amount_minor'),
+  ...collectAmountLimitViolations(ownDelivery?.minimumCharge, 'own_delivery.minimum_charge.amount_minor'),
 ];

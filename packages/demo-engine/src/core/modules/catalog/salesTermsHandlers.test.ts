@@ -7,10 +7,14 @@ import {
 } from 'vitest';
 
 import { SeedOrganizationId } from '../../seed/index';
-import { createModuleHarness } from '../testing/moduleHarness';
+import {
+  AMOUNT_ABOVE_LIMIT_RULE_ID,
+  MAX_CATALOG_AMOUNT_MINOR,
+} from './catalogRules';
 import {
   buildRub,
   captureFailure,
+  createEmptyCatalogHarness,
   listCatalogEvents,
   nextUuid,
   SUPPLIER_1_CALL,
@@ -21,7 +25,7 @@ const ownDelivery = { minimumCharge: buildRub(150000n), pricePerKm: buildRub(450
 
 describe('CatalogService.getSalesTerms', () => {
   it('returns the defaults at version 0 when nothing is saved', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
 
     const response = await harness.catalog.getSalesTerms({}, SUPPLIER_1_CALL);
 
@@ -35,7 +39,7 @@ describe('CatalogService.getSalesTerms', () => {
   });
 
   it('keeps the terms of each organization apart', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     await harness.catalog.saveSalesTerms(
       { idempotencyKey: nextUuid(), isAutoConfirmEnabled: true, ownDelivery, preparationWorkingDays: 3 },
       SUPPLIER_1_CALL,
@@ -50,7 +54,7 @@ describe('CatalogService.getSalesTerms', () => {
 
 describe('CatalogService.saveSalesTerms', () => {
   it('creates the terms at version 1, edits them and drops the own delivery when it is left empty', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const created = await harness.catalog.saveSalesTerms(
       { idempotencyKey: nextUuid(), isAutoConfirmEnabled: true, ownDelivery, preparationWorkingDays: 2 },
       SUPPLIER_1_CALL,
@@ -68,7 +72,7 @@ describe('CatalogService.saveSalesTerms', () => {
   });
 
   it('reports conflicts with the organization entity and the initial version of a missing record', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const missing = await captureFailure(
       harness.catalog.saveSalesTerms({ expectedVersion: 1n, idempotencyKey: nextUuid() }, SUPPLIER_1_CALL),
     );
@@ -84,7 +88,7 @@ describe('CatalogService.saveSalesTerms', () => {
   });
 
   it('rejects the own delivery tariffs in an unsupported currency', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
 
     const failure = await captureFailure(harness.catalog.saveSalesTerms(
       {
@@ -105,7 +109,7 @@ describe('CatalogService.saveSalesTerms', () => {
   });
 
   it('replays a repeated key without a second version bump or event', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const request = { idempotencyKey: nextUuid(), preparationWorkingDays: 2 };
 
     await harness.catalog.saveSalesTerms(request, SUPPLIER_1_CALL);
@@ -115,5 +119,31 @@ describe('CatalogService.saveSalesTerms', () => {
     expect(replay.terms?.version).toBe(1n);
     expect(harness.state.read.get('salesTerms', SeedOrganizationId.SUPPLIER_1)?.version).toBe(1n);
     expect(listCatalogEvents(harness.events)).toHaveLength(eventsAfterFirst);
+  });
+});
+
+describe('CatalogService.saveSalesTerms upper bound', () => {
+  it('refuses own delivery tariffs above the limit as validation_failed and accepts the limit itself', async () => {
+    const harness = await createEmptyCatalogHarness();
+    const overLimit = buildRub(MAX_CATALOG_AMOUNT_MINOR + 1n);
+
+    const failure = await captureFailure(harness.catalog.saveSalesTerms(
+      { idempotencyKey: nextUuid(), ownDelivery: { minimumCharge: overLimit, pricePerKm: overLimit } },
+      SUPPLIER_1_CALL,
+    ));
+    const accepted = await harness.catalog.saveSalesTerms(
+      {
+        idempotencyKey: nextUuid(),
+        ownDelivery: { minimumCharge: buildRub(MAX_CATALOG_AMOUNT_MINOR), pricePerKm: buildRub(MAX_CATALOG_AMOUNT_MINOR) },
+      },
+      SUPPLIER_1_CALL,
+    );
+
+    expect(failure.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(failure.violations).toEqual([
+      { fieldPath: 'own_delivery.price_per_km.amount_minor', ruleId: AMOUNT_ABOVE_LIMIT_RULE_ID },
+      { fieldPath: 'own_delivery.minimum_charge.amount_minor', ruleId: AMOUNT_ABOVE_LIMIT_RULE_ID },
+    ]);
+    expect(accepted.terms?.version).toBe(1n);
   });
 });

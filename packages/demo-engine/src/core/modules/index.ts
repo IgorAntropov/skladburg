@@ -1,4 +1,7 @@
-export { createCatalogService } from './catalog/index';
+export {
+  createCatalogService,
+  createCatalogShowcaseService,
+} from './catalog/index';
 export { createClockService } from './clock/index';
 export {
   createAccessService,

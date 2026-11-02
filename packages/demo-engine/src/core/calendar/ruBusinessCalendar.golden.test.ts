@@ -11,9 +11,9 @@ import {
   formatCalendarDateIso,
   getStartOfDayInstant,
   parseCalendarDate,
-  RU_BUSINESS_CALENDAR,
   toCalendarDate,
 } from './index';
+import { RU_BUSINESS_CALENDAR } from './ruBusinessCalendar';
 
 interface DecreeValue {
   extraDaysOff: readonly string[];

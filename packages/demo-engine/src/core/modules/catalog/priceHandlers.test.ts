@@ -15,11 +15,17 @@ import {
 } from 'vitest';
 
 import { SeedOrganizationId } from '../../seed/index';
-import { createModuleHarness } from '../testing/moduleHarness';
+import {
+  AMOUNT_ABOVE_LIMIT_RULE_ID,
+  MAX_CATALOG_AMOUNT_MINOR,
+  MAX_CATALOG_QUANTITY,
+  QUANTITY_ABOVE_LIMIT_RULE_ID,
+} from './catalogRules';
 import {
   buildPriceRequest,
   buildRub,
   captureFailure,
+  createEmptyCatalogHarness,
   createListing,
   createPrice,
   createProduct,
@@ -34,7 +40,7 @@ const tier = (minQuantity: bigint, amountMinor: bigint): PriceTier =>
 
 describe('CatalogService.saveListingPrice', () => {
   it('creates the base price list with the first price and reuses it for the next ones', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const firstListing = await createListing(harness, await createProduct(harness, { sku: 'P-1' }));
     const secondListing = await createListing(harness, await createProduct(harness, { sku: 'P-2' }));
 
@@ -50,7 +56,7 @@ describe('CatalogService.saveListingPrice', () => {
   });
 
   it('replaces the tiers and bumps the row version', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const listing = await createListing(harness, await createProduct(harness));
     const created = await createPrice(harness, listing);
 
@@ -62,7 +68,7 @@ describe('CatalogService.saveListingPrice', () => {
   });
 
   it('reports a version conflict with version 0 when the row does not exist yet', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const listing = await createListing(harness, await createProduct(harness));
 
     const failure = await captureFailure(
@@ -73,7 +79,7 @@ describe('CatalogService.saveListingPrice', () => {
   });
 
   it('refuses creation over an existing row with its current version', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const listing = await createListing(harness, await createProduct(harness));
     await createPrice(harness, listing);
 
@@ -83,7 +89,7 @@ describe('CatalogService.saveListingPrice', () => {
   });
 
   it('answers not_found for a listing that is foreign or missing and creates nothing', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const foreign = await createListing(harness, await createProduct(harness, {}, SUPPLIER_2_CALL), {}, SUPPLIER_2_CALL);
 
     const foreignFailure = await captureFailure(harness.catalog.saveListingPrice(buildPriceRequest(foreign.id), SUPPLIER_1_CALL));
@@ -96,7 +102,7 @@ describe('CatalogService.saveListingPrice', () => {
   });
 
   it('rejects the tiers against the listing and the product and leaves no price list behind', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const product = await createProduct(harness, { minPrice: buildRub(8000n) });
     const listing = await createListing(harness, product);
 
@@ -120,7 +126,7 @@ describe('CatalogService.saveListingPrice', () => {
   });
 
   it('compares the tiers with the minimum price in the unit that stays locked', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const product = await createProduct(harness, { minPrice: buildRub(8000n) });
     const listing = await createListing(harness, product, { priceUnit: create(PriceUnitSchema, { baseQuantity: 1000n, name: 'кг' }) });
     const created = await createPrice(harness, listing);
@@ -137,7 +143,7 @@ describe('CatalogService.saveListingPrice', () => {
   });
 
   it('replays a repeated key without a second row, version bump or event', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const listing = await createListing(harness, await createProduct(harness));
     const request = buildPriceRequest(listing.id);
 
@@ -153,7 +159,7 @@ describe('CatalogService.saveListingPrice', () => {
 
 describe('CatalogService.listListingPrices', () => {
   it('returns own rows, narrows them to the requested listings and skips foreign ids', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const first = await createListing(harness, await createProduct(harness, { sku: 'L-1' }));
     const second = await createListing(harness, await createProduct(harness, { sku: 'L-2' }));
     const foreign = await createListing(harness, await createProduct(harness, {}, SUPPLIER_2_CALL), {}, SUPPLIER_2_CALL);
@@ -170,7 +176,7 @@ describe('CatalogService.listListingPrices', () => {
   });
 
   it('pages through the rows ordered by listing id', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const listings = [
       await createListing(harness, await createProduct(harness, { sku: 'Q-1' })),
       await createListing(harness, await createProduct(harness, { sku: 'Q-2' })),
@@ -194,7 +200,7 @@ describe('CatalogService.listListingPrices', () => {
 
 describe('CatalogService.getPriceList and savePriceList', () => {
   it('returns an empty price list at version 0 when nothing is saved', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
 
     const response = await harness.catalog.getPriceList({}, SUPPLIER_1_CALL);
 
@@ -203,7 +209,7 @@ describe('CatalogService.getPriceList and savePriceList', () => {
   });
 
   it('creates the single price list, edits it and lets the validity be cleared', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const created = await harness.catalog.savePriceList(
       { idempotencyKey: nextUuid(), validUntil: { day: 31, month: 12, year: 2027 } },
       SUPPLIER_1_CALL,
@@ -219,7 +225,7 @@ describe('CatalogService.getPriceList and savePriceList', () => {
   });
 
   it('edits the price list that the first price created', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const price = await createPrice(harness, await createListing(harness, await createProduct(harness)));
 
     const edited = await harness.catalog.savePriceList({ expectedVersion: 1n, idempotencyKey: nextUuid() }, SUPPLIER_1_CALL);
@@ -228,7 +234,7 @@ describe('CatalogService.getPriceList and savePriceList', () => {
   });
 
   it('reports conflicts and the initial version of a missing list', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const missing = await captureFailure(
       harness.catalog.savePriceList({ expectedVersion: 1n, idempotencyKey: nextUuid() }, SUPPLIER_1_CALL),
     );
@@ -244,7 +250,7 @@ describe('CatalogService.getPriceList and savePriceList', () => {
   });
 
   it('keeps the price list of each organization apart', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     await harness.catalog.savePriceList({ idempotencyKey: nextUuid() }, SUPPLIER_1_CALL);
 
     const other = await harness.catalog.getPriceList({}, SUPPLIER_2_CALL);
@@ -256,7 +262,7 @@ describe('CatalogService.getPriceList and savePriceList', () => {
   });
 
   it('replays a repeated key without a second price list or event', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const request = { idempotencyKey: nextUuid() };
 
     await harness.catalog.savePriceList(request, SUPPLIER_1_CALL);
@@ -265,5 +271,29 @@ describe('CatalogService.getPriceList and savePriceList', () => {
 
     expect(harness.state.read.list('priceLists')).toHaveLength(1);
     expect(listCatalogEvents(harness.events)).toHaveLength(eventsAfterFirst);
+  });
+});
+
+describe('CatalogService.saveListingPrice upper bound', () => {
+  it('refuses a threshold and a price above the limits as validation_failed and accepts the limits themselves', async () => {
+    const harness = await createEmptyCatalogHarness();
+    const listing = await createListing(harness, await createProduct(harness));
+
+    const failure = await captureFailure(harness.catalog.saveListingPrice(
+      buildPriceRequest(listing.id, {
+        tiers: [tier(10n, MAX_CATALOG_AMOUNT_MINOR + 1n), tier(MAX_CATALOG_QUANTITY + 1n, 8500n)],
+      }),
+      SUPPLIER_1_CALL,
+    ));
+    const accepted = await createPrice(harness, listing, {
+      tiers: [tier(10n, MAX_CATALOG_AMOUNT_MINOR), tier(MAX_CATALOG_QUANTITY, 8500n)],
+    });
+
+    expect(failure.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(failure.violations).toEqual([
+      { fieldPath: 'tiers[0].price.amount_minor', ruleId: AMOUNT_ABOVE_LIMIT_RULE_ID },
+      { fieldPath: 'tiers[1].min_quantity', ruleId: QUANTITY_ABOVE_LIMIT_RULE_ID },
+    ]);
+    expect(accepted.tiers).toHaveLength(2);
   });
 });

@@ -15,6 +15,7 @@ import {
 import { AccessService } from '@skladburg/contracts/access/v1/access';
 import { UserProfileService } from '@skladburg/contracts/access/v1/profile';
 import { CatalogService } from '@skladburg/contracts/catalog/v1/catalog';
+import { ShowcaseService } from '@skladburg/contracts/catalog/v1/showcase';
 import { ClockService } from '@skladburg/contracts/clock/v1/clock';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
@@ -29,6 +30,7 @@ import type { IDomainErrors } from '../errors/index';
 export interface CreateEngineHandlerOptionsValue {
   accessService: ServiceImpl<typeof AccessService>;
   catalogService: ServiceImpl<typeof CatalogService>;
+  catalogShowcaseService: ServiceImpl<typeof ShowcaseService>;
   clockService: ServiceImpl<typeof ClockService>;
   errors: IDomainErrors;
   networkService: ServiceImpl<typeof NetworkService>;
@@ -73,6 +75,7 @@ export const createEngineHandler = (options: CreateEngineHandlerOptionsValue): E
 
   router.service(AccessService, options.accessService);
   router.service(CatalogService, options.catalogService);
+  router.service(ShowcaseService, options.catalogShowcaseService);
   router.service(ClockService, options.clockService);
   router.service(NetworkService, options.networkService);
   router.service(NotificationService, options.notificationService);

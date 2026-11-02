@@ -3,7 +3,6 @@ export {
   BusinessCalendarRangeError,
   createBusinessCalendar,
   type IBusinessCalendar,
-  RU_BUSINESS_CALENDAR,
 } from './businessCalendar';
 export {
   addCalendarDays,

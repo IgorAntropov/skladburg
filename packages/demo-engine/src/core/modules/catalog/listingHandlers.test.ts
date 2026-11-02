@@ -27,10 +27,15 @@ import {
 } from '../../seed/index';
 import { createModuleHarness } from '../testing/moduleHarness';
 import {
+  MAX_CATALOG_QUANTITY,
+  QUANTITY_ABOVE_LIMIT_RULE_ID,
+} from './catalogRules';
+import {
   buildAvailability,
   buildListingRequest,
   buildRub,
   captureFailure,
+  createEmptyCatalogHarness,
   createListing,
   createPrice,
   createProduct,
@@ -62,6 +67,7 @@ const requireListing = (listing: Listing | undefined): Listing => {
 describe('CatalogService.saveListing', () => {
   it('creates a draft at version 1 owned by the caller and keeps the published flag on edit', async () => {
     const harness = createModuleHarness();
+    const listingsBefore = harness.state.read.list('listings').length;
     const { listing, product } = await createPublishedListing(harness);
 
     const edited = await harness.catalog.saveListing(
@@ -72,7 +78,7 @@ describe('CatalogService.saveListing', () => {
     expect(listing.tenantId).toBe(SeedOrganizationId.SUPPLIER_1);
     expect(edited.listing?.isPublished).toBe(true);
     expect(edited.listing?.version).toBe(listing.version + 1n);
-    expect(harness.state.read.list('listings')).toHaveLength(1);
+    expect(harness.state.read.list('listings')).toHaveLength(listingsBefore + 1);
   });
 
   it('creates a listing as a draft', async () => {
@@ -121,6 +127,7 @@ describe('CatalogService.saveListing', () => {
 
   it('replays a repeated key without a second listing or event', async () => {
     const harness = createModuleHarness();
+    const listingsBefore = harness.state.read.list('listings').length;
     const product = await createProduct(harness);
     const request = buildListingRequest(product.id);
 
@@ -128,7 +135,7 @@ describe('CatalogService.saveListing', () => {
     const eventsAfterFirst = listCatalogEvents(harness.events).length;
     await harness.catalog.saveListing(request, SUPPLIER_1_CALL);
 
-    expect(harness.state.read.list('listings')).toHaveLength(1);
+    expect(harness.state.read.list('listings')).toHaveLength(listingsBefore + 1);
     expect(listCatalogEvents(harness.events)).toHaveLength(eventsAfterFirst);
   });
 
@@ -454,7 +461,7 @@ describe('CatalogService.getOwnListing and listOwnListings', () => {
   });
 
   it('lists only own listings ordered by product name and filtered by the query', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const second = await createProduct(harness, { name: 'Ряженка', sku: 'RJ' });
     const first = await createProduct(harness, { name: 'Айран', sku: 'AY' });
     const foreign = await createProduct(harness, { name: 'Бринза', sku: 'BR' }, SUPPLIER_2_CALL);
@@ -471,5 +478,37 @@ describe('CatalogService.getOwnListing and listOwnListings', () => {
     expect(filtered.listings.map(entry => entry.product?.sku)).toEqual(['RJ']);
     expect(paged.listings).toHaveLength(1);
     expect(paged.page?.nextPageToken).not.toBe('');
+  });
+});
+
+describe('CatalogService.saveListing upper bound', () => {
+  it('refuses quantities above the limit as validation_failed and accepts the limit itself', async () => {
+    const harness = createModuleHarness();
+    const listingsBefore = harness.state.read.list('listings').length;
+    const product = await createProduct(harness);
+    const overLimit = MAX_CATALOG_QUANTITY + 1n;
+
+    const failure = await captureFailure(harness.catalog.saveListing(
+      buildListingRequest(product.id, {
+        availability: [buildAvailability(SeedWarehouseId.SUPPLIER_1_WAREHOUSE_1, overLimit)],
+        minOrderQuantity: overLimit,
+        orderStep: overLimit,
+      }),
+      SUPPLIER_1_CALL,
+    ));
+    const accepted = await createListing(harness, product, {
+      availability: [buildAvailability(SeedWarehouseId.SUPPLIER_1_WAREHOUSE_1, MAX_CATALOG_QUANTITY)],
+      minOrderQuantity: MAX_CATALOG_QUANTITY,
+      orderStep: 5n,
+    });
+
+    expect(failure.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(failure.violations).toEqual([
+      { fieldPath: 'availability[0].quantity', ruleId: QUANTITY_ABOVE_LIMIT_RULE_ID },
+      { fieldPath: 'min_order_quantity', ruleId: QUANTITY_ABOVE_LIMIT_RULE_ID },
+      { fieldPath: 'order_step', ruleId: QUANTITY_ABOVE_LIMIT_RULE_ID },
+    ]);
+    expect(harness.state.read.list('listings')).toHaveLength(listingsBefore + 1);
+    expect(accepted.minOrderQuantity).toBe(MAX_CATALOG_QUANTITY);
   });
 });

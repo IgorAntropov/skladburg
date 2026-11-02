@@ -103,6 +103,7 @@ export const createTestRuntime = (): TestRuntimeValue => {
       storage,
     }),
     errors,
+    getWorldTimeMs: () => clock.now(),
     guard: createCallGuard({
       errors,
       getWorldTimeMs: () => clock.now(),

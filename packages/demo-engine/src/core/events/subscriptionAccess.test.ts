@@ -1,4 +1,5 @@
 import { create } from '@bufbuild/protobuf';
+import { ShowcaseService } from '@skladburg/contracts/catalog/v1/showcase';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import {
   ErrorCode,
@@ -27,7 +28,12 @@ import {
 import type { TestRuntimeValue } from '../modules/testing/testRuntime';
 
 import { createDomainErrors } from '../errors/index';
-import { addTestMember } from '../modules/testing/moduleHarness';
+import {
+  addTestMember,
+  callAs,
+  callForOutcome,
+  createModuleHarness,
+} from '../modules/testing/moduleHarness';
 import { createTestRuntime } from '../modules/testing/testRuntime';
 import { createRandom } from '../ports/index';
 import { DEMO_USER_HEADER } from '../protocol';
@@ -219,6 +225,47 @@ describe('subscription access to the market channel', () => {
       expect(detail?.code).toBe(ErrorCode.PERMISSION_DENIED);
       expect(readPermission(detail)).toEqual({ permission: 'marketplace_view', warehouseId: '' });
     }
+  });
+
+  it('lets a member with the organization-wide permission subscribe and read the showcase', async () => {
+    const harness = createModuleHarness();
+    const access = createSubscriptionAccess(createDomainErrors(createRandom(createSeedSnapshot().meta.traceRandomState)));
+    const userId = await addTestMember(harness, {
+      organizationId: SeedOrganizationId.CUSTOMER_1,
+      permissions: ['marketplace_view'],
+      warehouseIds: [],
+    });
+
+    const detail = access.check(harness.state.read, market, createHeaders(userId, SeedOrganizationId.CUSTOMER_1));
+    const outcome = await callForOutcome(
+      harness.transport,
+      ShowcaseService.method.listShowcaseListings,
+      callAs(userId, SeedOrganizationId.CUSTOMER_1),
+    );
+
+    expect(detail).toBeUndefined();
+    expect(outcome).toEqual({ code: undefined, permission: undefined });
+  });
+
+  it('denies a member whose marketplace_view is limited to warehouses the same way the showcase read does', async () => {
+    const harness = createModuleHarness();
+    const access = createSubscriptionAccess(createDomainErrors(createRandom(createSeedSnapshot().meta.traceRandomState)));
+    const userId = await addTestMember(harness, {
+      organizationId: SeedOrganizationId.CUSTOMER_1,
+      permissions: ['marketplace_view'],
+      warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1],
+    });
+
+    const detail = access.check(harness.state.read, market, createHeaders(userId, SeedOrganizationId.CUSTOMER_1));
+    const outcome = await callForOutcome(
+      harness.transport,
+      ShowcaseService.method.listShowcaseListings,
+      callAs(userId, SeedOrganizationId.CUSTOMER_1),
+    );
+
+    expect(detail?.code).toBe(ErrorCode.PERMISSION_DENIED);
+    expect(readPermission(detail)).toEqual({ permission: 'marketplace_view', warehouseId: '' });
+    expect(outcome).toEqual({ code: ErrorCode.PERMISSION_DENIED, permission: 'marketplace_view' });
   });
 
   it('answers membership_required without an acting organization', () => {

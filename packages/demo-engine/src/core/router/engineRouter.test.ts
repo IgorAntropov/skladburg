@@ -65,6 +65,7 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
       saveSalesTerms: unused,
       setListingPublished: unused,
     },
+    catalogShowcaseService: { getShowcaseListing: unused, listShowcaseListings: unused },
     clockService: { getWorldClock: unused },
     errors,
     networkService: { listCities: unused, listMapNodes: unused, listMapSites: unused, listRouteLegs: unused },

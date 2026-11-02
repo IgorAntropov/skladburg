@@ -50,6 +50,7 @@ const OPERATOR_NAME_PATTERN = /^Тридок$/;
 const OPERATOR_LEGAL_NAME_PATTERN = /^ООО «Тридок»$/;
 const OPERATOR_USER_NAME_PATTERN = /^[А-ЯЁ][а-яё]+ [А-ЯЁ]\.$/;
 const OPERATOR_ROLE_NAME_PATTERN = /^(Агент поддержки|Инженер поддержки|Администратор платформы|Супер-администратор)$/;
+const PRODUCT_NAME_PATTERN = /^[А-ЯЁ][А-Яа-яЁё0-9 ,.%()×–/-]+$/;
 const LEGAL_ADDRESS_CITY_PATTERN = /^000000, г\. ([^,]+),/;
 
 const BIK_REGION_START = 2;
@@ -417,5 +418,29 @@ describe('seed fictional names', () => {
     operatorRoles.forEach(({ name }) => {
       expect(name).toMatch(OPERATOR_ROLE_NAME_PATTERN);
     });
+  });
+});
+
+describe('seed fictional products', () => {
+  const records = createSeedRecords();
+
+  it('contains products to check', () => {
+    expect(records.products.length).toBeGreaterThan(0);
+  });
+
+  it('names products by generic words in Cyrillic, without Latin letters and trademark signs', () => {
+    for (const { name } of records.products) {
+      expect(name).toMatch(PRODUCT_NAME_PATTERN);
+    }
+  });
+
+  it('names no product after a company of the seed', () => {
+    const companyNames = records.organizations.map(organization => organization.name.toLowerCase());
+
+    for (const { name } of records.products) {
+      const lowerName = name.toLowerCase();
+
+      expect(companyNames.some(company => lowerName.includes(company)), name).toBe(false);
+    }
   });
 });

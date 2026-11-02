@@ -1,5 +1,8 @@
 import type { MessageInitShape } from '@bufbuild/protobuf';
-import type { CallOptions } from '@connectrpc/connect';
+import type {
+  CallOptions,
+  Client,
+} from '@connectrpc/connect';
 import type {
   Listing,
   ListingPrice,
@@ -10,6 +13,11 @@ import type {
   SaveProductRequest,
   WarehouseAvailability,
 } from '@skladburg/contracts/catalog/v1/catalog';
+import type {
+  ListShowcaseListingsRequestSchema,
+  ListShowcaseListingsResponse,
+  ShowcaseService,
+} from '@skladburg/contracts/catalog/v1/showcase';
 import type { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import type {
   ErrorCode,
@@ -45,6 +53,7 @@ import {
 import {
   callAs,
   captureError,
+  createModuleHarness,
   readErrorDetail,
 } from '../../testing/moduleHarness';
 
@@ -61,6 +70,8 @@ const OWN_WAREHOUSE_ID_BY_CALL = new Map<CallOptions, string>([
   [SUPPLIER_2_CALL, SeedWarehouseId.SUPPLIER_2_WAREHOUSE_1],
   [SUPPLIER_5_CALL, SeedWarehouseId.SUPPLIER_5_WAREHOUSE_1],
 ]);
+
+const FULL_SHOWCASE_PAGE_SIZE = 200;
 
 export const GTIN_ONE = '2000000000015';
 export const GTIN_TWO = '2000000000022';
@@ -131,6 +142,48 @@ export const buildPriceRequest = (listingId: string, overrides: PriceOverridesVa
     ],
     ...overrides,
   });
+
+export const createEmptyCatalogHarness = async (): Promise<ModuleHarnessValue> => {
+  const harness = createModuleHarness();
+
+  await harness.runtime.command((transaction) => {
+    for (const product of transaction.list('products')) {
+      transaction.delete('products', product.id);
+    }
+
+    for (const listing of transaction.list('listings')) {
+      transaction.delete('listings', listing.id);
+    }
+
+    for (const price of transaction.list('listingPrices')) {
+      transaction.delete('listingPrices', price.listingId);
+    }
+
+    for (const priceList of transaction.list('priceLists')) {
+      transaction.delete('priceLists', priceList.id);
+    }
+
+    for (const terms of transaction.list('salesTerms')) {
+      transaction.delete('salesTerms', terms.organizationId);
+    }
+  });
+
+  return harness;
+};
+
+export const listFullShowcase = async (
+  client: Client<typeof ShowcaseService>,
+  request: Omit<MessageInitShape<typeof ListShowcaseListingsRequestSchema>, '$typeName' | 'page'>,
+  call: CallOptions,
+): Promise<ListShowcaseListingsResponse> => {
+  const response = await client.listShowcaseListings({ ...request, page: { pageSize: FULL_SHOWCASE_PAGE_SIZE } }, call);
+
+  if ((response.page?.nextPageToken ?? '') !== '') {
+    throw new Error('The showcase was expected to fit one page');
+  }
+
+  return response;
+};
 
 const requireValue = <TValue>(value: TValue | undefined): TValue => {
   if (value === undefined) {

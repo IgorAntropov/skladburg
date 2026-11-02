@@ -22,6 +22,13 @@ import {
   createSeedUsers,
 } from './seedAccess';
 import {
+  createSeedListingPrices,
+  createSeedListings,
+  createSeedPriceLists,
+  createSeedProducts,
+  createSeedSalesTerms,
+} from './seedCatalog';
+import {
   createSeedCities,
   createSeedMapNodes,
   createSeedRouteLegs,
@@ -52,7 +59,7 @@ export type SeedRecordsValue = {
   [TName in TableName]: TableRecordsValue[TName][];
 };
 
-export const SEED_VERSION = 11;
+export const SEED_VERSION = 12;
 export const SEED_TIME_SCALE = 1;
 export const SEED_WORLD_START_MS = Date.UTC(2026, 9, 12, 6, 0, 0);
 export const SEED_RANDOM_SEED = 20261012;
@@ -66,8 +73,8 @@ export const DEFAULT_ENGINE_SEED: EngineSeedValue = {
 export const createSeedRecords = (): SeedRecordsValue => ({
   cities: createSeedCities(),
   idempotency: [],
-  listingPrices: [],
-  listings: [],
+  listingPrices: createSeedListingPrices(),
+  listings: createSeedListings(),
   mapNodes: createSeedMapNodes(),
   memberships: [...createSeedMemberships(), ...createSeedPlatformMemberships()],
   notifications: createSeedNotifications(SEED_WORLD_START_MS),
@@ -75,11 +82,11 @@ export const createSeedRecords = (): SeedRecordsValue => ({
   organizations: [...createSeedOrganizations(), ...createSeedPlatformOrganizations()],
   organizationSettings: [...createSeedOrganizationSettings(), ...createSeedPlatformOrganizationSettings()],
   personas: createSeedPersonas(),
-  priceLists: [],
-  products: [],
+  priceLists: createSeedPriceLists(),
+  products: createSeedProducts(),
   roles: [...createSeedRoles(), ...createSeedPlatformRoles()],
   routeLegs: createSeedRouteLegs(),
-  salesTerms: [],
+  salesTerms: createSeedSalesTerms(),
   spheres: createSeedSpheres(),
   supportAccessSessions: [],
   supportAuditEntries: [],

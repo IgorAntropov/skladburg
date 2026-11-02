@@ -10,6 +10,7 @@ export {
   projectOrganizationShowcase,
 } from './organizationShowcase';
 export {
+  cloneOrganizationLogo,
   getVisibleOrganization,
   isOrganizationVerified,
   isOrganizationVisibleToViewer,
@@ -17,6 +18,10 @@ export {
   MIN_SHOWCASE_VERIFICATION_LEVEL,
   projectOrganizationForShowcase,
 } from './organizationVisibility';
+export {
+  isShowcaseListingVisible,
+  type ShowcaseListingVisibilityInputValue,
+} from './showcaseListing';
 export {
   listVisibleRoles,
   listVisibleWarehouses,

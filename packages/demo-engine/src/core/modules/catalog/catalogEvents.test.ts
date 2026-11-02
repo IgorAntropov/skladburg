@@ -22,6 +22,7 @@ import { createModuleHarness } from '../testing/moduleHarness';
 import {
   buildListingRequest,
   buildProductRequest,
+  createEmptyCatalogHarness,
   createListing,
   createPrice,
   createProduct,
@@ -113,7 +114,7 @@ describe('catalog change events', () => {
   });
 
   it('reach the market channel for the price list and the sales terms only while a listing is published', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const saveTerms = (expectedVersion = 0n): Promise<unknown> =>
       harness.catalog.saveSalesTerms({ expectedVersion, idempotencyKey: nextUuid() }, SUPPLIER_1_CALL);
     const savePriceList = (expectedVersion = 0n): Promise<unknown> =>
@@ -138,7 +139,7 @@ describe('catalog change events', () => {
   });
 
   it('carry the supplier id and no other data', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     await createPublishedListing(harness);
     const before = listCatalogEvents(harness.events).length;
 
@@ -152,7 +153,7 @@ describe('catalog change events', () => {
   });
 
   it('stay off the market channel for a supplier that is not verified', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     await createPublishedListing(harness, SUPPLIER_5_CALL);
 
     const salesTerms = await capture(harness, () => harness.catalog.saveSalesTerms({ idempotencyKey: nextUuid() }, SUPPLIER_5_CALL));
@@ -161,7 +162,7 @@ describe('catalog change events', () => {
   });
 
   it('stay off the market channel when another profile is verified but the supplier profile is not', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     await createPublishedListing(harness);
     await replaceSupplierProfiles(harness, [
       { kind: ProfileKind.SUPPLIER, verificationLevel: 0 },
@@ -174,7 +175,7 @@ describe('catalog change events', () => {
   });
 
   it('are not repeated when a command is replayed under the same key', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     const request = { idempotencyKey: nextUuid() };
     await harness.catalog.saveSalesTerms(request, SUPPLIER_1_CALL);
 

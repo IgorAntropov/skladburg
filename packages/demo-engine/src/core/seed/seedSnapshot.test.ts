@@ -52,14 +52,16 @@ const hasProfileKind = (kind: ProfileKind): ((organization: { profiles: readonly
   organization => organization.profiles.some(profile => profile.kind === kind);
 
 describe('createSeedSnapshot', () => {
-  it('starts with empty catalog collections', () => {
+  it('carries the catalog of the suppliers, the same on every call', () => {
     const records = createSeedRecords();
 
-    expect(records.products).toEqual([]);
-    expect(records.listings).toEqual([]);
-    expect(records.listingPrices).toEqual([]);
-    expect(records.priceLists).toEqual([]);
-    expect(records.salesTerms).toEqual([]);
+    expect(records.products).toHaveLength(185);
+    expect(records.listings).toHaveLength(185);
+    expect(records.listingPrices).toHaveLength(185);
+    expect(records.priceLists).toHaveLength(7);
+    expect(records.salesTerms).toHaveLength(7);
+    expect(createSeedRecords().products).toEqual(records.products);
+    expect(createSeedRecords().listingPrices).toEqual(records.listingPrices);
   });
 
   it('is deterministic: two calls give equal snapshots', () => {
@@ -92,7 +94,7 @@ describe('createSeedSnapshot', () => {
       worldTimeMs: SEED_WORLD_START_MS,
     });
     expect(SEED_TIME_SCALE).toBe(1);
-    expect(SEED_VERSION).toBe(11);
+    expect(SEED_VERSION).toBe(12);
   });
 
   it('carries the current schema version', () => {

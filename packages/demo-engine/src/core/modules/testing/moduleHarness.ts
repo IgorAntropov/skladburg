@@ -19,6 +19,7 @@ import {
 } from '@skladburg/contracts/access/v1/access';
 import { UserProfileService } from '@skladburg/contracts/access/v1/profile';
 import { CatalogService } from '@skladburg/contracts/catalog/v1/catalog';
+import { ShowcaseService } from '@skladburg/contracts/catalog/v1/showcase';
 import { ClockService } from '@skladburg/contracts/clock/v1/clock';
 import {
   ErrorCode,
@@ -37,7 +38,10 @@ import { SupportTicketService } from '@skladburg/contracts/support/v1/support_ti
 import type { TestRuntimeValue } from './testRuntime';
 
 import { DEMO_USER_HEADER } from '../../protocol';
-import { createCatalogService } from '../catalog/index';
+import {
+  createCatalogService,
+  createCatalogShowcaseService,
+} from '../catalog/index';
 import { createClockService } from '../clock/index';
 import {
   createAccessService,
@@ -57,6 +61,7 @@ import { createTestRuntime } from './testRuntime';
 export interface ModuleHarnessValue extends TestRuntimeValue {
   access: Client<typeof AccessService>;
   catalog: Client<typeof CatalogService>;
+  catalogShowcase: Client<typeof ShowcaseService>;
   notification: Client<typeof NotificationService>;
   organization: Client<typeof OrganizationService>;
   organizationRequisites: Client<typeof OrganizationRequisitesService>;
@@ -126,6 +131,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
   const transport = createRouterTransport(({ service }) => {
     service(AccessService, createAccessService(testRuntime.runtime));
     service(CatalogService, createCatalogService(testRuntime.runtime));
+    service(ShowcaseService, createCatalogShowcaseService(testRuntime.runtime));
     service(ClockService, createClockService(testRuntime.runtime, () => testRuntime.clock.getSnapshot()));
     service(NetworkService, createNetworkService(testRuntime.runtime));
     service(NotificationService, createNotificationService(testRuntime.runtime));
@@ -141,6 +147,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     ...testRuntime,
     access: createClient(AccessService, transport),
     catalog: createClient(CatalogService, transport),
+    catalogShowcase: createClient(ShowcaseService, transport),
     notification: createClient(NotificationService, transport),
     organization: createClient(OrganizationService, transport),
     organizationRequisites: createClient(OrganizationRequisitesService, transport),

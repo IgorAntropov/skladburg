@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package catalog.v1;
+
+import "buf/validate/validate.proto";
+import "catalog/v1/catalog.proto";
+import "common/v1/date.proto";
+import "common/v1/method_options.proto";
+import "common/v1/money.proto";
+import "common/v1/page.proto";
+import "organization/v1/organization.proto";
+
+enum DeliveryMethod {
+  DELIVERY_METHOD_UNSPECIFIED = 0;
+  DELIVERY_METHOD_CUSTOMER = 1;
+  DELIVERY_METHOD_SUPPLIER = 2;
+  DELIVERY_METHOD_EXCHANGE = 3;
+}
+
+message ShowcaseSupplier {
+  string organization_id = 1;
+  string name = 2;
+  organization.v1.OrganizationLogo logo = 3;
+  int32 verification_level = 4;
+}
+
+message ShowcasePackaging {
+  string name = 1;
+  int64 base_quantity = 2;
+}
+
+message CityAvailability {
+  string city_id = 1;
+  AvailabilityStatus status = 2;
+  int64 quantity = 3;
+}
+
+message DeliveryQuote {
+  string ship_from_city_id = 1;
+  DeliveryMethod method = 2;
+  int32 distance_km = 3;
+  int64 quantity = 4;
+  common.v1.Money unit_price = 5;
+  common.v1.Money goods_total = 6;
+  common.v1.Money delivery_price = 7;
+  common.v1.Money total = 8;
+  common.v1.CalendarDate eta_date = 9;
+}
+
+message ShowcaseListing {
+  string id = 1;
+  ShowcaseSupplier supplier = 2;
+  string product_name = 3;
+  string gtin = 4;
+  BaseUnit base_unit = 5;
+  repeated ShowcasePackaging packagings = 6;
+  TemperatureRange storage_temperature = 7;
+  int32 shelf_life_days = 8;
+  VatRate vat_rate = 9;
+  repeated string sphere_ids = 10;
+  PriceUnit price_unit = 11;
+  int64 min_order_quantity = 12;
+  int64 order_step = 13;
+  repeated PriceTier tiers = 14;
+  repeated CityAvailability city_availability = 15;
+  repeated DeliveryQuote quotes = 16;
+}
+
+message ListShowcaseListingsRequest {
+  common.v1.PageRequest page = 1;
+  string sphere_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.uuid = true
+  ];
+  string supplier_organization_id = 3 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.uuid = true
+  ];
+  string query = 4 [(buf.validate.field).string.max_len = 100];
+  string to_warehouse_id = 5 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.uuid = true
+  ];
+}
+
+message ListShowcaseListingsResponse {
+  repeated ShowcaseListing listings = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message GetShowcaseListingRequest {
+  string listing_id = 1 [(buf.validate.field).string.uuid = true];
+  string to_warehouse_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.uuid = true
+  ];
+  int64 quantity = 3 [(buf.validate.field).int64.gte = 0];
+}
+
+message GetShowcaseListingResponse {
+  ShowcaseListing listing = 1;
+}
+
+service ShowcaseService {
+  rpc ListShowcaseListings(ListShowcaseListingsRequest) returns (ListShowcaseListingsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "marketplace_view";
+  }
+
+  rpc GetShowcaseListing(GetShowcaseListingRequest) returns (GetShowcaseListingResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "marketplace_view";
+  }
+}

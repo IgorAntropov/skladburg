@@ -10,10 +10,15 @@ import {
 import { SeedOrganizationId } from '../../seed/index';
 import { createModuleHarness } from '../testing/moduleHarness';
 import {
+  AMOUNT_ABOVE_LIMIT_RULE_ID,
+  MAX_CATALOG_AMOUNT_MINOR,
+} from './catalogRules';
+import {
   buildPackaging,
   buildProductRequest,
   buildRub,
   captureFailure,
+  createEmptyCatalogHarness,
   createListing,
   createPrice,
   createProduct,
@@ -29,6 +34,7 @@ import {
 describe('CatalogService.saveProduct', () => {
   it('creates a product at version 1 and bumps the version on every edit', async () => {
     const harness = createModuleHarness();
+    const productsBefore = harness.state.read.list('products').length;
     const created = await createProduct(harness, { name: 'Кефир' });
     const updated = await harness.catalog.saveProduct(
       buildProductRequest({ expectedVersion: created.version, name: 'Кефир 1%', productId: created.id, sku: created.sku }),
@@ -39,7 +45,7 @@ describe('CatalogService.saveProduct', () => {
     expect(created.tenantId).toBe(SeedOrganizationId.SUPPLIER_1);
     expect(updated.product?.version).toBe(2n);
     expect(updated.product?.name).toBe('Кефир 1%');
-    expect(harness.state.read.list('products')).toHaveLength(1);
+    expect(harness.state.read.list('products')).toHaveLength(productsBefore + 1);
   });
 
   it('rejects creation over an existing own product and a stale version with the current version', async () => {
@@ -91,6 +97,7 @@ describe('CatalogService.saveProduct', () => {
 
   it('replays a repeated key without a second record or event and rejects a changed body under the same key', async () => {
     const harness = createModuleHarness();
+    const productsBefore = harness.state.read.list('products').length;
     const request = buildProductRequest();
 
     const first = await harness.catalog.saveProduct(request, SUPPLIER_1_CALL);
@@ -102,7 +109,7 @@ describe('CatalogService.saveProduct', () => {
     ));
 
     expect(replay.product?.version).toBe(first.product?.version);
-    expect(harness.state.read.list('products')).toHaveLength(1);
+    expect(harness.state.read.list('products')).toHaveLength(productsBefore + 1);
     expect(listCatalogEvents(harness.events)).toHaveLength(eventsAfterFirst);
     expect(reused.code).toBe(ErrorCode.IDEMPOTENCY_KEY_REUSED);
   });
@@ -236,7 +243,7 @@ describe('CatalogService.saveProduct', () => {
 
 describe('CatalogService.listProducts', () => {
   it('returns only own products ordered by name with the id as a tie-breaker', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     await createProduct(harness, { name: 'Ряженка', sku: 'R-1' });
     await createProduct(harness, { name: 'Айран', sku: 'A-1' });
     await createProduct(harness, { name: 'Ёмкость', sku: 'E-1' });
@@ -245,6 +252,21 @@ describe('CatalogService.listProducts', () => {
     const response = await harness.catalog.listProducts({}, SUPPLIER_1_CALL);
 
     expect(response.products.map(product => product.name)).toEqual(['Айран', 'Ёмкость', 'Ряженка']);
+    expect(response.products.every(product => product.tenantId === SeedOrganizationId.SUPPLIER_1)).toBe(true);
+  });
+
+  it('keeps the created products in the name order among the seeded ones of the same supplier', async () => {
+    const harness = createModuleHarness();
+    const seededCount = harness.state.read.listBy('products', 'tenantId', SeedOrganizationId.SUPPLIER_1).length;
+    await createProduct(harness, { name: 'Ряженка', sku: 'R-1' });
+    await createProduct(harness, { name: 'Айран', sku: 'A-1' });
+    await createProduct(harness, { name: 'Сыр чужой', sku: 'F-1' }, SUPPLIER_2_CALL);
+
+    const response = await harness.catalog.listProducts({}, SUPPLIER_1_CALL);
+    const createdNames = response.products.filter(product => ['A-1', 'R-1'].includes(product.sku)).map(product => product.name);
+
+    expect(response.products).toHaveLength(seededCount + 2);
+    expect(createdNames).toEqual(['Айран', 'Ряженка']);
     expect(response.products.every(product => product.tenantId === SeedOrganizationId.SUPPLIER_1)).toBe(true);
   });
 
@@ -263,7 +285,7 @@ describe('CatalogService.listProducts', () => {
   });
 
   it('pages through the products with the next page token', async () => {
-    const harness = createModuleHarness();
+    const harness = await createEmptyCatalogHarness();
     await createProduct(harness, { name: 'Б', sku: 'B' });
     await createProduct(harness, { name: 'А', sku: 'A' });
     await createProduct(harness, { name: 'В', sku: 'V' });
@@ -277,5 +299,23 @@ describe('CatalogService.listProducts', () => {
     expect(first.products.map(product => product.name)).toEqual(['А', 'Б']);
     expect(second.products.map(product => product.name)).toEqual(['В']);
     expect(second.page?.nextPageToken).toBe('');
+  });
+});
+
+describe('CatalogService.saveProduct upper bound', () => {
+  it('refuses a minimum price above the amount limit as validation_failed and accepts the limit itself', async () => {
+    const harness = createModuleHarness();
+    const productsBefore = harness.state.read.list('products').length;
+
+    const failure = await captureFailure(harness.catalog.saveProduct(
+      buildProductRequest({ minPrice: buildRub(MAX_CATALOG_AMOUNT_MINOR + 1n) }),
+      SUPPLIER_1_CALL,
+    ));
+    const accepted = await createProduct(harness, { minPrice: buildRub(MAX_CATALOG_AMOUNT_MINOR) });
+
+    expect(failure.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(failure.violations).toEqual([{ fieldPath: 'min_price.amount_minor', ruleId: AMOUNT_ABOVE_LIMIT_RULE_ID }]);
+    expect(harness.state.read.list('products')).toHaveLength(productsBefore + 1);
+    expect(accepted.minPrice?.amountMinor).toBe(MAX_CATALOG_AMOUNT_MINOR);
   });
 });

@@ -83,7 +83,7 @@ export const createSubscriptionAccess = (errors: IDomainErrors): ISubscriptionAc
     }
 
     const isPermitted = resolveEffectivePermissions(reader, membership).some(
-      candidate => candidate.permission === MARKET_CHANNEL_PERMISSION,
+      candidate => candidate.permission === MARKET_CHANNEL_PERMISSION && candidate.isOrganizationWide,
     );
 
     if (!isPermitted) {

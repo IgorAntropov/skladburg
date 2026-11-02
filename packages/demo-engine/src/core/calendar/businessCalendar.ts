@@ -14,7 +14,6 @@ import {
   type CalendarDayValue,
   CalendarYearStatus,
 } from './calendarTypes';
-import { RU_BUSINESS_CALENDAR_YEARS } from './ruBusinessCalendarData';
 
 export interface IBusinessCalendar {
   addWorkingDays: (after: CalendarDateValue, count: number) => CalendarDateValue;
@@ -252,5 +251,3 @@ export const createBusinessCalendar = (years: readonly BusinessCalendarYearValue
     isWorkingDay: (date: CalendarDateValue): boolean => isWorkingEpochDay(toEpochDay(date)),
   };
 };
-
-export const RU_BUSINESS_CALENDAR: IBusinessCalendar = createBusinessCalendar(RU_BUSINESS_CALENDAR_YEARS);

@@ -17,6 +17,7 @@ export interface IEventOutbox {
 export interface IModuleRuntime {
   command: <TResult>(work: (transaction: IStateTransaction) => TResult) => Promise<TResult>;
   errors: IDomainErrors;
+  getWorldTimeMs: () => number;
   guard: ICallGuard;
   idempotency: IIdempotencyGuard;
   notifier: INotifier;

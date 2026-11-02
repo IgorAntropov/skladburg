@@ -183,3 +183,30 @@ export const NETWORK_MAP_LOGO_ORGANIZATIONS: readonly DirectoryOrganizationValue
   DIRECTORY_ORGANIZATIONS.supplier3,
   DIRECTORY_ORGANIZATIONS.supplier4,
 ];
+
+export interface ShowcaseQuoteValue {
+  etaText: string;
+  site: NetworkSiteValue;
+  totalText: string;
+}
+
+export const SHOWCASE_SPHERE = {
+  id: '50000003-0000-4000-8000-000000000000',
+  name: 'Овощи и фрукты',
+} as const;
+
+export const SHOWCASE_SEARCH_TEXT = 'яблоки';
+
+export const SHOWCASE_SEARCH_RESULT_COUNT = 6;
+
+export const GOLDEN_APPLES = {
+  id: 'd1010001-0000-4000-8000-000000000000',
+  name: 'Яблоки Голден, 1 сорт',
+  supplierCityName: FOREIGN_NETWORK_SITE.cityName,
+} as const;
+
+export const GOLDEN_APPLES_QUOTES = {
+  kazan: { etaText: 'пт, 16 октября', site: OWN_NETWORK_SITES[2], totalText: '67\u00a0800\u00a0₽' },
+  moscow: { etaText: 'чт, 15 октября', site: OWN_NETWORK_SITES[0], totalText: '57\u00a0960\u00a0₽' },
+  saintPetersburg: { etaText: 'пт, 16 октября', site: OWN_NETWORK_SITES[1], totalText: '66\u00a0480\u00a0₽' },
+} as const satisfies Record<string, ShowcaseQuoteValue>;

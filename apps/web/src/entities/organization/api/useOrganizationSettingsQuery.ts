@@ -10,6 +10,7 @@ import {
 import {
   createOrganizationQueryMeta,
   getOrganizationScope,
+  RESYNC_ONLY_EVENT_CASES,
   useActingContext,
   useApiClient,
 } from '@/shared/api';
@@ -21,7 +22,7 @@ export const useOrganizationSettingsQuery = (): UseQueryResult<OrganizationSetti
   const { organizationId } = useActingContext();
 
   return useQuery({
-    meta: createOrganizationQueryMeta(organizationId),
+    meta: createOrganizationQueryMeta(organizationId, RESYNC_ONLY_EVENT_CASES),
     queryFn: organizationId === undefined
       ? skipToken
       : async (): Promise<OrganizationSettings> => {

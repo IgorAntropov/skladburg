@@ -15,12 +15,17 @@ import {
   it,
 } from 'vitest';
 
-import { OBJECT_TYPES } from '@/shared/routing';
+import {
+  OBJECT_TYPES,
+  type ObjectTypeValue,
+} from '@/shared/routing';
 
 import { isCameraLink } from './isCameraLink';
 import { toObjectAddress } from './toObjectAddress';
 
 const OBJECT_ID = 'f0000010-0000-4000-8000-000000000000';
+
+const ADDRESS_TYPES_WITHOUT_OBJECT_KIND: readonly ObjectTypeValue[] = ['listing'];
 
 const OBJECT_TYPE_BY_KIND_NAME = [
   [ObjectKind.CELL, 'cell'],
@@ -58,7 +63,9 @@ describe('toObjectAddress', () => {
 
     expect([...mappedKinds].sort((first, second) => first - second)).toEqual(knownKinds);
     expect(new Set(mappedTypes).size).toBe(mappedTypes.length);
-    expect([...mappedTypes].sort()).toEqual([...OBJECT_TYPES].sort());
+    expect([...mappedTypes].sort()).toEqual(
+      OBJECT_TYPES.filter(type => !ADDRESS_TYPES_WITHOUT_OBJECT_KIND.includes(type)).sort(),
+    );
   });
 
   it('returns nothing for an unspecified kind', () => {

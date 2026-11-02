@@ -115,7 +115,7 @@ describe('useActingOrganizationQuery', () => {
     const query = queryClient.getQueryCache().find({ exact: true, queryKey: organizationKeys.detail(TEST_ORGANIZATION_ID) });
 
     expect(query?.state.data).toBe(result.current.data);
-    expect(query?.meta).toEqual({ channels: [`org:${TEST_ORGANIZATION_ID}`] });
+    expect(query?.meta).toEqual({ channels: [`org:${TEST_ORGANIZATION_ID}`], eventCases: [] });
   });
 
   it('sends the acting organization header', async () => {
@@ -172,7 +172,7 @@ describe('useActingOrganizationQuery', () => {
 
     const query = queryClient.getQueryCache().find({ exact: true, queryKey: organizationKeys.detail('none') });
 
-    expect(query?.meta).toEqual({ channels: [] });
+    expect(query?.meta).toEqual({ channels: [], eventCases: [] });
   });
 
   it('requests the new organization when the acting context changes', async () => {
@@ -243,7 +243,7 @@ describe('useOrganizationSettingsQuery', () => {
     const query = queryClient.getQueryCache().find({ exact: true, queryKey: organizationKeys.settings(TEST_ORGANIZATION_ID) });
 
     expect(query?.state.data).toBe(result.current.data);
-    expect(query?.meta).toEqual({ channels: [`org:${TEST_ORGANIZATION_ID}`] });
+    expect(query?.meta).toEqual({ channels: [`org:${TEST_ORGANIZATION_ID}`], eventCases: [] });
   });
 
   it('sends the acting organization header', async () => {
@@ -301,6 +301,6 @@ describe('useOrganizationSettingsQuery', () => {
 
     const query = queryClient.getQueryCache().find({ exact: true, queryKey: organizationKeys.settings('none') });
 
-    expect(query?.meta).toEqual({ channels: [] });
+    expect(query?.meta).toEqual({ channels: [], eventCases: [] });
   });
 });

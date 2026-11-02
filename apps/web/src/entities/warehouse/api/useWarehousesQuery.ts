@@ -26,7 +26,7 @@ export const useWarehousesQuery = (): UseQueryResult<readonly Warehouse[]> => {
   const { organizationId } = useActingContext();
 
   return useQuery({
-    meta: { ...createOrganizationQueryMeta(organizationId), eventCases: WAREHOUSE_EVENT_CASES },
+    meta: createOrganizationQueryMeta(organizationId, WAREHOUSE_EVENT_CASES),
     queryFn: organizationId === undefined
       ? skipToken
       : (): Promise<readonly Warehouse[]> => collectPages(async (page) => {

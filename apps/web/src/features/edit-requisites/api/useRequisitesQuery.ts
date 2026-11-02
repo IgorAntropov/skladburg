@@ -9,6 +9,7 @@ import {
 
 import {
   createOrganizationQueryMeta,
+  RESYNC_ONLY_EVENT_CASES,
   useActingContext,
   useApiClient,
 } from '@/shared/api';
@@ -21,7 +22,7 @@ export const useRequisitesQuery = (): UseQueryResult<OrganizationRequisites> => 
   const queryKey = useRequisitesQueryKey();
 
   return useQuery({
-    meta: createOrganizationQueryMeta(organizationId),
+    meta: createOrganizationQueryMeta(organizationId, RESYNC_ONLY_EVENT_CASES),
     queryFn: organizationId === undefined
       ? skipToken
       : async (): Promise<OrganizationRequisites> => {

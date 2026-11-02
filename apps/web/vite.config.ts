@@ -44,7 +44,7 @@ const MAX_SCENE_GZIP_KILOBYTES = 300;
 
 const MAX_STARTUP_GZIP_KILOBYTES = 95;
 
-const MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES = 45.8;
+const MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES = 46.1;
 
 const MAX_NETWORK_INSPECTOR_GZIP_KILOBYTES = 26;
 
@@ -58,7 +58,7 @@ const MAX_NETWORK_COMPANIES_GZIP_KILOBYTES = 12.5;
 
 const MAX_ORGANIZATION_TABLE_GZIP_KILOBYTES = 12;
 
-const MAX_MY_PROFILE_GZIP_KILOBYTES = 65.9;
+const MAX_MY_PROFILE_GZIP_KILOBYTES = 66.4;
 
 const MAX_WORLD_MODELS_KILOBYTES = 300;
 
@@ -66,7 +66,7 @@ const MAX_ORGANIZATION_LOGOS_KILOBYTES = 40;
 
 const MAX_ASSISTANT_PORTRAITS_KILOBYTES = 6;
 
-const MAX_NOTIFICATION_CENTER_GZIP_KILOBYTES = 33.5;
+const MAX_NOTIFICATION_CENTER_GZIP_KILOBYTES = 33.7;
 
 const MAX_NOTIFICATION_CENTER_TEXTS_GZIP_KILOBYTES = 1.5;
 
@@ -78,13 +78,17 @@ const MAX_ASSISTANT_TEXTS_GZIP_KILOBYTES = 2;
 
 const MAX_ASSISTANT_TEXTS_INFORMAL_GZIP_KILOBYTES = 3;
 
-const MAX_SUPPORT_CHAT_GZIP_KILOBYTES = 36.6;
+const MAX_SUPPORT_CHAT_GZIP_KILOBYTES = 36.9;
 
 const MAX_SUPPORT_CHAT_TEXTS_GZIP_KILOBYTES = 3;
 
-const MAX_REQUISITES_FORM_GZIP_KILOBYTES = 54.4;
+const MAX_REQUISITES_FORM_GZIP_KILOBYTES = 54.9;
 
 const MAX_REQUISITES_TEXTS_GZIP_KILOBYTES = 1.6;
+
+const MAX_CATALOG_PAGE_GZIP_KILOBYTES = 24.44;
+
+const MAX_CATALOG_TEXTS_GZIP_KILOBYTES = 2.35;
 
 const MAX_ENGINE_WORKER_GZIP_KILOBYTES = 40;
 
@@ -149,6 +153,8 @@ const FORBIDDEN_STARTUP_PACKAGES = [
   'react-hook-form',
   'three',
 ];
+
+const CATALOG_FORBIDDEN_PACKAGES = ['@react-three/*', 'three', 'maska', 'react-hook-form'];
 
 const STARTUP_BASELINE = 'startup';
 
@@ -331,6 +337,21 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_REQUISITES_TEXTS_GZIP_KILOBYTES,
     name: 'requisites-texts',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/catalog/ui/CatalogPage.tsx'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_CATALOG_PAGE_GZIP_KILOBYTES,
+    name: 'catalog-page',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/catalog/i18n/catalogs/ru.ts', 'src/entities/listing/i18n/catalogs/ru.ts'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_CATALOG_TEXTS_GZIP_KILOBYTES,
+    name: 'catalog-texts',
   },
 ];
 

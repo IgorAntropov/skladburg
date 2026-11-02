@@ -14,6 +14,7 @@ export const OBJECT_TYPES = [
   'site',
   'city',
   'organization',
+  'listing',
 ] as const;
 
 export type AppAddressValue
@@ -35,6 +36,7 @@ export const OBJECT_HOME_SECTION: Readonly<Record<ObjectTypeValue, AppSectionVal
   deal: 'deals',
   document: 'deals',
   handling_unit: 'warehouse',
+  listing: 'catalog',
   organization: 'network',
   site: 'network',
   trip: 'network',
@@ -49,6 +51,7 @@ export const OBJECT_PATH_SEGMENTS: Readonly<Record<ObjectTypeValue, string>> = {
   deal: 'deals',
   document: 'documents',
   handling_unit: 'handling-units',
+  listing: 'listings',
   organization: 'organizations',
   site: 'sites',
   trip: 'trips',

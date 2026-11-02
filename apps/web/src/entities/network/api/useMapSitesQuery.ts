@@ -25,7 +25,7 @@ export const useMapSitesQuery = (): UseQueryResult<readonly MapSite[]> => {
   const { organizationId } = useActingContext();
 
   return useQuery({
-    meta: { ...createOrganizationQueryMeta(organizationId), eventCases: MAP_SITE_EVENT_CASES },
+    meta: createOrganizationQueryMeta(organizationId, MAP_SITE_EVENT_CASES),
     queryFn: organizationId === undefined ? skipToken : (): Promise<readonly MapSite[]> => fetchMapSites(client),
     queryKey: networkKeys.mapSites(getOrganizationScope(organizationId)),
   });

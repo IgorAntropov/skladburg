@@ -18,6 +18,7 @@ export { buildMonogramParts } from './lib/buildMonogramParts';
 export type { SphereOptionValue } from './lib/buildSphereTree';
 export { buildSphereTree } from './lib/buildSphereTree';
 export { hasVerifiedProfile } from './lib/hasVerifiedProfile';
+export { isProfileVerified } from './lib/isProfileVerified';
 export type { VerificationLevelValue } from './lib/normalizeVerificationLevel';
 export {
   MAX_VERIFICATION_LEVEL,

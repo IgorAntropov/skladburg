@@ -1,10 +1,17 @@
-import { DEFAULT_PERSONA } from './fixtures/demoData.ts';
+import {
+  DEFAULT_PERSONA,
+  GOLDEN_APPLES,
+} from './fixtures/demoData.ts';
 import { test } from './fixtures/test.ts';
 import {
   DESKTOP_VIEWPORT,
   PHONE_VIEWPORT,
 } from './fixtures/viewports.ts';
 import { createAssistantRobot } from './robots/assistant-robot.ts';
+import {
+  createCatalogRobot,
+  toListingRoute,
+} from './robots/catalog-robot.ts';
 import { createCreateWarehouseRobot } from './robots/create-warehouse-robot.ts';
 import { createHudRobot } from './robots/hud-robot.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';
@@ -50,6 +57,36 @@ test.describe('accessibility', () => {
     await createWarehouse.expectCityErrorFocused();
 
     await createWarehouse.expectNoViolationsOfAccessibility();
+  });
+
+  test('has no violations of WCAG 2.1 A and AA in the showcase of the catalog', async ({ page }) => {
+    const catalog = createCatalogRobot(page);
+    const navigation = createNavigationRobot(page);
+    const persona = createPersonaRobot(page);
+    const topBar = createTopBarRobot(page);
+
+    await navigation.openSection('catalog');
+    await navigation.expectSection('catalog');
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+    await topBar.expectDocumentTheme('light');
+    await catalog.expectShowcaseOpen();
+
+    await catalog.expectNoViolationsOfAccessibility();
+  });
+
+  test('has no violations of WCAG 2.1 A and AA in the inspector of a listing', async ({ page }) => {
+    const catalog = createCatalogRobot(page);
+    const navigation = createNavigationRobot(page);
+    const persona = createPersonaRobot(page);
+    const topBar = createTopBarRobot(page);
+
+    await navigation.openObject(toListingRoute(GOLDEN_APPLES.id));
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+    await topBar.expectDocumentTheme('light');
+    await catalog.expectInspectorOpen(GOLDEN_APPLES.name);
+    await catalog.expectInspectorCityAvailability(GOLDEN_APPLES.supplierCityName);
+
+    await catalog.expectNoViolationsOfAccessibility();
   });
 
   test('has no violations of WCAG 2.1 A and AA in the open notification center', async ({ page }) => {

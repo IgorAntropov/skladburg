@@ -96,6 +96,10 @@ const lazyNetworkPageChunkFiles: string[] = [
   'apps/web/src/pages/network/ui/organization-card/**/*.{ts,tsx}',
 ];
 const networkDirectoryApiFiles: string[] = ['apps/web/src/pages/network/api/directory/**/*.{ts,tsx}'];
+const catalogPageFiles: string[] = ['apps/web/src/pages/catalog/**/*.{ts,tsx}'];
+const catalogPageApiFiles: string[] = ['apps/web/src/pages/catalog/api/**/*.{ts,tsx}'];
+const listingEntityFiles: string[] = ['apps/web/src/entities/listing/**/*.{ts,tsx}'];
+const listingEntityApiFiles: string[] = ['apps/web/src/entities/listing/api/**/*.{ts,tsx}'];
 const changeAvatarApiFiles: string[] = ['apps/web/src/features/change-avatar/api/**/*.{ts,tsx}'];
 const apiClientFiles: string[] = ['apps/web/src/shared/api/client/**/*.{ts,tsx}'];
 const sceneSegmentFiles: string[] = ['apps/web/src/**/scene/**', 'apps/web/src/shared/3d/**'];
@@ -184,6 +188,7 @@ interface LazyModuleRestrictionValue {
 }
 
 interface SceneImportRestrictionValue {
+  importNamePattern?: string | undefined;
   message: string;
   regex: string;
 }
@@ -229,6 +234,26 @@ const profileDescriptorImportRestriction: SceneImportRestrictionValue = {
   message: 'The user profile descriptor is imported only by features/change-avatar/api, which the lazy chunk of the profile '
     + 'plate loads; a descriptor imported elsewhere lands in the startup chunk; use import type',
   regex: '^@skladburg/contracts/access/v1/profile$',
+};
+
+const listingEntityImportRestriction: SceneImportRestrictionValue = {
+  message: 'The listing entity pulls the showcase client and its descriptors into the bundle; the lazy catalog page and the '
+    + 'entity itself import it by value, the rest of the application reaches it through the lazy catalog page; '
+    + 'use import type or move the code into the catalog page',
+  regex: '^@/entities/listing(/|$)',
+};
+
+const catalogDescriptorImportRestriction: SceneImportRestrictionValue = {
+  importNamePattern: '(Service|Schema)$',
+  message: 'The catalog service and message descriptors are imported only by entities/listing/api and pages/catalog/api, which '
+    + 'the lazy catalog page loads; a descriptor imported elsewhere lands in the startup chunk; use import type',
+  regex: '^@skladburg/contracts/catalog/v1/',
+};
+
+const moneySegmentImportRestriction: SceneImportRestrictionValue = {
+  message: 'shared/lib/money formats and parses amounts for the lazy chunks of the catalog; the startup part of the application '
+    + 'does not import it; use import type or move the code into a lazy chunk',
+  regex: '^@/shared/lib/money(/|$)',
 };
 
 const sectionCatalogImportRestriction: SceneImportRestrictionValue = {
@@ -282,16 +307,27 @@ const maskSegmentImportRestriction: SceneImportRestrictionValue = {
 
 const sectionCatalogImportRestrictions: SceneImportRestrictionValue[] = [sectionCatalogImportRestriction];
 
-const chunkBoundaryImportRestrictions: SceneImportRestrictionValue[] = [
+const catalogApiImportRestrictions: SceneImportRestrictionValue[] = [
   ...sceneBoundaryImportRestrictions,
   ...sectionCatalogImportRestrictions,
   showcaseDescriptorImportRestriction,
   profileDescriptorImportRestriction,
 ];
 
+const catalogChunkImportRestrictions: SceneImportRestrictionValue[] = [
+  ...catalogApiImportRestrictions,
+  catalogDescriptorImportRestriction,
+];
+
+const chunkBoundaryImportRestrictions: SceneImportRestrictionValue[] = [
+  ...catalogChunkImportRestrictions,
+  listingEntityImportRestriction,
+];
+
 const sourceBoundaryImportRestrictions: SceneImportRestrictionValue[] = [
   ...chunkBoundaryImportRestrictions,
   maskSegmentImportRestriction,
+  moneySegmentImportRestriction,
 ];
 
 const lazyModuleMessageSuffix = 'is loaded lazily through import(); a static value import pulls it into the initial bundle; '
@@ -474,7 +510,12 @@ const createLazyModuleRules = (
           message: `${moduleLabel} ${lazyModuleMessageSuffix}`,
           regex,
         })),
-        ...extraRestrictions.map(({ message, regex }) => ({ allowTypeImports: true, message, regex })),
+        ...extraRestrictions.map(({ importNamePattern, message, regex }) => ({
+          allowTypeImports: true,
+          message,
+          regex,
+          ...importNamePattern === undefined ? {} : { importNamePattern },
+        })),
       ],
     },
   ],
@@ -1071,6 +1112,26 @@ export default defineConfig(
       [networkInspectorChunkLazyRestriction, networkSitesChunkLazyRestriction, networkMiniMapChunkLazyRestriction],
       [...sceneBoundaryImportRestrictions, ...sectionCatalogImportRestrictions],
     ),
+  },
+  {
+    files: catalogPageFiles,
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([], catalogChunkImportRestrictions),
+  },
+  {
+    files: catalogPageApiFiles,
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([], catalogApiImportRestrictions),
+  },
+  {
+    files: listingEntityFiles,
+    ignores: [...webTestFiles, ...listingEntityApiFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([], catalogChunkImportRestrictions),
+  },
+  {
+    files: listingEntityApiFiles,
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([], catalogApiImportRestrictions),
   },
   {
     files: changeAvatarApiFiles,

@@ -51,6 +51,7 @@ export { invalidateQueriesByChannel } from './query/invalidateQueriesByChannel';
 export {
   createOrganizationQueryMeta,
   getOrganizationScope,
+  RESYNC_ONLY_EVENT_CASES,
 } from './query/organizationQueryScope';
 export { PREFETCH_HANDOFF_STALE_TIME_MS } from './query/prefetchHandoff';
 export type { ReturnToDefaultPersonaOnDemoResetOptionsValue } from './query/returnToDefaultPersonaOnDemoReset';

@@ -37,6 +37,7 @@ describe('formatAddressPath', () => {
     ['site', '/sites/'],
     ['city', '/cities/'],
     ['organization', '/organizations/'],
+    ['listing', '/listings/'],
   ] as const)('formats the %s object with a plural kebab-case segment', (type, prefix) => {
     expect(formatAddressPath({ kind: 'object', object: { id: DEAL_ID, type } })).toBe(`${prefix}${DEAL_ID}`);
   });
@@ -79,12 +80,23 @@ describe('parseAddressPath round trip', () => {
       deal: 'deals',
       document: 'deals',
       handling_unit: 'warehouse',
+      listing: 'catalog',
       organization: 'network',
       site: 'network',
       trip: 'network',
       vehicle: 'network',
       warehouse: 'warehouse',
     });
+  });
+});
+
+describe('parseAddressPath listing', () => {
+  it('reads a listing path as a catalog object', () => {
+    expect(parseAddressPath(`/listings/${DEAL_ID}`)).toEqual({ kind: 'object', object: { id: DEAL_ID, type: 'listing' } });
+  });
+
+  it('writes a listing object as a path in the plural segment', () => {
+    expect(formatAddressPath({ kind: 'object', object: { id: DEAL_ID, type: 'listing' } })).toBe(`/listings/${DEAL_ID}`);
   });
 });
 
@@ -123,6 +135,7 @@ describe('parseAddressPath rejects', () => {
     ['an uppercase section', '/Deals'],
     ['an uppercase object segment', `/Deals/${DEAL_ID}`],
     ['an uppercase handling units segment', `/Handling-Units/${DEAL_ID}`],
+    ['a singular listing segment', `/listing/${DEAL_ID}`],
     ['a section with a query', '/network?x=1'],
   ])('%s', (_, path) => {
     expect(parseAddressPath(path)).toBeUndefined();

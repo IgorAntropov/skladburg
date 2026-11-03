@@ -1,10 +1,18 @@
+import type { BlockerValue } from '../blockers';
 import type {
+  BlockedHandlerValue,
   ILocationSource,
   LocationSnapshotValue,
   NavigateOptionsValue,
+  ShouldBlockValue,
 } from '../locationTypes';
 
+import {
+  askLastTriggered,
+  findTriggered,
+} from '../blockers';
 import { createSnapshotReader } from '../createSnapshotReader';
+import { isSamePath } from '../isSamePath';
 
 export interface IMemoryLocation extends ILocationSource {
   back: () => void;
@@ -16,6 +24,7 @@ export interface IMemoryLocation extends ILocationSource {
 
 export const createMemoryLocation = (initialPath: string): IMemoryLocation => {
   const subscriptions = new Set<() => void>();
+  const blockers: BlockerValue[] = [];
   const readSnapshot = createSnapshotReader();
   let entries: readonly string[] = [initialPath];
   let currentIndex = 0;
@@ -28,29 +37,45 @@ export const createMemoryLocation = (initialPath: string): IMemoryLocation => {
     }
   };
 
+  const guard = (path: string, commit: () => void): void => {
+    const triggered = isSamePath(path, entries[currentIndex] ?? '/') ? [] : findTriggered(blockers, path);
+
+    if (triggered.length === 0) {
+      commit();
+
+      return;
+    }
+
+    askLastTriggered(triggered, commit);
+  };
+
   const moveTo = (nextIndex: number): void => {
     if (nextIndex < 0 || nextIndex >= entries.length) {
       return;
     }
 
-    currentIndex = nextIndex;
-    notifySubscriptions();
+    guard(entries[nextIndex] ?? '/', () => {
+      currentIndex = nextIndex;
+      notifySubscriptions();
+    });
   };
 
   const navigate = (path: string, options?: NavigateOptionsValue): void => {
-    if (options?.isReplace === true) {
-      entries = entries.map((entry, index) => (index === currentIndex ? path : entry));
-    }
-    else {
-      entries = [...entries.slice(0, currentIndex + 1), path];
-      currentIndex += 1;
-    }
+    guard(path, () => {
+      if (options?.isReplace === true) {
+        entries = entries.map((entry, index) => (index === currentIndex ? path : entry));
+      }
+      else {
+        entries = [...entries.slice(0, currentIndex + 1), path];
+        currentIndex += 1;
+      }
 
-    if (options?.isFocusRequested === true) {
-      focusRequest += 1;
-    }
+      if (options?.isFocusRequested === true) {
+        focusRequest += 1;
+      }
 
-    notifySubscriptions();
+      notifySubscriptions();
+    });
   };
 
   const read = (): LocationSnapshotValue => readSnapshot(entries[currentIndex] ?? '/', focusRequest);
@@ -67,10 +92,25 @@ export const createMemoryLocation = (initialPath: string): IMemoryLocation => {
     };
   };
 
+  const block = (onBlocked: BlockedHandlerValue, shouldBlock?: ShouldBlockValue): (() => void) => {
+    const blocker: BlockerValue = { onBlocked, shouldBlock };
+
+    blockers.push(blocker);
+
+    return (): void => {
+      const position = blockers.indexOf(blocker);
+
+      if (position !== -1) {
+        blockers.splice(position, 1);
+      }
+    };
+  };
+
   return {
     back: (): void => {
       moveTo(currentIndex - 1);
     },
+    block,
     createHref: (path: string): string => `#${path}`,
     get currentIndex(): number {
       return currentIndex;

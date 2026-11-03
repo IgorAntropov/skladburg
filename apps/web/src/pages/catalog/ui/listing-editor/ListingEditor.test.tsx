@@ -54,6 +54,8 @@ import {
 } from '@/shared/api';
 import { createTestRuntime } from '@/shared/api/index.testing';
 import { withTestLocalizer } from '@/shared/i18n/index.testing';
+import { RoutingProvider } from '@/shared/routing';
+import { createMemoryLocation } from '@/shared/routing/index.testing';
 import { LiveRegionProvider } from '@/shared/ui';
 
 import type { DestinationOptionValue } from '../../lib/destinationOptions';
@@ -164,14 +166,15 @@ const createServer = (listing: ListingValue, price: PriceValue | undefined): Ser
   return server;
 };
 
-const Harness = (): null | ReactElement => {
+const Harness = ({ onClose }: { onClose: () => void }): null | ReactElement => {
   const { data } = useOwnListingQuery(LISTING_ID);
   const pair = data === undefined ? undefined : toOwnListingPair(data);
 
-  return pair === undefined ? null : <ListingEditor onClose={() => undefined} pair={pair} />;
+  return pair === undefined ? null : <ListingEditor onClose={onClose} pair={pair} />;
 };
 
-const renderEditor = (server: ServerValue): void => {
+const renderEditor = (server: ServerValue, onClose: () => void = () => undefined): ReturnType<typeof createMemoryLocation> => {
+  const location = createMemoryLocation('/catalog');
   const product = create(ProductSchema, {
     baseUnit: BaseUnit.GRAM,
     id: PRODUCT_ID,
@@ -207,16 +210,20 @@ const renderEditor = (server: ServerValue): void => {
   });
 
   render(withTestLocalizer(
-    <LiveRegionProvider>
-      <ApiRuntimeProvider runtime={runtime}>
-        <QueryClientProvider client={createQueryClient({ networkMode: 'always' })}>
-          <CatalogTextsGate skeleton={null}>
-            <Harness />
-          </CatalogTextsGate>
-        </QueryClientProvider>
-      </ApiRuntimeProvider>
-    </LiveRegionProvider>,
+    <RoutingProvider location={location}>
+      <LiveRegionProvider>
+        <ApiRuntimeProvider runtime={runtime}>
+          <QueryClientProvider client={createQueryClient({ networkMode: 'always' })}>
+            <CatalogTextsGate skeleton={null}>
+              <Harness onClose={onClose} />
+            </CatalogTextsGate>
+          </QueryClientProvider>
+        </ApiRuntimeProvider>
+      </LiveRegionProvider>
+    </RoutingProvider>,
   ));
+
+  return location;
 };
 
 const getInput = (testId: string): HTMLInputElement => {
@@ -434,5 +441,103 @@ describe('listing editor', () => {
 
     expect(await screen.findByTestId('listing-reload')).toBeTruthy();
     expect(screen.getByText('Пока вы смотрели, данные обновились')).toBeTruthy();
+  });
+
+  describe('leaving with unsaved changes', () => {
+    const editPrice = async (server: ServerValue, onClose?: () => void): Promise<ReturnType<typeof createMemoryLocation>> => {
+      setWarehouses(MOSCOW);
+      const location = renderEditor(server, onClose);
+      await waitForEditor();
+      fireEvent.change(getInput('listing-tier-0-price'), { target: { value: '' } });
+      typeText(getInput('listing-tier-0-price'), '95,5');
+
+      return location;
+    };
+
+    it('lets the address change and the back button pass while nothing is edited', async () => {
+      setWarehouses(MOSCOW);
+      const onClose = vi.fn<() => void>();
+      const location = renderEditor(createServer(createListing(), createPrice([createTier(480000n, 8950n)])), onClose);
+      await waitForEditor();
+
+      act(() => {
+        location.navigate('/deals');
+      });
+
+      expect(location.read().path).toBe('/deals');
+      expect(screen.queryByTestId('listing-editor-leave-confirm')).toBeNull();
+
+      click('listing-editor-back');
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks before an address change, keeps the typed price and the address when the user stays', async () => {
+      const location = await editPrice(createServer(createListing(), createPrice([createTier(480000n, 8950n)])));
+      const typedPrice = getInput('listing-tier-0-price').value;
+
+      act(() => {
+        location.navigate('/catalog/other-listing');
+      });
+
+      expect(screen.getByTestId('listing-editor-leave-confirm')).toBeTruthy();
+      expect(location.read().path).toBe('/catalog');
+
+      click('listing-editor-leave-confirm-stay');
+
+      expect(screen.queryByTestId('listing-editor-leave-confirm')).toBeNull();
+      expect(location.read().path).toBe('/catalog');
+      expect(getInput('listing-tier-0-price').value).toBe(typedPrice);
+      expect(typedPrice).not.toBe('89,50');
+      expect(document.activeElement).toBe(screen.getByTestId('listing-editor-back'));
+    });
+
+    it('goes to the other position when the user leaves', async () => {
+      const location = await editPrice(createServer(createListing(), createPrice([createTier(480000n, 8950n)])));
+
+      act(() => {
+        location.navigate('/catalog/other-listing');
+      });
+
+      expect(document.activeElement).toBe(screen.getByTestId('listing-editor-leave-confirm'));
+
+      click('listing-editor-leave-confirm-leave');
+
+      expect(location.read().path).toBe('/catalog/other-listing');
+    });
+
+    it('asks before the back button closes the editor and closes it only after the answer', async () => {
+      const onClose = vi.fn<() => void>();
+      await editPrice(createServer(createListing(), createPrice([createTier(480000n, 8950n)])), onClose);
+
+      click('listing-editor-back');
+
+      expect(onClose).not.toHaveBeenCalled();
+
+      click('listing-editor-leave-confirm-stay');
+      click('listing-editor-back');
+      click('listing-editor-leave-confirm-leave');
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops asking after the price is saved', async () => {
+      const server = createServer(createListing(), createPrice([createTier(480000n, 8950n)]));
+      const location = await editPrice(server);
+
+      click('listing-save-price');
+      await waitFor(() => {
+        expect(server.savePrice).toHaveBeenCalledTimes(1);
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('listing-save-price').getAttribute('aria-busy')).toBeNull();
+      });
+      act(() => {
+        location.navigate('/catalog/other-listing');
+      });
+
+      expect(location.read().path).toBe('/catalog/other-listing');
+      expect(screen.queryByTestId('listing-editor-leave-confirm')).toBeNull();
+    });
   });
 });

@@ -40,6 +40,8 @@ export type { TextFieldProps } from './form-field/TextField';
 export { TextField } from './form-field/TextField';
 export type { IconButtonProps } from './icon-button/IconButton';
 export { IconButton } from './icon-button/IconButton';
+export type { LeaveConfirmProps } from './leave-confirm/LeaveConfirm';
+export { LeaveConfirm } from './leave-confirm/LeaveConfirm';
 export { LiveRegionProvider } from './live-region/LiveRegionProvider';
 export { useAnnounce } from './live-region/useAnnounce';
 export type { PanelProps } from './panel/Panel';

@@ -23,9 +23,11 @@ import {
   createMoneyMask,
   createWholeNumberMask,
 } from '@/shared/lib/mask';
+import { useNavigationGuard } from '@/shared/routing';
 import {
   ActionButton,
   Button,
+  LeaveConfirm,
   SwitchField,
   TextField,
 } from '@/shared/ui';
@@ -33,6 +35,7 @@ import {
 import type { SalesTermsFormValues } from '../../lib/salesTermsFormValues';
 
 import { useSaveSalesTermsForm } from '../../api/editor/useSaveSalesTermsForm';
+import { isLeavingCatalog } from '../../lib/isLeavingCatalog';
 import { useCatalogTexts } from '../../model/useCatalogTexts';
 import { useEditorTexts } from '../../model/useEditorTexts';
 import { EditorReloadButton } from '../editor-shared/EditorReloadButton';
@@ -71,9 +74,16 @@ export const SalesTermsFields = ({
   const titleId = useId();
   const deliveryFieldsId = useId();
   const formRef = useRef<HTMLFormElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   const form = useSaveSalesTermsForm({ onSaved, t, terms });
   const access = useCommandAccess(form.command.method);
+  const {
+    cancelLeave,
+    confirmLeave,
+    isLeavePending,
+    requestLeave,
+  } = useNavigationGuard(form.isDirty, isLeavingCatalog);
 
   const hasOwnDelivery = form.watchField('hasOwnDelivery');
   const { isPending } = form.command;
@@ -106,7 +116,13 @@ export const SalesTermsFields = ({
 
   const handleCancelClick = (): void => {
     console.log('> SalesTermsFields -> handleCancelClick:', { isPending });
-    onClose();
+    requestLeave(onClose);
+  };
+
+  const handleStayClick = (): void => {
+    console.log('> SalesTermsFields -> handleStayClick:', {});
+    cancelLeave();
+    cancelRef.current?.focus();
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLFormElement>): void => {
@@ -117,8 +133,14 @@ export const SalesTermsFields = ({
     console.log('> SalesTermsFields -> handleKeyDown:', { isPending });
     event.preventDefault();
 
+    if (isLeavePending) {
+      handleStayClick();
+
+      return;
+    }
+
     if (!isPending) {
-      onClose();
+      requestLeave(onClose);
     }
   };
 
@@ -137,6 +159,16 @@ export const SalesTermsFields = ({
       ref={formRef}
     >
       <h2 className="text-base leading-6 font-semibold text-on-panel" id={titleId}>{pageT('catalog.terms.title')}</h2>
+      {isLeavePending && (
+        <LeaveConfirm
+          data-testid="sales-terms-leave-confirm"
+          leaveLabel={t('catalogEditor.leave.confirm')}
+          message={t('catalogEditor.leave.message')}
+          onLeave={confirmLeave}
+          onStay={handleStayClick}
+          stayLabel={t('catalogEditor.leave.stay')}
+        />
+      )}
       <div className={EDITOR_FIELDS_CLASS_NAME}>
         <div data-testid="sales-terms-preparation-days">
           <TextField
@@ -197,6 +229,7 @@ export const SalesTermsFields = ({
             aria-disabled={isPending}
             data-testid="sales-terms-cancel"
             onClick={handleCancelClick}
+            ref={cancelRef}
             variant="secondary"
           >
             {t('catalogEditor.terms.cancel')}

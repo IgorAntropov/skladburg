@@ -43,6 +43,8 @@ import {
 } from '@/shared/api';
 import { createTestRuntime } from '@/shared/api/index.testing';
 import { withTestLocalizer } from '@/shared/i18n/index.testing';
+import { RoutingProvider } from '@/shared/routing';
+import { createMemoryLocation } from '@/shared/routing/index.testing';
 import { LiveRegionProvider } from '@/shared/ui';
 
 import { CatalogTextsGate } from '../CatalogTextsGate';
@@ -103,7 +105,8 @@ const createServer = (current: SalesTerms): ServerValue => ({
   save: vi.fn<(request: SaveSalesTermsRequest) => void>(),
 });
 
-const renderForm = (server: ServerValue, onClose: () => void = () => undefined): void => {
+const renderForm = (server: ServerValue, onClose: () => void = () => undefined): ReturnType<typeof createMemoryLocation> => {
+  const location = createMemoryLocation('/catalog');
   const runtime = createTestRuntime({
     routes: (router) => {
       router.service(CatalogService, {
@@ -118,16 +121,20 @@ const renderForm = (server: ServerValue, onClose: () => void = () => undefined):
   });
 
   render(withTestLocalizer(
-    <LiveRegionProvider>
-      <ApiRuntimeProvider runtime={runtime}>
-        <QueryClientProvider client={createQueryClient({ networkMode: 'always' })}>
-          <CatalogTextsGate skeleton={null}>
-            <SalesTermsForm onClose={onClose} terms={server.current} />
-          </CatalogTextsGate>
-        </QueryClientProvider>
-      </ApiRuntimeProvider>
-    </LiveRegionProvider>,
+    <RoutingProvider location={location}>
+      <LiveRegionProvider>
+        <ApiRuntimeProvider runtime={runtime}>
+          <QueryClientProvider client={createQueryClient({ networkMode: 'always' })}>
+            <CatalogTextsGate skeleton={null}>
+              <SalesTermsForm onClose={onClose} terms={server.current} />
+            </CatalogTextsGate>
+          </QueryClientProvider>
+        </ApiRuntimeProvider>
+      </LiveRegionProvider>
+    </RoutingProvider>,
   ));
+
+  return location;
 };
 
 const getInput = (testId: string): HTMLInputElement => {
@@ -318,5 +325,102 @@ describe('sales terms form', () => {
     });
 
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  describe('leaving with unsaved changes', () => {
+    it('lets the address change and the cancel button pass while nothing is edited', async () => {
+      const onClose = vi.fn<() => void>();
+      const location = renderForm(createServer(createTerms()), onClose);
+      await waitForForm();
+
+      act(() => {
+        location.navigate('/deals');
+      });
+
+      expect(location.read().path).toBe('/deals');
+      expect(screen.queryByTestId('sales-terms-leave-confirm')).toBeNull();
+
+      click(screen.getByTestId('sales-terms-cancel'));
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks before an address change, keeps the edits and the address when the user stays', async () => {
+      const location = renderForm(createServer(createTerms({ preparationWorkingDays: 2 })));
+      await waitForForm();
+      click(getSwitch('sales-terms-auto-confirm'));
+
+      act(() => {
+        location.navigate('/deals');
+      });
+
+      expect(screen.getByTestId('sales-terms-leave-confirm')).toBeTruthy();
+      expect(location.read().path).toBe('/catalog');
+
+      click(screen.getByTestId('sales-terms-leave-confirm-stay'));
+
+      expect(screen.queryByTestId('sales-terms-leave-confirm')).toBeNull();
+      expect(location.read().path).toBe('/catalog');
+      expect(getSwitch('sales-terms-auto-confirm').checked).toBe(true);
+      expect(document.activeElement).toBe(screen.getByTestId('sales-terms-cancel'));
+    });
+
+    it('goes to the address when the user leaves', async () => {
+      const location = renderForm(createServer(createTerms()));
+      await waitForForm();
+      click(getSwitch('sales-terms-auto-confirm'));
+
+      act(() => {
+        location.navigate('/deals');
+      });
+
+      expect(document.activeElement).toBe(screen.getByTestId('sales-terms-leave-confirm'));
+
+      click(screen.getByTestId('sales-terms-leave-confirm-leave'));
+
+      expect(location.read().path).toBe('/deals');
+    });
+
+    it('answers the question with stay on the escape key', async () => {
+      const onClose = vi.fn<() => void>();
+      renderForm(createServer(createTerms()), onClose);
+      await waitForForm();
+      click(getSwitch('sales-terms-auto-confirm'));
+      click(screen.getByTestId('sales-terms-cancel'));
+
+      expect(screen.getByTestId('sales-terms-leave-confirm')).toBeTruthy();
+
+      act(() => {
+        screen.getByTestId('sales-terms-leave-confirm').dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }));
+      });
+
+      expect(screen.queryByTestId('sales-terms-leave-confirm')).toBeNull();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(getSwitch('sales-terms-auto-confirm').checked).toBe(true);
+    });
+
+    it('asks before the cancel button and before the escape key and closes only after the answer', async () => {
+      const onClose = vi.fn<() => void>();
+      renderForm(createServer(createTerms()), onClose);
+      await waitForForm();
+      click(getSwitch('sales-terms-auto-confirm'));
+
+      click(screen.getByTestId('sales-terms-cancel'));
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByTestId('sales-terms-leave-confirm')).toBeTruthy();
+
+      click(screen.getByTestId('sales-terms-leave-confirm-stay'));
+      act(() => {
+        getInput('sales-terms-preparation-days').dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }));
+      });
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByTestId('sales-terms-leave-confirm')).toBeTruthy();
+
+      click(screen.getByTestId('sales-terms-leave-confirm-leave'));
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
   });
 });

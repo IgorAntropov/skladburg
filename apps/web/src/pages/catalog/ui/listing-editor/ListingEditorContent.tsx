@@ -11,8 +11,10 @@ import {
 
 import { useOwnListingQuery } from '@/entities/listing';
 import { useCan } from '@/entities/session';
+import { useNavigationGuard } from '@/shared/routing';
 import {
   Button,
+  LeaveConfirm,
   useAnnounce,
 } from '@/shared/ui';
 
@@ -63,10 +65,22 @@ export const ListingEditorContent = ({ onClose, pair }: ListingEditorProps): Rea
 
   const { accept: acceptPosition, baseline: positionListing } = position;
   const hasUnsavedChanges = isPositionDirty || isPriceDirty;
+  const {
+    cancelLeave,
+    confirmLeave,
+    isLeavePending,
+    requestLeave,
+  } = useNavigationGuard(hasUnsavedChanges);
 
   const handleBackClick = (): void => {
     console.log('> ListingEditorContent -> handleBackClick:', { hasUnsavedChanges });
-    onClose();
+    requestLeave(onClose);
+  };
+
+  const handleStayClick = (): void => {
+    console.log('> ListingEditorContent -> handleStayClick:', {});
+    cancelLeave();
+    backRef.current?.focus();
   };
 
   const handlePositionSaved = (saved: Listing): void => {
@@ -118,6 +132,16 @@ export const ListingEditorContent = ({ onClose, pair }: ListingEditorProps): Rea
       >
         {t('catalogEditor.back')}
       </Button>
+      {isLeavePending && (
+        <LeaveConfirm
+          data-testid="listing-editor-leave-confirm"
+          leaveLabel={t('catalogEditor.leave.confirm')}
+          message={t('catalogEditor.leave.message')}
+          onLeave={confirmLeave}
+          onStay={handleStayClick}
+          stayLabel={t('catalogEditor.leave.stay')}
+        />
+      )}
       <h3 className="text-base leading-6 font-semibold text-on-panel" id={titleId}>{t('catalogEditor.title')}</h3>
       <ListingPositionSection
         isReloading={position.isReloading}

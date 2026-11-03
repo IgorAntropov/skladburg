@@ -1,9 +1,4 @@
-import type {
-  ChangeEvent,
-  FocusEvent,
-  InputEvent,
-  SyntheticEvent,
-} from 'react';
+import type { SyntheticEvent } from 'react';
 import type {
   FieldErrors,
   FieldValues,
@@ -53,17 +48,22 @@ export const useCommandForm = <TInput extends FieldValues, TResult, TOutput = TI
   const {
     defaultValues,
     execute,
+    mapViolationPath,
     method,
     onSuccess,
     rules,
     runCheck,
     translateViolation,
+    validateValues,
     watchedFields,
   } = options;
   const { t } = useI18n();
   const announce = useAnnounce();
   const [fieldNames] = useState(() => collectFieldNames(defaultValues));
-  const [resolver] = useState(() => createContractResolver<TInput, TOutput>(rules, fieldNames, { runCheck }));
+  const resolver = useMemo(
+    () => createContractResolver<TInput, TOutput>(rules, fieldNames, { runCheck, validateValues }),
+    [fieldNames, rules, runCheck, validateValues],
+  );
   const {
     clearErrors,
     formState,
@@ -85,6 +85,7 @@ export const useCommandForm = <TInput extends FieldValues, TResult, TOutput = TI
   const [, setValuesRevision] = useState(0);
 
   const submittedValuesRef = useRef<TOutput | undefined>(undefined);
+  const [submittedValues, setSubmittedValues] = useState<TOutput | undefined>(undefined);
   const handledServerErrorRef = useRef<Error | null>(null);
   const fieldElementsRef = useRef(new Map<string, FieldElementValue>());
   const [unplacedError, setUnplacedError] = useState<Error | null>(null);
@@ -115,9 +116,14 @@ export const useCommandForm = <TInput extends FieldValues, TResult, TOutput = TI
 
   const serverMapping = useMemo(
     () => (apiError?.code === ErrorCode.VALIDATION_FAILED
-      ? mapServerViolations(rules, getFieldViolations(apiError), fieldNames)
+      ? mapServerViolations(
+          rules,
+          getFieldViolations(apiError),
+          fieldNames,
+          submittedValues === undefined ? undefined : fieldPath => mapViolationPath?.(fieldPath, submittedValues) ?? fieldPath,
+        )
       : undefined),
-    [apiError, fieldNames, rules],
+    [apiError, fieldNames, mapViolationPath, rules, submittedValues],
   );
   const hasCommandError = apiError !== undefined;
   const isMappedToFields = serverMapping !== undefined
@@ -140,13 +146,14 @@ export const useCommandForm = <TInput extends FieldValues, TResult, TOutput = TI
       return;
     }
 
-    const submittedValues = submittedValuesRef.current;
+    const previousValues = submittedValuesRef.current;
 
-    if (submittedValues !== undefined && !areFormValuesEqual(values, submittedValues)) {
+    if (previousValues !== undefined && !areFormValuesEqual(values, previousValues)) {
       reset();
     }
 
     submittedValuesRef.current = values;
+    setSubmittedValues(values);
     command.run();
   };
 
@@ -173,22 +180,16 @@ export const useCommandForm = <TInput extends FieldValues, TResult, TOutput = TI
 
   const getFieldProps = (name: Path<TInput>, fieldOptions?: FormFieldOptionsValue): FormFieldBindingValue => {
     const mask = fieldOptions?.mask;
-    const registration = mask === undefined ? register(name) : register(name, { setValueAs: mask.unmask });
+    const registration = register(name);
     const errorType = getFieldState(name, formState).error?.type;
     const errorText = errorType === undefined
       ? undefined
       : (translateViolation?.(errorType) ?? translateFieldViolation(t, errorType));
 
-    const handleBlur = (event: FocusEvent<FieldElementValue>): void => {
-      void registration.onBlur(event);
-    };
-
-    const handleChange = (event: ChangeEvent<FieldElementValue>): void => {
-      void registration.onChange(event);
-    };
-
-    const handleInput = (event: InputEvent<FieldElementValue>): void => {
-      void registration.onChange(event);
+    const handleEvent = (event: SyntheticEvent<FieldElementValue>): void => {
+      void registration.onChange(
+        mask === undefined ? event : { target: { name, value: mask.unmask(event.currentTarget.value) }, type: event.type },
+      );
     };
 
     const handleRef = (instance: FieldElementValue | null): void => {
@@ -206,10 +207,10 @@ export const useCommandForm = <TInput extends FieldValues, TResult, TOutput = TI
       error: errorText,
       isOptional: !isRequired(name),
       isReadOnly: isPending,
-      ...(mask === undefined ? {} : { mask, onInput: handleInput }),
+      ...(mask === undefined ? {} : { mask, onInput: handleEvent }),
       name: registration.name,
-      onBlur: handleBlur,
-      onChange: handleChange,
+      onBlur: handleEvent,
+      onChange: handleEvent,
       ref: handleRef,
     };
   };

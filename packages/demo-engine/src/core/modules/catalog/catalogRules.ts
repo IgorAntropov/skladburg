@@ -29,6 +29,7 @@ export const MIN_ORDER_NOT_MULTIPLE_OF_STEP_RULE_ID = 'catalog.min_order_not_mul
 export const LISTING_WAREHOUSE_REQUIRED_RULE_ID = 'catalog.listing_warehouse_required';
 export const LISTING_PRICE_REQUIRED_RULE_ID = 'catalog.listing_price_required';
 export const TIER_ORDER_RULE_ID = 'catalog.tier_order';
+export const TIER_PRICE_ORDER_RULE_ID = 'catalog.tier_price_order';
 export const TIER_ABOVE_MINIMUM_ORDER_RULE_ID = 'catalog.tier_above_minimum_order';
 export const PRICE_BELOW_MINIMUM_RULE_ID = 'catalog.price_below_minimum';
 export const PRICE_UNIT_LOCKED_RULE_ID = 'catalog.price_unit_locked';
@@ -95,6 +96,19 @@ const collectCurrencyViolations = (money: Money | undefined, fieldPath: string):
   money !== undefined && money.currencyCode !== SUPPORTED_CURRENCY_CODE
     ? [{ fieldPath, ruleId: CURRENCY_UNSUPPORTED_RULE_ID }]
     : [];
+
+const isTierPriceNotLower = (tier: PriceTier, previous: PriceTier | undefined): boolean => {
+  const price = tier.price;
+  const previousPrice = previous?.price;
+
+  if (previous === undefined || price === undefined || previousPrice === undefined) {
+    return false;
+  }
+
+  const isRouble = price.currencyCode === SUPPORTED_CURRENCY_CODE && previousPrice.currencyCode === SUPPORTED_CURRENCY_CODE;
+
+  return isRouble && tier.minQuantity > previous.minQuantity && price.amountMinor >= previousPrice.amountMinor;
+};
 
 const collectLimitViolations = (value: bigint, limit: bigint, fieldPath: string, ruleId: string): ViolationValue[] =>
   value > limit ? [{ fieldPath, ruleId }] : [];
@@ -252,6 +266,10 @@ export const collectListingPriceViolations = (input: ListingPriceRulesInputValue
 
     if (previous !== undefined && tier.minQuantity <= previous.minQuantity) {
       violations.push({ fieldPath: indexedPath('tiers', index, 'min_quantity'), ruleId: TIER_ORDER_RULE_ID });
+    }
+
+    if (isTierPriceNotLower(tier, previous)) {
+      violations.push({ fieldPath: indexedPath('tiers', index, 'price.amount_minor'), ruleId: TIER_PRICE_ORDER_RULE_ID });
     }
 
     if (productMinPrice !== undefined && tier.price !== undefined && tier.price.amountMinor < productMinPrice.amountMinor) {

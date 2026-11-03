@@ -1,5 +1,6 @@
 import type {
   FieldCheckRunnerValue,
+  FormFieldIssueValue,
   FormRulesValue,
 } from '@skladburg/contracts/forms';
 import type {
@@ -20,8 +21,9 @@ import {
   INVALID_INTEGER_RULE_ID,
 } from './coerceFieldValue';
 
-export interface ContractResolverOptionsValue {
+export interface ContractResolverOptionsValue<TOutput = unknown> {
   runCheck?: FieldCheckRunnerValue | undefined;
+  validateValues?: ((values: TOutput) => readonly FormFieldIssueValue[]) | undefined;
 }
 
 const collectAncestorNames = (rules: FormRulesValue, name: string): string[] => {
@@ -36,7 +38,7 @@ const collectAncestorNames = (rules: FormRulesValue, name: string): string[] => 
 export const createContractResolver = <TInput extends FieldValues, TOutput = TInput>(
   rules: FormRulesValue,
   fieldNames: readonly string[],
-  options?: ContractResolverOptionsValue,
+  options?: ContractResolverOptionsValue<TOutput>,
 ): Resolver<TInput, unknown, TOutput> => (values) => {
   const coerced = cloneFormRecord(values);
   const flatValues: Record<string, unknown> = {};
@@ -61,10 +63,11 @@ export const createContractResolver = <TInput extends FieldValues, TOutput = TIn
     }
   }
 
-  const issues = [
+  const contractIssues = [
     ...uncoercibleFields.map(field => ({ field, ruleId: INVALID_INTEGER_RULE_ID })),
     ...validateFormValues(rules, flatValues, fieldNames, { runCheck: options?.runCheck }),
   ];
+  const issues = contractIssues.length === 0 ? (options?.validateValues?.(coerced as TOutput) ?? []) : contractIssues;
 
   if (issues.length === 0) {
     return { errors: {}, values: coerced as TOutput };

@@ -20,6 +20,7 @@ import type {
   ButtonSizeValue,
   ButtonVariantValue,
 } from '../button/buttonTypes';
+import type { WithTestIdValue } from '../test-id/testIdTypes';
 import type { TooltipProps } from '../tooltip/Tooltip';
 
 import { AccessButton } from '../action-button/AccessButton';
@@ -41,10 +42,6 @@ export interface FileButtonProps extends WithTestIdValue {
   size?: ButtonSizeValue | undefined;
   tooltipSide?: TooltipProps['side'] | undefined;
   variant?: ButtonVariantValue | undefined;
-}
-
-interface WithTestIdValue {
-  'data-testid'?: string | undefined;
 }
 
 export const FileButton = ({

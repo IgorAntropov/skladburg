@@ -1,7 +1,9 @@
 import {
   DEFAULT_PERSONA,
   GOLDEN_APPLES,
+  PERSONAS,
 } from './fixtures/demoData.ts';
+import { toSectionHash } from './fixtures/routes.ts';
 import { test } from './fixtures/test.ts';
 import {
   DESKTOP_VIEWPORT,
@@ -85,6 +87,42 @@ test.describe('accessibility', () => {
     await topBar.expectDocumentTheme('light');
     await catalog.expectInspectorOpen(GOLDEN_APPLES.name);
     await catalog.expectInspectorCityAvailability(GOLDEN_APPLES.supplierCityName);
+
+    await catalog.expectNoViolationsOfAccessibility();
+  });
+
+  test('has no violations of WCAG 2.1 A and AA in the own catalog of a supplier', async ({ page }) => {
+    const assistant = createAssistantRobot(page);
+    const catalog = createCatalogRobot(page);
+    const persona = createPersonaRobot(page);
+    const topBar = createTopBarRobot(page);
+
+    await persona.openAsPersona(toSectionHash('catalog'), PERSONAS.freshSupplier.id);
+    await persona.expectCurrentPersona(PERSONAS.freshSupplier);
+    await topBar.expectDocumentTheme('light');
+    await assistant.dismissReplica('digest');
+    await catalog.openOwnTab();
+    await catalog.expectOwnOpen();
+    await catalog.expectSalesTermsCardVisible();
+
+    await catalog.expectNoViolationsOfAccessibility();
+  });
+
+  test('has no violations of WCAG 2.1 A and AA in the open editor of an own listing', async ({ page }) => {
+    const assistant = createAssistantRobot(page);
+    const catalog = createCatalogRobot(page);
+    const persona = createPersonaRobot(page);
+    const topBar = createTopBarRobot(page);
+
+    await persona.openAsPersona(toSectionHash('catalog'), PERSONAS.freshSupplier.id);
+    await persona.expectCurrentPersona(PERSONAS.freshSupplier);
+    await topBar.expectDocumentTheme('light');
+    await assistant.dismissReplica('digest');
+    await catalog.openOwnTab();
+    await catalog.expectOwnOpen();
+    await catalog.openOwnListing(GOLDEN_APPLES.id);
+    await catalog.openEditor();
+    await catalog.expectEditorOpen();
 
     await catalog.expectNoViolationsOfAccessibility();
   });

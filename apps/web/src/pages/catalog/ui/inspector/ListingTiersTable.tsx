@@ -1,7 +1,4 @@
-import type {
-  DeliveryQuote,
-  ShowcaseListing,
-} from '@skladburg/contracts/catalog/v1/showcase';
+import type { PriceTier } from '@skladburg/contracts/catalog/v1/catalog';
 import type { ReactElement } from 'react';
 
 import { useId } from 'react';
@@ -10,27 +7,26 @@ import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
 import { formatMoney } from '@/shared/lib/money';
 
+import type { QuantityUnitsValue } from '../../lib/formatListingQuantity';
+
 import { formatListingQuantity } from '../../lib/formatListingQuantity';
 import { useCatalogTexts } from '../../model/useCatalogTexts';
 import { INSPECTOR_HEADING_CLASS_NAME } from './inspectorStyles';
 
 interface ListingTiersTableProps {
-  listing: ShowcaseListing;
-  quote: DeliveryQuote | undefined;
+  currentTier: PriceTier | undefined;
+  tiers: readonly PriceTier[];
+  units: QuantityUnitsValue;
 }
 
 const CELL_CLASS_NAME = 'border-b border-line py-2 text-base tabular-nums group-last/row:border-b-0';
 
-export const ListingTiersTable = ({ listing, quote }: ListingTiersTableProps): ReactElement => {
+export const ListingTiersTable = ({ currentTier, tiers, units }: ListingTiersTableProps): ReactElement => {
   const { locale } = useI18n();
   const { listingT } = useCatalogTexts();
   const titleId = useId();
 
-  const { priceUnit } = listing;
-  const quotedAmountMinor = quote?.unitPrice?.amountMinor;
-  const currentTier = quote === undefined
-    ? listing.tiers[0]
-    : listing.tiers.find(tier => quotedAmountMinor !== undefined && tier.price?.amountMinor === quotedAmountMinor);
+  const { priceUnit } = units;
 
   return (
     <section className="flex flex-col gap-1" data-testid="listing-tiers">
@@ -43,9 +39,9 @@ export const ListingTiersTable = ({ listing, quote }: ListingTiersTableProps): R
           </tr>
         </thead>
         <tbody>
-          {listing.tiers.map((tier) => {
+          {tiers.map((tier) => {
             const isCurrent = tier === currentTier;
-            const quantityText = formatListingQuantity(locale, listing, tier.minQuantity, listingT);
+            const quantityText = formatListingQuantity(locale, units, tier.minQuantity, listingT);
             const priceText = tier.price === undefined || priceUnit === undefined
               ? undefined
               : listingT('listing.price.perUnit', { price: formatMoney(locale, tier.price), unit: priceUnit.name });

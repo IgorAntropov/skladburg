@@ -21,19 +21,16 @@ import { formatEtaDate } from '../../lib/formatEtaDate';
 import { formatListingQuantity } from '../../lib/formatListingQuantity';
 import { resolveScrollBehavior } from '../../lib/resolveScrollBehavior';
 import { useCatalogTexts } from '../../model/useCatalogTexts';
-import { CATALOG_ROW_CLASS_NAME } from './catalogRowStyles';
-
-const QUOTE_COLUMN_CLASS_NAME = [
-  'flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-line pt-2',
-  '@lg:w-36 @lg:flex-col @lg:items-end @lg:justify-start @lg:border-t-0 @lg:pt-0 @lg:text-right',
-].join(' ');
+import {
+  CATALOG_ROW_AMOUNT_CLASS_NAME,
+  CATALOG_ROW_CLASS_NAME,
+  CATALOG_ROW_SIDE_COLUMN_CLASS_NAME,
+} from './catalogRowStyles';
 
 const NO_ROUTE_CLASS_NAME = [
   'border-t border-line pt-2 text-sm leading-5 text-on-panel-muted',
   '@lg:w-36 @lg:border-t-0 @lg:pt-0 @lg:text-right',
 ].join(' ');
-
-const TOTAL_CLASS_NAME = 'text-lg leading-6 font-semibold tracking-tight whitespace-nowrap text-on-panel tabular-nums';
 
 interface ShowcaseRowProps {
   isSelected: boolean;
@@ -107,9 +104,9 @@ export const ShowcaseRow = ({ isSelected, listing }: ShowcaseRowProps): ReactEle
         </span>
         {isQuoteShown
           ? (
-              <span className={QUOTE_COLUMN_CLASS_NAME}>
+              <span className={CATALOG_ROW_SIDE_COLUMN_CLASS_NAME}>
                 <span className="flex flex-col @lg:items-end">
-                  <span className={TOTAL_CLASS_NAME}>
+                  <span className={CATALOG_ROW_AMOUNT_CLASS_NAME}>
                     <span className="sr-only">{listingT('listing.sr.total')}</span>
                     {totalText}
                   </span>

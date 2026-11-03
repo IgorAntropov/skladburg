@@ -1,6 +1,9 @@
+import type { OwnListing } from '@skladburg/contracts/catalog/v1/catalog';
 import type { ShowcaseListing } from '@skladburg/contracts/catalog/v1/showcase';
 
 import type { PageValue } from '@/shared/api';
+
+export type OwnListingsPageValue = PageValue<OwnListing>;
 
 export interface ShowcaseListParamsValue {
   query: string;

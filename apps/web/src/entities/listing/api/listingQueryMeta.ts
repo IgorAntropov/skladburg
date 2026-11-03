@@ -5,9 +5,15 @@ import type {
   RealtimeEventCaseValue,
 } from '@/shared/api';
 
-const SHOWCASE_EVENT_CASES: readonly RealtimeEventCaseValue[] = ['listingsChanged'];
+import { createOrganizationQueryMeta } from '@/shared/api';
+
+const LISTING_EVENT_CASES: readonly RealtimeEventCaseValue[] = ['listingsChanged'];
 
 export const createShowcaseQueryMeta = (): ApiQueryMetaValue => ({
   channels: [marketChannel()],
-  eventCases: SHOWCASE_EVENT_CASES,
+  eventCases: LISTING_EVENT_CASES,
 });
+
+export const createOwnListingQueryMeta = (organizationId: string | undefined): ApiQueryMetaValue => (
+  createOrganizationQueryMeta(organizationId, LISTING_EVENT_CASES)
+);

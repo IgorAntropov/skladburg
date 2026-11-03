@@ -1,10 +1,11 @@
 import { isPlainRecord } from './isPlainRecord';
+import { isRecordList } from './isRecordList';
 
-const collectLeafPaths = (record: Record<string, unknown>, prefix: string, paths: string[]): void => {
+const collectLeafPaths = (record: object, prefix: string, paths: string[]): void => {
   for (const [key, value] of Object.entries(record)) {
     const path = prefix === '' ? key : `${prefix}.${key}`;
 
-    if (isPlainRecord(value)) {
+    if (isPlainRecord(value) || isRecordList(value)) {
       collectLeafPaths(value, path, paths);
     }
     else {

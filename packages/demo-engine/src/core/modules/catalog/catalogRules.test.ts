@@ -57,6 +57,7 @@ import {
   TEMPERATURE_RANGE_ORDER_RULE_ID,
   TIER_ABOVE_MINIMUM_ORDER_RULE_ID,
   TIER_ORDER_RULE_ID,
+  TIER_PRICE_ORDER_RULE_ID,
   WAREHOUSE_DUPLICATE_RULE_ID,
   WAREHOUSE_EXISTS_RULE_ID,
 } from './catalogRules';
@@ -278,6 +279,18 @@ describe('collectListingPriceViolations', () => {
       'tiers[2].min_quantity',
       TIER_ORDER_RULE_ID,
     ],
+    [
+      'equal prices of neighbouring tiers',
+      { tiers: [tier(10n, 9000n), tier(100n, 9000n)] },
+      'tiers[1].price.amount_minor',
+      TIER_PRICE_ORDER_RULE_ID,
+    ],
+    [
+      'a higher price on the next tier',
+      { tiers: [tier(10n, 9000n), tier(50n, 8800n), tier(100n, 8900n)] },
+      'tiers[2].price.amount_minor',
+      TIER_PRICE_ORDER_RULE_ID,
+    ],
     ['first tier above the minimum order', { minOrderQuantity: 5n }, 'tiers[0].min_quantity', TIER_ABOVE_MINIMUM_ORDER_RULE_ID],
     [
       'price below the product minimum',
@@ -289,6 +302,47 @@ describe('collectListingPriceViolations', () => {
 
   it.each(cases)('reports %s', (_name, overrides, fieldPath, ruleId) => {
     expect(collectListingPriceViolations(buildPriceInput(overrides))).toEqual([{ fieldPath, ruleId }]);
+  });
+
+  it('accepts strictly falling prices over many tiers', () => {
+    const tiers = [tier(10n, 9000n), tier(50n, 8999n), tier(100n, 8500n), tier(500n, 1n)];
+
+    expect(collectListingPriceViolations(buildPriceInput({ tiers }))).toEqual([]);
+  });
+
+  it('compares each tier only with the previous one', () => {
+    const tiers = [tier(10n, 9000n), tier(50n, 9000n), tier(100n, 9000n)];
+
+    expect(collectListingPriceViolations(buildPriceInput({ tiers })).map(violation => violation.fieldPath)).toEqual([
+      'tiers[1].price.amount_minor',
+      'tiers[2].price.amount_minor',
+    ]);
+  });
+
+  it('does not compare prices of tiers whose thresholds are out of order', () => {
+    const tiers = [tier(10n, 9000n), tier(50n, 8800n), tier(20n, 9500n)];
+
+    expect(collectListingPriceViolations(buildPriceInput({ tiers }))).toEqual([
+      { fieldPath: 'tiers[2].min_quantity', ruleId: TIER_ORDER_RULE_ID },
+    ]);
+  });
+
+  it('does not compare prices when a currency is unsupported', () => {
+    const euro = create(PriceTierSchema, { minQuantity: 100n, price: create(MoneySchema, { amountMinor: 9500n, currencyCode: 'EUR' }) });
+
+    expect(collectListingPriceViolations(buildPriceInput({ tiers: [tier(10n, 9000n), euro] }))).toEqual([
+      { fieldPath: 'tiers[1].price.currency_code', ruleId: CURRENCY_UNSUPPORTED_RULE_ID },
+    ]);
+  });
+
+  it('reports a price below the product minimum and not falling on the same tier separately', () => {
+    const input = buildPriceInput({ productMinPrice: rub(9500n), tiers: [tier(10n, 9000n), tier(100n, 9000n)] });
+
+    expect(collectListingPriceViolations(input)).toEqual([
+      { fieldPath: 'tiers[0].price.amount_minor', ruleId: PRICE_BELOW_MINIMUM_RULE_ID },
+      { fieldPath: 'tiers[1].price.amount_minor', ruleId: TIER_PRICE_ORDER_RULE_ID },
+      { fieldPath: 'tiers[1].price.amount_minor', ruleId: PRICE_BELOW_MINIMUM_RULE_ID },
+    ]);
   });
 
   it('accepts a price equal to the product minimum', () => {
@@ -335,7 +389,7 @@ describe('catalog upper bounds', () => {
     }))).toEqual([]);
     expect(collectListingViolations(buildListingInput({ minOrderQuantity: 0n, orderStep: quantityLimit }))).toEqual([]);
     expect(collectListingPriceViolations(buildPriceInput({
-      tiers: [tier(10n, 9000n), tier(quantityLimit, amountLimit)],
+      tiers: [tier(10n, amountLimit), tier(quantityLimit, 9000n)],
     }))).toEqual([]);
     expect(collectSalesTermsViolations(delivery)).toEqual([]);
   });
@@ -377,8 +431,8 @@ describe('catalog upper bounds', () => {
     ],
     [
       'tier price above the amount limit',
-      { tiers: [tier(10n, 9000n), tier(100n, amountLimit + 1n)] },
-      'tiers[1].price.amount_minor',
+      { tiers: [tier(10n, amountLimit + 1n)] },
+      'tiers[0].price.amount_minor',
       AMOUNT_ABOVE_LIMIT_RULE_ID,
     ],
   ];

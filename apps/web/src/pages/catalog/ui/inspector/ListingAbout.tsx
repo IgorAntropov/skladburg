@@ -1,4 +1,9 @@
-import type { ShowcaseListing } from '@skladburg/contracts/catalog/v1/showcase';
+import type {
+  BaseUnit,
+  PriceUnit,
+  TemperatureRange,
+  VatRate,
+} from '@skladburg/contracts/catalog/v1/catalog';
 import type {
   ReactElement,
   ReactNode,
@@ -16,13 +21,24 @@ import {
   INSPECTOR_VALUE_CLASS_NAME,
 } from './inspectorStyles';
 
+export interface ListingAboutSourceValue {
+  baseUnit: BaseUnit;
+  gtin: string;
+  packagings: readonly { baseQuantity: bigint; name: string }[];
+  priceUnit?: PriceUnit | undefined;
+  shelfLifeDays: number;
+  storageTemperature?: TemperatureRange | undefined;
+  vatRate: VatRate;
+}
+
 interface AboutPropertyProps {
   children: ReactNode;
   label: string;
 }
 
 interface ListingAboutProps {
-  listing: ShowcaseListing;
+  listing: ListingAboutSourceValue;
+  sku?: string | undefined;
 }
 
 const AboutProperty = ({ children, label }: AboutPropertyProps): ReactElement => (
@@ -32,9 +48,9 @@ const AboutProperty = ({ children, label }: AboutPropertyProps): ReactElement =>
   </div>
 );
 
-export const ListingAbout = ({ listing }: ListingAboutProps): ReactElement => {
+export const ListingAbout = ({ listing, sku }: ListingAboutProps): ReactElement => {
   const { locale } = useI18n();
-  const { listingT } = useCatalogTexts();
+  const { listingT, t } = useCatalogTexts();
 
   const storageText = formatTemperatureRange(listing.storageTemperature);
   const vat = describeVat(listing.vatRate);
@@ -70,6 +86,11 @@ export const ListingAbout = ({ listing }: ListingAboutProps): ReactElement => {
         {vat !== undefined && (
           <AboutProperty label={listingT('listing.about.vat')}>
             {vat.kind === 'none' ? listingT('listing.about.vatNone') : listingT('listing.about.vatRate', { rate: vat.percent })}
+          </AboutProperty>
+        )}
+        {sku !== undefined && sku !== '' && (
+          <AboutProperty label={t('catalog.own.skuLabel')}>
+            <span translate="no">{sku}</span>
           </AboutProperty>
         )}
         {listing.gtin !== '' && (

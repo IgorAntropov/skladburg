@@ -80,6 +80,16 @@ const lazyEditRequisitesFormTestFiles: string[] = [
   'apps/web/src/features/edit-requisites/ui/panel/**/*.test.{ts,tsx}',
 ];
 const lazyEditRequisitesFeatureFiles: string[] = ['apps/web/src/features/edit-requisites/**/*.{ts,tsx}'];
+const lazyCatalogFormFiles: string[] = [
+  'apps/web/src/pages/catalog/api/editor/**/*.{ts,tsx}',
+  'apps/web/src/pages/catalog/ui/listing-editor/**/*.{ts,tsx}',
+  'apps/web/src/pages/catalog/ui/sales-terms/**/*.{ts,tsx}',
+];
+const lazyCatalogFormTestFiles: string[] = [
+  'apps/web/src/pages/catalog/api/editor/**/*.test.{ts,tsx}',
+  'apps/web/src/pages/catalog/ui/listing-editor/**/*.test.{ts,tsx}',
+  'apps/web/src/pages/catalog/ui/sales-terms/**/*.test.{ts,tsx}',
+];
 const lazySceneViewportFiles: string[] = ['apps/web/src/widgets/scene-viewport/**/*.{ts,tsx}'];
 const lazySceneCameraControlsChunkFiles: string[] = ['apps/web/src/widgets/scene-viewport/ui/controls/**/*.{ts,tsx}'];
 const lazyNetworkPageFiles: string[] = ['apps/web/src/pages/network/**/*.{ts,tsx}'];
@@ -432,6 +442,27 @@ const networkOrganizationCardChunkLazyRestriction: LazyModuleRestrictionValue = 
   moduleLabel: 'the network organization card chunk',
   regex: '(^|/)organization-card(/|$)',
 };
+
+const catalogOwnChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the own catalog tab chunk',
+  regex: '(^|/)own(/|$)',
+};
+
+const catalogListingEditorChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the listing editor chunk',
+  regex: '(^|/)listing-editor(/|$)',
+};
+
+const catalogSalesTermsChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the sales terms form chunk',
+  regex: '(^|/)sales-terms(/|$)',
+};
+
+const catalogLazyRestrictions: LazyModuleRestrictionValue[] = [
+  catalogOwnChunkLazyRestriction,
+  catalogListingEditorChunkLazyRestriction,
+  catalogSalesTermsChunkLazyRestriction,
+];
 
 const mountAppLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'the application mount module',
@@ -985,6 +1016,27 @@ export default defineConfig(
     ),
   },
   {
+    files: lazyCatalogFormFiles,
+    rules: createBoundaryRules(
+      [
+        engineRestriction,
+        registryRestriction,
+        apiTestingEntryRestriction,
+        routingTestingEntryRestriction,
+        ...motionRestrictions,
+        formPackageRestriction,
+      ],
+      webSourceSyntaxRestrictions,
+    ),
+  },
+  {
+    files: lazyCatalogFormTestFiles,
+    rules: createBoundaryRules(
+      [engineRestrictionForTests, registryRestriction, ...motionRestrictions, formPackageRestriction],
+      webSyntaxRestrictions,
+    ),
+  },
+  {
     files: engineBoundaryFiles,
     ignores: [...webTestFiles, ...sceneSegmentFiles],
     rules: createLazyModuleRules([], sourceBoundaryImportRestrictions),
@@ -1116,7 +1168,7 @@ export default defineConfig(
   {
     files: catalogPageFiles,
     ignores: [...webTestFiles, ...sceneSegmentFiles],
-    rules: createLazyModuleRules([], catalogChunkImportRestrictions),
+    rules: createLazyModuleRules(catalogLazyRestrictions, catalogChunkImportRestrictions),
   },
   {
     files: catalogPageApiFiles,

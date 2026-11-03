@@ -39,6 +39,11 @@ export const PERSONAS = {
     organizationName: 'Тёплый угол',
     sections: ['warehouse'],
   },
+  freshSupplier: {
+    id: '90000002-0000-4000-8000-000000000000',
+    organizationName: 'Яблоневый край',
+    sections: ALL_SECTIONS,
+  },
 } as const satisfies Record<string, PersonaValue>;
 
 export const NOTIFICATION_IDS = {
@@ -210,3 +215,16 @@ export const GOLDEN_APPLES_QUOTES = {
   moscow: { etaText: 'чт, 15 октября', site: OWN_NETWORK_SITES[0], totalText: '57\u00a0960\u00a0₽' },
   saintPetersburg: { etaText: 'пт, 16 октября', site: OWN_NETWORK_SITES[1], totalText: '66\u00a0480\u00a0₽' },
 } as const satisfies Record<string, ShowcaseQuoteValue>;
+
+export const GOLDEN_APPLES_REPRICED = {
+  moscow: { ...GOLDEN_APPLES_QUOTES.moscow, totalText: '60\u00a0840\u00a0₽' },
+  tierPriceInput: '95',
+  unitPriceText: '95\u00a0₽/кг',
+} as const satisfies { moscow: ShowcaseQuoteValue; tierPriceInput: string; unitPriceText: string };
+
+export const GOLDEN_APPLES_INITIAL_UNIT_PRICE_TEXT = '89\u00a0₽/кг';
+
+export const SALES_TERMS_AUTO_CONFIRM_TEXTS = {
+  off: 'Выключено',
+  on: 'Включено',
+} as const;

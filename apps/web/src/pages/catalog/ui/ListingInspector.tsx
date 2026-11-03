@@ -1,22 +1,23 @@
 import type { ReactElement } from 'react';
 
+import { useState } from 'react';
+
 import type { ObjectRefValue } from '@/shared/routing';
 
 import { useI18n } from '@/shared/i18n';
 import { ObjectInspector } from '@/widgets/object-inspector';
 
-import type {
-  ListingInspectorGateValue,
-  ListingInspectorStateValue,
-} from '../api/useListingInspectorState';
+import type { ListingInspectorGateValue } from '../api/useListingInspectorState';
 
 import {
   toGateInspectorState,
   useListingInspectorGate,
   useOpenListingInspectorState,
 } from '../api/useListingInspectorState';
+import { useReportedTitle } from '../model/useReportedTitle';
 import { CatalogTextsGate } from './CatalogTextsGate';
 import { ListingInspectorBody } from './inspector/ListingInspectorBody';
+import { OwnAwareInspectorBody } from './inspector/OwnAwareInspectorBody';
 import { ListingInspectorSkeleton } from './ListingInspectorSkeleton';
 
 interface FocusedListingInspectorProps {
@@ -29,44 +30,46 @@ interface ListingInspectorProps {
   onClose: () => void;
 }
 
-interface ListingInspectorShellProps extends FocusedListingInspectorProps {
-  state: ListingInspectorStateValue;
-}
-
-interface OpenListingInspectorProps extends FocusedListingInspectorProps {
+interface OpenListingInspectorBodyProps {
   gate: ListingInspectorGateValue;
+  listingId: string;
+  onTitleChange: (title: string | undefined) => void;
 }
 
-const ListingInspectorShell = ({ focus, onClose, state }: ListingInspectorShellProps): ReactElement => {
-  const { t } = useI18n();
+const OpenListingInspectorBody = ({
+  gate,
+  listingId,
+  onTitleChange,
+}: OpenListingInspectorBodyProps): ReactElement => {
+  const state = useOpenListingInspectorState(listingId, gate);
 
-  const title = state.listing?.productName ?? t('object.type.listing');
+  useReportedTitle(state.listing?.productName, onTitleChange);
+
+  return <ListingInspectorBody state={state} />;
+};
+
+const FocusedListingInspector = ({ focus, onClose }: FocusedListingInspectorProps): ReactElement => {
+  const { t } = useI18n();
+  const gate = useListingInspectorGate();
+
+  const [bodyTitle, setBodyTitle] = useState<string | undefined>(undefined);
+
+  const title = bodyTitle ?? t('object.type.listing');
+  const showcaseBody = gate.isOpen
+    ? <OpenListingInspectorBody gate={gate} listingId={focus.id} onTitleChange={setBodyTitle} />
+    : <ListingInspectorBody state={toGateInspectorState(gate)} />;
 
   return (
     <ObjectInspector focus={focus} onClose={onClose} title={title}>
       <div data-testid="listing-inspector">
         <CatalogTextsGate skeleton={<ListingInspectorSkeleton />}>
-          <ListingInspectorBody state={state} />
+          {gate.isOwnAvailable
+            ? <OwnAwareInspectorBody listingId={focus.id} onTitleChange={setBodyTitle}>{showcaseBody}</OwnAwareInspectorBody>
+            : showcaseBody}
         </CatalogTextsGate>
       </div>
     </ObjectInspector>
   );
-};
-
-const OpenListingInspector = ({ focus, gate, onClose }: OpenListingInspectorProps): ReactElement => {
-  const state = useOpenListingInspectorState(focus.id, gate);
-
-  return <ListingInspectorShell focus={focus} onClose={onClose} state={state} />;
-};
-
-const FocusedListingInspector = ({ focus, onClose }: FocusedListingInspectorProps): ReactElement => {
-  const gate = useListingInspectorGate();
-
-  if (gate.isOpen) {
-    return <OpenListingInspector focus={focus} gate={gate} onClose={onClose} />;
-  }
-
-  return <ListingInspectorShell focus={focus} onClose={onClose} state={toGateInspectorState(gate)} />;
 };
 
 export const ListingInspector = ({ focus, onClose }: ListingInspectorProps): ReactElement => {

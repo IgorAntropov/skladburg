@@ -7,3 +7,10 @@ export const CATALOG_ROW_CLASS_NAME = [
   'aria-[current=true]:ring-inset aria-[current=true]:active:bg-line',
   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
 ].join(' ');
+
+export const CATALOG_ROW_SIDE_COLUMN_CLASS_NAME = [
+  'flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-line pt-2',
+  '@lg:w-36 @lg:flex-col @lg:items-end @lg:justify-start @lg:border-t-0 @lg:pt-0 @lg:text-right',
+].join(' ');
+
+export const CATALOG_ROW_AMOUNT_CLASS_NAME = 'text-lg leading-6 font-semibold tracking-tight whitespace-nowrap text-on-panel tabular-nums';

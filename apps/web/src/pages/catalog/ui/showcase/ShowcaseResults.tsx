@@ -1,11 +1,7 @@
 import type { ShowcaseListing } from '@skladburg/contracts/catalog/v1/showcase';
 import type { ReactElement } from 'react';
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react';
+import { useMemo } from 'react';
 
 import type { ShowcaseListParamsValue } from '@/entities/listing';
 import type { ObjectRefValue } from '@/shared/routing';
@@ -17,6 +13,7 @@ import {
   WidgetStates,
 } from '@/shared/ui';
 
+import { useFocusNewRows } from '../../lib/useFocusNewRows';
 import { useCatalogTexts } from '../../model/useCatalogTexts';
 import { ShowcaseEmpty } from './ShowcaseEmpty';
 import { ShowcaseList } from './ShowcaseList';
@@ -34,10 +31,9 @@ const isListingsEmpty = (listings: readonly ShowcaseListing[]): boolean => listi
 export const ShowcaseResults = ({ focus, isFiltered, onReset, params }: ShowcaseResultsProps): ReactElement => {
   const { t } = useCatalogTexts();
   const listQuery = useShowcaseListingsQuery(params);
-  const listRef = useRef<HTMLUListElement>(null);
-  const firstNewRowIndexRef = useRef<number | undefined>(undefined);
 
   const listings = useMemo(() => listQuery.data?.pages.flatMap(page => page.items), [listQuery.data]);
+  const { expectNewRows, listRef } = useFocusNewRows(listings?.length);
   const selectedListingId = focus?.type === 'listing' ? focus.id : undefined;
   const isNextPageFailed = listQuery.isFetchNextPageError;
   const isMoreShown = listQuery.hasNextPage && !isNextPageFailed;
@@ -49,26 +45,15 @@ export const ShowcaseResults = ({ focus, isFiltered, onReset, params }: Showcase
 
   const handleMoreClick = (): void => {
     console.log('> ShowcaseResults -> handleMoreClick:', { shown: listings?.length });
-    firstNewRowIndexRef.current = listings?.length;
+    expectNewRows();
     void listQuery.fetchNextPage();
   };
 
   const handleNextPageRetry = (): void => {
     console.log('> ShowcaseResults -> handleNextPageRetry:', { shown: listings?.length });
-    firstNewRowIndexRef.current = listings?.length;
+    expectNewRows();
     void listQuery.fetchNextPage();
   };
-
-  useEffect(() => {
-    const index = firstNewRowIndexRef.current;
-
-    if (index === undefined || listings === undefined || listings.length <= index) {
-      return;
-    }
-
-    firstNewRowIndexRef.current = undefined;
-    listRef.current?.querySelectorAll('a')[index]?.focus();
-  }, [listings]);
 
   return (
     <WidgetStates

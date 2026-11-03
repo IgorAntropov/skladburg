@@ -3,6 +3,7 @@ import type { ShowcaseListParamsValue } from './listingTypes';
 interface ListingKeysValue {
   all: () => readonly ['listing'];
   own: (scope: string, query: string) => readonly ['listing', 'own', string, string];
+  ownItem: (scope: string, listingId: string) => readonly ['listing', 'own-item', string, string];
   prices: (scope: string, listingIds: readonly string[]) => readonly ['listing', 'prices', string, readonly string[]];
   salesTerms: (scope: string) => readonly ['listing', 'sales-terms', string];
   showcase: (scope: string, params: ShowcaseListParamsValue) => readonly ['listing', 'showcase', string, ShowcaseListParamsValue];
@@ -12,6 +13,7 @@ interface ListingKeysValue {
 export const listingKeys: ListingKeysValue = {
   all: () => ['listing'],
   own: (scope, query) => ['listing', 'own', scope, query],
+  ownItem: (scope, listingId) => ['listing', 'own-item', scope, listingId],
   prices: (scope, listingIds) => ['listing', 'prices', scope, listingIds],
   salesTerms: scope => ['listing', 'sales-terms', scope],
   showcase: (scope, params) => ['listing', 'showcase', scope, params],

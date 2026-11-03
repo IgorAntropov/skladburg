@@ -6,6 +6,8 @@ import type {
 
 import { cn } from '@/shared/lib/cn';
 
+import type { WithTestIdValue } from '../test-id/testIdTypes';
+
 export type EmptyStateProps = EmptyStateIconProps | EmptyStateMediaProps;
 
 interface EmptyStateBaseProps extends WithTestIdValue {
@@ -23,10 +25,6 @@ interface EmptyStateIconProps extends EmptyStateBaseProps {
 interface EmptyStateMediaProps extends EmptyStateBaseProps {
   icon?: undefined;
   media: ReactNode;
-}
-
-interface WithTestIdValue {
-  'data-testid'?: string | undefined;
 }
 
 const ROOT_CLASS_NAME = 'flex flex-1 flex-col items-center justify-center gap-3 text-center';

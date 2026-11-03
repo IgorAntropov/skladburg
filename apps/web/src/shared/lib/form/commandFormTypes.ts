@@ -1,6 +1,7 @@
 import type { DescMethod } from '@bufbuild/protobuf';
 import type {
   FieldCheckRunnerValue,
+  FormFieldIssueValue,
   FormRulesValue,
 } from '@skladburg/contracts/forms';
 import type {
@@ -23,11 +24,13 @@ import type { InputMaskValue } from '@/shared/lib/mask';
 export interface CommandFormOptionsValue<TInput extends FieldValues, TResult, TOutput = TInput> {
   defaultValues: DefaultValues<TInput> & TInput;
   execute: (values: TOutput, idempotencyKey: string) => Promise<TResult>;
+  mapViolationPath?: ((fieldPath: string, values: TOutput) => string) | undefined;
   method?: DescMethod | undefined;
   onSuccess?: ((result: TResult) => void) | undefined;
   rules: FormRulesValue;
   runCheck?: FieldCheckRunnerValue | undefined;
   translateViolation?: ((ruleId: string) => string | undefined) | undefined;
+  validateValues?: ((values: TOutput) => readonly FormFieldIssueValue[]) | undefined;
   watchedFields?: readonly Path<TInput>[] | undefined;
 }
 

@@ -45,6 +45,10 @@ const ListingDetails = ({ listing, state }: ListingDetailsProps): ReactElement =
   const { supplier } = listing;
   const availability = pickBestAvailability(listing.cityAvailability);
   const [quote] = listing.quotes;
+  const quotedAmountMinor = quote?.unitPrice?.amountMinor;
+  const currentTier = quote === undefined
+    ? listing.tiers[0]
+    : listing.tiers.find(tier => quotedAmountMinor !== undefined && tier.price?.amountMinor === quotedAmountMinor);
 
   return (
     <div className="flex flex-col gap-4">
@@ -66,7 +70,7 @@ const ListingDetails = ({ listing, state }: ListingDetailsProps): ReactElement =
         </dl>
       )}
       <ListingQuoteBlock cityNames={state.cityNames} destination={state.destination} listing={listing} />
-      <ListingTiersTable listing={listing} quote={quote} />
+      <ListingTiersTable currentTier={currentTier} tiers={listing.tiers} units={listing} />
       <ListingCityList cityNames={state.cityNames} listing={listing} />
       <ListingAbout listing={listing} />
     </div>

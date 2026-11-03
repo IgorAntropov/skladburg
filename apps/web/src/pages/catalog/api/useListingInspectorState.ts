@@ -1,12 +1,10 @@
 import type { ShowcaseListing } from '@skladburg/contracts/catalog/v1/showcase';
 
-import { ErrorCode } from '@skladburg/contracts/common/v1/error';
-
 import { useShowcaseListingQuery } from '@/entities/listing';
-import { parseApiError } from '@/shared/api';
 
 import type { DestinationOptionValue } from '../lib/destinationOptions';
 
+import { isNotFoundError } from '../lib/isNotFoundError';
 import { useCatalogAccess } from './useCatalogAccess';
 import { useShowcaseDestination } from './useShowcaseDestination';
 
@@ -16,6 +14,7 @@ export interface ListingInspectorGateValue {
   error: Error | null;
   isClosed: boolean;
   isOpen: boolean;
+  isOwnAvailable: boolean;
   isRetrying: boolean;
   retry: () => void;
 }
@@ -29,8 +28,6 @@ export interface ListingInspectorStateValue {
   listing: ShowcaseListing | undefined;
   retry: () => void;
 }
-
-const isNotFoundError = (error: Error | null): boolean => error !== null && parseApiError(error).code === ErrorCode.NOT_FOUND;
 
 export const useListingInspectorGate = (): ListingInspectorGateValue => {
   const catalogAccess = useCatalogAccess();
@@ -59,6 +56,7 @@ export const useListingInspectorGate = (): ListingInspectorGateValue => {
     error,
     isClosed,
     isOpen,
+    isOwnAvailable: access?.isOwnAvailable === true,
     isRetrying: catalogAccess.isRetrying || destinationState.isRetrying,
     retry,
   };

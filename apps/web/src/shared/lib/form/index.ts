@@ -5,4 +5,5 @@ export type {
   FormFieldOptionsValue,
   FormFieldPathValue,
 } from './commandFormTypes';
+export { expandRepeatedFormRules } from './expandRepeatedFormRules';
 export { useCommandForm } from './useCommandForm';

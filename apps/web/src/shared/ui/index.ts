@@ -34,6 +34,8 @@ export type { DateFieldProps } from './form-field/DateField';
 export { DateField } from './form-field/DateField';
 export type { SelectFieldProps } from './form-field/SelectField';
 export { SelectField } from './form-field/SelectField';
+export type { SwitchFieldProps } from './form-field/SwitchField';
+export { SwitchField } from './form-field/SwitchField';
 export type { TextFieldProps } from './form-field/TextField';
 export { TextField } from './form-field/TextField';
 export type { IconButtonProps } from './icon-button/IconButton';

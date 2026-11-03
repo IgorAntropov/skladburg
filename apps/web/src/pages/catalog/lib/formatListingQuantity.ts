@@ -1,4 +1,7 @@
-import type { ShowcaseListing } from '@skladburg/contracts/catalog/v1/showcase';
+import type {
+  BaseUnit,
+  PriceUnit,
+} from '@skladburg/contracts/catalog/v1/catalog';
 
 import type { ListingTranslate } from '@/entities/listing';
 import type { LocaleCode } from '@/shared/i18n';
@@ -8,9 +11,14 @@ import {
   getBaseUnitLabelKey,
 } from '@/entities/listing';
 
+export interface QuantityUnitsValue {
+  baseUnit: BaseUnit;
+  priceUnit?: PriceUnit | undefined;
+}
+
 export const formatListingQuantity = (
   locale: LocaleCode,
-  listing: Pick<ShowcaseListing, 'baseUnit' | 'priceUnit'>,
+  listing: QuantityUnitsValue,
   baseQuantity: bigint,
   listingT: ListingTranslate,
 ): string | undefined => {

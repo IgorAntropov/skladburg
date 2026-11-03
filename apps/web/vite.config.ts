@@ -44,7 +44,7 @@ const MAX_SCENE_GZIP_KILOBYTES = 300;
 
 const MAX_STARTUP_GZIP_KILOBYTES = 95;
 
-const MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES = 46.1;
+const MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES = 46.2;
 
 const MAX_NETWORK_INSPECTOR_GZIP_KILOBYTES = 26;
 
@@ -82,13 +82,21 @@ const MAX_SUPPORT_CHAT_GZIP_KILOBYTES = 36.9;
 
 const MAX_SUPPORT_CHAT_TEXTS_GZIP_KILOBYTES = 3;
 
-const MAX_REQUISITES_FORM_GZIP_KILOBYTES = 54.9;
+const MAX_REQUISITES_FORM_GZIP_KILOBYTES = 55;
 
 const MAX_REQUISITES_TEXTS_GZIP_KILOBYTES = 1.6;
 
-const MAX_CATALOG_PAGE_GZIP_KILOBYTES = 24.44;
+const MAX_CATALOG_PAGE_GZIP_KILOBYTES = 27.7;
 
-const MAX_CATALOG_TEXTS_GZIP_KILOBYTES = 2.35;
+const MAX_CATALOG_OWN_GZIP_KILOBYTES = 31;
+
+const MAX_CATALOG_TEXTS_GZIP_KILOBYTES = 2.8;
+
+const MAX_LISTING_EDITOR_GZIP_KILOBYTES = 74.9;
+
+const MAX_CATALOG_EDITOR_TEXTS_GZIP_KILOBYTES = 2.4;
+
+const MAX_SALES_TERMS_FORM_GZIP_KILOBYTES = 74.8;
 
 const MAX_ENGINE_WORKER_GZIP_KILOBYTES = 40;
 
@@ -345,6 +353,37 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_CATALOG_PAGE_GZIP_KILOBYTES,
     name: 'catalog-page',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/catalog/ui/own/OwnCatalogPanel.tsx'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_CATALOG_OWN_GZIP_KILOBYTES,
+    name: 'catalog-own',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/catalog/ui/listing-editor/ListingEditor.tsx'],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_LISTING_EDITOR_GZIP_KILOBYTES,
+    name: 'listing-editor',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/catalog/ui/sales-terms/SalesTermsForm.tsx'],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_SALES_TERMS_FORM_GZIP_KILOBYTES,
+    name: 'sales-terms-form',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/catalog/i18n/editor/catalogs/ru.ts'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_CATALOG_EDITOR_TEXTS_GZIP_KILOBYTES,
+    name: 'catalog-editor-texts',
   },
   {
     baseline: STARTUP_BASELINE,

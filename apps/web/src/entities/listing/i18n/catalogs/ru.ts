@@ -32,6 +32,8 @@ export const catalog = {
   'listing.notFound.hint': 'Её нет на витрине или она не видна вашей компании',
   'listing.notFound.title': 'Позиция не найдена',
   'listing.price.perUnit': '{price}/{unit}',
+  'listing.publication.draft': 'Черновик',
+  'listing.publication.published': 'Опубликована',
   'listing.quote.basis': 'На минимальную партию: {quantity} по {price}',
   'listing.quote.delivery': 'Доставка',
   'listing.quote.distance': 'Расстояние',

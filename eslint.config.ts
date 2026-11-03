@@ -67,6 +67,9 @@ const lazyCreateWarehouseFormTestFiles: string[] = [
   'apps/web/src/features/create-warehouse/ui/form/**/*.test.{ts,tsx}',
 ];
 const lazyCreateWarehouseFeatureFiles: string[] = ['apps/web/src/features/create-warehouse/**/*.{ts,tsx}'];
+const globalSearchFeatureFiles: string[] = ['apps/web/src/features/global-search/**/*.{ts,tsx}'];
+const globalSearchPanelFiles: string[] = ['apps/web/src/features/global-search/ui/panel/**/*.{ts,tsx}'];
+const globalSearchApiFiles: string[] = ['apps/web/src/features/global-search/api/**/*.{ts,tsx}'];
 const maskSegmentFiles: string[] = ['apps/web/src/shared/lib/mask/**/*.{ts,tsx}'];
 const maskSegmentTestFiles: string[] = ['apps/web/src/shared/lib/mask/**/*.test.{ts,tsx}'];
 const lazyEditRequisitesFormFiles: string[] = [
@@ -235,8 +238,9 @@ const serviceDescriptorImportRestriction: SceneImportRestrictionValue = {
 };
 
 const showcaseDescriptorImportRestriction: SceneImportRestrictionValue = {
-  message: 'The organization showcase descriptor is imported only by pages/network/api/directory, which the lazy chunks of '
-    + 'the network page load; a descriptor imported elsewhere lands in the startup chunk; use import type',
+  message: 'The organization showcase descriptor is imported only by pages/network/api/directory and features/global-search/api, '
+    + 'which the lazy chunks of the network page and of the search panel load; a descriptor imported elsewhere lands in the '
+    + 'startup chunk; use import type',
   regex: '^@skladburg/contracts/organization/v1/showcase$',
 };
 
@@ -247,9 +251,9 @@ const profileDescriptorImportRestriction: SceneImportRestrictionValue = {
 };
 
 const listingEntityImportRestriction: SceneImportRestrictionValue = {
-  message: 'The listing entity pulls the showcase client and its descriptors into the bundle; the lazy catalog page and the '
-    + 'entity itself import it by value, the rest of the application reaches it through the lazy catalog page; '
-    + 'use import type or move the code into the catalog page',
+  message: 'The listing entity pulls the showcase client and its descriptors into the bundle; the lazy catalog page, the '
+    + 'entity itself and the lazy chunk of the global search (ui/panel and api) import it by value, the rest of the '
+    + 'application reaches it through those chunks; use import type or move the code into the catalog page or the search panel',
   regex: '^@/entities/listing(/|$)',
 };
 
@@ -315,6 +319,13 @@ const maskSegmentImportRestriction: SceneImportRestrictionValue = {
   regex: '^@/shared/lib/mask(/|$)',
 };
 
+const globalSearchPanelUiImportRestriction: SceneImportRestrictionValue = {
+  importNamePattern: '^(AccessButton|ActionButton|TextField|Tooltip|TooltipGroup)$',
+  message: 'The lazy chunk of the global search panel stays free of the tooltip, the action buttons and the form fields: they '
+    + 'split the shared chunks that the lazy forms already budget; use a plain Button or text, or ask for a budget decision',
+  regex: '^@/shared/ui$',
+};
+
 const sectionCatalogImportRestrictions: SceneImportRestrictionValue[] = [sectionCatalogImportRestriction];
 
 const catalogApiImportRestrictions: SceneImportRestrictionValue[] = [
@@ -338,6 +349,15 @@ const sourceBoundaryImportRestrictions: SceneImportRestrictionValue[] = [
   ...chunkBoundaryImportRestrictions,
   maskSegmentImportRestriction,
   moneySegmentImportRestriction,
+];
+
+const globalSearchApiImportRestrictions: SceneImportRestrictionValue[] = sourceBoundaryImportRestrictions.filter(
+  restriction => restriction !== listingEntityImportRestriction && restriction !== showcaseDescriptorImportRestriction,
+);
+
+const globalSearchPanelImportRestrictions: SceneImportRestrictionValue[] = [
+  ...sourceBoundaryImportRestrictions.filter(restriction => restriction !== listingEntityImportRestriction),
+  globalSearchPanelUiImportRestriction,
 ];
 
 const lazyModuleMessageSuffix = 'is loaded lazily through import(); a static value import pulls it into the initial bundle; '
@@ -386,6 +406,16 @@ const assistantHostChunkLazyRestriction: LazyModuleRestrictionValue = {
 const supportChatChunkLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'the support chat chunk',
   regex: '(^|/)chat(/|$)',
+};
+
+const globalSearchPanelChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the global search panel chunk',
+  regex: '(^|/)panel(/|$)',
+};
+
+const globalSearchApiChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the global search data chunk',
+  regex: '^\\.{1,2}/(.*/)?api(/|$)',
 };
 
 const changeAvatarLazyRestriction: LazyModuleRestrictionValue = {
@@ -1118,6 +1148,24 @@ export default defineConfig(
     files: lazyCreateWarehouseFeatureFiles,
     ignores: [...webTestFiles, ...lazyCreateWarehouseFormFiles, ...sceneSegmentFiles],
     rules: createLazyModuleRules([createWarehouseFormChunkLazyRestriction], sourceBoundaryImportRestrictions),
+  },
+  {
+    files: globalSearchFeatureFiles,
+    ignores: [...webTestFiles, ...globalSearchPanelFiles, ...globalSearchApiFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules(
+      [globalSearchPanelChunkLazyRestriction, globalSearchApiChunkLazyRestriction],
+      sourceBoundaryImportRestrictions,
+    ),
+  },
+  {
+    files: globalSearchPanelFiles,
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([], globalSearchPanelImportRestrictions),
+  },
+  {
+    files: globalSearchApiFiles,
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([], globalSearchApiImportRestrictions),
   },
   {
     files: lazyEditRequisitesFeatureFiles,

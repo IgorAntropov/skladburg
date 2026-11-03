@@ -19,6 +19,7 @@ import {
   WarehouseAvailabilitySchema,
 } from '@skladburg/contracts/catalog/v1/catalog';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
+import { parseSearchQuery } from '@skladburg/contracts/runtime';
 
 import type { IStateReader } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
@@ -74,11 +75,12 @@ export const createListingHandlers = (runtime: IModuleRuntime, publishChange: Pu
     },
     listOwnListings: (request, context) => {
       const caller = guard.guardPermissionCall(read, CatalogService.method.listOwnListings, request, context.requestHeader);
+      const query = parseSearchQuery(request.query);
       const pairs = read.listBy('listings', 'tenantId', caller.organizationId)
         .flatMap((listing) => {
           const pair = pairWithProduct(read, listing);
 
-          return pair !== undefined && isCatalogQueryMatched(pair.product, request.query) ? [pair] : [];
+          return pair !== undefined && isCatalogQueryMatched(pair.product, query) ? [pair] : [];
         })
         .sort((current, prev) => compareProductsByName(current.product, prev.product));
       const { items, page } = paginate(pairs, pair => pair.listing.id, request.page, errors);

@@ -98,6 +98,10 @@ const MAX_CATALOG_EDITOR_TEXTS_GZIP_KILOBYTES = 2.5;
 
 const MAX_SALES_TERMS_FORM_GZIP_KILOBYTES = 75.8;
 
+const MAX_GLOBAL_SEARCH_GZIP_KILOBYTES = 19.4;
+
+const MAX_GLOBAL_SEARCH_TEXTS_GZIP_KILOBYTES = 1.4;
+
 const MAX_ENGINE_WORKER_GZIP_KILOBYTES = 40;
 
 const MAX_ENGINE_GZIP_KILOBYTES = 180;
@@ -391,6 +395,21 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_CATALOG_TEXTS_GZIP_KILOBYTES,
     name: 'catalog-texts',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/features/global-search/ui/panel/searchPanelEntry.ts'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_GLOBAL_SEARCH_GZIP_KILOBYTES,
+    name: 'global-search',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/features/global-search/i18n/catalogs/ru.ts'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_GLOBAL_SEARCH_TEXTS_GZIP_KILOBYTES,
+    name: 'global-search-texts',
   },
 ];
 

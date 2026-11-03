@@ -284,6 +284,52 @@ describe('CatalogService.listProducts', () => {
     expect(nothing.products).toEqual([]);
   });
 
+  it('takes the words of the query in any order with extra spaces and the letter yo as ye', async () => {
+    const harness = await createEmptyCatalogHarness();
+    await createProduct(harness, { name: 'Яблоки Голден, 1 сорт', sku: 'AP-1' });
+    await createProduct(harness, { name: 'Тёплый хлеб', sku: 'BR-1' });
+
+    const reordered = await harness.catalog.listProducts({ query: 'голден яблоки' }, SUPPLIER_1_CALL);
+    const shouting = await harness.catalog.listProducts({ query: 'ЯБЛОКИ' }, SUPPLIER_1_CALL);
+    const spaced = await harness.catalog.listProducts({ query: '   яблоки    голден  ' }, SUPPLIER_1_CALL);
+    const withYe = await harness.catalog.listProducts({ query: 'теплый' }, SUPPLIER_1_CALL);
+    const missingWord = await harness.catalog.listProducts({ query: 'яблоки хлеб' }, SUPPLIER_1_CALL);
+
+    expect(reordered.products.map(product => product.sku)).toEqual(['AP-1']);
+    expect(shouting.products.map(product => product.sku)).toEqual(['AP-1']);
+    expect(spaced.products.map(product => product.sku)).toEqual(['AP-1']);
+    expect(withYe.products.map(product => product.sku)).toEqual(['BR-1']);
+    expect(missingWord.products).toEqual([]);
+  });
+
+  it('finds a product by its gtin with or without a leading zero, but not by seven digits', async () => {
+    const harness = await createEmptyCatalogHarness();
+    await createProduct(harness, { gtin: GTIN_ONE, name: 'Кефир', sku: `SKU-${GTIN_ONE.slice(0, 7)}` });
+    await createProduct(harness, { gtin: GTIN_TWO, name: 'Ряженка', sku: 'RJ-1' });
+
+    const byGtin = await harness.catalog.listProducts({ query: GTIN_ONE }, SUPPLIER_1_CALL);
+    const byPaddedGtin = await harness.catalog.listProducts({ query: `0${GTIN_ONE}` }, SUPPLIER_1_CALL);
+    const byShortDigits = await harness.catalog.listProducts({ query: GTIN_ONE.slice(0, 7) }, SUPPLIER_1_CALL);
+    const byOtherDigits = await harness.catalog.listProducts({ query: '1999999999990' }, SUPPLIER_1_CALL);
+
+    expect(byGtin.products.map(product => product.name)).toEqual(['Кефир']);
+    expect(byPaddedGtin.products.map(product => product.name)).toEqual(['Кефир']);
+    expect(byShortDigits.products.map(product => product.name)).toEqual(['Кефир']);
+    expect(byOtherDigits.products).toEqual([]);
+  });
+
+  it('answers everything for an empty or blank query', async () => {
+    const harness = await createEmptyCatalogHarness();
+    await createProduct(harness, { name: 'Б', sku: 'B' });
+    await createProduct(harness, { name: 'А', sku: 'A' });
+
+    const empty = await harness.catalog.listProducts({ query: '' }, SUPPLIER_1_CALL);
+    const blank = await harness.catalog.listProducts({ query: '   ' }, SUPPLIER_1_CALL);
+
+    expect(empty.products.map(product => product.sku)).toEqual(['A', 'B']);
+    expect(blank.products.map(product => product.sku)).toEqual(['A', 'B']);
+  });
+
   it('pages through the products with the next page token', async () => {
     const harness = await createEmptyCatalogHarness();
     await createProduct(harness, { name: 'Б', sku: 'B' });

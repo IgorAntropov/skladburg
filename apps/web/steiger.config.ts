@@ -11,6 +11,7 @@ export default defineConfig([
       './src/features/call-support/**',
       './src/features/change-avatar/**',
       './src/features/create-warehouse/**',
+      './src/features/global-search/**',
       './src/features/reset-demo/**',
       './src/features/switch-persona/**',
       './src/features/switch-theme/**',

@@ -17,6 +17,7 @@ import {
   useState,
 } from 'react';
 
+import { useActingContext } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
 import {
@@ -25,8 +26,10 @@ import {
 } from '@/shared/ui';
 
 import { useSlashHotkey } from '../lib/useSlashHotkey';
+import { SearchPanelLoadNotice } from './SearchPanelLoadNotice';
+import { useSearchPanelLoader } from './useSearchPanelLoader';
 
-const FIELD_CLASS_NAME = 'relative min-w-0 sm:max-w-72 sm:min-w-28 sm:flex-1';
+const FIELD_CLASS_NAME = 'min-w-0 sm:relative sm:max-w-72 sm:min-w-28 sm:flex-1';
 const INPUT_CLASS_NAME = [
   'ps-10 pe-3 focus-visible:border-focus focus-visible:outline-offset-0 xl:pe-10',
   '[&::-webkit-search-cancel-button]:appearance-none',
@@ -35,11 +38,6 @@ const SEARCH_ICON_CLASS_NAME = 'pointer-events-none absolute top-1/2 left-3 size
 const SHORTCUT_HINT_CLASS_NAME = [
   'pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 rounded-sm border border-line px-1.5 text-xs text-on-panel-muted',
   'max-xl:hidden peer-not-placeholder-shown:hidden [@media(hover:none)]:hidden',
-].join(' ');
-const UNAVAILABLE_CLASS_NAME = 'absolute top-full left-0 z-20 mt-1 w-max max-w-72 min-w-full';
-const UNAVAILABLE_NOTE_CLASS_NAME = [
-  'block rounded-control border border-line bg-panel-solid px-3 py-2 text-sm text-on-panel shadow-panel',
-  'empty:hidden',
 ].join(' ');
 const PHONE_FIELD_CLOSED_CLASS_NAME = 'max-sm:hidden';
 const PHONE_FIELD_OPEN_CLASS_NAME = 'max-sm:flex-1';
@@ -60,21 +58,31 @@ const focusIfVisible = (element: HTMLElement | null): void => {
   }
 };
 
-export interface SearchFieldProps {
+export interface GlobalSearchFieldProps {
   isPhoneFieldOpen: boolean;
   onPhoneFieldOpenChange: (isOpen: boolean) => void;
 }
 
-export const SearchField = ({ isPhoneFieldOpen, onPhoneFieldOpenChange }: SearchFieldProps): ReactElement => {
+export const GlobalSearchField = ({ isPhoneFieldOpen, onPhoneFieldOpenChange }: GlobalSearchFieldProps): ReactElement => {
   const { t } = useI18n();
+  const { organizationId } = useActingContext();
+  const { dismissError, start, state: loadState, warmUp } = useSearchPanelLoader();
   const fieldId = useId();
   const inputId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | undefined>(undefined);
   const isToggleFocusPendingRef = useRef(false);
   const [query, setQuery] = useState('');
-  const [unavailableSequence, setUnavailableSequence] = useState(0);
+  const [pendingChooseQuery, setPendingChooseQuery] = useState<string | undefined>(undefined);
+  const [trackedOrganizationId, setTrackedOrganizationId] = useState(organizationId);
+
+  if (trackedOrganizationId !== organizationId) {
+    setTrackedOrganizationId(organizationId);
+    setQuery('');
+    setPendingChooseQuery(undefined);
+  }
 
   const hotkeyActivate = useCallback((): void => {
     onPhoneFieldOpenChange(true);
@@ -82,27 +90,56 @@ export const SearchField = ({ isPhoneFieldOpen, onPhoneFieldOpenChange }: Search
 
   useSlashHotkey(inputRef, hotkeyActivate);
 
-  const isUnavailableShown = unavailableSequence > 0;
+  const handleQueryReset = useCallback((): void => {
+    setQuery('');
+    setPendingChooseQuery(undefined);
+  }, []);
+
+  const handlePhoneFieldClose = useCallback((): void => {
+    onPhoneFieldOpenChange(false);
+  }, [onPhoneFieldOpenChange]);
+
+  const handlePendingChooseConsumed = useCallback((): void => {
+    setPendingChooseQuery(undefined);
+  }, []);
 
   const handleToggleClick = (): void => {
-    console.log('> SearchField -> handleToggleClick:', { isPhoneFieldOpen });
+    console.log('> GlobalSearchField -> handleToggleClick:', { isPhoneFieldOpen });
     onPhoneFieldOpenChange(true);
   };
 
   const closeField = (): void => {
-    setQuery('');
-    setUnavailableSequence(0);
+    handleQueryReset();
+    dismissError();
     onPhoneFieldOpenChange(false);
   };
 
   const handleQueryChange = (event: ChangeEvent<HTMLInputElement>): void => {
     setQuery(event.target.value);
-    setUnavailableSequence(0);
+    setPendingChooseQuery(undefined);
+    start();
   };
 
   const handleFocus = (event: FocusEvent<HTMLInputElement>): void => {
     const { relatedTarget } = event;
     previousFocusRef.current = relatedTarget instanceof HTMLElement ? relatedTarget : undefined;
+    start();
+  };
+
+  const handleBlur = (event: FocusEvent<HTMLInputElement>): void => {
+    const { relatedTarget } = event;
+    const isToInside = relatedTarget instanceof Node && rootRef.current?.contains(relatedTarget) === true;
+
+    if (isToInside) {
+      return;
+    }
+
+    setPendingChooseQuery(undefined);
+    dismissError();
+  };
+
+  const handlePointerEnter = (): void => {
+    warmUp();
   };
 
   const returnFocus = (): void => {
@@ -130,29 +167,43 @@ export const SearchField = ({ isPhoneFieldOpen, onPhoneFieldOpenChange }: Search
     focusIfVisible(toggleRef.current);
   };
 
-  const handleCloseClick = (): void => {
-    console.log('> SearchField -> handleCloseClick:', {});
-    previousFocusRef.current = undefined;
+  const exitField = (): void => {
     closeField();
     returnFocus();
   };
 
+  const handleCloseClick = (): void => {
+    console.log('> GlobalSearchField -> handleCloseClick:', {});
+    previousFocusRef.current = undefined;
+    exitField();
+  };
+
+  const handleLoadRetry = (): void => {
+    console.log('> GlobalSearchField -> handleLoadRetry:', {});
+    start();
+    inputRef.current?.focus();
+  };
+
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
-    if (event.nativeEvent.isComposing) {
+    if (event.defaultPrevented || event.nativeEvent.isComposing) {
       return;
     }
 
     if (event.key === 'Enter') {
-      console.log('> SearchField -> handleKeyDown:', { key: event.key });
+      console.log('> GlobalSearchField -> handleKeyDown:', { key: event.key });
       event.preventDefault();
-      setUnavailableSequence(current => current + 1);
+
+      if (query.trim() !== '') {
+        setPendingChooseQuery(query);
+        start();
+      }
     }
 
     if (event.key === 'Escape') {
-      console.log('> SearchField -> handleKeyDown:', { key: event.key });
+      console.log('> GlobalSearchField -> handleKeyDown:', { key: event.key });
       event.preventDefault();
-      closeField();
-      returnFocus();
+
+      exitField();
     }
   };
 
@@ -175,6 +226,7 @@ export const SearchField = ({ isPhoneFieldOpen, onPhoneFieldOpenChange }: Search
         aria-controls={fieldId}
         aria-expanded={isPhoneFieldOpen}
         className={cn('sm:hidden', isPhoneFieldOpen && 'max-sm:hidden')}
+        data-testid="global-search-toggle"
         icon={<Search className="size-5" />}
         label={t('search.open')}
         onClick={handleToggleClick}
@@ -184,35 +236,57 @@ export const SearchField = ({ isPhoneFieldOpen, onPhoneFieldOpenChange }: Search
       <div
         className={cn(FIELD_CLASS_NAME, isPhoneFieldOpen ? PHONE_FIELD_OPEN_CLASS_NAME : PHONE_FIELD_CLOSED_CLASS_NAME)}
         id={fieldId}
+        ref={rootRef}
         role="search"
       >
         <label className="sr-only" htmlFor={inputId}>{t('search.label')}</label>
         <div className="relative">
           <Search aria-hidden className={SEARCH_ICON_CLASS_NAME} />
           <TextInput
+            aria-expanded={false}
             aria-keyshortcuts="/"
             autoComplete="off"
             className={cn('peer', INPUT_CLASS_NAME)}
+            data-testid="global-search-input"
+            enterKeyHint="go"
             id={inputId}
             name="search"
+            onBlur={handleBlur}
             onChange={handleQueryChange}
             onFocus={handleFocus}
             onKeyDown={handleKeyDown}
+            onPointerEnter={handlePointerEnter}
             placeholder={t('search.placeholder')}
             ref={inputRef}
+            role="combobox"
             spellCheck={false}
             type="search"
             value={query}
           />
           <kbd aria-hidden className={SHORTCUT_HINT_CLASS_NAME}>/</kbd>
         </div>
-        <p className={UNAVAILABLE_CLASS_NAME} role="status">
-          <span className={UNAVAILABLE_NOTE_CLASS_NAME} key={unavailableSequence}>{isUnavailableShown ? t('search.unavailable') : ''}</span>
-        </p>
+        {loadState.kind === 'ready' && (
+          <loadState.Controller
+            inputRef={inputRef}
+            key={organizationId}
+            onFieldExit={exitField}
+            onPendingChooseConsumed={handlePendingChooseConsumed}
+            onPhoneFieldClose={handlePhoneFieldClose}
+            onQueryReset={handleQueryReset}
+            organizationId={organizationId}
+            pendingChooseQuery={pendingChooseQuery}
+            query={query}
+            rootRef={rootRef}
+          />
+        )}
+        {loadState.kind === 'error' && (
+          <SearchPanelLoadNotice isRepeated={loadState.recovery === 'reload'} onRetry={handleLoadRetry} />
+        )}
       </div>
       {isPhoneFieldOpen && (
         <IconButton
           className="sm:hidden"
+          data-testid="global-search-close"
           icon={<X className="size-5" />}
           label={t('search.close')}
           onClick={handleCloseClick}

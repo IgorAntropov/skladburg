@@ -40,6 +40,7 @@ import {
   createPrice,
   createProduct,
   createPublishedListing,
+  GTIN_ONE,
   listCatalogEvents,
   nextUuid,
   publishListing,
@@ -478,6 +479,32 @@ describe('CatalogService.getOwnListing and listOwnListings', () => {
     expect(filtered.listings.map(entry => entry.product?.sku)).toEqual(['RJ']);
     expect(paged.listings).toHaveLength(1);
     expect(paged.page?.nextPageToken).not.toBe('');
+  });
+});
+
+describe('CatalogService.listOwnListings search', () => {
+  it('matches the words in any order, the sku and the gtin of the product', async () => {
+    const harness = await createEmptyCatalogHarness();
+    const apples = await createProduct(harness, { gtin: GTIN_ONE, name: 'Яблоки Голден, 1 сорт', sku: 'AP-77' });
+    const bread = await createProduct(harness, { name: 'Тёплый хлеб', sku: 'BR-1' });
+    await createListing(harness, apples);
+    await createListing(harness, bread);
+
+    const reordered = await harness.catalog.listOwnListings({ query: ' голден   ЯБЛОКИ ' }, SUPPLIER_1_CALL);
+    const withYe = await harness.catalog.listOwnListings({ query: 'теплый' }, SUPPLIER_1_CALL);
+    const bySku = await harness.catalog.listOwnListings({ query: 'ap-7' }, SUPPLIER_1_CALL);
+    const byGtin = await harness.catalog.listOwnListings({ query: GTIN_ONE }, SUPPLIER_1_CALL);
+    const byPaddedGtin = await harness.catalog.listOwnListings({ query: `0${GTIN_ONE}` }, SUPPLIER_1_CALL);
+    const byShortDigits = await harness.catalog.listOwnListings({ query: GTIN_ONE.slice(0, 7) }, SUPPLIER_1_CALL);
+    const blank = await harness.catalog.listOwnListings({ query: '   ' }, SUPPLIER_1_CALL);
+
+    expect(reordered.listings.map(entry => entry.product?.sku)).toEqual(['AP-77']);
+    expect(withYe.listings.map(entry => entry.product?.sku)).toEqual(['BR-1']);
+    expect(bySku.listings.map(entry => entry.product?.sku)).toEqual(['AP-77']);
+    expect(byGtin.listings.map(entry => entry.product?.sku)).toEqual(['AP-77']);
+    expect(byPaddedGtin.listings.map(entry => entry.product?.sku)).toEqual(['AP-77']);
+    expect(byShortDigits.listings).toEqual([]);
+    expect(blank.listings.map(entry => entry.product?.sku)).toEqual(['BR-1', 'AP-77']);
   });
 });
 

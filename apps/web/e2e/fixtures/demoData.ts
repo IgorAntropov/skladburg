@@ -228,3 +228,8 @@ export const SALES_TERMS_AUTO_CONFIRM_TEXTS = {
   off: 'Выключено',
   on: 'Включено',
 } as const;
+
+export const GLOBAL_SEARCH_AXE_QUERY = {
+  groupIds: ['organizations', 'showcase-listings'],
+  text: 'ябло',
+} as const;

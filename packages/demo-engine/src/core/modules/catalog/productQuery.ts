@@ -1,22 +1,15 @@
 import type { Product } from '@skladburg/contracts/catalog/v1/catalog';
+import type { SearchQueryValue } from '@skladburg/contracts/runtime';
+
+import { isSearchQueryMatched } from '@skladburg/contracts/runtime';
 
 import { compareIds } from '../../state/index';
 
 const QUERY_LOCALE = 'ru';
 const nameCollator = new Intl.Collator(QUERY_LOCALE);
 
-export const normalizeCatalogQuery = (query: string): string => query.trim().toLocaleLowerCase(QUERY_LOCALE);
-
-export const isTextIncludingQuery = (text: string, normalizedQuery: string): boolean =>
-  text.toLocaleLowerCase(QUERY_LOCALE).includes(normalizedQuery);
-
-export const isCatalogQueryMatched = (product: Product, query: string): boolean => {
-  const normalized = normalizeCatalogQuery(query);
-
-  return normalized === ''
-    || isTextIncludingQuery(product.name, normalized)
-    || isTextIncludingQuery(product.sku, normalized);
-};
+export const isCatalogQueryMatched = (product: Product, query: SearchQueryValue): boolean =>
+  isSearchQueryMatched(query, [product.name, product.sku], product.gtin);
 
 export const compareProductsByName = (current: Product, prev: Product): number => {
   const byName = nameCollator.compare(current.name, prev.name);

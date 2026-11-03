@@ -14,6 +14,11 @@ import {
   ShowcaseService,
 } from '@skladburg/contracts/catalog/v1/showcase';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
+import {
+  isSearchQueryMatched,
+  parseSearchQuery,
+  type SearchQueryValue,
+} from '@skladburg/contracts/runtime';
 
 import type { IModuleRuntime } from '../../moduleRuntime';
 import type { ShowcaseDestinationValue } from './showcaseDestination';
@@ -25,18 +30,14 @@ import {
   isShowcaseListingVisible,
 } from '../../../visibility/index';
 import { paginate } from '../../pagination';
-import {
-  compareProductsByName,
-  isTextIncludingQuery,
-  normalizeCatalogQuery,
-} from '../productQuery';
+import { compareProductsByName } from '../productQuery';
 import { checkOrderQuantity } from '../quote/index';
 import { resolveShowcaseDestination } from './showcaseDestination';
 import { projectShowcaseListing } from './showcaseProjection';
 import { createSupplierRecords } from './supplierRecords';
 
 interface ShowcaseFilterValue {
-  normalizedQuery: string;
+  query: SearchQueryValue;
   sphereIds: ReadonlySet<string> | undefined;
   supplierOrganizationId: string;
 }
@@ -52,10 +53,8 @@ const isListingMatchingFilter = (listing: Listing, filter: ShowcaseFilterValue):
   (filter.supplierOrganizationId === '' || listing.tenantId === filter.supplierOrganizationId)
   && (filter.sphereIds === undefined || listing.sphereIds.some(sphereId => filter.sphereIds?.has(sphereId) === true));
 
-const isPairMatchingQuery = (pair: ShowcasePairValue, normalizedQuery: string): boolean =>
-  normalizedQuery === ''
-  || isTextIncludingQuery(pair.product.name, normalizedQuery)
-  || isTextIncludingQuery(pair.supplier.name, normalizedQuery);
+const isPairMatchingQuery = (pair: ShowcasePairValue, query: SearchQueryValue): boolean =>
+  isSearchQueryMatched(query, [pair.product.name, pair.supplier.name], pair.product.gtin);
 
 export const createCatalogShowcaseService = (runtime: IModuleRuntime): ServiceImpl<typeof ShowcaseService> => {
   const {
@@ -145,7 +144,7 @@ export const createCatalogShowcaseService = (runtime: IModuleRuntime): ServiceIm
       const viewer = readViewer(caller.organizationId);
       const records = createSupplierRecords(read);
       const filter: ShowcaseFilterValue = {
-        normalizedQuery: normalizeCatalogQuery(request.query),
+        query: parseSearchQuery(request.query),
         sphereIds: request.sphereId === '' ? undefined : collectSphereSubtreeIds(read.list('spheres'), request.sphereId),
         supplierOrganizationId: request.supplierOrganizationId,
       };
@@ -153,7 +152,7 @@ export const createCatalogShowcaseService = (runtime: IModuleRuntime): ServiceIm
         .flatMap((listing) => {
           const pair = isListingMatchingFilter(listing, filter) ? readVisiblePair(listing, viewer, destination, records) : undefined;
 
-          return pair !== undefined && isPairMatchingQuery(pair, filter.normalizedQuery) ? [pair] : [];
+          return pair !== undefined && isPairMatchingQuery(pair, filter.query) ? [pair] : [];
         })
         .sort((current, prev) => compareProductsByName(current.product, prev.product));
       const { items, page } = paginate(pairs, pair => pair.listing.id, request.page, errors);

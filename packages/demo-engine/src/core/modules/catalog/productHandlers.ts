@@ -14,6 +14,7 @@ import {
 } from '@skladburg/contracts/catalog/v1/catalog';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import { MoneySchema } from '@skladburg/contracts/common/v1/money';
+import { parseSearchQuery } from '@skladburg/contracts/runtime';
 
 import type { IModuleRuntime } from '../moduleRuntime';
 import type { PublishCatalogChangeFunction } from './catalogEvents';
@@ -43,8 +44,9 @@ export const createProductHandlers = (runtime: IModuleRuntime, publishChange: Pu
   return {
     listProducts: (request, context) => {
       const caller = guard.guardPermissionCall(read, CatalogService.method.listProducts, request, context.requestHeader);
+      const query = parseSearchQuery(request.query);
       const products = read.listBy('products', 'tenantId', caller.organizationId)
-        .filter(product => isCatalogQueryMatched(product, request.query))
+        .filter(product => isCatalogQueryMatched(product, query))
         .sort(compareProductsByName);
       const { items, page } = paginate(products, product => product.id, request.page, errors);
 

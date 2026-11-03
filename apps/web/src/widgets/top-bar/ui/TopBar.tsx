@@ -7,12 +7,12 @@ import { useState } from 'react';
 
 import type { AppSectionValue } from '@/shared/routing';
 
+import { GlobalSearchField } from '@/features/global-search';
 import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
 import { Panel } from '@/shared/ui';
 
 import { ProductMark } from './ProductMark';
-import { SearchField } from './SearchField';
 import { SectionNav } from './SectionNav';
 import {
   TOP_BAR_PANEL_CLASS_NAME,
@@ -57,7 +57,7 @@ export const TopBar = ({
         </div>
         <SectionNav currentSection={currentSection} sections={sections} />
         <div className={cn(PANELS_TOGGLE_SLOT_CLASS_NAME, isPhoneSearchOpen && HIDDEN_ON_PHONE_CLASS_NAME)}>{panelsToggle}</div>
-        <SearchField isPhoneFieldOpen={isPhoneSearchOpen} onPhoneFieldOpenChange={setIsPhoneSearchOpen} />
+        <GlobalSearchField isPhoneFieldOpen={isPhoneSearchOpen} onPhoneFieldOpenChange={setIsPhoneSearchOpen} />
         <div className={cn(TRAILING_GROUP_CLASS_NAME, isPhoneSearchOpen && HIDDEN_ON_PHONE_CLASS_NAME)}>
           <WorldClock />
           {assistant}

@@ -1,5 +1,6 @@
 import {
   DEFAULT_PERSONA,
+  GLOBAL_SEARCH_AXE_QUERY,
   GOLDEN_APPLES,
   PERSONAS,
 } from './fixtures/demoData.ts';
@@ -38,6 +39,24 @@ test.describe('accessibility', () => {
     await navigation.openSection('network');
     await persona.expectCurrentPersona(DEFAULT_PERSONA);
     await topBar.expectDocumentTheme('light');
+
+    await hud.expectNoViolationsOfAccessibility();
+  });
+
+  test('has no violations of WCAG 2.1 A and AA in the open panel of the global search', async ({ page }) => {
+    const hud = createHudRobot(page);
+    const navigation = createNavigationRobot(page);
+    const persona = createPersonaRobot(page);
+    const topBar = createTopBarRobot(page);
+
+    await navigation.openSection('network');
+    await persona.expectCurrentPersona(DEFAULT_PERSONA);
+    await topBar.expectDocumentTheme('light');
+
+    await topBar.openSearchBySlash();
+    await topBar.typeSearchQuery(GLOBAL_SEARCH_AXE_QUERY.text);
+    await topBar.expectSearchGroups(GLOBAL_SEARCH_AXE_QUERY.groupIds);
+    await topBar.expectActiveSearchOption();
 
     await hud.expectNoViolationsOfAccessibility();
   });

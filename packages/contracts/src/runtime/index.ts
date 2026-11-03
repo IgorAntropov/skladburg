@@ -21,3 +21,10 @@ export {
   listPermissionCodes,
   type PermissionNameValue,
 } from './permissionCodeNames';
+export {
+  foldSearchText,
+  isSearchQueryMatched,
+  normalizeSearchText,
+  parseSearchQuery,
+  type SearchQueryValue,
+} from './searchText';

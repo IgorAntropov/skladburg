@@ -62,10 +62,10 @@ describe('permission code names', () => {
 });
 
 describe('listPermissionCodes', () => {
-  it('lists the sixty eight codes of the catalog without the unspecified one', () => {
+  it('lists the seventy codes of the catalog without the unspecified one', () => {
     const codes = listPermissionCodes();
 
-    expect(codes).toHaveLength(68);
+    expect(codes).toHaveLength(70);
     expect(codes).not.toContain(PermissionCode.UNSPECIFIED);
     expect(new Set(codes).size).toBe(codes.length);
   });
@@ -81,7 +81,7 @@ describe('listPermissionCodes', () => {
 
     codes.pop();
 
-    expect(listPermissionCodes()).toHaveLength(68);
+    expect(listPermissionCodes()).toHaveLength(70);
   });
 
   it('gives every code a name made of a feature and an action', () => {

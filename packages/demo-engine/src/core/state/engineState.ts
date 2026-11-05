@@ -62,6 +62,7 @@ export type VolatileMetaValue = LiveMetaValue & Pick<EngineMetaValue, 'worldTime
 const createTables = (): TablesValue => ({
   cities: createTable(TABLE_DEFINITIONS.cities),
   idempotency: createTable(TABLE_DEFINITIONS.idempotency),
+  importJobs: createTable(TABLE_DEFINITIONS.importJobs),
   listingPrices: createTable(TABLE_DEFINITIONS.listingPrices),
   listings: createTable(TABLE_DEFINITIONS.listings),
   mapNodes: createTable(TABLE_DEFINITIONS.mapNodes),
@@ -89,6 +90,7 @@ const createTables = (): TablesValue => ({
 const createOverlays = (tables: TablesValue): OverlaysValue => ({
   cities: tables.cities.createOverlay(),
   idempotency: tables.idempotency.createOverlay(),
+  importJobs: tables.importJobs.createOverlay(),
   listingPrices: tables.listingPrices.createOverlay(),
   listings: tables.listings.createOverlay(),
   mapNodes: tables.mapNodes.createOverlay(),

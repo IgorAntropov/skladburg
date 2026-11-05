@@ -36,6 +36,7 @@ export const SUPPORT_SECTION_BY_FEATURE: ReadonlyMap<string, SupportConcreteSect
   ['deal', SupportAccessSection.DEALS],
   ['document', SupportAccessSection.DEALS],
   ['fleet', SupportAccessSection.LOGISTICS],
+  ['import', SupportAccessSection.CATALOG],
   ['inventory', SupportAccessSection.WAREHOUSES],
   ['layout', SupportAccessSection.WAREHOUSES],
   ['marketplace', SupportAccessSection.CATALOG],
@@ -142,7 +143,8 @@ export const resolveSupportSessionPermissions = (input: SupportSessionPermission
       const { action, feature } = splitPermissionName(name);
       const isSectionMatched = session.section === SupportAccessSection.ALL
         || SUPPORT_SECTION_BY_FEATURE.get(feature) === session.section;
-      const isViewOrSetting = action === PermissionAction.VIEW || SUPPORT_SETTINGS_PERMISSIONS.includes(name);
+      const isViewOrSetting = action === PermissionAction.VIEW || SUPPORT_SETTINGS_PERMISSIONS.includes(name)
+        || (feature === 'import' && action === PermissionAction.CREATE);
 
       return isSectionMatched
         && isViewOrSetting

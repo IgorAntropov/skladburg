@@ -1,19 +1,12 @@
 import type { ServiceImpl } from '@connectrpc/connect';
 
-import {
-  clone,
-  create,
-} from '@bufbuild/protobuf';
+import { create } from '@bufbuild/protobuf';
 import {
   CatalogService,
   ListProductsResponseSchema,
-  PackagingSchema,
-  ProductSchema,
   SaveProductResponseSchema,
-  TemperatureRangeSchema,
 } from '@skladburg/contracts/catalog/v1/catalog';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
-import { MoneySchema } from '@skladburg/contracts/common/v1/money';
 import { parseSearchQuery } from '@skladburg/contracts/runtime';
 
 import type { IModuleRuntime } from '../moduleRuntime';
@@ -24,6 +17,7 @@ import {
   collectProductViolations,
   collectTierAmounts,
 } from './catalogRules';
+import { writeProduct } from './productMutation';
 import {
   compareProductsByName,
   isCatalogQueryMatched,
@@ -87,26 +81,7 @@ export const createProductHandlers = (runtime: IModuleRuntime, publishChange: Pu
             throw errors.validationFailed(violations);
           }
 
-          const product = create(ProductSchema, {
-            baseUnit: request.baseUnit,
-            gtin: request.gtin,
-            id: request.productId,
-            isDiscountForbidden: request.isDiscountForbidden,
-            markingMode: request.markingMode,
-            minPrice: request.minPrice === undefined ? undefined : clone(MoneySchema, request.minPrice),
-            name: request.name,
-            packagings: request.packagings.map(packaging => clone(PackagingSchema, packaging)),
-            shelfLifeDays: request.shelfLifeDays,
-            sku: request.sku,
-            storageTemperature: request.storageTemperature === undefined
-              ? undefined
-              : clone(TemperatureRangeSchema, request.storageTemperature),
-            tenantId: organizationId,
-            vatRate: request.vatRate,
-            version: (current?.version ?? 0n) + 1n,
-          });
-
-          transaction.put('products', product);
+          const product = writeProduct(transaction, request, organizationId, current);
           publishChange(transaction, organizationId, productListings.some(listing => listing.isPublished));
 
           return create(SaveProductResponseSchema, { product });

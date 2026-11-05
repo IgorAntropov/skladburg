@@ -46,6 +46,8 @@ enum ErrorCode {
     is_retryable: true
   }];
   ERROR_CODE_SESSION_REQUIRED = 11 [(error_traits) = {category: ERROR_CATEGORY_UNAUTHENTICATED}];
+  ERROR_CODE_IMPORT_FILE_INVALID = 12 [(error_traits) = {category: ERROR_CATEGORY_INVALID_ARGUMENT}];
+  ERROR_CODE_IMPORT_ROLLBACK_BLOCKED = 13 [(error_traits) = {category: ERROR_CATEGORY_FAILED_PRECONDITION}];
 }
 
 message FieldViolation {
@@ -83,6 +85,31 @@ message InvalidTransitionParams {
   string to_status = 3;
 }
 
+enum ImportFileInvalidReason {
+  IMPORT_FILE_INVALID_REASON_UNSPECIFIED = 0;
+  IMPORT_FILE_INVALID_REASON_FORMAT = 1;
+  IMPORT_FILE_INVALID_REASON_ENCODING = 2;
+  IMPORT_FILE_INVALID_REASON_HEADERS = 3;
+  IMPORT_FILE_INVALID_REASON_FILE_SIZE = 4;
+  IMPORT_FILE_INVALID_REASON_ROW_LIMIT = 5;
+  IMPORT_FILE_INVALID_REASON_COLUMN_LIMIT = 6;
+  IMPORT_FILE_INVALID_REASON_CELL_LIMIT = 7;
+  IMPORT_FILE_INVALID_REASON_ARCHIVE_LIMIT = 8;
+  IMPORT_FILE_INVALID_REASON_XML = 9;
+}
+
+message ImportFileInvalidParams {
+  ImportFileInvalidReason reason = 1;
+  int32 row_number = 2;
+  int32 column_number = 3;
+  string column_key = 4;
+  int64 limit = 5;
+}
+
+message ImportRollbackBlockedParams {
+  string job_id = 1;
+}
+
 message ErrorDetail {
   ErrorCode code = 1;
   string trace_id = 2;
@@ -93,5 +120,7 @@ message ErrorDetail {
     NotFoundParams not_found = 13;
     VersionConflictParams version_conflict = 14;
     InvalidTransitionParams invalid_transition = 15;
+    ImportFileInvalidParams import_file_invalid = 16;
+    ImportRollbackBlockedParams import_rollback_blocked = 17;
   }
 }

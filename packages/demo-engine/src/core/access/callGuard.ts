@@ -24,6 +24,7 @@ import {
   MethodOptions_IdempotencyLevel,
   timestampMs,
 } from '@bufbuild/protobuf/wkt';
+import { CatalogService } from '@skladburg/contracts/catalog/v1/catalog';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import { MoneySchema } from '@skladburg/contracts/common/v1/money';
 import { getMethodAccess } from '@skladburg/contracts/runtime';
@@ -79,6 +80,7 @@ export type GuardFunction<TCaller> = <TInput extends DescMessage, TOutput extend
 
 export interface ICallGuard {
   guardCall: GuardFunction<CallerValue>;
+  guardImportCatalogCall: GuardFunction<PermissionCallerValue>;
   guardMemberCall: GuardFunction<AdmittedCallerValue>;
   guardPermissionCall: GuardFunction<PermissionCallerValue>;
   guardScopeFilteredCall: GuardFunction<PermissionCallerValue>;
@@ -451,5 +453,41 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
     return requirePermission(runGuard(reader, method, request, headers, true));
   };
 
-  return { guardCall, guardMemberCall, guardPermissionCall, guardScopeFilteredCall };
+  const guardImportCatalogCall: GuardFunction<PermissionCallerValue> = (reader, method, request, headers) => {
+    if (method.parent.typeName !== 'import.v1.ImportService') {
+      throw errors.internal();
+    }
+    const caller = guardPermissionCall(reader, method, request, headers);
+    const isWrite = method.idempotency !== MethodOptions_IdempotencyLevel.NO_SIDE_EFFECTS;
+    const requiredMethods = isWrite
+      ? [CatalogService.method.saveProduct, CatalogService.method.saveListingPrice]
+      : [CatalogService.method.listProducts, CatalogService.method.listListingPrices];
+    const context = readActingContext(headers);
+
+    for (const requiredMethod of requiredMethods) {
+      const requirement = getMethodAccess(requiredMethod)?.requirement;
+      if (requirement?.case !== 'permission') {
+        throw errors.internal();
+      }
+      const isSupportImportWrite = isWrite && caller.admission.kind === 'support_session'
+        && caller.permissions.some(permission => permission.permission === 'import_create' && permission.isOrganizationWide);
+      if (isSupportImportWrite) {
+        const viewMethod = requiredMethod === CatalogService.method.saveProduct
+          ? CatalogService.method.listProducts
+          : CatalogService.method.listListingPrices;
+        const viewRequirement = getMethodAccess(viewMethod)?.requirement;
+        if (viewRequirement?.case !== 'permission') {
+          throw errors.internal();
+        }
+        authorize(reader, viewRequirement, caller.user, context, false);
+      }
+      else {
+        authorize(reader, requirement, caller.user, context, false);
+      }
+    }
+
+    return caller;
+  };
+
+  return { guardCall, guardImportCatalogCall, guardMemberCall, guardPermissionCall, guardScopeFilteredCall };
 };

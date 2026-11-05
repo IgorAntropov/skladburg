@@ -167,6 +167,10 @@ const MAX_ENGINE_WORKER_GZIP_KILOBYTES = 40;
 
 const MAX_ENGINE_GZIP_KILOBYTES = 180;
 
+const MAX_ENGINE_XLSX_GZIP_KILOBYTES = 25.54;
+
+const MAX_ENGINE_CSV_GZIP_KILOBYTES = 2;
+
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
 const PRECACHE_GLOB_PATTERNS = ['**/*.{js,css,html,woff2,svg,png,bin}'];
@@ -197,7 +201,7 @@ const ASSET_BUDGETS = [
   },
 ];
 
-const XLSX_READER_PACKAGES = ['read-excel-file'];
+const XLSX_READER_PACKAGES = ['read-excel-file', 'fflate', 'saxen'];
 
 const FORBIDDEN_PACKAGES = [...XLSX_READER_PACKAGES, 'stats-gl', 'stats.js'];
 
@@ -253,6 +257,20 @@ const ENGINE_WORKER_BUDGET = {
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_GZIP_KILOBYTES,
       name: 'engine',
+    },
+    {
+      baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/modules/import/csvReader.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_CSV_GZIP_KILOBYTES,
+      name: 'engine-csv',
+    },
+    {
+      baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/modules/import/xlsxReader.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_XLSX_GZIP_KILOBYTES,
+      name: 'engine-xlsx',
     },
   ],
   maxInitialGzipKiloBytes: MAX_ENGINE_WORKER_GZIP_KILOBYTES,

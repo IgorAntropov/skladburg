@@ -1,27 +1,36 @@
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 
-import type { KnownErrorCode } from '@/shared/api';
-
-import { isKnownErrorCode } from '@/shared/api';
-
 import type { AssistantCatalogValue } from '../i18n/assistantSection';
 
 export type AssistantErrorHintKey = Extract<keyof AssistantCatalogValue, `assistant.error.hint.${string}`>;
 
-const ERROR_HINT_KEYS = {
-  [ErrorCode.IDEMPOTENCY_KEY_REUSED]: 'assistant.error.hint.idempotencyKeyReused',
-  [ErrorCode.INTERNAL]: null,
-  [ErrorCode.INVALID_TRANSITION]: 'assistant.error.hint.invalidTransition',
-  [ErrorCode.LIMIT_EXCEEDED]: 'assistant.error.hint.limitExceeded',
-  [ErrorCode.MEMBERSHIP_REQUIRED]: 'assistant.error.hint.membershipRequired',
-  [ErrorCode.NOT_FOUND]: 'assistant.error.hint.notFound',
-  [ErrorCode.PERMISSION_DENIED]: 'assistant.error.hint.permissionDenied',
-  [ErrorCode.SESSION_REQUIRED]: null,
-  [ErrorCode.UNAVAILABLE]: null,
-  [ErrorCode.VALIDATION_FAILED]: null,
-  [ErrorCode.VERSION_CONFLICT]: 'assistant.error.hint.versionConflict',
-} as const satisfies Record<KnownErrorCode, AssistantErrorHintKey | null>;
-
 export const getErrorHintKey = (code: ErrorCode): AssistantErrorHintKey | null => {
-  return isKnownErrorCode(code) ? ERROR_HINT_KEYS[code] : null;
+  switch (code) {
+    case ErrorCode.IDEMPOTENCY_KEY_REUSED:
+      return 'assistant.error.hint.idempotencyKeyReused';
+    case ErrorCode.IMPORT_FILE_INVALID:
+    case ErrorCode.IMPORT_ROLLBACK_BLOCKED:
+    case ErrorCode.INTERNAL:
+    case ErrorCode.SESSION_REQUIRED:
+    case ErrorCode.UNAVAILABLE:
+    case ErrorCode.UNSPECIFIED:
+    case ErrorCode.VALIDATION_FAILED:
+      return null;
+    case ErrorCode.INVALID_TRANSITION:
+      return 'assistant.error.hint.invalidTransition';
+    case ErrorCode.LIMIT_EXCEEDED:
+      return 'assistant.error.hint.limitExceeded';
+    case ErrorCode.MEMBERSHIP_REQUIRED:
+      return 'assistant.error.hint.membershipRequired';
+    case ErrorCode.NOT_FOUND:
+      return 'assistant.error.hint.notFound';
+    case ErrorCode.PERMISSION_DENIED:
+      return 'assistant.error.hint.permissionDenied';
+    case ErrorCode.VERSION_CONFLICT:
+      return 'assistant.error.hint.versionConflict';
+    default:
+      code satisfies never;
+
+      return null;
+  }
 };

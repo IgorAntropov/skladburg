@@ -4,19 +4,13 @@ import type {
   Product,
 } from '@skladburg/contracts/catalog/v1/catalog';
 
-import {
-  clone,
-  create,
-} from '@bufbuild/protobuf';
+import { create } from '@bufbuild/protobuf';
 import {
   CatalogService,
   GetOwnListingResponseSchema,
-  ListingSchema,
   ListOwnListingsResponseSchema,
   OwnListingSchema,
-  PriceUnitSchema,
   SaveListingResponseSchema,
-  WarehouseAvailabilitySchema,
 } from '@skladburg/contracts/catalog/v1/catalog';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import { parseSearchQuery } from '@skladburg/contracts/runtime';
@@ -27,6 +21,7 @@ import type { PublishCatalogChangeFunction } from './catalogEvents';
 
 import { paginate } from '../pagination';
 import { collectListingViolations } from './catalogRules';
+import { writeListing } from './listingMutation';
 import {
   compareProductsByName,
   isCatalogQueryMatched,
@@ -132,20 +127,7 @@ export const createListingHandlers = (runtime: IModuleRuntime, publishChange: Pu
             throw errors.validationFailed(violations);
           }
 
-          const listing = create(ListingSchema, {
-            availability: request.availability.map(entry => clone(WarehouseAvailabilitySchema, entry)),
-            id: request.listingId,
-            isPublished: current?.isPublished ?? false,
-            minOrderQuantity: request.minOrderQuantity,
-            orderStep: request.orderStep,
-            priceUnit: request.priceUnit === undefined ? undefined : clone(PriceUnitSchema, request.priceUnit),
-            productId: request.productId,
-            sphereIds: [...request.sphereIds],
-            tenantId: organizationId,
-            version: (current?.version ?? 0n) + 1n,
-          });
-
-          transaction.put('listings', listing);
+          const listing = writeListing(transaction, request, organizationId, current);
           publishChange(transaction, organizationId, listing.isPublished);
 
           return create(SaveListingResponseSchema, { listing });

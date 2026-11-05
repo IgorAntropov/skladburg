@@ -73,6 +73,7 @@ import {
   SupportTicketSchema,
 } from '@skladburg/contracts/support/v1/support_ticket';
 
+import type { ImportRecordValue } from '../modules/import/importRecords';
 import type {
   EngineCollectionName,
   StoredObjectValue,
@@ -85,6 +86,10 @@ import type {
   SupportBotQueueRecordValue,
 } from './records';
 
+import {
+  parseImportRecord,
+  serializeImportRecord,
+} from '../modules/import/importRecords';
 import {
   parseDemoPersona,
   parseIdempotencyRecord,
@@ -116,6 +121,7 @@ export type TableDefinitionsValue = {
 export interface TableIndexesValue {
   cities: never;
   idempotency: never;
+  importJobs: 'tenantId';
   listingPrices: 'tenantId';
   listings: 'publication' | 'tenantId';
   mapNodes: never;
@@ -145,6 +151,7 @@ export type TableName = EngineCollectionName;
 export interface TableRecordsValue {
   cities: City;
   idempotency: IdempotencyRecordValue;
+  importJobs: ImportRecordValue;
   listingPrices: ListingPrice;
   listings: Listing;
   mapNodes: MapNode;
@@ -209,6 +216,10 @@ const NOTIFICATION_TABLE: TableDefinition<NotificationRecordValue, 'userId'> = {
 export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   cities: defineMessageTable(CitySchema, city => city.id, {}),
   idempotency: defineRecordTable(parseIdempotencyRecord, serializeIdempotencyRecord),
+  importJobs: {
+    ...defineRecordTable(parseImportRecord, serializeImportRecord),
+    indexKeys: { tenantId: record => record.job.tenantId },
+  },
   listingPrices: defineMessageTable(ListingPriceSchema, price => price.listingId, { tenantId: price => price.tenantId }),
   listings: defineMessageTable(ListingSchema, listing => listing.id, {
     publication: listing => (listing.isPublished ? ListingPublication.PUBLISHED : ListingPublication.DRAFT),

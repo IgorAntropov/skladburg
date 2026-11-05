@@ -9,5 +9,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "../../packages/demo-engine/src/core/modules/import/saxen.d.ts"]
 }

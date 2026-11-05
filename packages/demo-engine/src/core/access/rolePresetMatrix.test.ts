@@ -175,14 +175,18 @@ const isReachable = (subject: MatrixSubjectValue, entry: PermissionMethodValue):
 
 const createCases = (subjects: readonly MatrixSubjectValue[], methods: readonly PermissionMethodValue[]): MatrixCaseValue[] =>
   subjects.flatMap(subject => methods.map((entry) => {
-    const expectedOutcome = isReachable(subject, entry) ? 'allowed' : 'denied';
+    const missingImportPermission = entry.method.parent.typeName === 'import.v1.ImportService'
+      && entry.method.name === 'ListImportJobs' && isReachable(subject, entry)
+      ? ['catalog_view', 'price_list_view'].find(permission => !subject.grantedPermissions.has(permission))
+      : undefined;
+    const expectedOutcome = isReachable(subject, entry) && missingImportPermission === undefined ? 'allowed' : 'denied';
 
     return {
       assignmentWarehouseIds: subject.assignmentWarehouseIds,
       expectedOutcome,
       method: entry.method,
       organizationId: subject.organization.id,
-      permissionName: entry.permissionName,
+      permissionName: missingImportPermission ?? entry.permissionName,
       title: `${subject.organization.name} / ${subject.role.name} / ${entry.method.name} (${entry.permissionName}): ${expectedOutcome}`,
       userId: subject.userId,
     };

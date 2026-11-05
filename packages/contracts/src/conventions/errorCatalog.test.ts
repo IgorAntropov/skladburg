@@ -22,6 +22,8 @@ interface ErrorTraitsSnapshotValue {
 
 const expectedTraits: Record<ErrorCode, ErrorTraitsSnapshotValue> = {
   [ErrorCode.IDEMPOTENCY_KEY_REUSED]: { category: ErrorCategory.INVALID_ARGUMENT, isRetryable: false },
+  [ErrorCode.IMPORT_FILE_INVALID]: { category: ErrorCategory.INVALID_ARGUMENT, isRetryable: false },
+  [ErrorCode.IMPORT_ROLLBACK_BLOCKED]: { category: ErrorCategory.FAILED_PRECONDITION, isRetryable: false },
   [ErrorCode.INTERNAL]: { category: ErrorCategory.INTERNAL, isRetryable: true },
   [ErrorCode.INVALID_TRANSITION]: { category: ErrorCategory.FAILED_PRECONDITION, isRetryable: false },
   [ErrorCode.LIMIT_EXCEEDED]: { category: ErrorCategory.PERMISSION_DENIED, isRetryable: false },

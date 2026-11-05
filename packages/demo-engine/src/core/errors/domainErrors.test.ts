@@ -30,6 +30,8 @@ const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}
 
 const EXPECTED_CONNECT_CODES: Readonly<Record<ErrorCode, Code>> = {
   [ErrorCode.IDEMPOTENCY_KEY_REUSED]: Code.InvalidArgument,
+  [ErrorCode.IMPORT_FILE_INVALID]: Code.InvalidArgument,
+  [ErrorCode.IMPORT_ROLLBACK_BLOCKED]: Code.FailedPrecondition,
   [ErrorCode.INTERNAL]: Code.Internal,
   [ErrorCode.INVALID_TRANSITION]: Code.FailedPrecondition,
   [ErrorCode.LIMIT_EXCEEDED]: Code.PermissionDenied,

@@ -392,4 +392,18 @@ enum PermissionCode {
   PERMISSION_CODE_SUPPORT_EMERGENCY_MANAGE = 66 [(permission_traits) = {is_platform: true}];
   PERMISSION_CODE_PLATFORM_VERIFICATION_APPROVE = 67 [(permission_traits) = {is_platform: true}];
   PERMISSION_CODE_PLATFORM_DISPUTE_APPROVE = 68 [(permission_traits) = {is_platform: true}];
+  PERMISSION_CODE_IMPORT_VIEW = 69 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
+  PERMISSION_CODE_IMPORT_CREATE = 70 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER,
+      PROFILE_KIND_CARRIER
+    ]
+  }];
 }

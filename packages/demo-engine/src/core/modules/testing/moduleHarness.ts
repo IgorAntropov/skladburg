@@ -26,11 +26,13 @@ import {
   type ErrorDetail,
   ErrorDetailSchema,
 } from '@skladburg/contracts/common/v1/error';
+import { ImportService } from '@skladburg/contracts/import/v1/import';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import { OrganizationRequisitesService } from '@skladburg/contracts/organization/v1/requisites';
 import { OrganizationShowcaseService } from '@skladburg/contracts/organization/v1/showcase';
+import { getContractRegistry } from '@skladburg/contracts/registry';
 import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
 import { SupportAccessService } from '@skladburg/contracts/support/v1/support_access';
 import { SupportTicketService } from '@skladburg/contracts/support/v1/support_ticket';
@@ -38,6 +40,7 @@ import { SupportTicketService } from '@skladburg/contracts/support/v1/support_ti
 import type { TestRuntimeValue } from './testRuntime';
 
 import { DEMO_USER_HEADER } from '../../protocol';
+import { createRequestValidator } from '../../validation/index';
 import {
   createCatalogService,
   createCatalogShowcaseService,
@@ -49,6 +52,7 @@ import {
   createOrganizationShowcaseService,
   createUserProfileService,
 } from '../identity/index';
+import { createImportService } from '../import/index';
 import { createNetworkService } from '../network/index';
 import { createNotificationService } from '../notifications/index';
 import { createOrganizationService } from '../organizationService';
@@ -133,6 +137,8 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(CatalogService, createCatalogService(testRuntime.runtime));
     service(ShowcaseService, createCatalogShowcaseService(testRuntime.runtime));
     service(ClockService, createClockService(testRuntime.runtime, () => testRuntime.clock.getSnapshot()));
+    const validator = createRequestValidator(testRuntime.runtime.errors, getContractRegistry());
+    service(ImportService, createImportService(testRuntime.runtime, validator));
     service(NetworkService, createNetworkService(testRuntime.runtime));
     service(NotificationService, createNotificationService(testRuntime.runtime));
     service(OrganizationRequisitesService, createOrganizationRequisitesService(testRuntime.runtime));

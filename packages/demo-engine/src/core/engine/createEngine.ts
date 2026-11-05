@@ -27,6 +27,7 @@ import {
   createCatalogService,
   createCatalogShowcaseService,
   createClockService,
+  createImportService,
   createNetworkService,
   createNotificationService,
   createNotifier,
@@ -147,6 +148,7 @@ export const createEngineWithTasks = async (
     state,
     storage,
   });
+  const validator = createRequestValidator(errors, getContractRegistry());
   const runtime: IModuleRuntime = {
     command,
     errors,
@@ -154,7 +156,7 @@ export const createEngineWithTasks = async (
     guard: createCallGuard({
       errors,
       getWorldTimeMs: readWorldTimeMs,
-      validator: createRequestValidator(errors, getContractRegistry()),
+      validator,
     }),
     idempotency: createIdempotencyGuard(errors),
     notifier: createNotifier({ outbox: bus.outbox, random }),
@@ -168,6 +170,7 @@ export const createEngineWithTasks = async (
     catalogShowcaseService: createCatalogShowcaseService(runtime),
     clockService: createClockService(runtime, () => clock.getSnapshot()),
     errors,
+    importService: createImportService(runtime, validator),
     networkService: createNetworkService(runtime),
     notificationService: createNotificationService(runtime),
     organizationRequisitesService: createOrganizationRequisitesService(runtime),

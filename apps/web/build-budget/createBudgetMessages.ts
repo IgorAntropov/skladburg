@@ -65,7 +65,7 @@ export const createForbiddenPackageMessage = (violation: ForbiddenPackageViolati
 export const createAnyChunkForbiddenPackageMessage = (violation: ChunkPackageViolationValue): string =>
   [
     `Package "${violation.packageName}" is bundled into chunk "${violation.chunkFileName}".`,
-    'It must not reach the production build; keep it behind a development-only condition.',
+    'It must not be bundled into this build; load it only in its allowed runtime.',
   ].join(' ');
 
 export const createLazyBudgetReport = (

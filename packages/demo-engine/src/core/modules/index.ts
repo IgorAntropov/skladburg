@@ -9,6 +9,7 @@ export {
   createOrganizationShowcaseService,
   createUserProfileService,
 } from './identity/index';
+export { createImportService } from './import/index';
 export {
   type IEventOutbox,
   type IModuleRuntime,
@@ -21,6 +22,7 @@ export {
   resolveWarehouseRecipients,
 } from './notifications/index';
 export { createOrganizationService } from './organizationService';
+
 export {
   appendSupportAuditEntry,
   createSupportAccessExpiryTask,

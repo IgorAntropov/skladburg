@@ -20,6 +20,7 @@ export const ENGINE_COLLECTION_NAMES = [
   'supportTicketMessages',
   'supportBotQueue',
   'idempotency',
+  'importJobs',
   'personas',
   'products',
   'listings',
@@ -71,6 +72,7 @@ export type StoredScalarValue = bigint | boolean | null | number | string;
 export const createEmptyCollections = (): Record<EngineCollectionName, EngineCollectionValue> => ({
   cities: new Map(),
   idempotency: new Map(),
+  importJobs: new Map(),
   listingPrices: new Map(),
   listings: new Map(),
   mapNodes: new Map(),

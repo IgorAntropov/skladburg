@@ -23,7 +23,7 @@ describe('getErrorMessageKey', () => {
       .map(value => value.localName)
       .filter(name => name !== ErrorCode[ErrorCode.UNSPECIFIED]);
 
-    expect(declaredCodes).toHaveLength(11);
+    expect(declaredCodes).toHaveLength(13);
     expect(declaredCodes.map(code => ErrorCode[code]).toSorted()).toEqual(schemaNames.toSorted());
   });
 

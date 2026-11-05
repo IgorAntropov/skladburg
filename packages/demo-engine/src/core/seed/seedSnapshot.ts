@@ -73,6 +73,7 @@ export const DEFAULT_ENGINE_SEED: EngineSeedValue = {
 export const createSeedRecords = (): SeedRecordsValue => ({
   cities: createSeedCities(),
   idempotency: [],
+  importJobs: [],
   listingPrices: createSeedListingPrices(),
   listings: createSeedListings(),
   mapNodes: createSeedMapNodes(),

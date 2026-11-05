@@ -6,6 +6,10 @@ import {
   ProductSchema,
   SalesTermsSchema,
 } from '@skladburg/contracts/catalog/v1/catalog';
+import {
+  ImportJobSchema,
+  ImportRowSchema,
+} from '@skladburg/contracts/import/v1/import';
 import { NotificationSchema } from '@skladburg/contracts/notification/v1/notification';
 import { OrganizationRequisitesSchema } from '@skladburg/contracts/organization/v1/requisites';
 import {
@@ -308,6 +312,42 @@ const SHAPE_FINGERPRINTS: Readonly<Record<number, readonly string[]>> = {
     'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
     'meta.worldTimeMs:number',
   ],
+  12: [
+    'collection.cities:bytes',
+    'collection.idempotency:{id:string,method:string,requestBytes:bytes,responseBytes:bytes}',
+    'collection.importJobs:{columns:{0:string},createdPriceListId:string,createdPriceListVersion:bigint,id:string,'
+    + 'jobBytes:bytes,provenance:{0:{listingId:string,listingVersion:bigint,priceVersion:bigint,productId:string,'
+    + 'productVersion:bigint}},rowBytes:{0:bytes},usedListingIds:{0:string}}',
+    'collection.listingPrices:bytes',
+    'collection.listings:bytes',
+    'collection.mapNodes:bytes',
+    'collection.memberships:bytes',
+    'collection.notifications:{id:string,notificationBytes:bytes,userId:string}',
+    'collection.organizationRequisites:bytes',
+    'collection.organizationSettings:bytes',
+    'collection.organizations:bytes',
+    'collection.personas:{group:string,id:string,kind:string,organizationId:string,userId:string}',
+    'collection.priceLists:bytes',
+    'collection.products:bytes',
+    'collection.roles:bytes',
+    'collection.routeLegs:bytes',
+    'collection.salesTerms:bytes',
+    'collection.spheres:bytes',
+    'collection.supportAccessSessions:bytes',
+    'collection.supportAuditEntries:bytes',
+    'collection.supportBotQueue:{dueAtMs:number,id:string}',
+    'collection.supportTicketMessages:bytes',
+    'collection.supportTickets:bytes',
+    'collection.users:bytes',
+    'collection.warehouses:bytes',
+    'meta.channelSeq:record<bigint>',
+    'meta.randomState:{a:number,b:number,c:number,d:number}',
+    'meta.schedulerDueAtMs:record<number>',
+    'meta.seedVersion:number',
+    'meta.timeScale:number',
+    'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
+    'meta.worldTimeMs:number',
+  ],
 };
 
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -378,6 +418,12 @@ const populatedTask: SchedulerTaskValue = {
       ticketId: 'fingerprint-ticket',
     }));
     transaction.put('supportBotQueue', { dueAtMs: 1, id: 'fingerprint-ticket' });
+    transaction.put('importJobs', {
+      columns: ['name'], createdPriceListId: 'fingerprint-list', createdPriceListVersion: 1n,
+      id: 'fingerprint-import', job: create(ImportJobSchema, { id: 'fingerprint-import' }),
+      provenance: [{ listingId: 'listing', listingVersion: 1n, priceVersion: 1n, productId: 'product', productVersion: 1n }],
+      rows: [create(ImportRowSchema, { rowNumber: 2 })], usedListingIds: ['listing'],
+    });
     transaction.put('products', create(ProductSchema, { id: 'fingerprint-product' }));
     transaction.put('listings', create(ListingSchema, { id: 'fingerprint-listing' }));
     transaction.put('listingPrices', create(ListingPriceSchema, { listingId: 'fingerprint-listing' }));
@@ -447,8 +493,8 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 11 since the catalog collections joined', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(11);
+  it('is version 12 since private import jobs joined', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(12);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
   });
 });

@@ -159,7 +159,7 @@ const INTERSECTION_ROWS: readonly IntersectionRowValue[] = [
     title: 'supplier, warehouses, edit: data edits are not settings',
   },
   {
-    expected: ['catalog_view', 'network_view', 'price_list_view', 'promotion_view'],
+    expected: ['catalog_view', 'import_create', 'import_view', 'network_view', 'price_list_view', 'promotion_view'],
     mode: SupportAccessMode.EDIT,
     profiles: SUPPLIER,
     roleKey: OperatorPresetKey.SUPPORT_ENGINEER,
@@ -199,7 +199,7 @@ const INTERSECTION_ROWS: readonly IntersectionRowValue[] = [
     title: 'carrier, warehouses, edit: a carrier has no warehouse permissions',
   },
   {
-    expected: ['network_view'],
+    expected: ['import_create', 'import_view', 'network_view'],
     mode: SupportAccessMode.EDIT,
     profiles: CARRIER,
     roleKey: OperatorPresetKey.SUPPORT_ENGINEER,
@@ -283,7 +283,8 @@ describe('resolveSupportSessionPermissions: the intersection of every factor', (
       const hasSettingsEdit = staffPermissions.some(candidate => candidate.permission === 'support_settings_edit');
       const roleActions = hasSettingsEdit ? EDIT_ACTIONS : VIEW_ACTIONS;
       const isViewOrSetting = (name: string): boolean =>
-        splitPermissionName(name).action === PermissionAction.VIEW || SUPPORT_SETTINGS_PERMISSIONS.includes(name);
+        splitPermissionName(name).action === PermissionAction.VIEW
+        || SUPPORT_SETTINGS_PERMISSIONS.includes(name) || name === 'import_create';
 
       for (const name of result) {
         const { action } = splitPermissionName(name);
@@ -360,7 +361,8 @@ describe('support settings: only feature settings open to an edit session', () =
     const undecided = CLIENT_CODES
       .filter(code => actionOf(code) !== PermissionAction.VIEW && !isNeverForSupport(code))
       .map(code => getPermissionName(code))
-      .filter(name => !SUPPORT_SETTINGS_PERMISSIONS.includes(name) && !DATA_NOT_SETTINGS_PERMISSIONS.includes(name));
+      .filter(name => !SUPPORT_SETTINGS_PERMISSIONS.includes(name)
+        && !DATA_NOT_SETTINGS_PERMISSIONS.includes(name) && name !== 'import_create');
 
     expect(undecided).toEqual([]);
   });
@@ -399,7 +401,7 @@ describe('support settings: only feature settings open to an edit session', () =
     }
   });
 
-  it('gives the engineer in an edit session exactly the view permissions of the section plus organization_edit', () => {
+  it('gives the engineer in an edit session exactly views plus approved organization and import writes', () => {
     const staffPermissions = staffPermissionsOf(OperatorPresetKey.SUPPORT_ENGINEER);
 
     for (const profiles of PROFILE_SETS) {
@@ -408,7 +410,11 @@ describe('support settings: only feature settings open to an edit session', () =
         const edit = resolveFor(staffPermissions, profiles, section, SupportAccessMode.EDIT);
         const isOrganizationEditExpected = section === SupportAccessSection.ORGANIZATION || section === SupportAccessSection.ALL;
 
-        expect(new Set(edit)).toEqual(new Set(isOrganizationEditExpected ? [...view, 'organization_edit'] : view));
+        const expected = isOrganizationEditExpected ? [...view, 'organization_edit'] : [...view];
+        if (section === SupportAccessSection.CATALOG || section === SupportAccessSection.ALL) {
+          expected.push('import_create');
+        }
+        expect(new Set(edit)).toEqual(new Set(expected));
       }
     }
   });

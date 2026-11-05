@@ -68,6 +68,10 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
     catalogShowcaseService: { getShowcaseListing: unused, listShowcaseListings: unused },
     clockService: { getWorldClock: unused },
     errors,
+    importService: {
+      commitImport: unused, getImportJob: unused, getImportTemplate: unused,
+      listImportJobs: unused, previewImport: unused, rollbackImport: unused,
+    },
     networkService: { listCities: unused, listMapNodes: unused, listMapSites: unused, listRouteLegs: unused },
     notificationService: { getDigest: unused, listNotifications: unused, markAllNotificationsRead: unused, markNotificationsRead: unused },
     organizationRequisitesService: {

@@ -1,15 +1,9 @@
 import type { ServiceImpl } from '@connectrpc/connect';
 
-import {
-  clone,
-  create,
-} from '@bufbuild/protobuf';
+import { create } from '@bufbuild/protobuf';
 import {
   CatalogService,
-  ListingPriceSchema,
   ListListingPricesResponseSchema,
-  PriceListSchema,
-  PriceTierSchema,
   SaveListingPriceResponseSchema,
 } from '@skladburg/contracts/catalog/v1/catalog';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
@@ -18,8 +12,8 @@ import type { IModuleRuntime } from '../moduleRuntime';
 import type { PublishCatalogChangeFunction } from './catalogEvents';
 
 import { paginate } from '../pagination';
-import { findPriceList } from './catalogRecords';
 import { collectListingPriceViolations } from './catalogRules';
+import { writeListingPrice } from './listingPriceMutation';
 import {
   assertVersionOrInitial,
   readOwned,
@@ -69,22 +63,7 @@ export const createPriceHandlers = (runtime: IModuleRuntime, publishChange: Publ
             throw errors.validationFailed(violations);
           }
 
-          const existingPriceList = findPriceList(transaction, organizationId);
-          const priceList = existingPriceList ?? create(PriceListSchema, { id: random.uuid(), tenantId: organizationId, version: 1n });
-
-          if (existingPriceList === undefined) {
-            transaction.put('priceLists', priceList);
-          }
-
-          const price = create(ListingPriceSchema, {
-            listingId: listing.id,
-            priceListId: priceList.id,
-            tenantId: organizationId,
-            tiers: request.tiers.map(tier => clone(PriceTierSchema, tier)),
-            version: currentVersion + 1n,
-          });
-
-          transaction.put('listingPrices', price);
+          const price = writeListingPrice(transaction, request, organizationId, currentVersion, random);
           publishChange(transaction, organizationId, listing.isPublished);
 
           return create(SaveListingPriceResponseSchema, { price });

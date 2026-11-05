@@ -8,6 +8,8 @@ import { isKnownErrorCode } from './isKnownErrorCode';
 
 const ERROR_MESSAGE_KEYS = {
   [ErrorCode.IDEMPOTENCY_KEY_REUSED]: 'error.idempotency_key_reused',
+  [ErrorCode.IMPORT_FILE_INVALID]: 'error.import_file_invalid',
+  [ErrorCode.IMPORT_ROLLBACK_BLOCKED]: 'error.import_rollback_blocked',
   [ErrorCode.INTERNAL]: 'error.internal',
   [ErrorCode.INVALID_TRANSITION]: 'error.invalid_transition',
   [ErrorCode.LIMIT_EXCEEDED]: 'error.limit_exceeded',

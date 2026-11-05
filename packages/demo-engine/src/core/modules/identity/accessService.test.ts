@@ -149,7 +149,7 @@ describe('AccessService.listPermissions', () => {
     const supportAccessApprove = response.permissions.find(permission => permission.name === 'support_access_approve');
     const supportTicketView = response.permissions.find(permission => permission.name === 'support_ticket_view');
 
-    expect(codes).toHaveLength(68);
+    expect(codes).toHaveLength(70);
     expect(response.permissions.map(permission => permission.name)).toEqual(codes.map(getPermissionName));
     expect(response.permissions.every(permission => permission.isPlatform === (permission.profiles.length === 0))).toBe(true);
     expect(response.permissions.map(permission => permission.isPlatform)).toEqual(codes.map(code => getPermissionTraits(code).isPlatform));

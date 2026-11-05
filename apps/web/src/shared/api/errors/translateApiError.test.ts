@@ -5,6 +5,8 @@ import {
 import {
   ErrorCode,
   ErrorDetailSchema,
+  ImportFileInvalidParamsSchema,
+  ImportRollbackBlockedParamsSchema,
   InvalidTransitionParamsSchema,
   LimitExceededParamsSchema,
   NotFoundParamsSchema,
@@ -115,6 +117,14 @@ describe('translateApiError', () => {
   });
 
   it.each([
+    ['importFileInvalid', ErrorCode.IMPORT_FILE_INVALID, 'error.import_file_invalid', {
+      case: 'importFileInvalid',
+      value: create(ImportFileInvalidParamsSchema),
+    }],
+    ['importRollbackBlocked', ErrorCode.IMPORT_ROLLBACK_BLOCKED, 'error.import_rollback_blocked', {
+      case: 'importRollbackBlocked',
+      value: create(ImportRollbackBlockedParamsSchema),
+    }],
     ['limitExceeded', ErrorCode.LIMIT_EXCEEDED, 'error.limit_exceeded', {
       case: 'limitExceeded',
       value: create(LimitExceededParamsSchema),

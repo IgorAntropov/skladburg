@@ -169,6 +169,14 @@ describe('createMissingLazyEntryMessage', () => {
 });
 
 describe('createAnyChunkForbiddenPackageMessage', () => {
+  it('does not suggest a development-only workaround for a worker dependency', () => {
+    const message = createAnyChunkForbiddenPackageMessage({ chunkFileName: 'assets/app.js', packageName: 'read-excel-file' });
+
+    expect(message).toContain('read-excel-file');
+    expect(message).toContain('allowed runtime');
+    expect(message).not.toContain('development-only');
+  });
+
   it('names the package and the chunk', () => {
     const message = createAnyChunkForbiddenPackageMessage({ chunkFileName: 'assets/scene.js', packageName: 'stats-gl' });
 

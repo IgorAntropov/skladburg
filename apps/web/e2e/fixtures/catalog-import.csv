@@ -1,0 +1,2 @@
+name;sku;base_unit;marking_mode;vat_rate;packaging_name;packaging_quantity;gross_weight_grams;volume_cubic_centimeters;length_millimeters;width_millimeters;height_millimeters;sphere;price_unit_name;price_unit_base_quantity;min_order_quantity;order_step;price_rub
+Импортированный товар;IMPORT-CSV-WORKER-001;piece;none;10;Короб;12;12500;30000;400;300;250;Молочная продукция;шт.;1;10;5;123.45

@@ -41,6 +41,29 @@ const measure = (
   measureLazyBudget(chunks, measureInitialBundles(chunks), budget, baseline);
 
 describe('measureLazyBudget', () => {
+  it('counts a directly imported dynamic target even when its entry flag is absent', () => {
+    const measurement = measure([
+      createChunk({ dynamicImports: ['Root.js'], fileName: 'index.js', gzipBytes: 1, isEntry: true }),
+      createChunk({ fileName: 'Root.js', gzipBytes: 10, imports: ['shared.js'], moduleIds: ['/repo/src/scene/Root.tsx'] }),
+      createChunk({ fileName: 'shared.js', gzipBytes: 20 }),
+    ]);
+
+    expect(measurement.missingEntries).toEqual([]);
+    expect(measurement.gzipBytes).toBe(30);
+    expect(measurement.chunks.map(chunk => chunk.fileName)).toEqual(['Root.js', 'shared.js']);
+  });
+
+  it('finds the dynamic facade when the source module moved into a static dependency', () => {
+    const measurement = measure([
+      createChunk({ dynamicImports: ['facade.js'], fileName: 'index.js', isEntry: true }),
+      createChunk({ facadeModuleId: '/repo/src/scene/Root.tsx', fileName: 'facade.js', gzipBytes: 10, imports: ['shared.js'] }),
+      createChunk({ fileName: 'shared.js', gzipBytes: 20, moduleIds: ['/repo/src/scene/Root.tsx'] }),
+    ]);
+
+    expect(measurement.missingEntries).toEqual([]);
+    expect(measurement.gzipBytes).toBe(30);
+  });
+
   it('counts the lazy entry chunk with its static imports', () => {
     const measurement = measure([
       createChunk({ fileName: 'index.js', gzipBytes: 1, isEntry: true }),

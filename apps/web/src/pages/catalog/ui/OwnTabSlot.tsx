@@ -9,10 +9,10 @@ import {
   SkeletonGroup,
   useDelayedVisibility,
 } from '@/shared/ui';
+import { ChunkLoadNotice } from '@/shared/ui';
 
 import { useChunkLoader } from '../lib/useChunkLoader';
 import { useCatalogTexts } from '../model/useCatalogTexts';
-import { ChunkRecoveryNotice } from './ChunkRecoveryNotice';
 import { loadOwnCatalog } from './loadOwnCatalog';
 import { OwnCatalogSkeleton } from './skeleton/OwnCatalogSkeleton';
 
@@ -36,7 +36,7 @@ export const OwnTabSlot = ({ focus }: OwnTabSlotProps): ReactElement => {
     <div className="flex flex-1 flex-col" data-testid="catalog-tab-own">
       {state.kind === 'loaded' && <state.module.OwnCatalogPanel focus={focus} />}
       {state.kind === 'failed' && (
-        <ChunkRecoveryNotice
+        <ChunkLoadNotice
           message={mainT('routing.chunkError.message')}
           onRetry={load}
           recovery={state.recovery}

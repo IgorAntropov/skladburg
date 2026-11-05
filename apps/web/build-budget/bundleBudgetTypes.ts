@@ -18,6 +18,8 @@ export interface AssetBudgetValue {
 }
 
 export interface BudgetChunkValue {
+  dynamicImports?: readonly string[] | undefined;
+  facadeModuleId?: null | string | undefined;
   fileName: string;
   gzipBytes: number;
   imports: readonly string[];

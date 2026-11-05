@@ -16,6 +16,7 @@ import {
 import type { AppAddressValue } from '@/shared/routing';
 
 import { cn } from '@/shared/lib/cn';
+import { resolveScrollBehavior } from '@/shared/lib/scroll';
 import { useAnnounce } from '@/shared/ui';
 
 import type { GlobalSearchTranslate } from '../../i18n/globalSearchSection';
@@ -31,7 +32,6 @@ import {
   isSearchSettled,
   resolvePendingChoose,
 } from './pendingChoose';
-import { resolveScrollBehavior } from './resolveScrollBehavior';
 import { SearchGroupSection } from './SearchGroupSection';
 import {
   INITIAL_SEARCH_LIST_STATE,

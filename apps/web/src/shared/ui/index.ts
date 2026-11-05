@@ -15,6 +15,8 @@ export type {
   ButtonVariantValue,
 } from './button/buttonTypes';
 export { Card } from './card/Card';
+export type { ChunkLoadNoticeProps } from './chunk-load-notice/ChunkLoadNotice';
+export { ChunkLoadNotice } from './chunk-load-notice/ChunkLoadNotice';
 export { DropdownMenu } from './dropdown-menu/DropdownMenu';
 export { DropdownMenuContent } from './dropdown-menu/DropdownMenuContent';
 export { DropdownMenuItem } from './dropdown-menu/DropdownMenuItem';

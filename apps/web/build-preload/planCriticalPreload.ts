@@ -3,7 +3,10 @@ import type {
   PreloadChunkValue,
 } from './criticalPreloadTypes.ts';
 
-import { hasEntryModule } from '../build-budget/isEntryModule.ts';
+import {
+  findDynamicEntryChunks,
+  hasEntryModule,
+} from '../build-budget/isEntryModule.ts';
 import { collectImportClosure } from './collectImportClosure.ts';
 import { toWorkerWrapperKey } from './hintPointKeys.ts';
 
@@ -31,9 +34,7 @@ interface HintPointValue {
 }
 
 const findDynamicEntryFileNames = (chunks: readonly PreloadChunkValue[], entry: string): string[] =>
-  chunks
-    .filter(chunk => chunk.isDynamicEntry && hasEntryModule(chunk.moduleIds, entry))
-    .map(chunk => chunk.fileName);
+  findDynamicEntryChunks(chunks, entry).map(chunk => chunk.fileName);
 
 const findEntryFileNames = (chunks: readonly PreloadChunkValue[], entry: string): string[] =>
   chunks.filter(chunk => chunk.isEntry && hasEntryModule(chunk.moduleIds, entry)).map(chunk => chunk.fileName);

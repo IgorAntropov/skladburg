@@ -7,10 +7,7 @@ import type {
 } from './bundleBudgetTypes.ts';
 
 import { assertValidForbiddenPackages } from './forbiddenPackages.ts';
-import { hasEntryModule } from './isEntryModule.ts';
-
-const findDynamicEntryChunks = (chunks: readonly BudgetChunkValue[], entry: string): BudgetChunkValue[] =>
-  chunks.filter(chunk => chunk.isDynamicEntry && hasEntryModule(chunk.moduleIds, entry));
+import { findDynamicEntryChunks } from './isEntryModule.ts';
 
 const collectInitialFileNames = (initialBundles: readonly InitialBundleValue[]): Set<string> =>
   new Set(initialBundles.flatMap(initialBundle => initialBundle.chunks.map(chunk => chunk.fileName)));

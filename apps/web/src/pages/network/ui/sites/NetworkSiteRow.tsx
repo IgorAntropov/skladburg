@@ -12,9 +12,9 @@ import {
 import type { NetworkMapSiteValue } from '@/entities/network';
 
 import { SideBadge } from '@/entities/organization';
+import { resolveScrollBehavior } from '@/shared/lib/scroll';
 import { AddressLink } from '@/shared/routing';
 
-import { resolveScrollBehavior } from '../../lib/resolveScrollBehavior';
 import { useNetworkMapStore } from '../../model/useNetworkMapStore';
 import { NETWORK_ROW_CLASS_NAME } from '../networkRowStyles';
 

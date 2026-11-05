@@ -49,6 +49,8 @@ export type CriticalPreloadWorkerPluginValue = Omit<Plugin, 'generateBundle'> & 
 };
 
 export interface PreloadChunkValue {
+  dynamicImports?: readonly string[] | undefined;
+  facadeModuleId?: null | string | undefined;
   fileName: string;
   imports: readonly string[];
   isDynamicEntry: boolean;

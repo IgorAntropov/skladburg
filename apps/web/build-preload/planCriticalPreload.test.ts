@@ -89,6 +89,14 @@ const plan = (overrides: Partial<CriticalPreloadPlanInputValue> = {}): ReturnTyp
   });
 
 describe('planCriticalPreload', () => {
+  it('preloads a dynamic import target whose entry flag was removed by wrapping', () => {
+    const chunks = CHUNKS.map(chunk => chunk.fileName === 'mount.js'
+      ? { ...chunk, dynamicImports: ['demo.js'] }
+      : chunk.fileName === 'demo.js' ? { ...chunk, isDynamicEntry: false } : chunk);
+
+    expect(plan({ chunks }).mainThreadFileNames).toEqual(['mount.js', 'errors.js', 'demo.js', 'constants.js', 'wrapper.js']);
+  });
+
   it('lists the main thread chunks in the order of the entries and then the wrapper of the worker', () => {
     expect(plan().mainThreadFileNames).toEqual(['mount.js', 'errors.js', 'demo.js', 'constants.js', 'wrapper.js']);
   });

@@ -15,11 +15,11 @@ import {
 import { VerificationBadge } from '@/entities/organization';
 import { useI18n } from '@/shared/i18n';
 import { formatMoney } from '@/shared/lib/money';
+import { resolveScrollBehavior } from '@/shared/lib/scroll';
 import { AddressLink } from '@/shared/routing';
 
 import { formatEtaDate } from '../../lib/formatEtaDate';
 import { formatListingQuantity } from '../../lib/formatListingQuantity';
-import { resolveScrollBehavior } from '../../lib/resolveScrollBehavior';
 import { useCatalogTexts } from '../../model/useCatalogTexts';
 import {
   CATALOG_ROW_AMOUNT_CLASS_NAME,

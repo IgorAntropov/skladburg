@@ -13,6 +13,8 @@ import type { CriticalPreloadEntryValue } from './build-preload/criticalPreloadT
 import { APP_BASE_PATH } from './build-base/appBasePath.ts';
 import { bootFallbackPlugin } from './build-boot-fallback/bootFallbackPlugin.ts';
 import { bundleBudgetPlugin } from './build-budget/bundleBudgetPlugin.ts';
+import { extractPackageName } from './build-budget/extractPackageName.ts';
+import { hasEntryModule } from './build-budget/isEntryModule.ts';
 import {
   DEV_HTTPS_ENV_PREFIX,
   resolveDevHttps,
@@ -37,6 +39,65 @@ import {
   MANIFEST_BACKGROUND_COLOR,
   THEME_COLOR_BY_THEME,
 } from './src/shared/theme/themeConstants.ts';
+
+const HUD_SHARED_MODULES = [
+  'src/shared/api/query/organizationQueryScope.ts',
+  'src/shared/routing/address/formatAddressPath.ts',
+  'src/shared/routing/react/useNavigate.ts',
+  'src/shared/theme/useThemePreference.ts',
+  'src/shared/ui/chunk-load-notice/ChunkLoadNotice.tsx',
+  'src/shared/ui/empty-state/EmptyState.tsx',
+  'src/shared/ui/tabs/Tabs.tsx',
+  'src/entities/organization/api/organizationKeys.ts',
+  'src/entities/organization/config/sideBadges.ts',
+  'src/widgets/object-inspector/ui/ObjectInspector.tsx',
+];
+
+const TOOLTIP_SHARED_MODULES = [
+  'src/shared/ui/action-button/AccessButton.tsx',
+  'src/shared/ui/action-button/ActionButton.tsx',
+  'src/shared/ui/action-button/CommandErrorNotice.tsx',
+  'src/shared/ui/tooltip/formatShortcut.ts',
+  'src/shared/ui/tooltip/Tooltip.tsx',
+  'src/shared/ui/tooltip/TooltipGroup.tsx',
+  'src/shared/ui/tooltip/TooltipGroupContext.ts',
+  'src/shared/ui/tooltip/tooltipStyles.ts',
+  'src/shared/ui/tooltip/tooltipTiming.ts',
+];
+
+const TOOLTIP_SHARED_PACKAGES = new Set([
+  '@floating-ui/core',
+  '@floating-ui/dom',
+  '@floating-ui/react-dom',
+  '@floating-ui/utils',
+  '@radix-ui/primitive',
+  '@radix-ui/react-compose-refs',
+  '@radix-ui/react-context',
+  '@radix-ui/react-dismissable-layer',
+  '@radix-ui/react-id',
+  '@radix-ui/react-popper',
+  '@radix-ui/react-portal',
+  '@radix-ui/react-presence',
+  '@radix-ui/react-primitive',
+  '@radix-ui/react-slot',
+  '@radix-ui/react-tooltip',
+  '@radix-ui/react-use-callback-ref',
+  '@radix-ui/react-use-controllable-state',
+  '@radix-ui/react-use-effect-event',
+  '@radix-ui/react-use-layout-effect',
+  '@radix-ui/react-use-size',
+  '@radix-ui/react-visually-hidden',
+]);
+
+const SIDE_SHAPE_MODULES = [
+  'src/entities/organization/config/sideShapes.ts',
+  'src/entities/organization/ui/SideShape.tsx',
+];
+
+const LIST_HELPER_MODULES = [
+  'src/entities/warehouse/api/warehouseKeys.ts',
+  'src/shared/lib/scroll/resolveScrollBehavior.ts',
+];
 
 const MAX_INITIAL_GZIP_KILOBYTES = 90;
 
@@ -494,6 +555,27 @@ export default defineConfig({
           groups: [
             { name: 'react', priority: 2, test: /[\\/]node_modules[\\/]react[\\/]/ },
             { name: 'zustand', priority: 1, test: /[\\/]node_modules[\\/]zustand[\\/]esm[\\/](?:index|vanilla|react)\.mjs$/ },
+            {
+              includeDependenciesRecursively: false,
+              name: 'hud-shared',
+              test: (moduleId: string): boolean => HUD_SHARED_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'tooltip',
+              test: (moduleId: string): boolean => TOOLTIP_SHARED_PACKAGES.has(extractPackageName(moduleId) ?? '')
+                || TOOLTIP_SHARED_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'side-shape',
+              test: (moduleId: string): boolean => SIDE_SHAPE_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'list-helpers',
+              test: (moduleId: string): boolean => LIST_HELPER_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
           ],
         },
       },

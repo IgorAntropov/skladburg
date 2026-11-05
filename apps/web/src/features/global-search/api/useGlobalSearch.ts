@@ -29,6 +29,7 @@ import {
   useActingOrganizationQuery,
 } from '@/entities/organization';
 import { useCan } from '@/entities/session';
+import { warehouseKeys } from '@/entities/warehouse';
 import {
   createOrganizationQueryMeta,
   getOrganizationScope,
@@ -115,7 +116,7 @@ export const useGlobalSearch = (query: string, organizationId: string | undefine
   const warehousesQuery = useQuery({
     meta: createOrganizationQueryMeta(organizationId, SITE_EVENT_CASES),
     queryFn: isSearchActive && sources.sites === 'warehouses' ? () => fetchSearchWarehouses(client) : skipToken,
-    queryKey: globalSearchKeys.warehouses(scope),
+    queryKey: warehouseKeys.list(scope),
   });
 
   const ownListingsQuery = useQuery({

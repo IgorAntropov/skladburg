@@ -51,6 +51,8 @@ export interface BundleBudgetContextValue {
 export type BundleBudgetOutputValue
   = | {
     code: string;
+    dynamicImports?: readonly string[] | undefined;
+    facadeModuleId?: null | string | undefined;
     fileName: string;
     imports: readonly string[];
     isDynamicEntry: boolean;
@@ -89,6 +91,8 @@ const toBudgetChunks = (bundle: Readonly<Record<string, BundleBudgetOutputValue>
     output.type === 'chunk'
       ? [
           {
+            dynamicImports: output.dynamicImports,
+            facadeModuleId: output.facadeModuleId,
             fileName: output.fileName,
             gzipBytes: gzipSizeInBytes(output.code),
             imports: output.imports,

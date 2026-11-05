@@ -88,6 +88,7 @@ import type { ApiRuntimeValue } from '@/shared/api';
 
 import { organizationKeys } from '@/entities/organization';
 import { sessionKeys } from '@/entities/session';
+import { warehouseKeys } from '@/entities/warehouse';
 import { ApiRuntimeProvider } from '@/shared/api';
 import {
   createTestRuntime,
@@ -373,6 +374,29 @@ describe('useGlobalSearch', () => {
     });
     expect(handlers.listMapSites).not.toHaveBeenCalled();
     expect(handlers.listOrganizationShowcases).not.toHaveBeenCalled();
+  });
+
+  it('shares warehouse updates with the warehouse cache instead of keeping a search copy', async () => {
+    const handlers = createHandlers();
+    const { queryClient, result } = renderSearch(STOREKEEPER, handlers, { organizationId: TEST_ORGANIZATION_ID, query: 'главный' });
+
+    await waitFor(() => {
+      expect(getGroupIds(result.current)).toEqual(['sites']);
+    });
+
+    expect(queryClient.getQueryData(warehouseKeys.list(TEST_ORGANIZATION_ID))).toEqual([
+      expect.objectContaining({ id: 'warehouse-1', name: 'Главный склад' }),
+    ]);
+
+    act(() => {
+      queryClient.setQueryData(warehouseKeys.list(TEST_ORGANIZATION_ID), [
+        create(WarehouseSchema, { cityId: 'city-rostov', id: 'warehouse-1', name: 'Главный обновлённый склад' }),
+      ]);
+    });
+
+    await waitFor(() => {
+      expect(result.current.groups[0]?.options[0]?.title).toBe('Главный обновлённый склад');
+    });
   });
 
   it('shows the local groups at once and waits for the delay before asking the server, once for the last query', async () => {

@@ -15,11 +15,11 @@ import {
 
 import { ProfileBadge } from '@/entities/organization';
 import { useI18n } from '@/shared/i18n';
+import { resolveScrollBehavior } from '@/shared/lib/scroll';
 import { AddressLink } from '@/shared/routing';
 
 import type { OrganizationDirectoryRowValue } from '../../lib/buildOrganizationDirectoryRows';
 
-import { resolveScrollBehavior } from '../../lib/resolveScrollBehavior';
 import { useNetworkMapStore } from '../../model/useNetworkMapStore';
 import { NETWORK_ROW_CLASS_NAME } from '../networkRowStyles';
 import { OrganizationOwnMark } from './OrganizationOwnMark';

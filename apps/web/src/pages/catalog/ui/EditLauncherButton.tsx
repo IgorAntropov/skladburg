@@ -3,11 +3,11 @@ import type { ReactElement } from 'react';
 import type { ButtonVariantValue } from '@/shared/ui';
 
 import { Button } from '@/shared/ui';
+import { ChunkLoadNotice } from '@/shared/ui';
 
 import type { EditLauncherValue } from '../model/useEditLauncher';
 
 import { useCatalogTexts } from '../model/useCatalogTexts';
-import { ChunkRecoveryNotice } from './ChunkRecoveryNotice';
 
 interface EditLauncherButtonProps {
   'data-testid': string;
@@ -50,7 +50,7 @@ export const EditLauncherButton = ({
         {label}
       </Button>
       {loadRecovery !== undefined && (
-        <ChunkRecoveryNotice
+        <ChunkLoadNotice
           message={failureMessage}
           onRetry={open}
           recovery={loadRecovery}

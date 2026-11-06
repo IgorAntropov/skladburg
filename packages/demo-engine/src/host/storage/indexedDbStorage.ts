@@ -20,7 +20,7 @@ import {
   ENGINE_COLLECTION_NAMES,
 } from '../../core/ports/index';
 
-export const INDEXED_DB_VERSION = 11;
+export const INDEXED_DB_VERSION = 12;
 
 const META_STORE_NAME = 'meta';
 const SCHEMA_VERSION_KEY = 'schemaVersion';
@@ -80,10 +80,24 @@ const openDatabase = (
   const request = factory.open(databaseName, version);
   let isSettled = false;
 
-  const handleUpgradeNeeded = (): void => {
+  const handleUpgradeNeeded = (event: IDBVersionChangeEvent): void => {
     if (isSettled) {
       request.transaction?.abort();
 
+      return;
+    }
+
+    if (event.oldVersion === 11 && event.newVersion === 12 && request.transaction !== null) {
+      for (const name of ['documentNumbers', 'documents']) {
+        request.result.createObjectStore(name);
+      }
+      const meta = request.transaction.objectStore(META_STORE_NAME);
+      const storedVersion = meta.get(SCHEMA_VERSION_KEY);
+      storedVersion.addEventListener('success', () => {
+        if (storedVersion.result === 13) {
+          meta.put(14, SCHEMA_VERSION_KEY);
+        }
+      });
       return;
     }
 

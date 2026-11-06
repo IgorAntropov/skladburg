@@ -6,6 +6,7 @@ import { CatalogService } from '@skladburg/contracts/catalog/v1/catalog';
 import { ShowcaseService } from '@skladburg/contracts/catalog/v1/showcase';
 import { ClockService } from '@skladburg/contracts/clock/v1/clock';
 import { DealService } from '@skladburg/contracts/deal/v1/deal';
+import { DocumentService } from '@skladburg/contracts/document/v1/document';
 import { ImportService } from '@skladburg/contracts/import/v1/import';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
@@ -21,6 +22,7 @@ export const ENGINE_SERVICES: readonly DescService[] = [
   ShowcaseService,
   ClockService,
   DealService,
+  DocumentService,
   ImportService,
   NetworkService,
   NotificationService,

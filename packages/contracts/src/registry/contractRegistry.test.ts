@@ -41,6 +41,7 @@ import {
 } from '@bufbuild/protovalidate/gen/buf/validate/validate_pb.js';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { inflateSync } from 'node:zlib';
 import {
   describe,
   expect,
@@ -48,6 +49,7 @@ import {
 } from 'vitest';
 
 import { CONTRACT_IMAGE_BASE64 } from '../gen/contract_image';
+import { CONTRACT_IMAGE_BASE64 as COMPRESSED_CONTRACT_IMAGE_BASE64 } from '../gen/contract_image_deflate';
 import {
   CreateWarehouseRequestSchema,
   file_organization_v1_organization,
@@ -252,4 +254,10 @@ describe('getRuleSchema', () => {
 
     expect(() => getRuleSchema(emptyRegistry, CreateWarehouseRequestSchema)).toThrow('organization.v1.CreateWarehouseRequest');
   });
+});
+
+it('embeds the same descriptor bytes in the compressed image', () => {
+  const compressed = base64Decode(COMPRESSED_CONTRACT_IMAGE_BASE64);
+  const bytes = base64Decode(CONTRACT_IMAGE_BASE64);
+  expect(new Uint8Array(inflateSync(compressed))).toEqual(bytes);
 });

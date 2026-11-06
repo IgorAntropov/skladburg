@@ -19,6 +19,10 @@ import type {
   SupplyContract,
 } from '@skladburg/contracts/deal/v1/deal';
 import type {
+  Document,
+  DocumentNumberSequence,
+} from '@skladburg/contracts/document/v1/document';
+import type {
   City,
   MapNode,
   RouteLeg,
@@ -60,6 +64,10 @@ import {
   DealSchema,
   SupplyContractSchema,
 } from '@skladburg/contracts/deal/v1/deal';
+import {
+  DocumentNumberSequenceSchema,
+  DocumentSchema,
+} from '@skladburg/contracts/document/v1/document';
 import {
   CitySchema,
   MapNodeSchema,
@@ -140,6 +148,8 @@ export interface TableIndexesValue {
   cities: never;
   dealReminderMarks: never;
   deals: 'customerOrganizationId' | 'supplierOrganizationId';
+  documentNumbers: never;
+  documents: 'dealId';
   idempotency: never;
   importJobs: 'tenantId';
   listingPrices: 'tenantId';
@@ -174,6 +184,8 @@ export interface TableRecordsValue {
   cities: City;
   dealReminderMarks: DealReminderMarkValue;
   deals: Deal;
+  documentNumbers: DocumentNumberSequence;
+  documents: Document;
   idempotency: IdempotencyRecordValue;
   importJobs: ImportRecordValue;
   listingPrices: ListingPrice;
@@ -246,6 +258,8 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
     deal => deal.id,
     { customerOrganizationId: deal => deal.customerOrganizationId,
       supplierOrganizationId: deal => deal.supplierOrganizationId }),
+  documentNumbers: defineMessageTable(DocumentNumberSequenceSchema, sequence => sequence.id, {}),
+  documents: defineMessageTable(DocumentSchema, document => document.id, { dealId: document => document.dealId }),
   idempotency: defineRecordTable(parseIdempotencyRecord, serializeIdempotencyRecord),
   importJobs: {
     ...defineRecordTable(parseImportRecord, serializeImportRecord),

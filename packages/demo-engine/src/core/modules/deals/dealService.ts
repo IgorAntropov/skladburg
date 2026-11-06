@@ -26,6 +26,7 @@ import {
 import type { IStateTransaction } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
+import { loadDocuments } from '../documents/loadDocuments';
 import { paginate } from '../pagination';
 import { readVisibleDeal } from './dealAccess';
 import { runDealCommand } from './dealCommand';
@@ -52,36 +53,46 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
       runtime.guard.guardPermissionCall(runtime.read, DealService.method.acceptDeal, request, context.requestHeader);
       throw runtime.errors.unavailable();
     },
-    cancelDeal: (request, context) => runDealCommand(runtime, {
-      command: 'cancelDeal',
-      handle: (transaction, _caller, deal) => endNegotiation(transaction, deal),
-      headers: context.requestHeader,
-      method: DealService.method.cancelDeal,
-      notice: DealNotice.CANCELLED,
-      reason: request.reason,
-      request,
-      response: deal => create(CancelDealResponseSchema, { deal }),
-    }),
-    chooseDelivery: (request, context) => runDealCommand(runtime, {
-      command: 'chooseDelivery',
-      handle: (_transaction, _caller, deal) => {
-        if (request.deliveryMethod === DeliveryMethod.EXCHANGE
-          || (request.deliveryMethod === DeliveryMethod.SUPPLIER && deal.deliveryTotal === undefined)) {
-          failDealValidation(runtime.errors, 'delivery_method', 'deal.delivery_method.unavailable');
-        }
-        const next = clone(DealSchema, deal);
-        next.deliveryMethod = request.deliveryMethod;
-        if (request.deliveryMethod === DeliveryMethod.CUSTOMER) {
-          next.deliveryTotal = rub(0n);
-        }
-        return next;
-      },
-      headers: context.requestHeader,
-      method: DealService.method.chooseDelivery,
-      notice: undefined,
-      request,
-      response: deal => create(ChooseDeliveryResponseSchema, { deal }),
-    }),
+    cancelDeal: async (request, context) => {
+      const { annulDealDocuments } = await loadDocuments();
+      return runDealCommand(runtime, {
+        command: 'cancelDeal',
+        handle: (transaction, _caller, deal) => {
+          annulDealDocuments(transaction, deal);
+          return endNegotiation(transaction, deal);
+        },
+        headers: context.requestHeader,
+        method: DealService.method.cancelDeal,
+        notice: DealNotice.CANCELLED,
+        reason: request.reason,
+        request,
+        response: deal => create(CancelDealResponseSchema, { deal }),
+      });
+    },
+    chooseDelivery: async (request, context) => {
+      const { issueDealDocuments } = await loadDocuments();
+      return runDealCommand(runtime, {
+        command: 'chooseDelivery',
+        handle: (transaction, _caller, deal) => {
+          if (request.deliveryMethod === DeliveryMethod.EXCHANGE
+            || (request.deliveryMethod === DeliveryMethod.SUPPLIER && deal.deliveryTotal === undefined)) {
+            failDealValidation(runtime.errors, 'delivery_method', 'deal.delivery_method.unavailable');
+          }
+          const next = clone(DealSchema, deal);
+          next.deliveryMethod = request.deliveryMethod;
+          if (request.deliveryMethod === DeliveryMethod.CUSTOMER) {
+            next.deliveryTotal = rub(0n);
+          }
+          issueDealDocuments(runtime, transaction, next);
+          return next;
+        },
+        headers: context.requestHeader,
+        method: DealService.method.chooseDelivery,
+        notice: DealNotice.DOCUMENTS_READY,
+        request,
+        response: deal => create(ChooseDeliveryResponseSchema, { deal }),
+      });
+    },
     getDeal: (request, context) => {
       const caller = runtime.guard.guardPermissionCall(runtime.read, DealService.method.getDeal, request, context.requestHeader);
       const deal = readVisibleDeal(runtime.read, runtime.errors, request.dealId, caller);

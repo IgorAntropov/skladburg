@@ -29,6 +29,8 @@ export const ENGINE_COLLECTION_NAMES = [
   'salesTerms',
   'deals',
   'dealReminderMarks',
+  'documentNumbers',
+  'documents',
   'supplyContracts',
   'productLinks',
 ] as const;
@@ -77,6 +79,8 @@ export const createEmptyCollections = (): Record<EngineCollectionName, EngineCol
   cities: new Map(),
   dealReminderMarks: new Map(),
   deals: new Map(),
+  documentNumbers: new Map(),
+  documents: new Map(),
   idempotency: new Map(),
   importJobs: new Map(),
   listingPrices: new Map(),

@@ -31,6 +31,7 @@ import {
   ErrorDetailSchema,
 } from '@skladburg/contracts/common/v1/error';
 import { DealService } from '@skladburg/contracts/deal/v1/deal';
+import { DocumentService } from '@skladburg/contracts/document/v1/document';
 import { ImportService } from '@skladburg/contracts/import/v1/import';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
@@ -52,6 +53,7 @@ import {
 } from '../catalog/index';
 import { createClockService } from '../clock/index';
 import { createDealService } from '../deals/index';
+import { createDocumentService } from '../documents/index';
 import {
   createAccessService,
   createOrganizationRequisitesService,
@@ -145,6 +147,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(CatalogService, createCatalogService(testRuntime.runtime));
     service(ShowcaseService, createCatalogShowcaseService(testRuntime.runtime));
     service(DealService, createDealService(testRuntime.runtime));
+    service(DocumentService, createDocumentService(testRuntime.runtime));
     service(ClockService, createClockService(testRuntime.runtime, () => testRuntime.clock.getSnapshot()));
     const validator = createRequestValidator(testRuntime.runtime.errors, getContractRegistry());
     service(ImportService, createImportService(testRuntime.runtime, validator));

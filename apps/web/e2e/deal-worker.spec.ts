@@ -7,6 +7,10 @@ import {
   ErrorDetailSchema,
 } from '@skladburg/contracts/common/v1/error';
 import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
+import {
+  DocumentStatus,
+  DocumentType,
+} from '@skladburg/contracts/document/v1/document';
 import { DealNotice } from '@skladburg/contracts/notification/v1/notification';
 import {
   dealChannel,
@@ -175,6 +179,22 @@ test('negotiates between two Workers, keeps drafts private and restores the agre
     await expect.poll(async () => (await customer.readEvents(customerDeal.id)).map(event => event.seq)).toEqual([3n, 4n, 5n]);
     expect((await supplier.readEvents(supplierDeal.id)).map(event => event.epoch)).toEqual([epoch, epoch, epoch]);
     expect(await dealNotices(supplier, draft.id)).toContain(DealNotice.CONFIRMED);
+    const { documents } = await supplier.documents.listDealDocuments({ dealId: chosen.id });
+    const contract = documents.find(document => document.type === DocumentType.SUPPLY_CONTRACT);
+    if (contract === undefined) {
+      throw new Error('The first deal must have a supply contract draft');
+    }
+    expect(documents).toHaveLength(3);
+    const first = await supplier.documents.signSupplyContract({
+      dealId: chosen.id, documentId: contract.id, expectedVersion: contract.version, idempotencyKey: randomUUID(),
+    });
+    expect(first.document).toMatchObject({ number: 1, status: DocumentStatus.APPROVED });
+    const second = await customer.documents.signSupplyContract({
+      dealId: chosen.id, documentId: contract.id, expectedVersion: 2, idempotencyKey: randomUUID(),
+    });
+    expect(second.document).toMatchObject({ number: 1, status: DocumentStatus.SIGNED });
+    expect(second.document?.signatures[0]?.contentSha256).toMatch(/^[a-f0-9]{64}$/u);
+    expect(second.document?.signatures[0]?.contentSha256).toBe(second.document?.signatures[1]?.contentSha256);
     await supplier.stop();
     await customer.stop();
     hasStoppedWorkers = true;
@@ -200,6 +220,8 @@ test('negotiates between two Workers, keeps drafts private and restores the agre
     const response = await restored.deals.getDeal({ dealId: saved.id });
     expect(response.deal).toMatchObject({ id: saved.id, status: DealStatus.LOGISTICS_CHOSEN, version: 5 });
     expect(response.contract?.id).toBe(saved.contractId);
+    const restoredDocuments = await restored.documents.listDealDocuments({ dealId: saved.id });
+    expect(restoredDocuments.documents[0]).toMatchObject({ number: 1, status: DocumentStatus.SIGNED, type: DocumentType.SUPPLY_CONTRACT });
     const subscription = await restored.subscribe(dealChannel(saved.id));
     expect(subscription).toMatchObject({ epoch: restoredEpoch, kind: 'subscribed' });
     const cancelled = requireDeal((await restored.deals.cancelDeal({

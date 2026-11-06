@@ -480,6 +480,39 @@ describe('createIndexedDbStorage when another connection changes the version', (
 });
 
 describe('createIndexedDbStorage over a database of the previous version', () => {
+  it('preserves a v11 database while adding document stores and upgrading the schema header', async () => {
+    const factory = new IDBFactory();
+    const seed = createSeedSnapshot();
+    const dealBytes = Uint8Array.of(10, 1, 97);
+    const request = factory.open(DATABASE_NAME, 11);
+    request.addEventListener('upgradeneeded', () => {
+      for (const name of Object.keys(seed.collections).filter(name => name !== 'documents' && name !== 'documentNumbers')) {
+        request.result.createObjectStore(name);
+      }
+      const meta = request.result.createObjectStore('meta');
+      meta.put(13, 'schemaVersion');
+      meta.put(seed.meta, 'engineMeta');
+      request.transaction?.objectStore('deals').put(dealBytes, 'a');
+    });
+    const old = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.addEventListener('success', () => {
+        resolve(request.result);
+      });
+      request.addEventListener('error', () => {
+        reject(request.error ?? new Error('The v11 test database did not open'));
+      });
+    });
+    old.close();
+
+    const storage = await openStorage(factory);
+    const loaded = await storage.load();
+    expect(loaded?.schemaVersion).toBe(14);
+    expect(loaded?.meta).toEqual(seed.meta);
+    expect(loaded?.collections.deals.get('a')).toEqual(dealBytes);
+    expect(loaded?.collections.documents.size).toBe(0);
+    expect(loaded?.collections.documentNumbers.size).toBe(0);
+  });
+
   it('recreates the stores with the map nodes, drops the old records and stays writable after the upgrade', async () => {
     const factory = new IDBFactory();
     await createLegacyDatabase(factory);

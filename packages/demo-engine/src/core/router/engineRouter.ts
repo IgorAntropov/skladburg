@@ -18,6 +18,7 @@ import { CatalogService } from '@skladburg/contracts/catalog/v1/catalog';
 import { ShowcaseService } from '@skladburg/contracts/catalog/v1/showcase';
 import { ClockService } from '@skladburg/contracts/clock/v1/clock';
 import { DealService } from '@skladburg/contracts/deal/v1/deal';
+import { DocumentService } from '@skladburg/contracts/document/v1/document';
 import { ImportService } from '@skladburg/contracts/import/v1/import';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
@@ -35,6 +36,7 @@ export interface CreateEngineHandlerOptionsValue {
   catalogShowcaseService: ServiceImpl<typeof ShowcaseService>;
   clockService: ServiceImpl<typeof ClockService>;
   dealService: ServiceImpl<typeof DealService>;
+  documentService: ServiceImpl<typeof DocumentService>;
   errors: IDomainErrors;
   importService: ServiceImpl<typeof ImportService>;
   networkService: ServiceImpl<typeof NetworkService>;
@@ -82,6 +84,7 @@ export const createEngineHandler = (options: CreateEngineHandlerOptionsValue): E
   router.service(ShowcaseService, options.catalogShowcaseService);
   router.service(ClockService, options.clockService);
   router.service(DealService, options.dealService);
+  router.service(DocumentService, options.documentService);
   router.service(ImportService, options.importService, { readMaxBytes: 6 * 1024 * 1024, writeMaxBytes: 4 * 1024 * 1024 });
   router.service(NetworkService, options.networkService);
   router.service(NotificationService, options.notificationService);

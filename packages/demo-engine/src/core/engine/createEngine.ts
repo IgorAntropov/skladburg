@@ -1,4 +1,11 @@
-import { getContractRegistry } from '@skladburg/contracts/registry';
+import type { FileRegistry } from '@bufbuild/protobuf';
+
+import { base64Decode } from '@bufbuild/protobuf/wire';
+import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
+import {
+  COMPRESSED_CONTRACT_IMAGE_BASE64,
+  createContractRegistry,
+} from '@skladburg/contracts/registry';
 
 import type { EngineSubscriptionValue } from '../events/index';
 import type { IModuleRuntime } from '../modules/index';
@@ -22,6 +29,10 @@ import {
   createSubscriptionAccess,
 } from '../events/index';
 import { createIdempotencyGuard } from '../idempotency/index';
+import {
+  createDeferredDocumentService,
+  loadDocuments,
+} from '../modules/documents/loadDocuments';
 import {
   createAccessService,
   createCatalogService,
@@ -69,6 +80,23 @@ import {
 } from './commandRunner';
 import { SeedLoadError } from './SeedLoadError';
 import { createSwitchableRandom } from './switchableRandom';
+
+let contractRegistry: FileRegistry | undefined;
+
+const getEngineContractRegistry = async (): Promise<FileRegistry> => {
+  if (contractRegistry === undefined) {
+    const compressed = new ReadableStream<Uint8Array<ArrayBuffer>>({
+      start: (controller) => {
+        controller.enqueue(Uint8Array.from(base64Decode(COMPRESSED_CONTRACT_IMAGE_BASE64)));
+        controller.close();
+      },
+    });
+    const stream = compressed.pipeThrough(new DecompressionStream('deflate'));
+    const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+    contractRegistry = createContractRegistry(bytes);
+  }
+  return contractRegistry;
+};
 
 const createClockFromMeta = (meta: EngineMetaValue, realTime: IRealTimeSource): IClock =>
   createScaledClock({ initial: { timeScale: meta.timeScale, worldTimeMs: meta.worldTimeMs }, realTime });
@@ -163,7 +191,7 @@ export const createEngineWithTasks = async (
     state,
     storage,
   });
-  const validator = createRequestValidator(errors, getContractRegistry());
+  const validator = createRequestValidator(errors, await getEngineContractRegistry());
   const runtime: IModuleRuntime = {
     command,
     errors,
@@ -185,6 +213,7 @@ export const createEngineWithTasks = async (
     catalogShowcaseService: createCatalogShowcaseService(runtime),
     clockService: createClockService(runtime, () => clock.getSnapshot()),
     dealService: createDealService(runtime),
+    documentService: createDeferredDocumentService(runtime),
     errors,
     importService: createImportService(runtime, validator),
     networkService: createNetworkService(runtime),
@@ -207,6 +236,14 @@ export const createEngineWithTasks = async (
 
   for (const task of createTasks(runtime)) {
     scheduler.register(task);
+  }
+
+  const legacyDeals = state.read.list('deals').filter(
+    deal => deal.status === DealStatus.LOGISTICS_CHOSEN && state.read.listBy('documents', 'dealId', deal.id).length === 0,
+  );
+  if (legacyDeals.length > 0) {
+    const { restoreDealDocuments } = await loadDocuments();
+    await restoreDealDocuments(runtime, legacyDeals);
   }
 
   const handle = (request: Request): Promise<Response> => queue.enqueue(() => handler(request));

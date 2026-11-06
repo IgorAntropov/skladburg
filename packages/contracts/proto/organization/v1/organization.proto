@@ -68,6 +68,12 @@ enum AssistantAddressForm {
   ASSISTANT_ADDRESS_FORM_INFORMAL = 2;
 }
 
+message DocumentNumberPrefixes {
+  string supply_contract = 1;
+  string specification = 2;
+  string invoice = 3;
+}
+
 message OrganizationSettings {
   string organization_id = 1;
   string brand_name = 2;
@@ -75,6 +81,7 @@ message OrganizationSettings {
   repeated string available_locales = 4;
   repeated LocaleTermOverrides term_overrides = 5;
   AssistantAddressForm assistant_address_form = 6;
+  DocumentNumberPrefixes document_number_prefixes = 7;
 }
 
 enum WarehouseCapability {

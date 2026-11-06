@@ -5,6 +5,7 @@ import { createClient } from '@connectrpc/connect';
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { ShowcaseService } from '@skladburg/contracts/catalog/v1/showcase';
 import { DealService } from '@skladburg/contracts/deal/v1/deal';
+import { DocumentService } from '@skladburg/contracts/document/v1/document';
 import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
 
 import type {
@@ -26,6 +27,7 @@ export const DEAL_SUPPLIER: WorkerActingContextValue = {
 
 export interface DealWorkerRobotValue extends EngineWorkerRobotValue {
   deals: Client<typeof DealService>;
+  documents: Client<typeof DocumentService>;
   notifications: Client<typeof NotificationService>;
   showcase: Client<typeof ShowcaseService>;
 }
@@ -48,6 +50,7 @@ export const createDealWorkerRobot = async (
   return {
     ...worker,
     deals: createClient(DealService, transport),
+    documents: createClient(DocumentService, transport),
     notifications: createClient(NotificationService, transport),
     showcase: createClient(ShowcaseService, transport),
   };

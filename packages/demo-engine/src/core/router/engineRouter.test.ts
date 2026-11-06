@@ -72,6 +72,7 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
       confirmDeal: unused, counterDeal: unused, createDealDraft: unused, getDeal: unused, listDeals: unused,
       markDealShipped: unused, rejectCounterOffer: unused, rejectDeal: unused, submitDeal: unused, updateDealDraft: unused,
     },
+    documentService: { getDocument: unused, listDealDocuments: unused, signDocument: unused, signSupplyContract: unused },
     errors,
     importService: {
       commitImport: unused, getImportJob: unused, getImportTemplate: unused,

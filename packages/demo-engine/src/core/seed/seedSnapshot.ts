@@ -76,6 +76,8 @@ export const createSeedRecords = (): SeedRecordsValue => ({
   cities: createSeedCities(),
   dealReminderMarks: [],
   deals: [],
+  documentNumbers: [],
+  documents: [],
   idempotency: [],
   importJobs: [],
   listingPrices: createSeedListingPrices(),

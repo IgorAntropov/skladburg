@@ -282,6 +282,8 @@ const MAX_ENGINE_XLSX_GZIP_KILOBYTES = 25.54;
 
 const MAX_ENGINE_CSV_GZIP_KILOBYTES = 2;
 
+const MAX_ENGINE_DOCUMENTS_GZIP_KILOBYTES = 4;
+
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
 const PRECACHE_GLOB_PATTERNS = ['**/*.{js,css,html,woff2,svg,png,bin}', 'templates/catalog-template.xlsx'];
@@ -382,6 +384,13 @@ const ENGINE_WORKER_BUDGET = {
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_CSV_GZIP_KILOBYTES,
       name: 'engine-csv',
+    },
+    {
+      baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/modules/documents/index.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_DOCUMENTS_GZIP_KILOBYTES,
+      name: 'engine-documents',
     },
     {
       baseline: 'engine',

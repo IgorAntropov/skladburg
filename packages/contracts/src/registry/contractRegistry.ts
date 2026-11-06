@@ -31,8 +31,8 @@ const IMPORTED_FILES: readonly DescFile[] = [
 
 let cachedRegistry: FileRegistry | undefined;
 
-const buildContractRegistry = (): FileRegistry => {
-  const image = fromBinary(FileDescriptorSetSchema, base64Decode(CONTRACT_IMAGE_BASE64));
+export const createContractRegistry = (bytes: Uint8Array): FileRegistry => {
+  const image = fromBinary(FileDescriptorSetSchema, bytes);
 
   return createFileRegistry(create(FileDescriptorSetSchema, {
     file: [...IMPORTED_FILES.map(file => file.proto), ...image.file],
@@ -40,7 +40,7 @@ const buildContractRegistry = (): FileRegistry => {
 };
 
 export const getContractRegistry = (): FileRegistry => {
-  cachedRegistry ??= buildContractRegistry();
+  cachedRegistry ??= createContractRegistry(base64Decode(CONTRACT_IMAGE_BASE64));
 
   return cachedRegistry;
 };

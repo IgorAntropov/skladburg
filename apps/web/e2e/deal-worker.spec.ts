@@ -12,6 +12,7 @@ import {
   DocumentType,
 } from '@skladburg/contracts/document/v1/document';
 import { DealNotice } from '@skladburg/contracts/notification/v1/notification';
+import { SafeDealPaymentStatus } from '@skladburg/contracts/payment/v1/payment';
 import {
   dealChannel,
   organizationChannel,
@@ -272,5 +273,69 @@ test('keeps a draft cancelled before submission invisible to the supplier after 
   finally {
     await supplier.stop();
     await supplierPage.close();
+  }
+});
+
+test('keeps a pending bank operation in IndexedDB and cancels it after Worker restart', async ({ context, page }) => {
+  const supplierPage = await context.newPage();
+  const customer = await createDealWorkerRobot(page, DEAL_CUSTOMER);
+  const supplier = await createDealWorkerRobot(supplierPage, DEAL_SUPPLIER);
+  let dealId: string;
+  try {
+    const draft = await createDraft(customer);
+    dealId = draft.id;
+    const submitted = requireDeal((await customer.deals.submitDeal({
+      dealId, expectedVersion: draft.version, goodsTotal: draft.goodsTotal, idempotencyKey: randomUUID(),
+    })).deal);
+    const agreed = requireDeal((await supplier.deals.confirmDeal({
+      dealId, expectedVersion: submitted.version, goodsTotal: submitted.goodsTotal, idempotencyKey: randomUUID(),
+      shipFromWarehouseId: SUPPLIER_WAREHOUSE_ID,
+    })).deal);
+    await customer.deals.chooseDelivery({
+      dealId, deliveryMethod: DeliveryMethod.CUSTOMER, expectedVersion: agreed.version, idempotencyKey: randomUUID(),
+    });
+    const { documents } = await supplier.documents.listDealDocuments({ dealId });
+    expect(documents).toHaveLength(3);
+    for (const document of documents) {
+      const request = { dealId, documentId: document.id, expectedVersion: document.version, idempotencyKey: randomUUID() };
+      const confirmation = { ...request, expectedVersion: document.version + 1, idempotencyKey: randomUUID() };
+      if (document.type === DocumentType.SUPPLY_CONTRACT) {
+        await supplier.documents.signSupplyContract(request);
+        await customer.documents.signSupplyContract(confirmation);
+      }
+      else {
+        await supplier.documents.signDocument(request);
+        await customer.documents.signDocument(confirmation);
+      }
+    }
+    const { payment } = await customer.payments.getDealPayment({ dealId });
+    expect(payment).toMatchObject({ status: SafeDealPaymentStatus.INVOICED, version: 1 });
+    const fund = { amount: agreed.goodsTotal, dealId, expectedVersion: 1, idempotencyKey: randomUUID() };
+    const funded = await customer.payments.fundDeal(fund);
+    expect(funded.payment?.status).toBe(SafeDealPaymentStatus.AWAITING_FUNDS);
+    expect(await customer.payments.fundDeal(fund)).toEqual(funded);
+    expect((await supplier.payments.getDealPayment({ dealId })).payment).toEqual(funded.payment);
+  }
+  finally {
+    await supplier.stop();
+    await customer.stop();
+    await supplierPage.close();
+  }
+
+  const restored = await createDealWorkerRobot(page, DEAL_CUSTOMER);
+  try {
+    const awaiting = requireDeal((await restored.deals.getDeal({ dealId })).deal);
+    expect(await restored.payments.getDealPayment({ dealId })).toMatchObject({
+      payment: { status: SafeDealPaymentStatus.AWAITING_FUNDS },
+    });
+    await restored.deals.cancelDeal({
+      dealId, expectedVersion: awaiting.version, idempotencyKey: randomUUID(), reason: 'Поставка больше не требуется',
+    });
+    expect(await restored.payments.getDealPayment({ dealId })).toMatchObject({
+      payment: { payouts: [], status: SafeDealPaymentStatus.REFUNDED },
+    });
+  }
+  finally {
+    await restored.stop();
   }
 });

@@ -13,6 +13,7 @@ import { NotificationService } from '@skladburg/contracts/notification/v1/notifi
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import { OrganizationRequisitesService } from '@skladburg/contracts/organization/v1/requisites';
 import { OrganizationShowcaseService } from '@skladburg/contracts/organization/v1/showcase';
+import { PaymentService } from '@skladburg/contracts/payment/v1/payment';
 import { SupportAccessService } from '@skladburg/contracts/support/v1/support_access';
 import { SupportTicketService } from '@skladburg/contracts/support/v1/support_ticket';
 
@@ -29,6 +30,7 @@ export const ENGINE_SERVICES: readonly DescService[] = [
   OrganizationRequisitesService,
   OrganizationService,
   OrganizationShowcaseService,
+  PaymentService,
   SupportAccessService,
   SupportTicketService,
   UserProfileService,

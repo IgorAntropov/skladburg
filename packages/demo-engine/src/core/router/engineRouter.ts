@@ -25,6 +25,7 @@ import { NotificationService } from '@skladburg/contracts/notification/v1/notifi
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import { OrganizationRequisitesService } from '@skladburg/contracts/organization/v1/requisites';
 import { OrganizationShowcaseService } from '@skladburg/contracts/organization/v1/showcase';
+import { PaymentService } from '@skladburg/contracts/payment/v1/payment';
 import { SupportAccessService } from '@skladburg/contracts/support/v1/support_access';
 import { SupportTicketService } from '@skladburg/contracts/support/v1/support_ticket';
 
@@ -44,6 +45,7 @@ export interface CreateEngineHandlerOptionsValue {
   organizationRequisitesService: ServiceImpl<typeof OrganizationRequisitesService>;
   organizationService: ServiceImpl<typeof OrganizationService>;
   organizationShowcaseService: ServiceImpl<typeof OrganizationShowcaseService>;
+  paymentService: ServiceImpl<typeof PaymentService>;
   supportAccessService: ServiceImpl<typeof SupportAccessService>;
   supportAudit: Interceptor;
   supportTicketService: ServiceImpl<typeof SupportTicketService>;
@@ -91,6 +93,7 @@ export const createEngineHandler = (options: CreateEngineHandlerOptionsValue): E
   router.service(OrganizationService, options.organizationService);
   router.service(OrganizationRequisitesService, options.organizationRequisitesService);
   router.service(OrganizationShowcaseService, options.organizationShowcaseService);
+  router.service(PaymentService, options.paymentService);
   router.service(SupportAccessService, options.supportAccessService);
   router.service(SupportTicketService, options.supportTicketService);
   router.service(UserProfileService, options.userProfileService);

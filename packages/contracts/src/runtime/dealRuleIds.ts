@@ -9,6 +9,7 @@ export const DEAL_RULE_IDS = [
   'deal.quantity.unavailable',
   'deal.same_organization',
   'deal.warehouse.unavailable',
+  'payment.amount.mismatch',
 ] as const;
 
 export type DealRuleId = typeof DEAL_RULE_IDS[number];

@@ -36,12 +36,6 @@ interface PreparedYearValue {
   year: number;
 }
 
-interface ResolvedDayValue {
-  basis: CalendarDayBasisValue | undefined;
-  kind: CalendarDayKindValue;
-  version: string;
-}
-
 export class BusinessCalendarDataError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
@@ -151,50 +145,39 @@ export const createBusinessCalendar = (years: readonly BusinessCalendarYearValue
   const coveredYears: readonly number[] = preparedYears.map(preparedYear => preparedYear.year);
 
   const findYear = (epochDay: number): PreparedYearValue => {
-    const found = preparedYears.find(preparedYear => epochDay >= preparedYear.startEpochDay && epochDay < preparedYear.endEpochDay);
-
-    if (found === undefined) {
-      const year = String(fromEpochDay(epochDay).year);
-
-      throw new BusinessCalendarRangeError(`Business calendar does not cover the year ${year}; covered: ${coveredYears.join(', ')}`);
+    for (const preparedYear of preparedYears) {
+      if (epochDay >= preparedYear.startEpochDay && epochDay < preparedYear.endEpochDay) {
+        return preparedYear;
+      }
     }
+    const year = String(fromEpochDay(epochDay).year);
 
-    return found;
+    throw new BusinessCalendarRangeError(`Business calendar does not cover the year ${year}; covered: ${coveredYears.join(', ')}`);
   };
 
   const assertCovered = (epochDay: number): void => {
     findYear(epochDay);
   };
 
-  const resolveDay = (epochDay: number): ResolvedDayValue => {
-    const preparedYear = findYear(epochDay);
-    const exception = preparedYear.exceptions.get(epochDay);
+  const resolveDayKind = (epochDay: number, exception: PreparedExceptionValue | undefined): CalendarDayKindValue =>
+    exception?.kind ?? (getIsoWeekdayOfEpochDay(epochDay) >= FIRST_WEEKEND_ISO_WEEKDAY ? CalendarDayKind.WEEKEND : CalendarDayKind.WORKING);
 
-    if (exception !== undefined) {
-      return { basis: exception.basis, kind: exception.kind, version: preparedYear.version };
-    }
-
-    const isWeekend = getIsoWeekdayOfEpochDay(epochDay) >= FIRST_WEEKEND_ISO_WEEKDAY;
-
-    return {
-      basis: undefined,
-      kind: isWeekend ? CalendarDayKind.WEEKEND : CalendarDayKind.WORKING,
-      version: preparedYear.version,
-    };
-  };
-
-  const isWorkingEpochDay = (epochDay: number): boolean => isKindWorking(resolveDay(epochDay).kind);
+  const isWorkingEpochDay = (epochDay: number): boolean =>
+    isKindWorking(resolveDayKind(epochDay, findYear(epochDay).exceptions.get(epochDay)));
 
   const getCalendarDay = (date: CalendarDateValue): CalendarDayValue => {
-    const resolved = resolveDay(toEpochDay(date));
+    const epochDay = toEpochDay(date);
+    const preparedYear = findYear(epochDay);
+    const exception = preparedYear.exceptions.get(epochDay);
+    const kind = resolveDayKind(epochDay, exception);
 
     return {
-      basis: resolved.basis,
+      basis: exception?.basis,
       date: { day: date.day, month: date.month, year: date.year },
-      isWorking: isKindWorking(resolved.kind),
-      kind: resolved.kind,
-      version: resolved.version,
-      workingHours: WORKING_HOURS_BY_KIND[resolved.kind],
+      isWorking: isKindWorking(kind),
+      kind,
+      version: preparedYear.version,
+      workingHours: WORKING_HOURS_BY_KIND[kind],
     };
   };
 

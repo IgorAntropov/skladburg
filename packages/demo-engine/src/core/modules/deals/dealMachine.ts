@@ -22,10 +22,18 @@ export const DEAL_TRANSITIONS = {
     [DealStatus.ARRIVED]: transition(DealStatus.ACCEPTED, 'customer', 'document_sign'),
   },
   arrive: { [DealStatus.IN_TRANSIT]: transition(DealStatus.ARRIVED, 'system', '') },
-  cancelDeal: Object.fromEntries([
-    DealStatus.DRAFT, DealStatus.SUBMITTED, DealStatus.COUNTER_OFFERED, DealStatus.AGREED,
-    DealStatus.AWAITING_LOGISTICS, DealStatus.LOGISTICS_CHOSEN, DealStatus.DOCUMENTS_CONFIRMED, DealStatus.AWAITING_PAYMENT,
-  ].map(status => [status, transition(DealStatus.CANCELLED, 'either', 'deal_edit')])),
+  autoAccept: {
+    [DealStatus.ACCEPTING]: transition(DealStatus.ACCEPTED, 'system', ''),
+    [DealStatus.ARRIVED]: transition(DealStatus.ACCEPTED, 'system', ''),
+  },
+  cancelDeal: {
+    ...Object.fromEntries([
+      DealStatus.DRAFT, DealStatus.SUBMITTED, DealStatus.COUNTER_OFFERED, DealStatus.AGREED,
+      DealStatus.AWAITING_LOGISTICS, DealStatus.LOGISTICS_CHOSEN, DealStatus.DOCUMENTS_CONFIRMED, DealStatus.AWAITING_PAYMENT,
+    ].map(status => [status, transition(DealStatus.CANCELLED, 'either', 'deal_edit')])),
+    [DealStatus.PAID]: transition(DealStatus.CANCELLED, 'customer', 'deal_edit'),
+    [DealStatus.PICKING]: transition(DealStatus.CANCELLED, 'customer', 'deal_edit'),
+  },
   chooseDelivery: {
     [DealStatus.AGREED]: transition(DealStatus.LOGISTICS_CHOSEN, 'customer', 'deal_edit'),
     [DealStatus.AWAITING_LOGISTICS]: transition(DealStatus.LOGISTICS_CHOSEN, 'customer', 'deal_edit'),
@@ -59,6 +67,7 @@ const intendedStatuses: Record<DealCommand, DealStatus> = {
   acceptCounterOffer: DealStatus.AGREED,
   acceptDeal: DealStatus.ACCEPTED,
   arrive: DealStatus.ARRIVED,
+  autoAccept: DealStatus.ACCEPTED,
   cancelDeal: DealStatus.CANCELLED,
   chooseDelivery: DealStatus.LOGISTICS_CHOSEN,
   close: DealStatus.CLOSED,

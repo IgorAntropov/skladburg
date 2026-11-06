@@ -20,6 +20,7 @@ import {
 import type { IStateTransaction } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
+import { createDealDeadlines } from '../deals/dealDeadlines';
 import { publishDealEffects } from '../deals/dealEffects';
 import { dealMachine } from '../deals/dealMachine';
 import { readDealDocuments } from './dealDocuments';
@@ -44,6 +45,7 @@ const advanceDeal = (runtime: IModuleRuntime, transaction: IStateTransaction, de
     next.status = status;
     next.version++;
   }
+  next.deadlines = createDealDeadlines(runtime, transaction, next, 'payment');
   next.updatedAt = at;
   transaction.put('deals', next);
   return true;

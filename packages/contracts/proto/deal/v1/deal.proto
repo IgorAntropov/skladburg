@@ -88,6 +88,9 @@ message DealDeadlines {
   google.protobuf.Timestamp counter_offer_due_at = 2;
   string calendar_version = 3;
   string time_zone = 4;
+  google.protobuf.Timestamp payment_due_at = 5;
+  google.protobuf.Timestamp arrival_due_at = 6;
+  google.protobuf.Timestamp acceptance_due_at = 7;
 }
 
 message DealTransition {

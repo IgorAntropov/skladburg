@@ -27,6 +27,10 @@ import {
   WarehouseCapability,
 } from '@skladburg/contracts/organization/v1/organization';
 import {
+  FundDealRequestSchema,
+  PaymentService,
+} from '@skladburg/contracts/payment/v1/payment';
+import {
   findPermissionCode,
   getMethodAccess,
   getPermissionName,
@@ -113,6 +117,12 @@ const LIMITED_REQUESTS: ReadonlyMap<string, MessageShape<DescMessage>> = new Map
     dealId: UNKNOWN_DEAL_ID,
     expectedVersion: 1,
     goodsTotal: { amountMinor: 100n, currencyCode: 'RUB' },
+    idempotencyKey: CREATE_WAREHOUSE_KEY,
+  })],
+  ['payment.v1.PaymentService.FundDeal', create(FundDealRequestSchema, {
+    amount: { amountMinor: 100n, currencyCode: 'RUB' },
+    dealId: UNKNOWN_DEAL_ID,
+    expectedVersion: 1,
     idempotencyKey: CREATE_WAREHOUSE_KEY,
   })],
 ]);
@@ -249,11 +259,12 @@ describe('role preset matrix: inputs', () => {
       expect(request, method.name).toBeDefined();
 
       if (request !== undefined) {
+        const userId = method.parent.typeName === PaymentService.typeName ? SeedUserId.ADMIN_1 : SeedUserId.BUYER_1;
         expect(() => harness.runtime.guard.guardPermissionCall(
           harness.state.read,
           method,
           request,
-          new Headers(callAs(SeedUserId.BUYER_1, SeedOrganizationId.CUSTOMER_1).headers),
+          new Headers(callAs(userId, SeedOrganizationId.CUSTOMER_1).headers),
         )).not.toThrow();
       }
     }

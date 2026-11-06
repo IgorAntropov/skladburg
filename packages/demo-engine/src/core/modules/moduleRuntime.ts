@@ -4,6 +4,7 @@ import type { ICallGuard } from '../access/index';
 import type { IDomainErrors } from '../errors/index';
 import type { IIdempotencyGuard } from '../idempotency/index';
 import type { IRandom } from '../ports/index';
+import type { IPaymentProvider } from '../ports/paymentProvider';
 import type {
   IStateReader,
   IStateTransaction,
@@ -22,6 +23,7 @@ export interface IModuleRuntime {
   idempotency: IIdempotencyGuard;
   notifier: INotifier;
   outbox: IEventOutbox;
+  paymentProvider: IPaymentProvider;
   random: IRandom;
   read: IStateReader;
 }

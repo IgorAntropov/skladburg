@@ -34,6 +34,7 @@ import type {
   Warehouse,
 } from '@skladburg/contracts/organization/v1/organization';
 import type { OrganizationRequisites } from '@skladburg/contracts/organization/v1/requisites';
+import type { SafeDealPaymentRecord } from '@skladburg/contracts/payment/v1/payment';
 import type {
   SupportAccessSession,
   SupportAuditEntry,
@@ -80,6 +81,7 @@ import {
   WarehouseSchema,
 } from '@skladburg/contracts/organization/v1/organization';
 import { OrganizationRequisitesSchema } from '@skladburg/contracts/organization/v1/requisites';
+import { SafeDealPaymentRecordSchema } from '@skladburg/contracts/payment/v1/payment';
 import {
   SupportAccessSessionSchema,
   SupportAuditEntrySchema,
@@ -160,6 +162,7 @@ export interface TableIndexesValue {
   organizationRequisites: never;
   organizations: never;
   organizationSettings: never;
+  payments: never;
   personas: never;
   priceLists: 'tenantId';
   productLinks: 'customerOrganizationId';
@@ -196,6 +199,7 @@ export interface TableRecordsValue {
   organizationRequisites: OrganizationRequisites;
   organizations: Organization;
   organizationSettings: OrganizationSettings;
+  payments: SafeDealPaymentRecord;
   personas: DemoPersonaValue;
   priceLists: PriceList;
   productLinks: ProductLinkRecordValue;
@@ -279,6 +283,7 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   organizationRequisites: defineMessageTable(OrganizationRequisitesSchema, requisites => requisites.organizationId, {}),
   organizations: defineMessageTable(OrganizationSchema, organization => organization.id, {}),
   organizationSettings: defineMessageTable(OrganizationSettingsSchema, settings => settings.organizationId, {}),
+  payments: defineMessageTable(SafeDealPaymentRecordSchema, record => record.id, {}),
   personas: defineRecordTable(parseDemoPersona, serializeDemoPersona),
   priceLists: defineMessageTable(PriceListSchema, priceList => priceList.id, { tenantId: priceList => priceList.tenantId }),
   productLinks: { ...defineRecordTable(parseProductLink,

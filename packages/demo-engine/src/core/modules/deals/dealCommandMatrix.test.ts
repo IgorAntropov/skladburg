@@ -12,6 +12,7 @@ import {
   toJson,
 } from '@bufbuild/protobuf';
 import { timestampFromMs } from '@bufbuild/protobuf/wkt';
+import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import {
   CreateDealDraftRequestSchema,
@@ -191,20 +192,21 @@ describe('deal command permission and concurrency matrix', () => {
   });
 
   it.each([DealService.method.markDealShipped,
-    DealService.method.acceptDeal])('keeps $name unavailable even at a future matching status',
+    DealService.method.acceptDeal])('rejects $name when the payment record is missing',
     async (method: DescMethodUnary) => {
       const { fixture } = await setupScenario(scenarios[0] ?? { method: DealService.method.createDealDraft,
         permission: 'deal_create',
         side: 'customer',
         stage: 'new' });
       const { harness, request } = fixture;
-      await harness.deal.createDealDraft(request, CUSTOMER_CALL);
+      const submitted = await createSubmittedDeal(harness, request);
       await harness.runtime.command((transaction) => {
         const deal = transaction.get('deals', request.dealId);
         if (deal !== undefined) {
           transaction.put('deals',
             create(DealSchema,
               { ...deal,
+                deliveryMethod: DeliveryMethod.CUSTOMER,
                 status: method === DealService.method.acceptDeal ? DealStatus.ARRIVED : DealStatus.PAID }));
         }
       });
@@ -213,8 +215,8 @@ describe('deal command permission and concurrency matrix', () => {
         permissions: [method === DealService.method.acceptDeal ? 'document_sign' : 'deal_edit'], warehouseIds: [] });
       const caller = callAs(userId, organizationId);
       const failure = await captureFailure(harness.transport.unary(method, undefined, undefined, caller.headers,
-        create(method.input, { dealId: request.dealId, expectedVersion: 1, idempotencyKey: nextUuid() })));
-      expect(failure.code).toBe(ErrorCode.UNAVAILABLE);
-      expect(harness.state.read.get('deals', request.dealId)?.version).toBe(1);
+        create(method.input, { dealId: request.dealId, expectedVersion: submitted.version, idempotencyKey: nextUuid() })));
+      expect(failure.code).toBe(ErrorCode.INTERNAL);
+      expect(harness.state.read.get('deals', request.dealId)?.version).toBe(submitted.version);
     });
 });

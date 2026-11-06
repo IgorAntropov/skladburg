@@ -38,6 +38,7 @@ import { NotificationService } from '@skladburg/contracts/notification/v1/notifi
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import { OrganizationRequisitesService } from '@skladburg/contracts/organization/v1/requisites';
 import { OrganizationShowcaseService } from '@skladburg/contracts/organization/v1/showcase';
+import { PaymentService } from '@skladburg/contracts/payment/v1/payment';
 import { getContractRegistry } from '@skladburg/contracts/registry';
 import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
 import { SupportAccessService } from '@skladburg/contracts/support/v1/support_access';
@@ -64,6 +65,7 @@ import { createImportService } from '../import/index';
 import { createNetworkService } from '../network/index';
 import { createNotificationService } from '../notifications/index';
 import { createOrganizationService } from '../organizationService';
+import { createDeferredPaymentService } from '../payments/loadPayments';
 import {
   createSupportAccessService,
   createSupportTicketService,
@@ -156,6 +158,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(OrganizationRequisitesService, createOrganizationRequisitesService(testRuntime.runtime));
     service(OrganizationService, createOrganizationService(testRuntime.runtime));
     service(OrganizationShowcaseService, createOrganizationShowcaseService(testRuntime.runtime));
+    service(PaymentService, createDeferredPaymentService(testRuntime.runtime));
     service(SupportAccessService, createSupportAccessService(testRuntime.runtime));
     service(SupportTicketService, createSupportTicketService(testRuntime.runtime));
     service(UserProfileService, createUserProfileService(testRuntime.runtime));

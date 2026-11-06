@@ -480,37 +480,47 @@ describe('createIndexedDbStorage when another connection changes the version', (
 });
 
 describe('createIndexedDbStorage over a database of the previous version', () => {
-  it('preserves a v11 database while adding document stores and upgrading the schema header', async () => {
+  it.each([
+    { databaseVersion: 11, schemaVersion: 13 },
+    { databaseVersion: 12, schemaVersion: 14 },
+  ])('preserves the v$databaseVersion database when adding payment storage', async ({ databaseVersion, schemaVersion }) => {
     const factory = new IDBFactory();
     const seed = createSeedSnapshot();
-    const dealBytes = Uint8Array.of(10, 1, 97);
-    const request = factory.open(DATABASE_NAME, 11);
+    const bytes = Uint8Array.of(10, 1, 97);
+    const isBeforeDocuments = databaseVersion === 11;
+    const request = factory.open(DATABASE_NAME, databaseVersion);
     request.addEventListener('upgradeneeded', () => {
-      for (const name of Object.keys(seed.collections).filter(name => name !== 'documents' && name !== 'documentNumbers')) {
+      const missingStores = isBeforeDocuments ? ['documentNumbers', 'documents', 'payments'] : ['payments'];
+      for (const name of Object.keys(seed.collections).filter(name => !missingStores.includes(name))) {
         request.result.createObjectStore(name);
       }
       const meta = request.result.createObjectStore('meta');
-      meta.put(13, 'schemaVersion');
+      meta.put(schemaVersion, 'schemaVersion');
       meta.put(seed.meta, 'engineMeta');
-      request.transaction?.objectStore('deals').put(dealBytes, 'a');
+      request.transaction?.objectStore('deals').put(bytes, 'a');
+      if (!isBeforeDocuments) {
+        request.transaction?.objectStore('documents').put(bytes, 'a');
+        request.transaction?.objectStore('documentNumbers').put(bytes, 'a');
+      }
     });
     const old = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => {
         resolve(request.result);
       });
       request.addEventListener('error', () => {
-        reject(request.error ?? new Error('The v11 test database did not open'));
+        reject(request.error ?? new Error('The previous test database did not open'));
       });
     });
     old.close();
 
     const storage = await openStorage(factory);
     const loaded = await storage.load();
-    expect(loaded?.schemaVersion).toBe(14);
+    expect(loaded?.schemaVersion).toBe(15);
     expect(loaded?.meta).toEqual(seed.meta);
-    expect(loaded?.collections.deals.get('a')).toEqual(dealBytes);
-    expect(loaded?.collections.documents.size).toBe(0);
-    expect(loaded?.collections.documentNumbers.size).toBe(0);
+    expect(loaded?.collections.deals.get('a')).toEqual(bytes);
+    expect(loaded?.collections.documents.get('a')).toEqual(isBeforeDocuments ? undefined : bytes);
+    expect(loaded?.collections.documentNumbers.get('a')).toEqual(isBeforeDocuments ? undefined : bytes);
+    expect(loaded?.collections.payments.size).toBe(0);
   });
 
   it('recreates the stores with the map nodes, drops the old records and stays writable after the upgrade', async () => {

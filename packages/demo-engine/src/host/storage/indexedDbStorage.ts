@@ -20,7 +20,7 @@ import {
   ENGINE_COLLECTION_NAMES,
 } from '../../core/ports/index';
 
-export const INDEXED_DB_VERSION = 12;
+export const INDEXED_DB_VERSION = 13;
 
 const META_STORE_NAME = 'meta';
 const SCHEMA_VERSION_KEY = 'schemaVersion';
@@ -87,15 +87,19 @@ const openDatabase = (
       return;
     }
 
-    if (event.oldVersion === 11 && event.newVersion === 12 && request.transaction !== null) {
-      for (const name of ['documentNumbers', 'documents']) {
-        request.result.createObjectStore(name);
+    const upgrade = request.transaction;
+    if ((event.oldVersion === 11 || event.oldVersion === 12) && event.newVersion === INDEXED_DB_VERSION && upgrade !== null) {
+      const isBeforeDocuments = event.oldVersion === 11;
+      if (isBeforeDocuments) {
+        request.result.createObjectStore('documentNumbers');
+        request.result.createObjectStore('documents');
       }
-      const meta = request.transaction.objectStore(META_STORE_NAME);
+      request.result.createObjectStore('payments');
+      const meta = upgrade.objectStore(META_STORE_NAME);
       const storedVersion = meta.get(SCHEMA_VERSION_KEY);
       storedVersion.addEventListener('success', () => {
-        if (storedVersion.result === 13) {
-          meta.put(14, SCHEMA_VERSION_KEY);
+        if (storedVersion.result === (isBeforeDocuments ? 13 : 14)) {
+          meta.put(15, SCHEMA_VERSION_KEY);
         }
       });
       return;

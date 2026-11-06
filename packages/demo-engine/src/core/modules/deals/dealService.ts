@@ -7,6 +7,7 @@ import {
 } from '@bufbuild/protobuf';
 import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
 import {
+  AcceptDealResponseSchema,
   CancelDealResponseSchema,
   ChooseDeliveryResponseSchema,
   DealSchema,
@@ -14,6 +15,7 @@ import {
   DealStatus,
   GetDealResponseSchema,
   ListDealsResponseSchema,
+  MarkDealShippedResponseSchema,
   RejectCounterOfferResponseSchema,
   RejectDealResponseSchema,
 } from '@skladburg/contracts/deal/v1/deal';
@@ -28,17 +30,17 @@ import type { IModuleRuntime } from '../moduleRuntime';
 
 import { loadDocuments } from '../documents/loadDocuments';
 import { paginate } from '../pagination';
+import { loadPayments } from '../payments/loadPayments';
 import { readVisibleDeal } from './dealAccess';
 import { runDealCommand } from './dealCommand';
 import { createDealDeadlines } from './dealDeadlines';
-import { createDealDraftHandlers } from './dealDraftHandlers';
-import { createDealNegotiationHandlers } from './dealNegotiationHandlers';
 import { projectDeal } from './dealProjection';
 import {
   failDealValidation,
   rub,
 } from './dealRules';
 import { isDealVisibleToOrganization } from './dealVisibility';
+import { loadDealNegotiation } from './loadDealNegotiation';
 
 export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof DealService> => {
   const endNegotiation = (transaction: IStateTransaction, deal: Deal): Deal => {
@@ -47,18 +49,32 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
     return next;
   };
   return {
-    ...createDealDraftHandlers(runtime),
-    ...createDealNegotiationHandlers(runtime),
-    acceptDeal: (request, context) => {
-      runtime.guard.guardPermissionCall(runtime.read, DealService.method.acceptDeal, request, context.requestHeader);
-      throw runtime.errors.unavailable();
+    ...loadDealNegotiation(runtime),
+    acceptDeal: async (request, context) => {
+      const { scheduleAcceptedPayout } = await loadPayments();
+      return runDealCommand(runtime, {
+        command: 'acceptDeal',
+        handle: (transaction, _caller, deal) => {
+          const next = clone(DealSchema, deal);
+          scheduleAcceptedPayout(runtime, transaction, next);
+          return next;
+        },
+        headers: context.requestHeader,
+        method: DealService.method.acceptDeal,
+        notice: DealNotice.ACCEPTED,
+        request,
+        response: deal => create(AcceptDealResponseSchema, { deal }),
+      });
     },
     cancelDeal: async (request, context) => {
       const { annulDealDocuments } = await loadDocuments();
+      const payment = runtime.read.get('payments', request.dealId);
+      const payments = payment === undefined ? undefined : await loadPayments();
       return runDealCommand(runtime, {
         command: 'cancelDeal',
         handle: (transaction, _caller, deal) => {
           annulDealDocuments(transaction, deal);
+          payments?.refundDealPayment(runtime, transaction, deal);
           return endNegotiation(transaction, deal);
         },
         headers: context.requestHeader,
@@ -124,9 +140,21 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
       const { items, page } = paginate(candidates, deal => deal.id, request.page, runtime.errors);
       return create(ListDealsResponseSchema, { deals: items.map(deal => projectDeal(deal, caller.organizationId)), page });
     },
-    markDealShipped: (request, context) => {
-      runtime.guard.guardPermissionCall(runtime.read, DealService.method.markDealShipped, request, context.requestHeader);
-      throw runtime.errors.unavailable();
+    markDealShipped: async (request, context) => {
+      const { holdPaymentForShipment } = await loadPayments();
+      return runDealCommand(runtime, {
+        command: 'markDealShipped',
+        handle: (transaction, _caller, deal) => {
+          const next = clone(DealSchema, deal);
+          holdPaymentForShipment(runtime, transaction, next);
+          return next;
+        },
+        headers: context.requestHeader,
+        method: DealService.method.markDealShipped,
+        notice: DealNotice.SHIPPED,
+        request,
+        response: deal => create(MarkDealShippedResponseSchema, { deal }),
+      });
     },
     rejectCounterOffer: (request, context) => runDealCommand(runtime, {
       command: 'rejectCounterOffer',

@@ -94,6 +94,7 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
       listWarehouses: unused,
     },
     organizationShowcaseService: { getOrganizationShowcase: unused, listOrganizationShowcases: unused },
+    paymentService: { fundDeal: unused, getDealPayment: unused },
     supportAccessService: {
       approveSupportAccess: unused,
       closeSupportAccess: unused,

@@ -88,6 +88,7 @@ export const createSeedRecords = (): SeedRecordsValue => ({
   organizationRequisites: createSeedRequisites(),
   organizations: [...createSeedOrganizations(), ...createSeedPlatformOrganizations()],
   organizationSettings: [...createSeedOrganizationSettings(), ...createSeedPlatformOrganizationSettings()],
+  payments: [],
   personas: createSeedPersonas(),
   priceLists: createSeedPriceLists(),
   productLinks: [],

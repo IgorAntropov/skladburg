@@ -7,6 +7,7 @@ import { ShowcaseService } from '@skladburg/contracts/catalog/v1/showcase';
 import { DealService } from '@skladburg/contracts/deal/v1/deal';
 import { DocumentService } from '@skladburg/contracts/document/v1/document';
 import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
+import { PaymentService } from '@skladburg/contracts/payment/v1/payment';
 
 import type {
   EngineWorkerRobotValue,
@@ -29,6 +30,7 @@ export interface DealWorkerRobotValue extends EngineWorkerRobotValue {
   deals: Client<typeof DealService>;
   documents: Client<typeof DocumentService>;
   notifications: Client<typeof NotificationService>;
+  payments: Client<typeof PaymentService>;
   showcase: Client<typeof ShowcaseService>;
 }
 
@@ -52,6 +54,7 @@ export const createDealWorkerRobot = async (
     deals: createClient(DealService, transport),
     documents: createClient(DocumentService, transport),
     notifications: createClient(NotificationService, transport),
+    payments: createClient(PaymentService, transport),
     showcase: createClient(ShowcaseService, transport),
   };
 };

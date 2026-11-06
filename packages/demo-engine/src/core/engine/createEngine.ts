@@ -1,7 +1,9 @@
 import type { FileRegistry } from '@bufbuild/protobuf';
 
 import { base64Decode } from '@bufbuild/protobuf/wire';
+import { timestampMs } from '@bufbuild/protobuf/wkt';
 import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
+import { SafeDealPaymentStatus } from '@skladburg/contracts/payment/v1/payment';
 import {
   COMPRESSED_CONTRACT_IMAGE_BASE64,
   createContractRegistry,
@@ -29,6 +31,7 @@ import {
   createSubscriptionAccess,
 } from '../events/index';
 import { createIdempotencyGuard } from '../idempotency/index';
+import { createDealDeadlines } from '../modules/deals/dealDeadlines';
 import {
   createDeferredDocumentService,
   loadDocuments,
@@ -50,6 +53,11 @@ import {
   createSupportTicketService,
   createUserProfileService,
 } from '../modules/index';
+import { createDemoPaymentProvider } from '../modules/payments/demoPaymentProvider';
+import {
+  createDeferredPaymentService,
+  loadPayments,
+} from '../modules/payments/loadPayments';
 import {
   createRandom,
   createScaledClock,
@@ -204,6 +212,7 @@ export const createEngineWithTasks = async (
     idempotency: createIdempotencyGuard(errors),
     notifier: createNotifier({ outbox: bus.outbox, random }),
     outbox: bus.outbox,
+    paymentProvider: createDemoPaymentProvider(random),
     random,
     read: state.read,
   };
@@ -221,6 +230,7 @@ export const createEngineWithTasks = async (
     organizationRequisitesService: createOrganizationRequisitesService(runtime),
     organizationService: createOrganizationService(runtime),
     organizationShowcaseService: createOrganizationShowcaseService(runtime),
+    paymentService: createDeferredPaymentService(runtime),
     supportAccessService: createSupportAccessService(runtime),
     supportAudit: createSupportAuditInterceptor(runtime),
     supportTicketService: createSupportTicketService(runtime),
@@ -244,6 +254,26 @@ export const createEngineWithTasks = async (
   if (legacyDeals.length > 0) {
     const { restoreDealDocuments } = await loadDocuments();
     await restoreDealDocuments(runtime, legacyDeals);
+  }
+
+  const legacyAwaitingPayment = state.read.list('deals').filter(
+    deal => deal.status === DealStatus.AWAITING_PAYMENT && deal.deadlines?.paymentDueAt === undefined,
+  );
+  if (legacyAwaitingPayment.length > 0) {
+    await command((transaction) => {
+      for (const deal of legacyAwaitingPayment) {
+        const signedAt = deal.updatedAt === undefined ? transaction.worldTimeMs : timestampMs(deal.updatedAt);
+        const deadlines = createDealDeadlines(runtime, transaction, deal, 'payment', signedAt);
+        if (deadlines.paymentDueAt !== undefined) {
+          transaction.put('deals', { ...deal, deadlines });
+        }
+      }
+    });
+  }
+
+  if (state.read.list('payments').some(record => record.bankDueAt !== undefined
+    || record.payment?.status === SafeDealPaymentStatus.HELD)) {
+    await loadPayments();
   }
 
   const handle = (request: Request): Promise<Response> => queue.enqueue(() => handler(request));

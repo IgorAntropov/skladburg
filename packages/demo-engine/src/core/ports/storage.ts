@@ -31,6 +31,7 @@ export const ENGINE_COLLECTION_NAMES = [
   'dealReminderMarks',
   'documentNumbers',
   'documents',
+  'payments',
   'supplyContracts',
   'productLinks',
 ] as const;
@@ -91,6 +92,7 @@ export const createEmptyCollections = (): Record<EngineCollectionName, EngineCol
   organizationRequisites: new Map(),
   organizations: new Map(),
   organizationSettings: new Map(),
+  payments: new Map(),
   personas: new Map(),
   priceLists: new Map(),
   productLinks: new Map(),

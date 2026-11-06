@@ -24,7 +24,8 @@ export const createDealDeadlines = (
   runtime: IModuleRuntime,
   transaction: IStateTransaction,
   deal: Deal,
-  kind: 'clear' | 'confirmation' | 'counterOffer',
+  kind: 'acceptance' | 'clear' | 'confirmation' | 'counterOffer' | 'payment',
+  startAtMs: number = transaction.worldTimeMs,
 ): DealDeadlines => {
   if (kind === 'clear') {
     return create(DealDeadlinesSchema, {
@@ -40,10 +41,13 @@ export const createDealDeadlines = (
   }
 
   const { timeZone } = warehouse;
-  const start = toCalendarDate(transaction.worldTimeMs, timeZone);
-  const workingDays = kind === 'confirmation'
-    ? DEAL_DEADLINE_RULES.confirmationWorkingDays
-    : DEAL_DEADLINE_RULES.counterOfferWorkingDays;
+  const start = toCalendarDate(startAtMs, timeZone);
+  const workingDays = {
+    acceptance: DEAL_DEADLINE_RULES.acceptanceWorkingDays,
+    confirmation: DEAL_DEADLINE_RULES.confirmationWorkingDays,
+    counterOffer: DEAL_DEADLINE_RULES.counterOfferWorkingDays,
+    payment: DEAL_DEADLINE_RULES.paymentWorkingDays,
+  }[kind];
 
   try {
     const due = RU_BUSINESS_CALENDAR.addWorkingDays(start, workingDays);
@@ -54,14 +58,20 @@ export const createDealDeadlines = (
     const dueAt = timestampFromMs(getStartOfDayInstant(addCalendarDays(due, 1), timeZone) - 1);
 
     return create(DealDeadlinesSchema, {
+      ...(deal.deadlines ?? create(DealDeadlinesSchema)),
+      acceptanceDueAt: kind === 'acceptance' ? dueAt : deal.deadlines?.acceptanceDueAt,
       calendarVersion,
       confirmationDueAt: kind === 'confirmation' ? dueAt : undefined,
       counterOfferDueAt: kind === 'counterOffer' ? dueAt : undefined,
+      paymentDueAt: kind === 'payment' ? dueAt : deal.deadlines?.paymentDueAt,
       timeZone,
     });
   }
   catch (error) {
     if (error instanceof BusinessCalendarRangeError) {
+      if (kind === 'payment') {
+        return create(DealDeadlinesSchema, { ...(deal.deadlines ?? create(DealDeadlinesSchema)), timeZone });
+      }
       throw runtime.errors.unavailable();
     }
 

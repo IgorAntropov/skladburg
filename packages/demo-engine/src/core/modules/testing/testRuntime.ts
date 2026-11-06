@@ -32,6 +32,7 @@ import {
 import { createEngineState } from '../../state/index';
 import { createRequestValidator } from '../../validation/index';
 import { createNotifier } from '../notifications/index';
+import { createDemoPaymentProvider } from '../payments/demoPaymentProvider';
 
 export const TEST_EPOCH = 'test-epoch';
 
@@ -112,6 +113,7 @@ export const createTestRuntime = (): TestRuntimeValue => {
     idempotency: createIdempotencyGuard(errors),
     notifier: createNotifier({ outbox, random }),
     outbox,
+    paymentProvider: createDemoPaymentProvider(random),
     random,
     read: state.read,
   };

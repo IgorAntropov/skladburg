@@ -160,6 +160,15 @@ describe('contract registry', () => {
     expect(missing).toEqual([]);
   });
 
+  it('registers the payment service and its funding request', () => {
+    const service = registry.getService('payment.v1.PaymentService');
+
+    expect(service?.methods.map(method => method.name)).toEqual(['GetDealPayment', 'FundDeal']);
+    expect(service?.method.fundDeal?.input.fields.map(field => field.name)).toEqual([
+      'idempotency_key', 'expected_version', 'deal_id', 'amount',
+    ]);
+  });
+
   it('carries rules for the messages that declare them', () => {
     const typeNamesWithRules = [...registry.files]
       .filter(file => !isExternalFile(file))

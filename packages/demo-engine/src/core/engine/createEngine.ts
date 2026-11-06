@@ -51,9 +51,9 @@ import {
   createScheduler,
 } from '../scheduler/index';
 import {
-  createSeedSnapshot,
+  type EngineSeedValue,
   SEED_VERSION,
-} from '../seed/index';
+} from '../seed/seedConfig';
 import {
   createEngineState,
   isCurrentSnapshot,
@@ -66,6 +66,7 @@ import {
   createCheckpointRunner,
   createCommandRunner,
 } from './commandRunner';
+import { SeedLoadError } from './SeedLoadError';
 import { createSwitchableRandom } from './switchableRandom';
 
 const createClockFromMeta = (meta: EngineMetaValue, realTime: IRealTimeSource): IClock =>
@@ -100,6 +101,19 @@ const readRoleName = (reader: IStateReader, organizationId: string, userId: stri
   return [...names].sort((current, prev) => current.localeCompare(prev, ROLE_NAME_LOCALE)).join(ROLE_NAME_SEPARATOR);
 };
 
+const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<EngineSnapshotValue> => {
+  let module: typeof import('../seed/seedSnapshot');
+
+  try {
+    module = await import('../seed/seedSnapshot');
+  }
+  catch (error) {
+    throw new SeedLoadError(error);
+  }
+
+  return module.createSeedSnapshot(seed);
+};
+
 const loadOrSeedSnapshot = async (options: CreateEngineOptionsValue): Promise<EngineSnapshotValue> => {
   const stored = await options.storage.load();
 
@@ -107,7 +121,7 @@ const loadOrSeedSnapshot = async (options: CreateEngineOptionsValue): Promise<En
     return stored;
   }
 
-  const seeded = createSeedSnapshot(options.seed);
+  const seeded = await loadSeedSnapshot(options.seed);
   await options.storage.replaceAll(seeded);
 
   return seeded;
@@ -200,7 +214,7 @@ export const createEngineWithTasks = async (
   const checkpoint = (): Promise<void> => queue.enqueue(runCheckpoint);
 
   const reset = (nextEpoch: string): Promise<void> => queue.enqueue(async () => {
-    const seeded = createSeedSnapshot(options.seed);
+    const seeded = await loadSeedSnapshot(options.seed);
     await storage.replaceAll(seeded);
     state.replaceAll(seeded);
     clock = createClockFromMeta(seeded.meta, realTime);

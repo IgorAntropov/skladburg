@@ -13,8 +13,10 @@ import type { CoreModuleValue } from './hostTypes';
 import type { OpenedEngineStorageValue } from './storage/index';
 
 import { createEngine } from '../core/engine/createEngine';
+import { isSeedLoadError } from '../core/engine/SeedLoadError';
 import { createFakeRealTime } from '../core/engine/testing/engineHarness';
 import { createMemoryStorage } from '../core/ports/index';
+import { createSeedSnapshot } from '../core/seed/seedSnapshot';
 import { startEngine } from './engineStartup';
 import { createStorageHealthMonitor } from './storageHealthMonitor';
 import { createFakeIndexedDbStorage } from './testing/fakeIndexedDbStorage';
@@ -46,7 +48,7 @@ const createIdGenerator = (): (() => string) => {
 const createHealthMonitor = (): ReturnType<typeof createStorageHealthMonitor> =>
   createStorageHealthMonitor({ onChange: () => undefined });
 
-const loadCore = (): Promise<CoreModuleValue> => Promise.resolve({ createEngine });
+const loadCore = (): Promise<CoreModuleValue> => Promise.resolve({ createEngine, isSeedLoadError });
 
 beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -57,6 +59,46 @@ afterEach(() => {
 });
 
 describe('startEngine', () => {
+  it('closes IndexedDB without clearing or falling back when the seed chunk cannot load', async () => {
+    const snapshot = createSeedSnapshot();
+    const storage = createFakeIndexedDbStorage(createMemoryStorage(snapshot));
+    const failure = new Error('Seed chunk is unavailable');
+    const create = vi.fn(() => Promise.reject(failure));
+
+    await expect(startEngine({
+      generateId: createIdGenerator(),
+      loadCore: () => Promise.resolve({ createEngine: create, isSeedLoadError: (error: unknown): boolean => error === failure }),
+      openStorage: () => Promise.resolve({ kind: 'indexed-db', storage }),
+      realTime: createFakeRealTime(),
+      storageHealthMonitor: createHealthMonitor(),
+    })).rejects.toBe(failure);
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(storage.clearCount()).toBe(0);
+    expect(storage.closeCount()).toBe(1);
+    expect(await storage.load()).toEqual(snapshot);
+  });
+
+  it('does not fall back to memory when seed loading fails during the storage recovery retry', async () => {
+    const storage = createFakeIndexedDbStorage();
+    const failure = new Error('Seed chunk is unavailable');
+    const create = vi.fn()
+      .mockRejectedValueOnce(new Error('The snapshot is damaged'))
+      .mockRejectedValue(failure);
+
+    await expect(startEngine({
+      generateId: createIdGenerator(),
+      loadCore: () => Promise.resolve({ createEngine: create, isSeedLoadError: (error: unknown): boolean => error === failure }),
+      openStorage: () => Promise.resolve({ kind: 'indexed-db', storage }),
+      realTime: createFakeRealTime(),
+      storageHealthMonitor: createHealthMonitor(),
+    })).rejects.toBe(failure);
+
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(storage.clearCount()).toBe(1);
+    expect(storage.closeCount()).toBe(1);
+  });
+
   it('starts on IndexedDB storage and gives it the generated epoch', async () => {
     const storage = createFakeIndexedDbStorage();
 
@@ -102,6 +144,7 @@ describe('startEngine', () => {
 
           return createEngine(options);
         },
+        isSeedLoadError,
       }),
       openStorage: () => Promise.resolve({ kind: 'indexed-db', storage }),
       realTime: createFakeRealTime(),
@@ -236,7 +279,7 @@ describe('startEngine', () => {
 
     expect(events).toEqual(['core-requested', 'storage-requested']);
 
-    resolveCore({ createEngine });
+    resolveCore({ createEngine, isSeedLoadError });
     const started = await starting;
 
     expect(started.storage).toBe('indexed-db');

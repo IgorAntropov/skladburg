@@ -10,3 +10,4 @@ export type {
   CreateEngineOptionsValue,
   IDemoEngine,
 } from './engineTypes';
+export { isSeedLoadError } from './SeedLoadError';

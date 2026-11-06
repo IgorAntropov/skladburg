@@ -23,6 +23,7 @@ import type { EngineProbeValue } from './testing/engineProbe';
 import type { HostHarnessValue } from './testing/hostHarness';
 
 import { createEngine } from '../core/engine/createEngine';
+import { isSeedLoadError } from '../core/engine/SeedLoadError';
 import {
   createHeaders,
   createWarehouseRequest,
@@ -446,6 +447,7 @@ describe('engine host ticks and checkpoints', () => {
             },
           };
         },
+        isSeedLoadError,
       }),
     });
     await waitForRole(fixture, 'leader');

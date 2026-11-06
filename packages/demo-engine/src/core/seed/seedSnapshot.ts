@@ -29,6 +29,14 @@ import {
   createSeedSalesTerms,
 } from './seedCatalog';
 import {
+  DEFAULT_ENGINE_SEED,
+  type EngineSeedValue,
+  SEED_TIME_SCALE,
+  SEED_TRACE_RANDOM_SALT,
+  SEED_VERSION,
+  SEED_WORLD_START_MS,
+} from './seedConfig';
+import {
   createSeedCities,
   createSeedMapNodes,
   createSeedRouteLegs,
@@ -50,24 +58,18 @@ import { createSeedRequisites } from './seedRequisites';
 import { createSeedSpheres } from './seedSpheres';
 import { createSeedWarehouses } from './seedWarehouses';
 
-export interface EngineSeedValue {
-  randomSeed: number;
-  worldStartMs: number;
-}
+export {
+  DEFAULT_ENGINE_SEED,
+  type EngineSeedValue,
+  SEED_RANDOM_SEED,
+  SEED_TIME_SCALE,
+  SEED_TRACE_RANDOM_SALT,
+  SEED_VERSION,
+  SEED_WORLD_START_MS,
+} from './seedConfig';
 
 export type SeedRecordsValue = {
   [TName in TableName]: TableRecordsValue[TName][];
-};
-
-export const SEED_VERSION = 12;
-export const SEED_TIME_SCALE = 1;
-export const SEED_WORLD_START_MS = Date.UTC(2026, 9, 12, 6, 0, 0);
-export const SEED_RANDOM_SEED = 20261012;
-export const SEED_TRACE_RANDOM_SALT = 0x74726163;
-
-export const DEFAULT_ENGINE_SEED: EngineSeedValue = {
-  randomSeed: SEED_RANDOM_SEED,
-  worldStartMs: SEED_WORLD_START_MS,
 };
 
 export const createSeedRecords = (): SeedRecordsValue => ({

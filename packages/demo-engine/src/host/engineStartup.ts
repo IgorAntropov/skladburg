@@ -61,7 +61,7 @@ const loadCoreAndOpenStorage = async (options: EngineStartupOptionsValue): Promi
 };
 
 export const startEngine = async (options: EngineStartupOptionsValue): Promise<StartedEngineValue> => {
-  const { core: { createEngine }, opened } = await loadCoreAndOpenStorage(options);
+  const { core: { createEngine, isSeedLoadError }, opened } = await loadCoreAndOpenStorage(options);
 
   const create = (storage: OpenedEngineStorageValue['storage']): Promise<IDemoEngine> => createEngine({
     epoch: options.generateId(),
@@ -77,28 +77,28 @@ export const startEngine = async (options: EngineStartupOptionsValue): Promise<S
     opened.storage.close();
   };
 
-  const startOnIndexedDb = async (): Promise<StartedEngineValue> => {
-    const engine = await create(options.storageHealthMonitor.wrap(opened.storage));
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      if (attempt > 0) {
+        await opened.storage.clear();
+      }
 
-    return { closeStorage: closeIndexedDb, engine, storage: 'indexed-db', storageHealth: options.storageHealthMonitor.health() };
-  };
+      const engine = await create(options.storageHealthMonitor.wrap(opened.storage));
 
-  try {
-    return await startOnIndexedDb();
-  }
-  catch (error) {
-    console.log('> EngineHost -> startEngine:', { error, step: 'load' });
+      return { closeStorage: closeIndexedDb, engine, storage: 'indexed-db', storageHealth: options.storageHealthMonitor.health() };
+    }
+    catch (error) {
+      console.log('> EngineHost -> startEngine:', { attempt, error });
+
+      if (isSeedLoadError(error)) {
+        closeIndexedDb();
+
+        throw error;
+      }
+    }
   }
 
-  try {
-    await opened.storage.clear();
-
-    return await startOnIndexedDb();
-  }
-  catch (error) {
-    console.log('> EngineHost -> startEngine:', { error, step: 'retry' });
-    closeIndexedDb();
-  }
+  closeIndexedDb();
 
   return { closeStorage: () => undefined, engine: await create(createMemoryStorage()), storage: 'memory', storageHealth: 'ok' };
 };

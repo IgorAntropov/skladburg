@@ -26,6 +26,7 @@ import type { FakeTimersValue } from './fakeTimers';
 
 import { connectToEngine } from '../../client/index';
 import { createEngine } from '../../core/engine/createEngine';
+import { isSeedLoadError } from '../../core/engine/SeedLoadError';
 import {
   createFakeRealTime,
   createSpyStorage,
@@ -191,7 +192,7 @@ export const createHostHarness = (storage: SpyStorageValue = createSpyStorage())
 
         return generateId();
       },
-      loadCore: overrides.loadCore ?? (() => Promise.resolve({ createEngine })),
+      loadCore: overrides.loadCore ?? (() => Promise.resolve({ createEngine, isSeedLoadError })),
       lockManager: overrides.isSingleTab === true ? undefined : hostLockManager,
       openStorage: overrides.openStorage ?? (() => Promise.resolve({ kind: 'memory', storage })),
       port: port2,

@@ -11,6 +11,7 @@ import {
 import type { HostHarnessValue } from './testing/hostHarness';
 
 import { createEngine } from '../core/engine/createEngine';
+import { isSeedLoadError } from '../core/engine/SeedLoadError';
 import { createHeaders } from '../core/engine/testing/engineHarness';
 import { callAs } from '../core/modules/testing/moduleHarness';
 import {
@@ -70,7 +71,7 @@ describe('engine host holding the leadership lock', () => {
       loadCore: async () => {
         await coreGate.promise;
 
-        return { createEngine };
+        return { createEngine, isSeedLoadError };
       },
     });
     await vi.waitFor(() => {

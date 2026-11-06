@@ -70,6 +70,10 @@ export type SeedRowValue = readonly [
   name: string,
   profile: SeedProfileValue,
   priceRoubles: number,
+  availabilityStatus: AvailabilityStatus,
+  isDiscountForbidden: boolean,
+  minPricePercent: 0 | 90 | 100,
+  tierScheme: 0 | 1 | 2 | 3 | 4,
 ];
 
 interface SeedSupplierValue {
@@ -228,46 +232,29 @@ const buildRub = (amountMinor: bigint): Money => create(MoneySchema, { amountMin
 
 const buildRubFromRoubles = (roubles: number): Money => buildRub(BigInt(roubles * KOPECKS_PER_ROUBLE));
 
-const isLowStock = (rowNumber: number): boolean => rowNumber % 7 === 5;
-
-const isOnOrder = (rowNumber: number): boolean => rowNumber % 10 === 8;
-
-const isDiscountForbidden = (rowNumber: number): boolean => rowNumber % 4 === 0;
-
-const hasMinPrice = (rowNumber: number): boolean => rowNumber % 3 === 2;
-
-const isMinPriceAtLowestTier = (rowNumber: number): boolean => rowNumber % 6 === 5;
-
-const pickTierScheme = (rowNumber: number): (typeof TIER_SCHEMES)[number] => TIER_SCHEMES[rowNumber % TIER_SCHEMES.length] ?? [];
-
 const toBase = (priceUnits: number, profile: SeedProfileValue): bigint => BigInt(priceUnits) * BigInt(profile.priceUnit[1]);
 
-const buildTiers = (row: SeedRowValue, rowNumber: number): SeedTierValue[] => {
-  const [, profile, priceRoubles] = row;
+const buildTiers = (row: SeedRowValue): SeedTierValue[] => {
+  const [, profile, priceRoubles, , , , scheme] = row;
   const minOrderBase = toBase(profile.minOrder, profile);
+  const tiers = TIER_SCHEMES[scheme] ?? [];
 
-  return pickTierScheme(rowNumber).map(([multiplier, discountPercent]) => ({
+  return tiers.map(([multiplier, discountPercent]) => ({
     minQuantity: minOrderBase * BigInt(multiplier),
     priceMinor: BigInt(Math.round(priceRoubles * (KOPECKS_PER_ROUBLE - discountPercent))),
   }));
 };
 
-const buildMinPrice = (row: SeedRowValue, rowNumber: number): Money | undefined => {
-  if (!hasMinPrice(rowNumber)) {
+const buildMinPrice = (row: SeedRowValue): Money | undefined => {
+  const minPricePercent = row[5];
+
+  if (minPricePercent === 0) {
     return undefined;
   }
 
-  const lowestMinor = buildTiers(row, rowNumber).at(-1)?.priceMinor ?? 0n;
+  const lowestMinor = buildTiers(row).at(-1)?.priceMinor ?? 0n;
 
-  return buildRub(isMinPriceAtLowestTier(rowNumber) ? lowestMinor : lowestMinor * 9n / 10n);
-};
-
-const resolveStatus = (rowNumber: number): AvailabilityStatus => {
-  if (isOnOrder(rowNumber)) {
-    return AvailabilityStatus.ON_ORDER;
-  }
-
-  return isLowStock(rowNumber) ? AvailabilityStatus.LOW : AvailabilityStatus.IN_STOCK;
+  return buildRub(lowestMinor * BigInt(minPricePercent) / 100n);
 };
 
 const resolveLots = (status: AvailabilityStatus): bigint => {
@@ -278,9 +265,9 @@ const resolveLots = (status: AvailabilityStatus): bigint => {
   return status === AvailabilityStatus.LOW ? LOW_LOTS : IN_STOCK_LOTS;
 };
 
-const buildAvailability = (row: SeedRowValue, rowNumber: number, supplier: SeedSupplierValue): WarehouseAvailability[] => {
+const buildAvailability = (row: SeedRowValue, supplier: SeedSupplierValue): WarehouseAvailability[] => {
   const minOrderBase = toBase(row[1].minOrder, row[1]);
-  const status = resolveStatus(rowNumber);
+  const status = row[3];
   const lots = resolveLots(status);
 
   return supplier.warehouseIds.map((warehouseId, index) => create(WarehouseAvailabilitySchema, {
@@ -325,9 +312,9 @@ export const createSeedProducts = (): Product[] =>
       baseUnit: profile.baseUnit,
       gtin: buildGtin(supplier.number, rowNumber),
       id: buildProductId(supplier.number, rowNumber),
-      isDiscountForbidden: isDiscountForbidden(rowNumber),
+      isDiscountForbidden: row[4],
       markingMode: MarkingMode.NONE,
-      minPrice: buildMinPrice(row, rowNumber),
+      minPrice: buildMinPrice(row),
       name,
       packagings: expandPackagings(profile).map(([packagingName, baseQuantity, grossWeight, length, width, height], index) =>
         create(PackagingSchema, {
@@ -356,7 +343,7 @@ export const createSeedListings = (): Listing[] =>
     const profile = row[1];
 
     return create(ListingSchema, {
-      availability: buildAvailability(row, rowNumber, supplier),
+      availability: buildAvailability(row, supplier),
       id: buildListingId(supplier.number, rowNumber),
       isPublished: true,
       minOrderQuantity: toBase(profile.minOrder, profile),
@@ -374,7 +361,7 @@ export const createSeedListingPrices = (): ListingPrice[] =>
     listingId: buildListingId(supplier.number, rowNumber),
     priceListId: buildPriceListId(supplier.number),
     tenantId: supplier.organizationId,
-    tiers: buildTiers(row, rowNumber).map(tier => create(PriceTierSchema, {
+    tiers: buildTiers(row).map(tier => create(PriceTierSchema, {
       minQuantity: tier.minQuantity,
       price: buildRub(tier.priceMinor),
     })),

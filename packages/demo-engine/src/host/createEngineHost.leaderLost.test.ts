@@ -15,6 +15,7 @@ import type {
 import type { GateValue } from './testing/hostScenario';
 
 import { createEngine } from '../core/engine/createEngine';
+import { isSeedLoadError } from '../core/engine/SeedLoadError';
 import { createHeaders } from '../core/engine/testing/engineHarness';
 import { callAs } from '../core/modules/testing/moduleHarness';
 import {
@@ -74,7 +75,7 @@ const startKilledLeaderWithGatedSuccessor = async (): Promise<{
       successorLoadCount += 1;
       await successorCoreGate.promise;
 
-      return { createEngine };
+      return { createEngine, isSeedLoadError };
     },
   });
   await waitForRole(successor, 'follower');

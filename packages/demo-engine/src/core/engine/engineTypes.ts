@@ -7,7 +7,7 @@ import type {
   IRealTimeSource,
 } from '../ports/index';
 import type { DemoPersonaListItemValue } from '../protocol';
-import type { EngineSeedValue } from '../seed/index';
+import type { EngineSeedValue } from '../seed/seedConfig';
 
 export interface CreateEngineOptionsValue {
   epoch: string;

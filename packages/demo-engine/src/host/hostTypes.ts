@@ -8,6 +8,7 @@ import type { OpenedEngineStorageValue } from './storage/index';
 
 export interface CoreModuleValue {
   createEngine: (options: CreateEngineOptionsValue) => Promise<IDemoEngine>;
+  isSeedLoadError: (error: unknown) => boolean;
 }
 
 export interface CreateEngineHostOptionsValue {

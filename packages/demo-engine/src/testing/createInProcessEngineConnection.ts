@@ -4,6 +4,7 @@ import type { EngineSeedValue } from '../core/seed/index';
 
 import { connectToEngine } from '../client/index';
 import { createEngine } from '../core/engine/createEngine';
+import { isSeedLoadError } from '../core/engine/SeedLoadError';
 import { createMemoryStorage } from '../core/ports/index';
 import {
   createEngineHost,
@@ -50,6 +51,7 @@ export const createInProcessEngineConnection = (options: InProcessEngineOptionsV
     },
     loadCore: () => Promise.resolve({
       createEngine: engineOptions => createEngine({ ...engineOptions, seed: options.seed }),
+      isSeedLoadError,
     }),
     lockManager,
     openStorage: () => Promise.resolve({ kind: 'memory', storage }),

@@ -41,9 +41,34 @@ import {
 } from './src/shared/theme/themeConstants.ts';
 
 const HUD_SHARED_MODULES = [
+  'node_modules/@bufbuild/protobuf/dist/esm/wkt/google/protobuf/timestamp_pb.js',
+  'node_modules/@connectrpc/connect/dist/esm/code.js',
+  'node_modules/@connectrpc/connect/dist/esm/connect-error.js',
+  'node_modules/@connectrpc/connect/dist/esm/protocol-connect/code-string.js',
+  'packages/contracts/src/gen/access/v1/permission_pb.ts',
+  'packages/contracts/src/gen/network/v1/network_pb.ts',
+  'packages/contracts/src/gen/notification/v1/notification_events_pb.ts',
+  'packages/contracts/src/runtime/permissionCodeNames.ts',
+  'packages/demo-engine/src/protocol/constants.ts',
+  'src/entities/network/api/fetchNetworkDirectory.ts',
+  'src/entities/network/api/networkDirectoryQueryOptions.ts',
+  'src/entities/network/api/networkKeys.ts',
+  'src/entities/network/api/useNetworkDirectoryQuery.ts',
+  'src/features/scene-settings/model/graphicsPreference.ts',
+  'src/features/scene-settings/model/graphicsPreferenceStorage.ts',
+  'src/features/scene-settings/model/useSceneSettingsStore.ts',
+  'src/shared/api/errors/apiErrorFromDetail.ts',
+  'src/shared/api/errors/getErrorMessageKey.ts',
+  'src/shared/api/errors/isKnownErrorCode.ts',
+  'src/shared/api/errors/parseApiError.ts',
+  'src/shared/api/errors/translateApiError.ts',
+  'src/shared/api/errors/translatePermissionDenial.ts',
+  'src/shared/api/pagination/collectPages.ts',
+  'src/shared/api/permissions/getPermissionMessageKey.ts',
   'src/shared/api/query/organizationQueryScope.ts',
   'src/shared/routing/address/formatAddressPath.ts',
   'src/shared/routing/react/useNavigate.ts',
+  'src/shared/theme/ThemePreferenceContext.ts',
   'src/shared/theme/useThemePreference.ts',
   'src/shared/ui/chunk-load-notice/ChunkLoadNotice.tsx',
   'src/shared/ui/empty-state/EmptyState.tsx',
@@ -169,6 +194,8 @@ const MAX_ENGINE_WORKER_GZIP_KILOBYTES = 40;
 
 const MAX_ENGINE_GZIP_KILOBYTES = 180;
 
+const MAX_ENGINE_SEED_GZIP_KILOBYTES = 14.53;
+
 const MAX_ENGINE_XLSX_GZIP_KILOBYTES = 25.54;
 
 const MAX_ENGINE_CSV_GZIP_KILOBYTES = 2;
@@ -259,6 +286,13 @@ const ENGINE_WORKER_BUDGET = {
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_GZIP_KILOBYTES,
       name: 'engine',
+    },
+    {
+      baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/seed/seedSnapshot.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_SEED_GZIP_KILOBYTES,
+      name: 'engine-seed',
     },
     {
       baseline: 'engine',
@@ -676,5 +710,15 @@ export default defineConfig({
   worker: {
     format: 'es',
     plugins: () => [thirdPartyLicenses.workerPlugin(), criticalPreload.workerPlugin(), bundleBudgetPlugin(ENGINE_WORKER_BUDGET)],
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [{ includeDependenciesRecursively: false, name: 'worker', tags: ['$initial'] }],
+        },
+      },
+      treeshake: {
+        manualPureFunctions: ['console.log', 'console.info', 'console.debug'],
+      },
+    },
   },
 });

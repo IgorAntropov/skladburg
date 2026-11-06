@@ -4,6 +4,7 @@ import type { IDemoEngine } from '../../core/engine/index';
 import type { CoreModuleValue } from '../hostTypes';
 
 import { createEngine } from '../../core/engine/createEngine';
+import { isSeedLoadError } from '../../core/engine/SeedLoadError';
 
 export interface EngineProbeValue {
   checkpointCount: () => number;
@@ -144,4 +145,5 @@ export const createProbeLoader = (probes: EngineProbeValue[]): (() => Promise<Co
 
     return probe.engine;
   },
+  isSeedLoadError,
 });

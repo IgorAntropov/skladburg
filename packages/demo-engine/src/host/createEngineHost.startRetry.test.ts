@@ -13,6 +13,7 @@ import type {
 } from './testing/hostHarness';
 
 import { createEngine } from '../core/engine/createEngine';
+import { isSeedLoadError } from '../core/engine/SeedLoadError';
 import {
   ENGINE_LOCK_NAME,
   LEADER_RETRY_DELAYS_MS,
@@ -32,7 +33,7 @@ import {
 } from './testing/hostScenario';
 
 interface FlakyCoreValue {
-  loadCore: () => Promise<{ createEngine: typeof createEngine }>;
+  loadCore: () => Promise<{ createEngine: typeof createEngine; isSeedLoadError: typeof isSeedLoadError }>;
   loadCount: () => number;
 }
 
@@ -57,7 +58,7 @@ const createFlakyCore = (failureCount: number): FlakyCoreValue => {
 
       return loads <= failureCount
         ? Promise.reject(new Error('The engine core is not loaded'))
-        : Promise.resolve({ createEngine });
+        : Promise.resolve({ createEngine, isSeedLoadError });
     },
     loadCount: () => loads,
   };

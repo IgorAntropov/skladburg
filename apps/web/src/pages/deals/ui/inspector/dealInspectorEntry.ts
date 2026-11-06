@@ -1,0 +1,1 @@
+export { DealInspector } from './DealInspector';

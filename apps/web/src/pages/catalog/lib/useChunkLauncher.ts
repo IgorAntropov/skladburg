@@ -8,7 +8,7 @@ import type {
   ChunkRecoveryValue,
 } from '@/shared/lib/module-loader';
 
-import { useChunkLoader } from './useChunkLoader';
+import { useChunkLoader } from '@/shared/lib/module-loader';
 
 export interface ChunkLauncherValue<TModule> {
   close: () => void;

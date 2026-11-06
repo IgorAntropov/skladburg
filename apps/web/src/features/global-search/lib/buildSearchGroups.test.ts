@@ -51,6 +51,7 @@ const ALL_SOURCES: SearchSourcesValue = {
 };
 
 const NO_STATES: SearchSourceStatesValue = {
+  deals: undefined,
   directory: undefined,
   mapSites: undefined,
   organizations: undefined,

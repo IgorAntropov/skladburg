@@ -20,11 +20,12 @@ import { networkKeys } from './networkKeys';
 
 const MAP_SITE_EVENT_CASES: readonly RealtimeEventCaseValue[] = ['warehouseChanged', 'warehouseCreated'];
 
-export const useMapSitesQuery = (): UseQueryResult<readonly MapSite[]> => {
+export const useMapSitesQuery = (isEnabled = true): UseQueryResult<readonly MapSite[]> => {
   const client = useApiClient();
   const { organizationId } = useActingContext();
 
   return useQuery({
+    enabled: isEnabled,
     meta: createOrganizationQueryMeta(organizationId, MAP_SITE_EVENT_CASES),
     queryFn: organizationId === undefined ? skipToken : (): Promise<readonly MapSite[]> => fetchMapSites(client),
     queryKey: networkKeys.mapSites(getOrganizationScope(organizationId)),

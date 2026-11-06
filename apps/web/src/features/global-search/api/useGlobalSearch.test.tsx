@@ -32,6 +32,13 @@ import {
   ShowcaseSupplierSchema,
 } from '@skladburg/contracts/catalog/v1/showcase';
 import {
+  DealSchema,
+  DealService,
+  type ListDealsRequest,
+  type ListDealsResponse,
+  ListDealsResponseSchema,
+} from '@skladburg/contracts/deal/v1/deal';
+import {
   CitySchema,
   ListCitiesResponseSchema,
   ListMapNodesResponseSchema,
@@ -128,6 +135,7 @@ const STOREKEEPER: PersonaValue = {
 const ACCOUNTANT: PersonaValue = { permissions: [], profiles: [ProfileKind.SUPPLIER] };
 
 interface HandlersValue {
+  listDeals: Mock<(request: ListDealsRequest) => ListDealsResponse>;
   listMapSites: Mock<(request: ListMapSitesRequest) => ListMapSitesResponse>;
   listOrganizationShowcases: Mock<(request: ListOrganizationShowcasesRequest) => ListOrganizationShowcasesResponse>;
   listOwnListings: Mock<(request: ListOwnListingsRequest) => ListOwnListingsResponse>;
@@ -145,6 +153,9 @@ const createOwnListingsResponse = (id: string, name: string): ListOwnListingsRes
 );
 
 const createHandlers = (): HandlersValue => ({
+  listDeals: vi.fn((_request: ListDealsRequest): ListDealsResponse => create(ListDealsResponseSchema, {
+    deals: [create(DealSchema, { id: 'deal-1001', number: 1001 })],
+  })),
   listMapSites: vi.fn((_request: ListMapSitesRequest): ListMapSitesResponse => create(ListMapSitesResponseSchema, {
     mapSites: [create(MapSiteSchema, {
       cityId: 'city-rostov',
@@ -214,6 +225,7 @@ const createRuntime = (persona: PersonaValue, handlers: HandlersValue): ApiRunti
       listRouteLegs: () => create(ListRouteLegsResponseSchema, {}),
     });
     router.service(OrganizationShowcaseService, { listOrganizationShowcases: handlers.listOrganizationShowcases });
+    router.service(DealService, { listDeals: handlers.listDeals });
     router.service(CatalogService, { listOwnListings: handlers.listOwnListings });
     router.service(ShowcaseService, { listShowcaseListings: handlers.listShowcaseListings });
   },
@@ -287,8 +299,23 @@ describe('useGlobalSearch', () => {
       expect(result.current.status).toBe('no-sources');
     });
 
+    expect(handlers.listDeals).not.toHaveBeenCalled();
     expect(handlers.listOwnListings).not.toHaveBeenCalled();
     expect(handlers.listOrganizationShowcases).not.toHaveBeenCalled();
+  });
+
+  it('opens a deal result for a persona with deal_view even without catalog or network access', async () => {
+    const handlers = createHandlers();
+    const persona: PersonaValue = { ...ACCOUNTANT, permissions: [PermissionCode.DEAL_VIEW] };
+    const { result } = renderSearch(persona, handlers, { organizationId: TEST_ORGANIZATION_ID, query: '1001' });
+
+    await waitFor(() => {
+      expect(result.current.groups[0]?.options[0]).toMatchObject({
+        address: { kind: 'object', object: { id: 'deal-1001', type: 'deal' } },
+        title: '1001',
+      });
+    });
+    expect(handlers.listDeals).toHaveBeenCalledWith(expect.objectContaining({ query: '1001' }), expect.anything());
   });
 
   it('finds companies and the own catalog of a supplier in a fixed order and no showcase', async () => {

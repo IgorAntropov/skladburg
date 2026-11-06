@@ -9,9 +9,9 @@ import {
 } from 'vitest';
 
 import { createCachedModuleLoader } from '@/shared/lib/module-loader';
+import { useChunkLoader } from '@/shared/lib/module-loader';
 
 import { useChunkLauncher } from './useChunkLauncher';
-import { useChunkLoader } from './useChunkLoader';
 
 interface DeferredLoaderValue {
   loader: ReturnType<typeof createCachedModuleLoader<{ name: string }>>;

@@ -10,7 +10,7 @@ import {
 import {
   formatIsoCalendarDate,
   parseIsoCalendarDate,
-} from '../lib/calendarDateIso';
+} from '@/shared/lib/calendar-date';
 
 export interface SignatoryFormValues {
   signatory: SignatoryFieldsValue<string>;

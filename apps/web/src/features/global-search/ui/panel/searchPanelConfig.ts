@@ -16,6 +16,7 @@ import type {
 
 export const SEARCH_GROUP_TITLE_KEYS = {
   'cities': 'globalSearch.group.cities',
+  'deals': 'globalSearch.group.deals',
   'organizations': 'globalSearch.group.organizations',
   'own-listings': 'globalSearch.group.ownListings',
   'showcase-listings': 'globalSearch.group.showcaseListings',
@@ -24,6 +25,7 @@ export const SEARCH_GROUP_TITLE_KEYS = {
 
 export const SEARCH_GROUP_ICONS = {
   'cities': MapPin,
+  'deals': Boxes,
   'organizations': Building,
   'own-listings': Boxes,
   'showcase-listings': Package,
@@ -32,6 +34,7 @@ export const SEARCH_GROUP_ICONS = {
 
 export const SEARCH_OPTION_KIND_KEYS = {
   'city': 'globalSearch.sr.city',
+  'deal': 'globalSearch.sr.deal',
   'organization': 'globalSearch.sr.organization',
   'own-listing': 'globalSearch.sr.ownListing',
   'showcase-listing': 'globalSearch.sr.showcaseListing',

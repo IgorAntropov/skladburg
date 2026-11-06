@@ -101,7 +101,7 @@ export const buildSearchGroups = ({
   sources,
   states,
 }: BuildSearchGroupsInputValue): SearchGroupValue[] => {
-  const { directory, mapSites, organizations, ownListings, showcaseListings, warehouses } = states;
+  const { deals, directory, mapSites, organizations, ownListings, showcaseListings, warehouses } = states;
   const groups: (SearchGroupValue | undefined)[] = [];
 
   const cityNameById: ReadonlyMap<string, string> = new Map(
@@ -158,6 +158,10 @@ export const buildSearchGroups = ({
       candidates: toCandidates(showcaseListings.data?.items ?? [], item => toShowcaseListingCandidate(item, query, isStale)),
       hasNextPage: hasNextPageToken(showcaseListings.data),
     })));
+  }
+
+  if (deals !== undefined) {
+    groups.push(assembleGroup('deals', [deals], query, () => deals.data ?? { candidates: [], hasNextPage: false }));
   }
 
   return groups.filter(group => group !== undefined);

@@ -18,6 +18,7 @@ import type { ListingInspectorStateValue } from '../../api/useListingInspectorSt
 
 import { useCatalogTexts } from '../../model/useCatalogTexts';
 import { ListingInspectorSkeleton } from '../ListingInspectorSkeleton';
+import { OrderLauncherSlot } from '../order/OrderLauncherSlot';
 import {
   INSPECTOR_KICKER_CLASS_NAME,
   INSPECTOR_SECTION_TITLE_CLASS_NAME,
@@ -43,6 +44,8 @@ const ListingDetails = ({ listing, state }: ListingDetailsProps): ReactElement =
   const { listingT } = useCatalogTexts();
 
   const { supplier } = listing;
+  const { destination } = state;
+  const isOrderShown = destination !== undefined && supplier !== undefined;
   const availability = pickBestAvailability(listing.cityAvailability);
   const [quote] = listing.quotes;
   const quotedAmountMinor = quote?.unitPrice?.amountMinor;
@@ -70,6 +73,14 @@ const ListingDetails = ({ listing, state }: ListingDetailsProps): ReactElement =
         </dl>
       )}
       <ListingQuoteBlock cityNames={state.cityNames} destination={state.destination} listing={listing} />
+      {isOrderShown && (
+        <OrderLauncherSlot
+          cityNames={state.cityNames}
+          destination={destination}
+          listing={listing}
+          supplierOrganizationId={supplier.organizationId}
+        />
+      )}
       <ListingTiersTable currentTier={currentTier} tiers={listing.tiers} units={listing} />
       <ListingCityList cityNames={state.cityNames} listing={listing} />
       <ListingAbout listing={listing} />

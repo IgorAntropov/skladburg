@@ -5,13 +5,13 @@ import { useEffect } from 'react';
 import type { ObjectRefValue } from '@/shared/routing';
 
 import { useI18n } from '@/shared/i18n';
+import { useChunkLoader } from '@/shared/lib/module-loader';
 import {
   SkeletonGroup,
   useDelayedVisibility,
 } from '@/shared/ui';
 import { ChunkLoadNotice } from '@/shared/ui';
 
-import { useChunkLoader } from '../lib/useChunkLoader';
 import { useCatalogTexts } from '../model/useCatalogTexts';
 import { loadOwnCatalog } from './loadOwnCatalog';
 import { OwnCatalogSkeleton } from './skeleton/OwnCatalogSkeleton';

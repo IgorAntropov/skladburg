@@ -85,15 +85,23 @@ const lazyEditRequisitesFormTestFiles: string[] = [
 const lazyEditRequisitesFeatureFiles: string[] = ['apps/web/src/features/edit-requisites/**/*.{ts,tsx}'];
 const lazyCatalogFormFiles: string[] = [
   'apps/web/src/pages/catalog/api/editor/**/*.{ts,tsx}',
+  'apps/web/src/pages/catalog/api/order/**/*.{ts,tsx}',
   'apps/web/src/pages/catalog/ui/import/**/*.{ts,tsx}',
   'apps/web/src/pages/catalog/ui/listing-editor/**/*.{ts,tsx}',
+  'apps/web/src/pages/catalog/ui/order/OrderForm.tsx',
   'apps/web/src/pages/catalog/ui/sales-terms/**/*.{ts,tsx}',
 ];
 const lazyCatalogFormTestFiles: string[] = [
   'apps/web/src/pages/catalog/api/editor/**/*.test.{ts,tsx}',
+  'apps/web/src/pages/catalog/api/order/**/*.test.{ts,tsx}',
   'apps/web/src/pages/catalog/ui/import/**/*.test.{ts,tsx}',
   'apps/web/src/pages/catalog/ui/listing-editor/**/*.test.{ts,tsx}',
+  'apps/web/src/pages/catalog/ui/order/**/*.test.{ts,tsx}',
   'apps/web/src/pages/catalog/ui/sales-terms/**/*.test.{ts,tsx}',
+];
+const lazyDealFormFiles: string[] = [
+  'apps/web/src/pages/deals/api/commands/**/*.{ts,tsx}',
+  'apps/web/src/pages/deals/ui/inspector/**/*.{ts,tsx}',
 ];
 const lazySceneViewportFiles: string[] = ['apps/web/src/widgets/scene-viewport/**/*.{ts,tsx}'];
 const lazySceneCameraControlsChunkFiles: string[] = ['apps/web/src/widgets/scene-viewport/ui/controls/**/*.{ts,tsx}'];
@@ -502,7 +510,35 @@ const catalogImportChunkLazyRestriction: LazyModuleRestrictionValue = {
   regex: '^(?:[.]{1,2}/import(?:/|$)|.*(?:api|ui)/import(?:/|$))',
 };
 
+const orderLauncherLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the order launcher chunk',
+  regex: '(^|/)orderLauncherEntry$',
+};
+
+const orderFormLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the order form chunk',
+  regex: '(^|/)orderFormEntry$',
+};
+
+const dealInspectorLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the deal inspector chunk',
+  regex: '(^|/)dealInspectorEntry$',
+};
+
+const counterFormLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the counter offer form chunk',
+  regex: '(^|/)counterFormEntry$',
+};
+
+const listingInspectorLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the catalog listing inspector chunk',
+  regex: '(^|/)ListingInspector$',
+};
+
 const catalogLazyRestrictions: LazyModuleRestrictionValue[] = [
+  listingInspectorLazyRestriction,
+  orderFormLazyRestriction,
+  orderLauncherLazyRestriction,
   catalogOwnChunkLazyRestriction,
   catalogImportChunkLazyRestriction,
   catalogListingEditorChunkLazyRestriction,
@@ -1082,6 +1118,21 @@ export default defineConfig(
     ),
   },
   {
+    files: lazyDealFormFiles,
+    ignores: webTestFiles,
+    rules: createBoundaryRules(
+      [
+        engineRestriction,
+        registryRestriction,
+        apiTestingEntryRestriction,
+        routingTestingEntryRestriction,
+        ...motionRestrictions,
+        formPackageRestriction,
+      ],
+      webSourceSyntaxRestrictions,
+    ),
+  },
+  {
     files: engineBoundaryFiles,
     ignores: [...webTestFiles, ...sceneSegmentFiles],
     rules: createLazyModuleRules([], sourceBoundaryImportRestrictions),
@@ -1268,6 +1319,11 @@ export default defineConfig(
       [],
       [...sceneBoundaryImportRestrictions, ...sectionCatalogImportRestrictions, showcaseDescriptorImportRestriction],
     ),
+  },
+  {
+    files: ['apps/web/src/pages/deals/**/*.{ts,tsx}'],
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([dealInspectorLazyRestriction, counterFormLazyRestriction], catalogChunkImportRestrictions),
   },
   {
     files: lazySceneViewportFiles,

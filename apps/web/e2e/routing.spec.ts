@@ -6,6 +6,7 @@ import {
   toSectionHash,
 } from './fixtures/routes.ts';
 import { test } from './fixtures/test.ts';
+import { createDealRobot } from './robots/deal-robot.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';
 import { createPersonaRobot } from './robots/persona-robot.ts';
 
@@ -23,16 +24,19 @@ test.describe('addresses', () => {
     await navigation.expectAddress(toSectionHash(FIRST_SECTION));
   });
 
-  test('keeps the address of an object after a reload', async ({ page }) => {
+  test('keeps the address of an unavailable deal after a reload', async ({ page }) => {
     const navigation = createNavigationRobot(page);
 
+    const deals = createDealRobot(page);
+
     await navigation.openObject(DEAL_ROUTE);
-    await navigation.expectObjectNote(DEAL_ROUTE);
+    await deals.expectUnavailable();
+    await navigation.expectAddress(toObjectHash(DEAL_ROUTE));
 
     await navigation.reload();
 
     await navigation.expectSection(DEAL_ROUTE.section);
-    await navigation.expectObjectNote(DEAL_ROUTE);
+    await deals.expectUnavailable();
     await navigation.expectAddress(toObjectHash(DEAL_ROUTE));
   });
 

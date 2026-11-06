@@ -8,9 +8,16 @@ import type {
 } from '@/entities/listing';
 import type { NetworkDirectoryValue } from '@/entities/network';
 
+import type { SearchCandidateValue } from '../lib/rankSearchOptions';
 import type { SearchGroupStatusValue } from './searchResultTypes';
 
+export interface DealSearchResultValue {
+  candidates: readonly SearchCandidateValue[];
+  hasNextPage: boolean;
+}
+
 export interface SearchSourceStatesValue {
+  deals: SearchSourceStateValue<DealSearchResultValue> | undefined;
   directory: SearchSourceStateValue<NetworkDirectoryValue> | undefined;
   mapSites: SearchSourceStateValue<readonly MapSite[]> | undefined;
   organizations: SearchSourceStateValue<readonly OrganizationShowcase[]> | undefined;

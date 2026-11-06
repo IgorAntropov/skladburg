@@ -1,7 +1,7 @@
 import type { OrganizationSideValue } from '@/entities/organization';
 import type { AppAddressValue } from '@/shared/routing';
 
-export type SearchGroupIdValue = 'cities' | 'organizations' | 'own-listings' | 'showcase-listings' | 'sites';
+export type SearchGroupIdValue = 'cities' | 'deals' | 'organizations' | 'own-listings' | 'showcase-listings' | 'sites';
 
 export const SEARCH_GROUP_ORDER: readonly SearchGroupIdValue[] = [
   'organizations',
@@ -9,6 +9,7 @@ export const SEARCH_GROUP_ORDER: readonly SearchGroupIdValue[] = [
   'cities',
   'own-listings',
   'showcase-listings',
+  'deals',
 ];
 
 export type GlobalSearchStatusValue = 'empty' | 'idle' | 'no-sources' | 'ready' | 'searching' | 'too-short';
@@ -40,6 +41,7 @@ export type SearchOptionDetailValue
   = | { cityName: string; isOwn: boolean; kind: 'site'; organizationName: string }
     | { isPublished: boolean; kind: 'own-listing' }
     | { kind: 'city' }
+    | { kind: 'deal' }
     | { kind: 'organization'; sides: readonly OrganizationSideValue[] }
     | { kind: 'showcase-listing'; supplierName: string };
 

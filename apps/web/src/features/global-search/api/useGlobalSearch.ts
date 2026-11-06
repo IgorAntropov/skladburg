@@ -33,6 +33,7 @@ import { warehouseKeys } from '@/entities/warehouse';
 import {
   createOrganizationQueryMeta,
   getOrganizationScope,
+  useActingContext,
   useApiClient,
 } from '@/shared/api';
 
@@ -68,6 +69,8 @@ const hasProfile = (profiles: readonly OrganizationProfile[], kind: ProfileKind)
 
 export const useGlobalSearch = (query: string, organizationId: string | undefined): GlobalSearchValue => {
   const client = useApiClient();
+  const { userId } = useActingContext();
+  const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
   const canViewCatalog = useCan(PermissionCode.CATALOG_VIEW);
   const canViewMarketplace = useCan(PermissionCode.MARKETPLACE_VIEW);
   const canViewNetwork = useCan(PermissionCode.NETWORK_VIEW);
@@ -137,6 +140,15 @@ export const useGlobalSearch = (query: string, organizationId: string | undefine
     queryKey: globalSearchKeys.showcaseListings(scope, normalizedQuery),
   });
 
+  const dealsQuery = useQuery({
+    meta: createOrganizationQueryMeta(canViewDeals ? organizationId : undefined, ['dealChanged']),
+    queryFn: isSearchActive && isServerQuerySettled && canViewDeals
+      ? () => import('./findDeals').then(module => module.findDeals(client, normalizedQuery))
+      : skipToken,
+    queryKey: globalSearchKeys.deals(scope, userId, normalizedQuery),
+  });
+
+  const deals = useSearchSourceState(dealsQuery, canViewDeals);
   const directory = useSearchSourceState(directoryQuery, isDirectoryAvailable);
   const organizations = useSearchSourceState(organizationsQuery, sources.organizations);
   const mapSites = useSearchSourceState(mapSitesQuery, sources.sites === 'map');
@@ -144,7 +156,7 @@ export const useGlobalSearch = (query: string, organizationId: string | undefine
   const ownListings = useSearchSourceState(ownListingsQuery, sources.ownListings);
   const showcaseListings = useSearchSourceState(showcaseListingsQuery, sources.showcaseListings);
 
-  const hasSources = hasSearchSources(sources);
+  const hasSources = canViewDeals || hasSearchSources(sources);
   const organizationName = organization?.name ?? '';
 
   const groups = useMemo(() => (
@@ -154,10 +166,11 @@ export const useGlobalSearch = (query: string, organizationId: string | undefine
           organizationName,
           query: parsedQuery,
           sources,
-          states: { directory, mapSites, organizations, ownListings, showcaseListings, warehouses },
+          states: { deals, directory, mapSites, organizations, ownListings, showcaseListings, warehouses },
         })
       : NO_GROUPS
   ), [
+    deals,
     directory,
     hasSources,
     mapSites,

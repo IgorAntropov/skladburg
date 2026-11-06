@@ -78,6 +78,70 @@ const HUD_SHARED_MODULES = [
   'src/widgets/object-inspector/ui/ObjectInspector.tsx',
 ];
 
+const STARTUP_CONTRACT_MODULES = [
+  'node_modules/@bufbuild/protobuf/dist/esm/codegenv2/boot.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/codegenv2/enum.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/codegenv2/extension.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/codegenv2/file.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/codegenv2/message.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/codegenv2/restore-json-names.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/create.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/descriptors.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/extensions.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/from-binary.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/is-message.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/proto-int64.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/reflect/error.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/reflect/guard.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/reflect/message.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/reflect/names.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/reflect/nested-types.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/reflect/reflect-check.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/reflect/reflect.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/reflect/scalar.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/reflect/unsafe.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/registry.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/to-binary.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/wire/base64-encoding.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/wire/binary-encoding.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/wire/text-encoding.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/wire/text-format.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/wire/varint.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/wkt/google/protobuf/descriptor_pb.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/wkt/wrappers.js',
+  'packages/contracts/src/gen/common/v1/entity_pb.ts',
+  'packages/contracts/src/gen/common/v1/error_pb.ts',
+  'packages/contracts/src/gen/common/v1/money_pb.ts',
+  'packages/contracts/src/runtime/channels.ts',
+  'packages/contracts/src/runtime/errorTraits.ts',
+  'packages/contracts/src/runtime/index.ts',
+];
+
+const LISTING_SHARED_MODULES = [
+  'packages/contracts/src/gen/catalog/v1/catalog_pb.ts',
+  'packages/contracts/src/gen/catalog/v1/showcase_pb.ts',
+  'src/entities/listing/api/fetchOwnListings.ts',
+  'src/entities/listing/api/fetchShowcaseListings.ts',
+  'src/entities/listing/api/listingQueryMeta.ts',
+  'src/entities/listing/i18n/listingSection.ts',
+  'src/entities/listing/ui/PublicationBadge.tsx',
+  'src/entities/organization/lib/isProfileVerified.ts',
+  'node_modules/lucide-react/dist/esm/icons/pencil-line.mjs',
+];
+
+const CATALOG_EDIT_SHARED_MODULES = [
+  'src/entities/listing/api/useOwnListingQuery.ts',
+  'src/pages/catalog/lib/formatDestinationLabel.ts',
+  'src/pages/catalog/ui/skeleton/OwnListingInspectorSkeleton.tsx',
+  'src/pages/catalog/ui/skeleton/OwnTiersSkeleton.tsx',
+  'src/pages/catalog/ui/skeleton/OwnWarehousesSkeleton.tsx',
+];
+
+const ORGANIZATION_BADGE_MODULES = [
+  'src/entities/organization/ui/ProfileBadge.tsx',
+  'src/entities/organization/ui/VerificationBadge.tsx',
+];
+
 const TOOLTIP_SHARED_MODULES = [
   'src/shared/ui/action-button/AccessButton.tsx',
   'src/shared/ui/action-button/ActionButton.tsx',
@@ -189,6 +253,24 @@ const MAX_SALES_TERMS_FORM_GZIP_KILOBYTES = 75.8;
 const MAX_GLOBAL_SEARCH_GZIP_KILOBYTES = 19.4;
 
 const MAX_GLOBAL_SEARCH_TEXTS_GZIP_KILOBYTES = 1.4;
+
+const MAX_DEALS_BOARD_GZIP_KILOBYTES = 18.79;
+
+const MAX_DEAL_INSPECTOR_GZIP_KILOBYTES = 68.89;
+
+const MAX_COUNTER_FORM_GZIP_KILOBYTES = 70.3;
+
+const MAX_DEALS_TEXTS_GZIP_KILOBYTES = 2.63;
+
+const MAX_CATALOG_LISTING_INSPECTOR_GZIP_KILOBYTES = 31.76;
+
+const MAX_ORDER_LAUNCHER_GZIP_KILOBYTES = 50.18;
+
+const MAX_ORDER_FORM_GZIP_KILOBYTES = 80.46;
+
+const MAX_ORDER_TEXTS_GZIP_KILOBYTES = 1.27;
+
+const MAX_GLOBAL_SEARCH_DEALS_GZIP_KILOBYTES = 24.54;
 
 const MAX_ENGINE_WORKER_GZIP_KILOBYTES = 40;
 
@@ -467,6 +549,76 @@ const LAZY_ENTRY_BUDGETS = [
   },
   {
     baseline: STARTUP_BASELINE,
+    entries: ['src/pages/deals/ui/DealsPage.tsx'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_DEALS_BOARD_GZIP_KILOBYTES,
+    name: 'deals-board',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/deals/ui/inspector/dealInspectorEntry.ts'],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_DEAL_INSPECTOR_GZIP_KILOBYTES,
+    name: 'deal-inspector',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/deals/ui/inspector/counterFormEntry.ts'],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_COUNTER_FORM_GZIP_KILOBYTES,
+    name: 'counter-form',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/deals/i18n/catalogs/ru.ts', 'src/pages/deals/i18n/catalogs/inspectorRu.ts'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_DEALS_TEXTS_GZIP_KILOBYTES,
+    name: 'deals-texts',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/catalog/ui/ListingInspector.tsx'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_CATALOG_LISTING_INSPECTOR_GZIP_KILOBYTES,
+    name: 'catalog-listing-inspector',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/catalog/ui/order/orderLauncherEntry.ts'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_ORDER_LAUNCHER_GZIP_KILOBYTES,
+    name: 'order-launcher',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/catalog/ui/order/orderFormEntry.ts'],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_ORDER_FORM_GZIP_KILOBYTES,
+    name: 'order-form',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/catalog/i18n/order/ru.ts'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_ORDER_TEXTS_GZIP_KILOBYTES,
+    name: 'order-texts',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/features/global-search/api/findDeals.ts', 'packages/contracts/src/gen/deal/v1/deal_pb.ts'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_GLOBAL_SEARCH_DEALS_GZIP_KILOBYTES,
+    name: 'global-search-deals',
+  },
+  {
+    baseline: STARTUP_BASELINE,
     entries: ['src/pages/catalog/ui/CatalogPage.tsx'],
     forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
     isRequired: true,
@@ -624,6 +776,26 @@ export default defineConfig({
               includeDependenciesRecursively: false,
               name: 'hud-shared',
               test: (moduleId: string): boolean => HUD_SHARED_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'startup-contract',
+              test: (moduleId: string): boolean => STARTUP_CONTRACT_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'listing-shared',
+              test: (moduleId: string): boolean => LISTING_SHARED_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'catalog-edit-shared',
+              test: (moduleId: string): boolean => CATALOG_EDIT_SHARED_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'organization-badges',
+              test: (moduleId: string): boolean => ORGANIZATION_BADGE_MODULES.some(entry => hasEntryModule([moduleId], entry)),
             },
             {
               includeDependenciesRecursively: false,

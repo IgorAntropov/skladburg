@@ -5,12 +5,10 @@ import {
   useState,
 } from 'react';
 
-import type {
-  CachedModuleLoader,
-  ChunkRecoveryValue,
-} from '@/shared/lib/module-loader';
+import type { CachedModuleLoader } from './createCachedModuleLoader';
+import type { ChunkRecoveryValue } from './getChunkRecovery';
 
-import { getChunkRecovery } from '@/shared/lib/module-loader';
+import { getChunkRecovery } from './getChunkRecovery';
 
 export interface ChunkLoaderValue<TModule> {
   load: () => void;

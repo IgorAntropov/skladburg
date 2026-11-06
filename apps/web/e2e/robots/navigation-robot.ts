@@ -22,7 +22,6 @@ export interface NavigationRobotValue {
   expectAddress: (hash: string) => Promise<void>;
   expectAvailableSections: (sections: readonly SectionValue[]) => Promise<void>;
   expectNotFound: () => Promise<void>;
-  expectObjectNote: (route: ObjectRouteValue) => Promise<void>;
   expectSection: (section: SectionValue) => Promise<void>;
   openHash: (hash: string) => Promise<void>;
   openObject: (route: ObjectRouteValue) => Promise<void>;
@@ -34,7 +33,6 @@ export interface NavigationRobotValue {
 export const createNavigationRobot = (page: Page): NavigationRobotValue => {
   const notFound = page.getByTestId('not-found');
   const notFoundAction = page.getByTestId('not-found-action');
-  const objectNote = page.getByTestId('object-note');
   const getSectionLink = (section: SectionValue): Locator => page.getByTestId(`app-nav-link-${section}`);
   const getSectionPage = (section: SectionValue): Locator => page.getByTestId(`page-${section}`);
 
@@ -61,9 +59,6 @@ export const createNavigationRobot = (page: Page): NavigationRobotValue => {
     async expectNotFound(): Promise<void> {
       await expect(notFound).toBeVisible();
       await expect(notFoundAction).toBeVisible();
-    },
-    async expectObjectNote({ id }: ObjectRouteValue): Promise<void> {
-      await expect(objectNote).toContainText(id);
     },
     async expectSection(section: SectionValue): Promise<void> {
       await expect(getSectionPage(section)).toBeVisible();

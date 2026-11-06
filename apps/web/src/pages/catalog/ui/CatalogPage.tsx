@@ -10,7 +10,7 @@ import {
 import { ScenePlaceholder } from '@/widgets/scene-viewport';
 
 import { CatalogPanel } from './CatalogPanel';
-import { ListingInspector } from './ListingInspector';
+import { ListingInspectorSlot } from './ListingInspectorSlot';
 
 interface CatalogPageProps {
   focus: ObjectRefValue | undefined;
@@ -24,7 +24,7 @@ export const CatalogPage = ({ focus }: CatalogPageProps): ReactElement => {
     <div className="contents" data-testid="page-catalog">
       <HudLayout
         {...inspectorFocus}
-        inspector={<ListingInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
+        inspector={<ListingInspectorSlot focus={focus} onClose={inspectorFocus.onInspectorClose} />}
         panel={<CatalogPanel focus={focus} />}
         scene={<ScenePlaceholder label={t('hud.scene.placeholder')} />}
       />

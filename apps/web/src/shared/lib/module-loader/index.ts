@@ -10,3 +10,4 @@ export { createCachedModuleLoader } from './createCachedModuleLoader';
 export { createLazyComponent } from './createLazyComponent';
 export type { ChunkRecoveryValue } from './getChunkRecovery';
 export { getChunkRecovery } from './getChunkRecovery';
+export { useChunkLoader } from './useChunkLoader';

@@ -1,0 +1,26 @@
+import type { CatalogShapeValue } from '@/shared/i18n';
+
+export const catalog = {
+  'order.cancel': 'Отмена',
+  'order.city': 'Город отгрузки',
+  'order.create': 'Создать черновик',
+  'order.date': 'Желаемая дата поставки',
+  'order.dateHint': 'Срок ещё нужно согласовать с поставщиком',
+  'order.leave.confirm': 'Уйти без сохранения',
+  'order.leave.message': 'Черновик ещё не создан. Введённые данные будут потеряны',
+  'order.leave.stay': 'Продолжить заказ',
+  'order.open': 'Заказать',
+  'order.openError': 'Не удалось открыть форму заказа. Проверьте соединение и повторите',
+  'order.quantity': 'Количество, {unit}',
+  'order.quantityHint': 'Минимум: {minimum}. Шаг: {step}',
+  'order.route.empty': 'До этого склада нет маршрута. Выберите другой склад',
+  'order.route.loading': 'Ищем города отгрузки…',
+  'order.title': 'Новый заказ',
+  'order.validation.date': 'Укажите допустимую дату поставки',
+  'order.validation.quantityLimit': 'Уменьшите количество',
+  'order.validation.quantityMinimum': 'Количество меньше минимальной партии',
+  'order.validation.quantityStep': 'Количество должно быть кратно шагу заказа',
+  'order.validation.quantityUnavailable': 'В этом городе нет такого количества. Уменьшите партию или выберите другой город',
+  'order.validation.route': 'Нет маршрута из этого города. Выберите другой город или склад',
+  'order.warehouse': 'Склад приёмки',
+} as const satisfies CatalogShapeValue;

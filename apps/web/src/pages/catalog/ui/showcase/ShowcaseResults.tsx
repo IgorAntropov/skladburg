@@ -7,17 +7,13 @@ import type { ShowcaseListParamsValue } from '@/entities/listing';
 import type { ObjectRefValue } from '@/shared/routing';
 
 import { useShowcaseListingsQuery } from '@/entities/listing';
-import {
-  Button,
-  ErrorNotice,
-  WidgetStates,
-} from '@/shared/ui';
+import { WidgetStates } from '@/shared/ui';
 
-import { useFocusNewRows } from '../../lib/useFocusNewRows';
 import { useCatalogTexts } from '../../model/useCatalogTexts';
+import { CatalogResultList } from '../CatalogResultList';
 import { ShowcaseEmpty } from './ShowcaseEmpty';
-import { ShowcaseList } from './ShowcaseList';
 import { ShowcaseListSkeleton } from './ShowcaseListSkeleton';
+import { ShowcaseRow } from './ShowcaseRow';
 
 interface ShowcaseResultsProps {
   focus: ObjectRefValue | undefined;
@@ -33,26 +29,11 @@ export const ShowcaseResults = ({ focus, isFiltered, onReset, params }: Showcase
   const listQuery = useShowcaseListingsQuery(params);
 
   const listings = useMemo(() => listQuery.data?.pages.flatMap(page => page.items), [listQuery.data]);
-  const { expectNewRows, listRef } = useFocusNewRows(listings?.length);
   const selectedListingId = focus?.type === 'listing' ? focus.id : undefined;
-  const isNextPageFailed = listQuery.isFetchNextPageError;
-  const isMoreShown = listQuery.hasNextPage && !isNextPageFailed;
 
   const handleRetry = (): void => {
     console.log('> ShowcaseResults -> handleRetry:', {});
     void listQuery.refetch();
-  };
-
-  const handleMoreClick = (): void => {
-    console.log('> ShowcaseResults -> handleMoreClick:', { shown: listings?.length });
-    expectNewRows();
-    void listQuery.fetchNextPage();
-  };
-
-  const handleNextPageRetry = (): void => {
-    console.log('> ShowcaseResults -> handleNextPageRetry:', { shown: listings?.length });
-    expectNewRows();
-    void listQuery.fetchNextPage();
   };
 
   return (
@@ -67,30 +48,11 @@ export const ShowcaseResults = ({ focus, isFiltered, onReset, params }: Showcase
       skeleton={<ShowcaseListSkeleton />}
     >
       {loadedListings => (
-        <div className="@container flex flex-col gap-3">
-          <p aria-live="polite" className="sr-only">{t('catalog.showcase.shown', { count: loadedListings.length })}</p>
-          <ShowcaseList
-            isBusy={listQuery.isPlaceholderData}
-            listings={loadedListings}
-            listRef={listRef}
-            selectedListingId={selectedListingId}
-          />
-          {isNextPageFailed && (
-            <ErrorNotice error={listQuery.error} isRetrying={listQuery.isFetchingNextPage} onRetry={handleNextPageRetry} />
-          )}
-          {isMoreShown && (
-            <Button
-              className="self-center"
-              data-testid="catalog-show-more"
-              onClick={handleMoreClick}
-              pending={listQuery.isFetchingNextPage}
-              pendingLabel={t('catalog.showcase.moreLoading')}
-              variant="secondary"
-            >
-              {t('catalog.showcase.more')}
-            </Button>
-          )}
-        </div>
+        <CatalogResultList count={loadedListings.length} isBusy={listQuery.isPlaceholderData} query={listQuery} testId="catalog-showcase">
+          {loadedListings.map(listing => (
+            <ShowcaseRow isSelected={listing.id === selectedListingId} key={listing.id} listing={listing} />
+          ))}
+        </CatalogResultList>
       )}
     </WidgetStates>
   );

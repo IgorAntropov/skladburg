@@ -151,6 +151,8 @@ const MAX_CATALOG_PAGE_GZIP_KILOBYTES = 27.7;
 
 const MAX_CATALOG_OWN_GZIP_KILOBYTES = 31;
 
+const MAX_CATALOG_IMPORT_GZIP_KILOBYTES = 59.5;
+
 const MAX_CATALOG_TEXTS_GZIP_KILOBYTES = 2.8;
 
 const MAX_LISTING_EDITOR_GZIP_KILOBYTES = 75.8;
@@ -173,7 +175,7 @@ const MAX_ENGINE_CSV_GZIP_KILOBYTES = 2;
 
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
-const PRECACHE_GLOB_PATTERNS = ['**/*.{js,css,html,woff2,svg,png,bin}'];
+const PRECACHE_GLOB_PATTERNS = ['**/*.{js,css,html,woff2,svg,png,bin}', 'templates/catalog-template.xlsx'];
 
 const NAVIGATE_FALLBACK_DENYLIST = [/^[^?]*\/[^/?]*\.(?!html(?:\?|$))[^/.?]+(?:\?|$)/];
 
@@ -444,6 +446,17 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_CATALOG_OWN_GZIP_KILOBYTES,
     name: 'catalog-own',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: [
+      'src/pages/catalog/ui/import/ImportPanel.tsx',
+      'src/pages/catalog/i18n/import/ru.ts',
+    ],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_CATALOG_IMPORT_GZIP_KILOBYTES,
+    name: 'catalog-import',
   },
   {
     baseline: STARTUP_BASELINE,

@@ -41,7 +41,6 @@ export const OwnListingDetails = ({ pair }: OwnListingDetailsProps): ReactElemen
         failureMessage={t('catalog.editor.openError')}
         label={t('catalog.own.edit')}
         launcher={launcher}
-        pendingLabel={t('catalog.own.opening')}
         variant="primary"
       />
       <OwnListingTiers pair={pair} />

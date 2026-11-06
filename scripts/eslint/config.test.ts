@@ -2245,6 +2245,17 @@ describe('eslint.config.ts with the local rules', () => {
       });
     });
 
+    it('keeps the catalog import panel behind its lazy loader', async () => {
+      const file = fileURLToPath(new URL('../../apps/web/src/pages/catalog/ui/loadImportPanel.ts', import.meta.url));
+      const specifier = './import/ImportPanel';
+
+      expect(await readLazyMessages(toValueImport(specifier), file)).toEqual([expect.stringContaining('catalog import panel chunk')]);
+      expect(await readLazyMessages(toDynamicImport(specifier), file)).toEqual([]);
+      const own = fileURLToPath(new URL('../../apps/web/src/pages/catalog/ui/own/OwnCatalogPanel.tsx', import.meta.url));
+      expect(await readLazyMessages(toValueImport('../import/ImportPanel'), own))
+        .toEqual([expect.stringContaining('catalog import panel chunk')]);
+    });
+
     describe('the lazy chunk of create-warehouse', () => {
       it.each([
         ['the form view from the button', './form/CreateWarehouseFormBody', createWarehouseButtonFilePath],

@@ -85,11 +85,13 @@ const lazyEditRequisitesFormTestFiles: string[] = [
 const lazyEditRequisitesFeatureFiles: string[] = ['apps/web/src/features/edit-requisites/**/*.{ts,tsx}'];
 const lazyCatalogFormFiles: string[] = [
   'apps/web/src/pages/catalog/api/editor/**/*.{ts,tsx}',
+  'apps/web/src/pages/catalog/ui/import/**/*.{ts,tsx}',
   'apps/web/src/pages/catalog/ui/listing-editor/**/*.{ts,tsx}',
   'apps/web/src/pages/catalog/ui/sales-terms/**/*.{ts,tsx}',
 ];
 const lazyCatalogFormTestFiles: string[] = [
   'apps/web/src/pages/catalog/api/editor/**/*.test.{ts,tsx}',
+  'apps/web/src/pages/catalog/ui/import/**/*.test.{ts,tsx}',
   'apps/web/src/pages/catalog/ui/listing-editor/**/*.test.{ts,tsx}',
   'apps/web/src/pages/catalog/ui/sales-terms/**/*.test.{ts,tsx}',
 ];
@@ -264,6 +266,12 @@ const catalogDescriptorImportRestriction: SceneImportRestrictionValue = {
   regex: '^@skladburg/contracts/catalog/v1/',
 };
 
+const importDescriptorImportRestriction: SceneImportRestrictionValue = {
+  importNamePattern: '(Service|Schema)$',
+  message: 'The import service and message descriptors belong in the API of the lazy catalog import panel; use import type elsewhere',
+  regex: '^@skladburg/contracts/import/v1/',
+};
+
 const moneySegmentImportRestriction: SceneImportRestrictionValue = {
   message: 'shared/lib/money formats and parses amounts for the lazy chunks of the catalog; the startup part of the application '
     + 'does not import it; use import type or move the code into a lazy chunk',
@@ -338,6 +346,7 @@ const catalogApiImportRestrictions: SceneImportRestrictionValue[] = [
 const catalogChunkImportRestrictions: SceneImportRestrictionValue[] = [
   ...catalogApiImportRestrictions,
   catalogDescriptorImportRestriction,
+  importDescriptorImportRestriction,
 ];
 
 const chunkBoundaryImportRestrictions: SceneImportRestrictionValue[] = [
@@ -488,8 +497,14 @@ const catalogSalesTermsChunkLazyRestriction: LazyModuleRestrictionValue = {
   regex: '(^|/)sales-terms(/|$)',
 };
 
+const catalogImportChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the catalog import panel chunk',
+  regex: '^(?:[.]{1,2}/import(?:/|$)|.*(?:api|ui)/import(?:/|$))',
+};
+
 const catalogLazyRestrictions: LazyModuleRestrictionValue[] = [
   catalogOwnChunkLazyRestriction,
+  catalogImportChunkLazyRestriction,
   catalogListingEditorChunkLazyRestriction,
   catalogSalesTermsChunkLazyRestriction,
 ];
@@ -1219,7 +1234,20 @@ export default defineConfig(
     rules: createLazyModuleRules(catalogLazyRestrictions, catalogChunkImportRestrictions),
   },
   {
+    files: ['apps/web/src/pages/catalog/ui/import/**/*.{ts,tsx}'],
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules(
+      catalogLazyRestrictions.filter(restriction => restriction !== catalogImportChunkLazyRestriction),
+      catalogChunkImportRestrictions,
+    ),
+  },
+  {
     files: catalogPageApiFiles,
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([], [...catalogApiImportRestrictions, importDescriptorImportRestriction]),
+  },
+  {
+    files: ['apps/web/src/pages/catalog/api/import/**/*.{ts,tsx}'],
     ignores: [...webTestFiles, ...sceneSegmentFiles],
     rules: createLazyModuleRules([], catalogApiImportRestrictions),
   },

@@ -63,8 +63,6 @@ export const SalesTermsSummary = ({ launcher, terms }: SalesTermsSummaryProps): 
           failureMessage={t('catalog.terms.openError')}
           label={t('catalog.terms.edit')}
           launcher={launcher}
-          pendingLabel={t('catalog.terms.opening')}
-          variant="secondary"
         />
       </div>
       <dl className="grid grid-cols-1 gap-2 @lg:grid-cols-3 @lg:gap-3">

@@ -22,13 +22,13 @@ import {
 import {
   Button,
   SelectField,
-  TextField,
 } from '@/shared/ui';
 
 import type { CatalogPageTranslate } from '../../i18n/catalogSection';
 import type { DestinationOptionValue } from '../../lib/destinationOptions';
 
 import { useCatalogTexts } from '../../model/useCatalogTexts';
+import { CatalogSearchField } from '../CatalogSearchField';
 
 interface ShowcaseFiltersProps {
   destination: DestinationOptionValue;
@@ -104,18 +104,12 @@ export const ShowcaseFilters = ({
   return (
     <div className="@container flex flex-col gap-3">
       <div className={GRID_CLASS_NAME}>
-        <div className="@lg:col-span-2 @3xl:col-span-1" data-testid="catalog-search">
-          <TextField
-            autoComplete="off"
-            enterKeyHint="search"
-            inputMode="search"
-            label={t('catalog.filter.search')}
-            name="catalog-search"
-            onChange={handleSearchChange}
-            ref={searchRef}
-            spellCheck={false}
-          />
-        </div>
+        <CatalogSearchField
+          className="@lg:col-span-2 @3xl:col-span-1"
+          name="catalog-search"
+          onChange={handleSearchChange}
+          ref={searchRef}
+        />
         <Button
           aria-controls={filtersId}
           aria-expanded={isFiltersOpen}

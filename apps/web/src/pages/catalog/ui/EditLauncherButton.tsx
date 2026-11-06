@@ -14,8 +14,7 @@ interface EditLauncherButtonProps {
   'failureMessage': string;
   'label': string;
   'launcher': EditLauncherValue<unknown>;
-  'pendingLabel': string;
-  'variant': ButtonVariantValue;
+  'variant'?: ButtonVariantValue | undefined;
 }
 
 export const EditLauncherButton = ({
@@ -23,8 +22,7 @@ export const EditLauncherButton = ({
   failureMessage,
   label,
   launcher,
-  pendingLabel,
-  variant,
+  variant = 'secondary',
 }: EditLauncherButtonProps): ReactElement => {
   const { t } = useCatalogTexts();
 
@@ -43,7 +41,7 @@ export const EditLauncherButton = ({
         onFocus={warmUp}
         onPointerEnter={warmUp}
         pending={isLoading}
-        pendingLabel={pendingLabel}
+        pendingLabel={t('catalog.own.opening')}
         ref={buttonRef}
         variant={variant}
       >

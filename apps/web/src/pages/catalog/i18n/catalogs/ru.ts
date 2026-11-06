@@ -27,6 +27,8 @@ export const catalog = {
   'catalog.filter.sphere': 'Сфера',
   'catalog.filter.sphereAny': 'Все сферы',
   'catalog.filter.toggle': 'Фильтры',
+  'catalog.import.open': 'Загрузить из Excel',
+  'catalog.import.openError': 'Не удалось открыть загрузку каталога',
   'catalog.own.edit': 'Изменить',
   'catalog.own.kicker': 'Ваша позиция',
   'catalog.own.listTitle': 'Позиции',
@@ -70,7 +72,6 @@ export const catalog = {
   'catalog.terms.edit': 'Изменить',
   'catalog.terms.loading': 'Загружаем условия продаж…',
   'catalog.terms.openError': 'Не удалось открыть форму. Проверьте соединение и повторите',
-  'catalog.terms.opening': 'Открываем…',
   'catalog.terms.preparation': 'Подготовка заказа',
   'catalog.terms.preparationDays': {
     few: '{count} рабочих дня',

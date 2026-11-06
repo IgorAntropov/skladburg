@@ -1,4 +1,8 @@
-import type { DescMethodUnary } from '@bufbuild/protobuf';
+import type {
+  DescMessage,
+  DescMethodUnary,
+  MessageShape,
+} from '@bufbuild/protobuf';
 import type {
   CallOptions,
   Client,
@@ -26,6 +30,7 @@ import {
   type ErrorDetail,
   ErrorDetailSchema,
 } from '@skladburg/contracts/common/v1/error';
+import { DealService } from '@skladburg/contracts/deal/v1/deal';
 import { ImportService } from '@skladburg/contracts/import/v1/import';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
@@ -46,6 +51,7 @@ import {
   createCatalogShowcaseService,
 } from '../catalog/index';
 import { createClockService } from '../clock/index';
+import { createDealService } from '../deals/index';
 import {
   createAccessService,
   createOrganizationRequisitesService,
@@ -66,6 +72,7 @@ export interface ModuleHarnessValue extends TestRuntimeValue {
   access: Client<typeof AccessService>;
   catalog: Client<typeof CatalogService>;
   catalogShowcase: Client<typeof ShowcaseService>;
+  deal: Client<typeof DealService>;
   notification: Client<typeof NotificationService>;
   organization: Client<typeof OrganizationService>;
   organizationRequisites: Client<typeof OrganizationRequisitesService>;
@@ -114,9 +121,10 @@ export const callForOutcome = async (
   transport: Transport,
   method: DescMethodUnary,
   options: CallOptions,
+  request: MessageShape<DescMessage> = create(method.input),
 ): Promise<CallOutcomeValue> => {
   try {
-    await transport.unary(method, undefined, undefined, options.headers, create(method.input));
+    await transport.unary(method, undefined, undefined, options.headers, request);
   }
   catch (error) {
     const detail = readErrorDetail(ConnectError.from(error));
@@ -136,6 +144,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(AccessService, createAccessService(testRuntime.runtime));
     service(CatalogService, createCatalogService(testRuntime.runtime));
     service(ShowcaseService, createCatalogShowcaseService(testRuntime.runtime));
+    service(DealService, createDealService(testRuntime.runtime));
     service(ClockService, createClockService(testRuntime.runtime, () => testRuntime.clock.getSnapshot()));
     const validator = createRequestValidator(testRuntime.runtime.errors, getContractRegistry());
     service(ImportService, createImportService(testRuntime.runtime, validator));
@@ -154,6 +163,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     access: createClient(AccessService, transport),
     catalog: createClient(CatalogService, transport),
     catalogShowcase: createClient(ShowcaseService, transport),
+    deal: createClient(DealService, transport),
     notification: createClient(NotificationService, transport),
     organization: createClient(OrganizationService, transport),
     organizationRequisites: createClient(OrganizationRequisitesService, transport),

@@ -42,9 +42,9 @@ import type {
 
 import { readActingContext } from '../context/index';
 import { isPlatformOperator } from '../platform/index';
-import { compareIds } from '../state/index';
 import { summarizePermissionGrants } from './effectivePermissions';
 import { resolvePermissionGrants } from './permissionGrants';
+import { enforcePermissionAmountLimit } from './permissionLimit';
 import { isWarehouseInScope } from './permissionScope';
 import { resolveSupportSessionPermissions } from './supportSessionPermissions';
 
@@ -313,21 +313,6 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
     }
   };
 
-  const pickReportedLimit = (limits: readonly Money[], requested: Money): Money | undefined => {
-    const sameCurrency = limits.filter(limit => limit.currencyCode === requested.currencyCode);
-    const candidates = sameCurrency.length > 0 ? sameCurrency : limits;
-
-    return candidates.reduce<Money | undefined>((largest, candidate) => {
-      if (largest === undefined || candidate.amountMinor > largest.amountMinor) {
-        return candidate;
-      }
-
-      const isTie = candidate.amountMinor === largest.amountMinor;
-
-      return isTie && compareIds(candidate.currencyCode, largest.currencyCode) < 0 ? candidate : largest;
-    }, undefined);
-  };
-
   const enforceLimit = (
     method: DescMethodUnary,
     request: MessageShape<DescMessage>,
@@ -341,27 +326,7 @@ export const createCallGuard = (dependencies: CallGuardDependenciesValue): ICall
     }
 
     const requested = readLimitFieldValue(method, request, limitField);
-    const covering = check.grants.filter(grant =>
-      grant.permission === name && (grant.isOrganizationWide || (warehouseId !== '' && grant.warehouseIds.includes(warehouseId))));
-    const limits = covering.flatMap(grant => grant.amountLimit === undefined ? [] : [grant.amountLimit]);
-
-    if (limits.length < covering.length) {
-      return;
-    }
-
-    const isWithinLimit = limits.some(limit => limit.currencyCode === requested.currencyCode && requested.amountMinor <= limit.amountMinor);
-
-    if (isWithinLimit) {
-      return;
-    }
-
-    const reported = pickReportedLimit(limits, requested);
-
-    if (reported === undefined) {
-      throw errors.internal();
-    }
-
-    throw errors.limitExceeded(name, reported, requested);
+    enforcePermissionAmountLimit(check.grants, name, requested, errors, warehouseId);
   };
 
   const enforceScopeAndLimit = (

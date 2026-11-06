@@ -3,7 +3,13 @@ import type {
   Page,
   Route,
 } from '@playwright/test';
+import type { ErrorDetail } from '@skladburg/contracts/common/v1/error';
+import type { Event } from '@skladburg/contracts/event/v1/event';
 
+import { fromBinary } from '@bufbuild/protobuf';
+import { ErrorDetailSchema } from '@skladburg/contracts/common/v1/error';
+import { EventSchema } from '@skladburg/contracts/event/v1/event';
+import { randomUUID } from 'node:crypto';
 import {
   readdirSync,
   readFileSync,
@@ -17,10 +23,37 @@ export interface EngineWorkerRobotValue {
   call: (methodPath: string, body: Uint8Array) => Promise<Uint8Array>;
   hasRequestedChunk: (name: string) => boolean;
   hasReset: () => Promise<boolean>;
+  readEvents: (subscriptionId: string) => Promise<Event[]>;
   readStartup: () => Promise<undefined | WorkerStartupValue>;
+  request: (methodPath: string, body: Uint8Array) => Promise<WorkerResponseValue>;
   reset: () => Promise<'control_result' | 'transport_error'>;
   stop: () => Promise<void>;
+  subscribe: (channel: string) => Promise<WorkerSubscriptionValue>;
 }
+
+export interface WorkerActingContextValue {
+  organizationId: string;
+  userId: string;
+}
+
+export interface WorkerResponseValue {
+  body: Uint8Array;
+  headers: [string, string][];
+  status: number;
+}
+
+export type WorkerSubscriptionValue
+  = | { epoch: string; id: string; kind: 'subscribed' }
+    | { error: ErrorDetail; id: string; kind: 'denied' };
+
+type BrowserSubscriptionValue
+  = | { detail: number[]; kind: 'denied' }
+    | { epoch: string; kind: 'subscribed' };
+
+const DEFAULT_ACTING_CONTEXT: WorkerActingContextValue = {
+  organizationId: '10000002-0000-4000-8000-000000000000',
+  userId: '20000002-0000-4000-8000-000000000000',
+};
 
 export type WorkerStartupValue
   = | { epoch: string; kind: 'ready'; storage: string }
@@ -32,14 +65,18 @@ interface BrowserWorkerValue {
 }
 
 type WorkerResultValue
-  = | { body: number[]; status: number; type: 'response' }
+  = | { body: number[]; headers: [string, string][]; status: number; type: 'response' }
     | { type: 'control_result' | 'transport_error' };
 
 const findWorkerFileName = (): string => {
-  const files = readdirSync(ASSET_DIRECTORY).filter(fileName =>
-    /^worker-.*\.js$/u.test(fileName)
-    && readFileSync(resolve(ASSET_DIRECTORY, fileName), 'utf8').includes('relay_to_leader'),
-  );
+  const files = readdirSync(ASSET_DIRECTORY).flatMap((fileName): string[] => {
+    if (!/^worker-.*\.js$/u.test(fileName)) {
+      return [];
+    }
+    const source = readFileSync(resolve(ASSET_DIRECTORY, fileName), 'utf8');
+    const entry = /new Worker\([`'"][^`'"]*\/([^/`'"]+\.js)[`'"]/u.exec(source)?.[1];
+    return entry === undefined ? [] : [entry];
+  });
   const [fileName] = files;
 
   if (files.length !== 1 || fileName === undefined) {
@@ -49,7 +86,10 @@ const findWorkerFileName = (): string => {
   return fileName;
 };
 
-export const createEngineWorkerRobot = async (page: Page): Promise<EngineWorkerRobotValue> => {
+export const createEngineWorkerRobot = async (
+  page: Page,
+  actingContext: WorkerActingContextValue = DEFAULT_ACTING_CONTEXT,
+): Promise<EngineWorkerRobotValue> => {
   const requests: string[] = [];
   const context = page.context();
   const handleRequest = (request: { url: () => string }): void => {
@@ -101,7 +141,15 @@ export const createEngineWorkerRobot = async (page: Page): Promise<EngineWorkerR
 
           if ('type' in message && message.type === 'response' && 'status' in message && typeof message.status === 'number'
             && 'body' in message && message.body instanceof ArrayBuffer) {
-            resolveResponse({ body: Array.from(new Uint8Array(message.body)), status: message.status, type: 'response' });
+            const headers: [string, string][] = [];
+            if ('headers' in message && Array.isArray(message.headers)) {
+              for (const header of message.headers) {
+                if (Array.isArray(header) && typeof header[0] === 'string' && typeof header[1] === 'string') {
+                  headers.push([header[0], header[1]]);
+                }
+              }
+            }
+            resolveResponse({ body: Array.from(new Uint8Array(message.body)), headers, status: message.status, type: 'response' });
 
             return;
           }
@@ -122,8 +170,8 @@ export const createEngineWorkerRobot = async (page: Page): Promise<EngineWorkerR
               headers: [
                 ['content-type', 'application/proto'],
                 ['connect-protocol-version', '1'],
-                ['x-demo-user-id', '20000002-0000-4000-8000-000000000000'],
-                ['x-acting-organization-id', '10000002-0000-4000-8000-000000000000'],
+                ['x-demo-user-id', request.actingContext.userId],
+                ['x-acting-organization-id', request.actingContext.organizationId],
               ],
               method: 'POST',
               requestId,
@@ -131,7 +179,7 @@ export const createEngineWorkerRobot = async (page: Page): Promise<EngineWorkerR
               url: `https://demo-engine.invalid/${request.methodPath}`,
             });
       });
-    }, { body: body === undefined ? undefined : Array.from(body), methodPath });
+    }, { actingContext, body: body === undefined ? undefined : Array.from(body), methodPath });
 
   return {
     call: async (methodPath, body): Promise<Uint8Array> => {
@@ -147,6 +195,19 @@ export const createEngineWorkerRobot = async (page: Page): Promise<EngineWorkerR
     hasReset: () => handle.evaluate(({ messages }): boolean =>
       messages.some(message => typeof message === 'object' && message !== null && 'type' in message && message.type === 'reset_done'),
     ),
+    readEvents: async (subscriptionId): Promise<Event[]> => {
+      const events = await handle.evaluate(({ messages }, id): number[][] => messages.flatMap((message): number[][] => {
+        if (typeof message !== 'object' || message === null || !('type' in message) || message.type !== 'events'
+          || !('subscriptionId' in message) || message.subscriptionId !== id || !('events' in message)
+          || !Array.isArray(message.events)) {
+          return [];
+        }
+        return message.events.flatMap((event: unknown): number[][] =>
+          event instanceof ArrayBuffer ? [Array.from(new Uint8Array(event))] : [],
+        );
+      }), subscriptionId);
+      return events.map(event => fromBinary(EventSchema, Uint8Array.from(event)));
+    },
     readStartup: () => handle.evaluate(({ messages }): undefined | WorkerStartupValue => {
       for (const message of messages.toReversed()) {
         if (typeof message !== 'object' || message === null || !('type' in message)) {
@@ -165,6 +226,13 @@ export const createEngineWorkerRobot = async (page: Page): Promise<EngineWorkerR
 
       return undefined;
     }),
+    request: async (methodPath, body): Promise<WorkerResponseValue> => {
+      const result = await send(methodPath, body);
+      if (result.type !== 'response') {
+        throw new Error(`Production Worker transport failed: ${result.type}`);
+      }
+      return { body: Uint8Array.from(result.body), headers: result.headers, status: result.status };
+    },
     reset: async (): Promise<'control_result' | 'transport_error'> => {
       const result = await send(undefined, undefined);
 
@@ -181,6 +249,48 @@ export const createEngineWorkerRobot = async (page: Page): Promise<EngineWorkerR
       await handle.dispose();
       context.off('request', handleRequest);
       await page.unroute(DOCUMENT_ROUTE, handleDocument);
+    },
+    subscribe: async (channel): Promise<WorkerSubscriptionValue> => {
+      const subscriptionId = randomUUID();
+      const result = await handle.evaluate(async ({ worker }, subscription): Promise<BrowserSubscriptionValue> =>
+        new Promise((resolveSubscription, reject) => {
+          const cleanup = (): void => {
+            clearTimeout(timeout);
+            worker.removeEventListener('message', handleMessage);
+          };
+          const handleMessage = (event: MessageEvent): void => {
+            const message: unknown = event.data;
+            if (typeof message !== 'object' || message === null || !('subscriptionId' in message)
+              || message.subscriptionId !== subscription.subscriptionId || !('type' in message)) {
+              return;
+            }
+            if (message.type === 'subscribed' && 'epoch' in message && typeof message.epoch === 'string') {
+              cleanup();
+              resolveSubscription({ epoch: message.epoch, kind: 'subscribed' });
+            }
+            else if (message.type === 'subscription_denied' && 'detail' in message && message.detail instanceof ArrayBuffer) {
+              cleanup();
+              resolveSubscription({ detail: Array.from(new Uint8Array(message.detail)), kind: 'denied' });
+            }
+          };
+          const timeout = setTimeout(() => {
+            cleanup();
+            reject(new Error('Production Worker subscription timed out'));
+          }, 15_000);
+          worker.addEventListener('message', handleMessage);
+          worker.postMessage({
+            channel: subscription.channel,
+            headers: [
+              ['x-demo-user-id', subscription.actingContext.userId],
+              ['x-acting-organization-id', subscription.actingContext.organizationId],
+            ],
+            subscriptionId: subscription.subscriptionId,
+            type: 'subscribe',
+          });
+        }), { actingContext, channel, subscriptionId });
+      return result.kind === 'subscribed'
+        ? { epoch: result.epoch, id: subscriptionId, kind: 'subscribed' }
+        : { error: fromBinary(ErrorDetailSchema, Uint8Array.from(result.detail)), id: subscriptionId, kind: 'denied' };
     },
   };
 };

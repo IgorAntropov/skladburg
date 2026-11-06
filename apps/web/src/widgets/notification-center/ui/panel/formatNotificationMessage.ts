@@ -5,7 +5,9 @@ import { NotificationKind } from '@skladburg/contracts/notification/v1/notificat
 
 import type { SectionTranslate } from '@/shared/i18n';
 
-import type { NotificationCatalogValue } from '../i18n/notificationSection';
+import { getDealNoticeKey } from '@/entities/notification';
+
+import type { NotificationCatalogValue } from '../../i18n/notificationSection';
 
 export type FormatNotificationTime = (instantMs: number) => string;
 
@@ -46,6 +48,14 @@ export const formatNotificationMessage = (
   const { params } = notification;
 
   switch (params.case) {
+    case 'dealUpdate': {
+      const { counterpartyName, dealNumber, notice } = params.value;
+
+      return t(`notification.message.${getDealNoticeKey(notice)}`, {
+        counterpartyName,
+        dealNumber: String(dealNumber),
+      });
+    }
     case 'partnerVerified': {
       const { organizationName, verificationLevel } = params.value;
 

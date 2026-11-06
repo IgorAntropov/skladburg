@@ -1,15 +1,22 @@
 import type { Notification } from '@skladburg/contracts/notification/v1/notification';
 import type { ReactElement } from 'react';
 
-import { NotificationKind } from '@skladburg/contracts/notification/v1/notification';
+import {
+  DealNotice,
+  NotificationKind,
+} from '@skladburg/contracts/notification/v1/notification';
 import {
   Bell,
   CircleArrowUp,
+  FileText,
   KeyRound,
   LifeBuoy,
+  MessageCircle,
   ShieldAlert,
   ShieldCheck,
+  Truck,
   Warehouse,
+  X,
 } from 'lucide-react';
 
 interface NotificationKindIconProps {
@@ -29,8 +36,33 @@ const renderSupportAccessIcon = ({ kind }: Notification): ReactElement => {
   }
 };
 
+const renderDealIcon = (notice: DealNotice): ReactElement => {
+  switch (notice) {
+    case DealNotice.ACCEPTED:
+    case DealNotice.CONFIRMED:
+    case DealNotice.PAID_OUT:
+      return <ShieldCheck className={ICON_CLASS_NAME} />;
+    case DealNotice.ARRIVED:
+    case DealNotice.SHIPPED:
+      return <Truck className={ICON_CLASS_NAME} />;
+    case DealNotice.CANCELLED:
+    case DealNotice.REJECTED:
+      return <X className={ICON_CLASS_NAME} />;
+    case DealNotice.COUNTER_OFFERED:
+      return <MessageCircle className={ICON_CLASS_NAME} />;
+    case DealNotice.DOCUMENTS_READY:
+    case DealNotice.FUNDS_BLOCKED:
+    case DealNotice.RECEIVED:
+      return <FileText className={ICON_CLASS_NAME} />;
+    default:
+      return <Bell className={ICON_CLASS_NAME} />;
+  }
+};
+
 export const NotificationKindIcon = ({ notification }: NotificationKindIconProps): ReactElement => {
   switch (notification.params.case) {
+    case 'dealUpdate':
+      return renderDealIcon(notification.params.value.notice);
     case 'partnerVerified':
       return <ShieldCheck className={ICON_CLASS_NAME} />;
     case 'supportAccess':

@@ -1,9 +1,12 @@
+import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import {
   SupportAccessCloseReason,
   SupportAccessStatus,
   SupportAuditAction,
 } from '@skladburg/contracts/support/v1/support_access';
 import { SupportAccessChange } from '@skladburg/contracts/support/v1/support_events';
+
+import { createStateMachine } from '../../machine/index';
 
 export const SupportAccessCommand = {
   APPROVE: 'approve',
@@ -88,10 +91,16 @@ const FINAL_STATUSES: ReadonlySet<SupportAccessStatus> = new Set([
   SupportAccessStatus.DECLINED,
 ]);
 
-export const findSupportAccessTransition = (
-  command: SupportAccessCommand,
-  status: SupportAccessStatus,
-): SupportAccessTransitionValue | undefined => TRANSITIONS[command][status];
+const machine = createStateMachine<SupportAccessCommand, SupportAccessStatus, SupportAccessTransitionValue>({
+  entity: EntityKind.SUPPORT_ACCESS_SESSION,
+  intendedStatuses: INTENDED_STATUSES,
+  statusName: status => SupportAccessStatus[status],
+  transitions: TRANSITIONS,
+});
+
+export const findSupportAccessTransition = machine.findTransition;
+
+export const requireSupportAccessTransition = machine.requireTransition;
 
 export const readIntendedSupportAccessStatus = (command: SupportAccessCommand): SupportAccessStatus => INTENDED_STATUSES[command];
 

@@ -1,6 +1,8 @@
 import type {
+  DescMessage,
   DescMethod,
   DescMethodUnary,
+  MessageShape,
 } from '@bufbuild/protobuf';
 import type { Role } from '@skladburg/contracts/access/v1/access';
 import type { Organization } from '@skladburg/contracts/organization/v1/organization';
@@ -13,6 +15,12 @@ import {
 } from '@skladburg/contracts/access/v1/access';
 import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
+import {
+  AcceptCounterOfferRequestSchema,
+  ConfirmDealRequestSchema,
+  DealService,
+  SubmitDealRequestSchema,
+} from '@skladburg/contracts/deal/v1/deal';
 import {
   CreateWarehouseRequestSchema,
   OrganizationService,
@@ -46,6 +54,7 @@ import {
   SeedMapNodeId,
   SeedOrganizationId,
   SeedUserId,
+  SeedWarehouseId,
 } from '../seed/index';
 import { isPermissionInOrganizationArea } from './permissionArea';
 import {
@@ -84,6 +93,29 @@ interface PermissionMethodValue {
 }
 
 const CREATE_WAREHOUSE_KEY = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
+const UNKNOWN_DEAL_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+
+const LIMITED_REQUESTS: ReadonlyMap<string, MessageShape<DescMessage>> = new Map<string, MessageShape<DescMessage>>([
+  ['deal.v1.DealService.AcceptCounterOffer', create(AcceptCounterOfferRequestSchema, {
+    dealId: UNKNOWN_DEAL_ID,
+    expectedVersion: 1,
+    goodsTotal: { amountMinor: 100n, currencyCode: 'RUB' },
+    idempotencyKey: CREATE_WAREHOUSE_KEY,
+  })],
+  ['deal.v1.DealService.ConfirmDeal', create(ConfirmDealRequestSchema, {
+    dealId: UNKNOWN_DEAL_ID,
+    expectedVersion: 1,
+    goodsTotal: { amountMinor: 100n, currencyCode: 'RUB' },
+    idempotencyKey: CREATE_WAREHOUSE_KEY,
+    shipFromWarehouseId: SeedWarehouseId.SUPPLIER_1_WAREHOUSE_1,
+  })],
+  ['deal.v1.DealService.SubmitDeal', create(SubmitDealRequestSchema, {
+    dealId: UNKNOWN_DEAL_ID,
+    expectedVersion: 1,
+    goodsTotal: { amountMinor: 100n, currencyCode: 'RUB' },
+    idempotencyKey: CREATE_WAREHOUSE_KEY,
+  })],
+]);
 
 const records = createSeedRecords();
 const presets = listRolePresets();
@@ -195,8 +227,38 @@ const createCases = (subjects: readonly MatrixSubjectValue[], methods: readonly 
 const SUBJECTS = createSubjects();
 const PERMISSION_METHODS = listPermissionMethods();
 const CASES = createCases(SUBJECTS, PERMISSION_METHODS);
+const LIMITED_METHODS = PERMISSION_METHODS.filter(({ method }) => {
+  const requirement = getMethodAccess(method)?.requirement;
+
+  return requirement?.case === 'permission' && requirement.value.limitField !== '';
+});
+
+const findLimitedRequest = (method: DescMethodUnary): MessageShape<DescMessage> | undefined =>
+  LIMITED_REQUESTS.get(`${method.parent.typeName}.${method.name}`);
 
 describe('role preset matrix: inputs', () => {
+  it('supplies every method with a limit field a request that passes contract validation', () => {
+    const harness = createModuleHarness();
+
+    expect(LIMITED_METHODS.map(({ method }) => `${method.parent.typeName}.${method.name}`).sort())
+      .toEqual([...LIMITED_REQUESTS.keys()].sort());
+
+    for (const { method } of LIMITED_METHODS) {
+      const request = findLimitedRequest(method);
+
+      expect(request, method.name).toBeDefined();
+
+      if (request !== undefined) {
+        expect(() => harness.runtime.guard.guardPermissionCall(
+          harness.state.read,
+          method,
+          request,
+          new Headers(callAs(SeedUserId.BUYER_1, SeedOrganizationId.CUSTOMER_1).headers),
+        )).not.toThrow();
+      }
+    }
+  });
+
   it('covers every organization and every role of the seed', () => {
     expect(SUBJECTS).toHaveLength(records.roles.length);
     expect(new Set(SUBJECTS.map(subject => subject.organization.id)).size).toBe(records.organizations.length);
@@ -258,16 +320,57 @@ describe('role preset matrix: permission x preset x organization', () => {
   });
 
   it.each(CASES)('$title', async (item) => {
-    const outcome = await callForOutcome(harness.transport, item.method, callAs(item.userId, item.organizationId));
+    const limitedRequest = findLimitedRequest(item.method);
+    const outcome = await callForOutcome(harness.transport, item.method, callAs(item.userId, item.organizationId), limitedRequest);
 
     if (item.expectedOutcome === 'allowed') {
       expect(outcome.code).not.toBe(ErrorCode.PERMISSION_DENIED);
       expect(outcome.code).not.toBe(ErrorCode.LIMIT_EXCEEDED);
+
+      if (limitedRequest !== undefined) {
+        expect(outcome.code).not.toBe(ErrorCode.INTERNAL);
+        expect(outcome.code).not.toBe(ErrorCode.VALIDATION_FAILED);
+      }
     }
     else {
       expect(outcome.code).toBe(ErrorCode.PERMISSION_DENIED);
       expect(outcome.permission).toBe(item.permissionName);
     }
+  });
+});
+
+describe('deal approval methods: real amount limits', () => {
+  const methods: readonly DescMethodUnary[] = [
+    DealService.method.submitDeal,
+    DealService.method.confirmDeal,
+    DealService.method.acceptCounterOffer,
+  ];
+  const harness = createModuleHarness();
+  const headers = new Headers(callAs(SeedUserId.BUYER_1, SeedOrganizationId.CUSTOMER_1).headers);
+
+  it.each(methods)('$name allows the exact limit and rejects an amount above it', async (method) => {
+    const template = findLimitedRequest(method);
+
+    if (template === undefined) {
+      throw new Error(`Missing limited request for ${method.name}`);
+    }
+
+    const { $typeName: _, ...fields } = template;
+    const accepted = create(method.input, { ...fields, goodsTotal: { amountMinor: 10_000_000n, currencyCode: 'RUB' } });
+    const rejected = create(method.input, { ...fields, goodsTotal: { amountMinor: 10_000_001n, currencyCode: 'RUB' } });
+
+    expect(() => harness.runtime.guard.guardPermissionCall(harness.state.read, method, accepted, headers)).not.toThrow();
+
+    const error = await captureError(Promise.resolve().then(() =>
+      harness.runtime.guard.guardPermissionCall(harness.state.read, method, rejected, headers)));
+    const detail = readErrorDetail(error);
+
+    expect(detail.code).toBe(ErrorCode.LIMIT_EXCEEDED);
+    expect(detail.params.case === 'limitExceeded' ? detail.params.value : undefined).toMatchObject({
+      limit: { amountMinor: 10_000_000n, currencyCode: 'RUB' },
+      permission: 'deal_approve',
+      requested: { amountMinor: 10_000_001n, currencyCode: 'RUB' },
+    });
   });
 });
 

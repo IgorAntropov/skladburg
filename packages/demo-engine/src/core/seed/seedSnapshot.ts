@@ -74,6 +74,8 @@ export type SeedRecordsValue = {
 
 export const createSeedRecords = (): SeedRecordsValue => ({
   cities: createSeedCities(),
+  dealReminderMarks: [],
+  deals: [],
   idempotency: [],
   importJobs: [],
   listingPrices: createSeedListingPrices(),
@@ -86,11 +88,13 @@ export const createSeedRecords = (): SeedRecordsValue => ({
   organizationSettings: [...createSeedOrganizationSettings(), ...createSeedPlatformOrganizationSettings()],
   personas: createSeedPersonas(),
   priceLists: createSeedPriceLists(),
+  productLinks: [],
   products: createSeedProducts(),
   roles: [...createSeedRoles(), ...createSeedPlatformRoles()],
   routeLegs: createSeedRouteLegs(),
   salesTerms: createSeedSalesTerms(),
   spheres: createSeedSpheres(),
+  supplyContracts: [],
   supportAccessSessions: [],
   supportAuditEntries: [],
   supportBotQueue: [],

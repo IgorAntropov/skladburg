@@ -4,6 +4,10 @@ export {
 } from './catalog/index';
 export { createClockService } from './clock/index';
 export {
+  createDealDeadlineTask,
+  createDealService,
+} from './deals/index';
+export {
   createAccessService,
   createOrganizationRequisitesService,
   createOrganizationShowcaseService,
@@ -21,8 +25,8 @@ export {
   type INotifier,
   resolveWarehouseRecipients,
 } from './notifications/index';
-export { createOrganizationService } from './organizationService';
 
+export { createOrganizationService } from './organizationService';
 export {
   appendSupportAuditEntry,
   createSupportAccessExpiryTask,

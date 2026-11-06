@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 
 import { AssistantPortrait } from '@/entities/assistant';
 
-import type { NotificationTranslate } from '../../lib/formatNotificationMessage';
+import type { NotificationTranslate } from './formatNotificationMessage';
 
 interface NotificationEmptyProps {
   t: NotificationTranslate;

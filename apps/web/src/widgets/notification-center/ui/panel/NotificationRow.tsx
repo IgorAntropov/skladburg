@@ -18,10 +18,10 @@ import {
   TextLink,
 } from '@/shared/ui';
 
-import type { NotificationTranslate } from '../../lib/formatNotificationMessage';
 import type { NotificationCenterTabValue } from '../../lib/notificationCenterTabs';
+import type { NotificationTranslate } from './formatNotificationMessage';
 
-import { formatNotificationMessage } from '../../lib/formatNotificationMessage';
+import { formatNotificationMessage } from './formatNotificationMessage';
 import { NotificationKindIcon } from './NotificationKindIcon';
 
 interface NotificationRowProps {

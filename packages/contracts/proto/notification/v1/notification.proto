@@ -17,6 +17,33 @@ enum NotificationKind {
   NOTIFICATION_KIND_SUPPORT_REPLY = 4;
   NOTIFICATION_KIND_SUPPORT_ACCESS_REQUESTED = 5;
   NOTIFICATION_KIND_SUPPORT_EMERGENCY_ACCESS_STARTED = 6;
+  NOTIFICATION_KIND_DEAL_UPDATE = 7;
+}
+
+enum DealNotice {
+  DEAL_NOTICE_UNSPECIFIED = 0;
+  DEAL_NOTICE_RECEIVED = 1;
+  DEAL_NOTICE_CONFIRMED = 2;
+  DEAL_NOTICE_COUNTER_OFFERED = 3;
+  DEAL_NOTICE_REJECTED = 4;
+  DEAL_NOTICE_DOCUMENTS_READY = 5;
+  DEAL_NOTICE_FUNDS_BLOCKED = 6;
+  DEAL_NOTICE_SHIPPED = 7;
+  DEAL_NOTICE_ARRIVED = 8;
+  DEAL_NOTICE_ACCEPTED = 9;
+  DEAL_NOTICE_PAID_OUT = 10;
+  DEAL_NOTICE_CANCELLED = 11;
+  DEAL_NOTICE_ACCEPTANCE_DUE = 12;
+  DEAL_NOTICE_CONFIRMATION_DUE = 13;
+  DEAL_NOTICE_COUNTER_OFFER_DUE = 14;
+}
+
+message DealUpdateParams {
+  string deal_id = 1;
+  int32 deal_number = 2;
+  string counterparty_organization_id = 3;
+  string counterparty_name = 4;
+  DealNotice notice = 5;
 }
 
 enum NotificationImportance {
@@ -68,6 +95,7 @@ message Notification {
     VerificationNextLevelParams verification_next_level = 12;
     SupportReplyParams support_reply = 13;
     SupportAccessParams support_access = 14;
+    DealUpdateParams deal_update = 15;
   }
   repeated common.v1.ObjectLink links = 7 [(buf.validate.field).repeated.max_items = 3];
 }

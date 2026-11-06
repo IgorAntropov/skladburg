@@ -14,6 +14,10 @@ import type { EffectivePermissionValue } from '../../access/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
 import {
+  projectSessionPermissions,
+  resolvePermissionGrants,
+} from '../../access/index';
+import {
   getVisibleOrganization,
   listVisibleRoles,
 } from '../../visibility/index';
@@ -35,6 +39,9 @@ export const createAccessService = (runtime: IModuleRuntime): ServiceImpl<typeof
     getSession: (request, context) => {
       const caller = guard.guardCall(read, AccessService.method.getSession, request, context.requestHeader);
       const memberships = read.listBy('memberships', 'userId', caller.user.id);
+      const permissions = caller.admission?.kind === 'membership'
+        ? projectSessionPermissions(resolvePermissionGrants(read, caller.admission.membership))
+        : caller.permissions.map(toEffectivePermission);
 
       return create(GetSessionResponseSchema, {
         actingOrganizationId: caller.organizationId ?? '',
@@ -44,7 +51,7 @@ export const createAccessService = (runtime: IModuleRuntime): ServiceImpl<typeof
 
           return organization === undefined ? [] : [organization];
         }),
-        permissions: caller.permissions.map(toEffectivePermission),
+        permissions,
         user: caller.user,
       });
     },

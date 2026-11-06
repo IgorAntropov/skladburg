@@ -1,6 +1,11 @@
+import { create } from '@bufbuild/protobuf';
 import { Code } from '@connectrpc/connect';
-import { PermissionAction } from '@skladburg/contracts/access/v1/access';
+import {
+  PermissionAction,
+  RoleAssignmentSchema,
+} from '@skladburg/contracts/access/v1/access';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
+import { MoneySchema } from '@skladburg/contracts/common/v1/money';
 import { ProfileKind } from '@skladburg/contracts/organization/v1/organization';
 import {
   getPermissionName,
@@ -55,6 +60,57 @@ const STOREKEEPER_PERMISSION_NAMES: readonly string[] = [
 ];
 
 describe('AccessService.getSession', () => {
+  it('returns the actual approval limit of the purchasing persona', async () => {
+    const { access } = createModuleHarness();
+
+    const response = await access.getSession({}, callAs(SeedUserId.BUYER_1, SeedOrganizationId.CUSTOMER_1));
+
+    expect(response.permissions.find(permission => permission.permission === 'deal_approve')?.amountLimit)
+      .toMatchObject({ amountMinor: 10_000_000n, currencyCode: 'RUB' });
+    expect(response.permissions.find(permission => permission.permission === 'deal_view')?.amountLimit).toBeUndefined();
+  });
+
+  it('preserves separate currencies and a scoped unlimited assignment in the session response', async () => {
+    const { access, runtime } = createModuleHarness();
+
+    await runtime.command((transaction) => {
+      const membership = transaction.get('memberships', SeedMembershipId.BUYER_1);
+
+      if (membership === undefined) {
+        throw new Error('Purchasing membership is missing');
+      }
+
+      membership.roleAssignments = [
+        create(RoleAssignmentSchema, {
+          amountLimit: create(MoneySchema, { amountMinor: 100n, currencyCode: 'RUB' }),
+          roleId: SeedRoleId.BUYER_CUSTOMER_1,
+        }),
+        create(RoleAssignmentSchema, {
+          amountLimit: create(MoneySchema, { amountMinor: 200n, currencyCode: 'USD' }),
+          roleId: SeedRoleId.BUYER_CUSTOMER_1,
+        }),
+        create(RoleAssignmentSchema, {
+          roleId: SeedRoleId.BUYER_CUSTOMER_1,
+          warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1],
+        }),
+      ];
+      transaction.put('memberships', membership);
+    });
+
+    const response = await access.getSession({}, callAs(SeedUserId.BUYER_1, SeedOrganizationId.CUSTOMER_1));
+    const approval = response.permissions.filter(permission => permission.permission === 'deal_approve');
+
+    expect(approval).toHaveLength(3);
+    expect(approval.filter(permission => permission.isOrganizationWide).map(permission => permission.amountLimit)).toMatchObject([
+      { amountMinor: 100n, currencyCode: 'RUB' },
+      { amountMinor: 200n, currencyCode: 'USD' },
+    ]);
+    expect(approval.find(permission => !permission.isOrganizationWide)).toMatchObject({
+      warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1],
+    });
+    expect(approval.find(permission => !permission.isOrganizationWide)?.amountLimit).toBeUndefined();
+  });
+
   it('returns the user, memberships, own organizations and effective permissions of the acting organization', async () => {
     const { access } = createModuleHarness();
 

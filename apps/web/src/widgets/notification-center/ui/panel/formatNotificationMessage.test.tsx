@@ -1,8 +1,13 @@
 import type { ReactNode } from 'react';
 
-import { create } from '@bufbuild/protobuf';
+import {
+  create,
+  fromJson,
+} from '@bufbuild/protobuf';
 import { timestampFromMs } from '@bufbuild/protobuf/wkt';
 import {
+  DealNotice,
+  DealUpdateParamsSchema,
   NotificationKind,
   NotificationSchema,
   PartnerVerifiedParamsSchema,
@@ -26,7 +31,7 @@ import { withTestLocalizer } from '@/shared/i18n/index.testing';
 
 import type { NotificationTranslate } from './formatNotificationMessage';
 
-import { notificationSection } from '../i18n/notificationSection';
+import { notificationSection } from '../../i18n/notificationSection';
 import { formatNotificationMessage } from './formatNotificationMessage';
 
 const formatTime = (instantMs: number): string => new Date(instantMs).toISOString().slice(11, 16);
@@ -150,6 +155,35 @@ describe('formatNotificationMessage', () => {
     const notification = create(NotificationSchema, {
       kind: NotificationKind.SUPPORT_REPLY,
       params: SUPPORT_ACCESS_PARAMS,
+    });
+
+    expect(formatNotificationMessage(t, formatTime, notification)).toBe('Новое уведомление');
+  });
+
+  it('selects the deal notice and preserves the deal number and counterparty', async () => {
+    const t = await loadTranslate();
+    const notification = create(NotificationSchema, {
+      kind: NotificationKind.DEAL_UPDATE,
+      params: {
+        case: 'dealUpdate',
+        value: create(DealUpdateParamsSchema, {
+          counterpartyName: 'Яблоневый край',
+          dealNumber: 1001,
+          notice: DealNotice.CONFIRMED,
+        }),
+      },
+    });
+
+    expect(formatNotificationMessage(t, formatTime, notification)).toBe(
+      'Условия заказа №\u00a01001 с компанией «Яблоневый край» согласованы',
+    );
+  });
+
+  it('keeps an unknown deal notice readable', async () => {
+    const t = await loadTranslate();
+    const notification = create(NotificationSchema, {
+      kind: NotificationKind.DEAL_UPDATE,
+      params: { case: 'dealUpdate', value: fromJson(DealUpdateParamsSchema, { notice: 999 }) },
     });
 
     expect(formatNotificationMessage(t, formatTime, notification)).toBe('Новое уведомление');

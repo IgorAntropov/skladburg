@@ -82,7 +82,7 @@ export const createNotificationService = (runtime: IModuleRuntime): ServiceImpl<
       const caller = guard.guardCall(transaction, NotificationService.method.markAllNotificationsRead, request, context.requestHeader);
       const organizationId = resolveNotificationCommandOrganizationId(context.requestHeader, errors);
 
-      return idempotency.run(transaction, {
+      const response = idempotency.run(transaction, {
         handler: () => {
           markRecordsRead(transaction, caller.user.id, listUserNotifications(transaction, caller.user.id, organizationId));
 
@@ -95,23 +95,28 @@ export const createNotificationService = (runtime: IModuleRuntime): ServiceImpl<
         request,
         scope: [caller.user.id, organizationId].join(':'),
       });
+
+      response.unreadCount = countUnreadNotifications(transaction, caller.user.id, organizationId);
+
+      return response;
     }),
     markNotificationsRead: (request, context) => command((transaction) => {
       const caller = guard.guardCall(transaction, NotificationService.method.markNotificationsRead, request, context.requestHeader);
       const organizationId = resolveNotificationCommandOrganizationId(context.requestHeader, errors);
+      const visible = new Map(listUserNotifications(transaction, caller.user.id, organizationId)
+        .map(record => [record.notification.id, record]));
+      const records = request.notificationIds.map((notificationId) => {
+        const record = visible.get(notificationId);
 
-      return idempotency.run(transaction, {
+        if (record === undefined) {
+          throw errors.notFound(EntityKind.NOTIFICATION);
+        }
+
+        return record;
+      });
+
+      const response = idempotency.run(transaction, {
         handler: () => {
-          const records = request.notificationIds.map((notificationId) => {
-            const record = transaction.get('notifications', notificationId);
-
-            if (record?.userId !== caller.user.id || record.notification.organizationId !== organizationId) {
-              throw errors.notFound(EntityKind.NOTIFICATION);
-            }
-
-            return record;
-          });
-
           markRecordsRead(transaction, caller.user.id, records);
 
           return create(MarkNotificationsReadResponseSchema, {
@@ -123,6 +128,10 @@ export const createNotificationService = (runtime: IModuleRuntime): ServiceImpl<
         request,
         scope: [caller.user.id, organizationId].join(':'),
       });
+
+      response.unreadCount = countUnreadNotifications(transaction, caller.user.id, organizationId);
+
+      return response;
     }),
   };
 };

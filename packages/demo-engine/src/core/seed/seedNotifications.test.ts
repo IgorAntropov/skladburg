@@ -33,9 +33,14 @@ import {
 
 const ALLOWED_PARAM_FIELDS: ReadonlySet<string> = new Set([
   'cityName',
+  'counterpartyName',
+  'counterpartyOrganizationId',
   'currentLevel',
+  'dealId',
+  'dealNumber',
   'expiresAt',
   'nextLevel',
+  'notice',
   'organizationId',
   'organizationName',
   'sessionId',

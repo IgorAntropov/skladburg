@@ -152,17 +152,17 @@ const MAX_ORGANIZATION_LOGOS_KILOBYTES = 40;
 
 const MAX_ASSISTANT_PORTRAITS_KILOBYTES = 6;
 
-const MAX_NOTIFICATION_CENTER_GZIP_KILOBYTES = 33.7;
+const MAX_NOTIFICATION_CENTER_GZIP_KILOBYTES = 34.6;
 
 const MAX_NOTIFICATION_CENTER_TEXTS_GZIP_KILOBYTES = 1.5;
 
-const MAX_NOTIFICATION_UNREAD_REPORTER_GZIP_KILOBYTES = 3.5;
+const MAX_NOTIFICATION_UNREAD_REPORTER_GZIP_KILOBYTES = 4;
 
-const MAX_ASSISTANT_HOST_GZIP_KILOBYTES = 13.5;
+const MAX_ASSISTANT_HOST_GZIP_KILOBYTES = 14.3;
 
-const MAX_ASSISTANT_TEXTS_GZIP_KILOBYTES = 2;
+const MAX_ASSISTANT_TEXTS_GZIP_KILOBYTES = 2.1;
 
-const MAX_ASSISTANT_TEXTS_INFORMAL_GZIP_KILOBYTES = 3;
+const MAX_ASSISTANT_TEXTS_INFORMAL_GZIP_KILOBYTES = 3.2;
 
 const MAX_SUPPORT_CHAT_GZIP_KILOBYTES = 36.9;
 
@@ -192,7 +192,7 @@ const MAX_GLOBAL_SEARCH_TEXTS_GZIP_KILOBYTES = 1.4;
 
 const MAX_ENGINE_WORKER_GZIP_KILOBYTES = 40;
 
-const MAX_ENGINE_GZIP_KILOBYTES = 180;
+const MAX_ENGINE_GZIP_KILOBYTES = 180.3;
 
 const MAX_ENGINE_SEED_GZIP_KILOBYTES = 14.53;
 
@@ -713,7 +713,12 @@ export default defineConfig({
     rolldownOptions: {
       output: {
         codeSplitting: {
-          groups: [{ includeDependenciesRecursively: false, name: 'worker', tags: ['$initial'] }],
+          groups: [{
+            includeDependenciesRecursively: false,
+            name: 'worker-runtime',
+            tags: ['$initial'],
+            test: (moduleId: string): boolean => !ENGINE_WORKER_ENTRIES.some(entry => hasEntryModule([moduleId], entry)),
+          }],
         },
       },
       treeshake: {

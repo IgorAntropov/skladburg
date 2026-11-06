@@ -9,6 +9,7 @@ export {
   type PermissionCallerValue,
 } from './callGuard';
 export {
+  projectSessionPermissions,
   resolveEffectivePermissions,
   summarizePermissionGrants,
 } from './effectivePermissions';
@@ -20,6 +21,7 @@ export {
   type PermissionGrantValue,
   resolvePermissionGrants,
 } from './permissionGrants';
+export { enforcePermissionAmountLimit } from './permissionLimit';
 export {
   type PermissionPartsValue,
   splitPermissionName,

@@ -15,6 +15,10 @@ import type {
   SalesTerms,
 } from '@skladburg/contracts/catalog/v1/catalog';
 import type {
+  Deal,
+  SupplyContract,
+} from '@skladburg/contracts/deal/v1/deal';
+import type {
   City,
   MapNode,
   RouteLeg,
@@ -53,6 +57,10 @@ import {
   SalesTermsSchema,
 } from '@skladburg/contracts/catalog/v1/catalog';
 import {
+  DealSchema,
+  SupplyContractSchema,
+} from '@skladburg/contracts/deal/v1/deal';
+import {
   CitySchema,
   MapNodeSchema,
   RouteLegSchema,
@@ -73,6 +81,8 @@ import {
   SupportTicketSchema,
 } from '@skladburg/contracts/support/v1/support_ticket';
 
+import type { DealReminderMarkValue } from '../modules/deals/dealReminderRecords';
+import type { ProductLinkRecordValue } from '../modules/deals/productLinkRecords';
 import type { ImportRecordValue } from '../modules/import/importRecords';
 import type {
   EngineCollectionName,
@@ -86,6 +96,14 @@ import type {
   SupportBotQueueRecordValue,
 } from './records';
 
+import {
+  parseDealReminderMark,
+  serializeDealReminderMark,
+} from '../modules/deals/dealReminderRecords';
+import {
+  parseProductLink,
+  serializeProductLink,
+} from '../modules/deals/productLinkRecords';
 import {
   parseImportRecord,
   serializeImportRecord,
@@ -120,6 +138,8 @@ export type TableDefinitionsValue = {
 
 export interface TableIndexesValue {
   cities: never;
+  dealReminderMarks: never;
+  deals: 'customerOrganizationId' | 'supplierOrganizationId';
   idempotency: never;
   importJobs: 'tenantId';
   listingPrices: 'tenantId';
@@ -132,11 +152,13 @@ export interface TableIndexesValue {
   organizationSettings: never;
   personas: never;
   priceLists: 'tenantId';
+  productLinks: 'customerOrganizationId';
   products: 'tenantId';
   roles: 'tenantId';
   routeLegs: never;
   salesTerms: never;
   spheres: never;
+  supplyContracts: 'customerOrganizationId';
   supportAccessSessions: 'organizationId' | 'staffUserId';
   supportAuditEntries: 'organizationId';
   supportBotQueue: never;
@@ -150,6 +172,8 @@ export type TableName = EngineCollectionName;
 
 export interface TableRecordsValue {
   cities: City;
+  dealReminderMarks: DealReminderMarkValue;
+  deals: Deal;
   idempotency: IdempotencyRecordValue;
   importJobs: ImportRecordValue;
   listingPrices: ListingPrice;
@@ -162,11 +186,13 @@ export interface TableRecordsValue {
   organizationSettings: OrganizationSettings;
   personas: DemoPersonaValue;
   priceLists: PriceList;
+  productLinks: ProductLinkRecordValue;
   products: Product;
   roles: Role;
   routeLegs: RouteLeg;
   salesTerms: SalesTerms;
   spheres: Sphere;
+  supplyContracts: SupplyContract;
   supportAccessSessions: SupportAccessSession;
   supportAuditEntries: SupportAuditEntry;
   supportBotQueue: SupportBotQueueRecordValue;
@@ -215,6 +241,11 @@ const NOTIFICATION_TABLE: TableDefinition<NotificationRecordValue, 'userId'> = {
 
 export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   cities: defineMessageTable(CitySchema, city => city.id, {}),
+  dealReminderMarks: defineRecordTable(parseDealReminderMark, serializeDealReminderMark),
+  deals: defineMessageTable(DealSchema,
+    deal => deal.id,
+    { customerOrganizationId: deal => deal.customerOrganizationId,
+      supplierOrganizationId: deal => deal.supplierOrganizationId }),
   idempotency: defineRecordTable(parseIdempotencyRecord, serializeIdempotencyRecord),
   importJobs: {
     ...defineRecordTable(parseImportRecord, serializeImportRecord),
@@ -236,11 +267,17 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   organizationSettings: defineMessageTable(OrganizationSettingsSchema, settings => settings.organizationId, {}),
   personas: defineRecordTable(parseDemoPersona, serializeDemoPersona),
   priceLists: defineMessageTable(PriceListSchema, priceList => priceList.id, { tenantId: priceList => priceList.tenantId }),
+  productLinks: { ...defineRecordTable(parseProductLink,
+    serializeProductLink),
+  indexKeys: { customerOrganizationId: link => link.customerOrganizationId } },
   products: defineMessageTable(ProductSchema, product => product.id, { tenantId: product => product.tenantId }),
   roles: defineMessageTable(RoleSchema, role => role.id, { tenantId: role => role.tenantId }),
   routeLegs: defineMessageTable(RouteLegSchema, leg => leg.id, {}),
   salesTerms: defineMessageTable(SalesTermsSchema, terms => terms.organizationId, {}),
   spheres: defineMessageTable(SphereSchema, sphere => sphere.id, {}),
+  supplyContracts: defineMessageTable(SupplyContractSchema,
+    contract => contract.id,
+    { customerOrganizationId: contract => contract.customerOrganizationId }),
   supportAccessSessions: defineMessageTable(SupportAccessSessionSchema, session => session.id, {
     organizationId: session => session.organizationId,
     staffUserId: session => session.staffUserId,

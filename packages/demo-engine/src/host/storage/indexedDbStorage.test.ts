@@ -201,6 +201,13 @@ const CATALOG_DATABASE: LegacyDatabaseValue = {
   version: 9,
 };
 
+const IMPORT_DATABASE: LegacyDatabaseValue = {
+  nodeStoreName: 'mapNodes',
+  schemaVersion: 12,
+  storeNames: [...CATALOG_DATABASE.storeNames, 'importJobs'],
+  version: 10,
+};
+
 const createLegacyDatabase = (factory: IDBFactory, legacy: LegacyDatabaseValue = LEGACY_DATABASE): Promise<void> =>
   new Promise((resolve, reject) => {
     const request = factory.open(DATABASE_NAME, legacy.version);
@@ -502,6 +509,29 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     expect(loaded?.collections.mapNodes.size).toBe(snapshot.collections.mapNodes.size + 1);
     expect(loaded?.collections.warehouses.has('legacy-warehouse')).toBe(false);
     expect(loaded?.schemaVersion).toBe(snapshot.schemaVersion);
+  });
+
+  it('recreates version 10 stores with deals and product links and persists them', async () => {
+    const factory = new IDBFactory();
+    await createLegacyDatabase(factory, IMPORT_DATABASE);
+    const storage = await openStorage(factory);
+    expect(await storage.load()).toBeUndefined();
+    const snapshot = createSeedSnapshot();
+    await storage.replaceAll(snapshot);
+    await storage.commit({
+      deletes: {}, meta: snapshot.meta,
+      puts: {
+        dealReminderMarks: new Map<string, StoredRecordValue>([['deal', { id: 'deal' }]]),
+        deals: new Map<string, StoredRecordValue>([['deal', new Uint8Array([1])]]),
+        productLinks: new Map<string, StoredRecordValue>([['link', { id: 'link' }]]),
+        supplyContracts: new Map<string, StoredRecordValue>([['contract', new Uint8Array([2])]]),
+      },
+    });
+    const loaded = await storage.load();
+    expect(loaded?.collections.deals.has('deal')).toBe(true);
+    expect(loaded?.collections.supplyContracts.has('contract')).toBe(true);
+    expect(loaded?.collections.productLinks.has('link')).toBe(true);
+    expect(loaded?.collections.dealReminderMarks.has('deal')).toBe(true);
   });
 
   it('recreates version 9 stores with private imports and stays writable', async () => {

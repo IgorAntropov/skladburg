@@ -2,11 +2,9 @@ import type { SupportAccessChange } from '@skladburg/contracts/support/v1/suppor
 
 import { create } from '@bufbuild/protobuf';
 import { timestampFromMs } from '@bufbuild/protobuf/wkt';
-import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import { organizationChannel } from '@skladburg/contracts/runtime';
 import {
   type SupportAccessSession,
-  SupportAccessStatus,
   SupportAuditOutcome,
 } from '@skladburg/contracts/support/v1/support_access';
 import { SupportAccessChangedSchema } from '@skladburg/contracts/support/v1/support_events';
@@ -15,9 +13,8 @@ import type { IStateTransaction } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
 import {
-  findSupportAccessTransition,
   isSupportAccessFinal,
-  readIntendedSupportAccessStatus,
+  requireSupportAccessTransition,
   SupportAccessCommand,
 } from './supportAccessMachine';
 import { MINUTE_MS } from './supportAccessRules';
@@ -50,19 +47,7 @@ export const createSupportAccessTransitioner = (
   const apply: ISupportAccessTransitioner['apply'] = (transaction, input) => {
     const { actorUserId, command, expectedVersion, session } = input;
 
-    if (expectedVersion !== undefined && expectedVersion !== session.version) {
-      throw errors.versionConflict(EntityKind.SUPPORT_ACCESS_SESSION, session.version);
-    }
-
-    const transition = findSupportAccessTransition(command, session.status);
-
-    if (transition === undefined) {
-      throw errors.invalidTransition(
-        EntityKind.SUPPORT_ACCESS_SESSION,
-        SupportAccessStatus[session.status],
-        SupportAccessStatus[readIntendedSupportAccessStatus(command)],
-      );
-    }
+    const transition = requireSupportAccessTransition(errors, command, session, expectedVersion);
 
     session.status = transition.status;
     session.closeReason = transition.closeReason;

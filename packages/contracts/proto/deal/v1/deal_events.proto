@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package deal.v1;
+
+enum DealChange {
+  DEAL_CHANGE_UNSPECIFIED = 0;
+  DEAL_CHANGE_STATUS = 1;
+  DEAL_CHANGE_LINES = 2;
+  DEAL_CHANGE_DOCUMENTS = 3;
+  DEAL_CHANGE_PAYMENT = 4;
+}
+
+message DealChanged {
+  string deal_id = 1;
+  DealChange change = 2;
+}

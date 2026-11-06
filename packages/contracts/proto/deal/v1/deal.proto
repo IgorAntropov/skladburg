@@ -1,0 +1,385 @@
+syntax = "proto3";
+
+package deal.v1;
+
+import "buf/validate/validate.proto";
+import "catalog/v1/catalog.proto";
+import "catalog/v1/showcase.proto";
+import "common/v1/date.proto";
+import "common/v1/method_options.proto";
+import "common/v1/money.proto";
+import "common/v1/page.proto";
+import "google/protobuf/timestamp.proto";
+import "organization/v1/organization.proto";
+
+enum DealStatus {
+  DEAL_STATUS_UNSPECIFIED = 0;
+  DEAL_STATUS_DRAFT = 1;
+  DEAL_STATUS_SUBMITTED = 2;
+  DEAL_STATUS_COUNTER_OFFERED = 3;
+  DEAL_STATUS_REJECTED = 4;
+  DEAL_STATUS_AGREED = 5;
+  DEAL_STATUS_AWAITING_LOGISTICS = 6;
+  DEAL_STATUS_LOGISTICS_CHOSEN = 7;
+  DEAL_STATUS_DOCUMENTS_CONFIRMED = 8;
+  DEAL_STATUS_AWAITING_PAYMENT = 9;
+  DEAL_STATUS_PAID = 10;
+  DEAL_STATUS_PICKING = 11;
+  DEAL_STATUS_SHIPPED = 12;
+  DEAL_STATUS_IN_TRANSIT = 13;
+  DEAL_STATUS_ARRIVED = 14;
+  DEAL_STATUS_ACCEPTING = 15;
+  DEAL_STATUS_CLAIM = 16;
+  DEAL_STATUS_ACCEPTED = 17;
+  DEAL_STATUS_SETTLEMENT = 18;
+  DEAL_STATUS_CLOSED = 19;
+  DEAL_STATUS_CANCELLED = 20;
+}
+
+enum DealSource {
+  DEAL_SOURCE_UNSPECIFIED = 0;
+  DEAL_SOURCE_MANUAL = 1;
+  DEAL_SOURCE_AUTO_ORDER = 2;
+  DEAL_SOURCE_PROMOTION = 3;
+}
+
+message SupplyContract {
+  string id = 1;
+  string supplier_organization_id = 2;
+  string customer_organization_id = 3;
+  int32 template_version = 4;
+  string payment_terms = 5;
+  string acceptance_terms = 6;
+  string document_id = 7;
+}
+
+message DealProductSnapshot {
+  string name = 1;
+  string gtin = 2;
+  catalog.v1.BaseUnit base_unit = 3;
+  repeated catalog.v1.Packaging packagings = 4;
+  catalog.v1.TemperatureRange storage_temperature = 5;
+  int32 shelf_life_days = 6;
+  catalog.v1.MarkingMode marking_mode = 7;
+  catalog.v1.VatRate vat_rate = 8;
+}
+
+message DealLine {
+  string id = 1;
+  string listing_id = 2;
+  DealProductSnapshot product_snapshot = 3;
+  int64 quantity = 4;
+  int64 price_unit_coefficient = 5;
+  common.v1.Money price = 6;
+  common.v1.Money amount = 7;
+  catalog.v1.VatRate vat_rate = 8;
+}
+
+message CounterOffer {
+  repeated DealLine lines = 1;
+  string ship_from_warehouse_id = 2;
+  common.v1.CalendarDate desired_date = 3;
+  common.v1.Money goods_total = 4;
+  string reason = 5;
+}
+
+message DealDeadlines {
+  google.protobuf.Timestamp confirmation_due_at = 1;
+  google.protobuf.Timestamp counter_offer_due_at = 2;
+  string calendar_version = 3;
+  string time_zone = 4;
+}
+
+message DealTransition {
+  DealStatus from = 1;
+  DealStatus to = 2;
+  google.protobuf.Timestamp at = 3;
+  organization.v1.ProfileKind actor_side = 4;
+  string actor_role_name = 5;
+  string reason = 6;
+}
+
+message Deal {
+  string id = 1;
+  int32 number = 2;
+  string contract_id = 3;
+  string supplier_organization_id = 4;
+  string customer_organization_id = 5;
+  string ship_from_city_id = 6;
+  string ship_from_warehouse_id = 7;
+  string ship_to_warehouse_id = 8;
+  catalog.v1.DeliveryMethod delivery_method = 9;
+  common.v1.CalendarDate desired_date = 10;
+  DealStatus status = 11;
+  DealSource source = 12;
+  repeated DealLine lines = 13;
+  common.v1.Money goods_total = 14;
+  common.v1.Money delivery_total = 15;
+  CounterOffer counter_offer = 16;
+  DealDeadlines deadlines = 17;
+  repeated DealTransition transitions = 18;
+  int32 version = 19;
+  google.protobuf.Timestamp created_at = 20;
+  google.protobuf.Timestamp submitted_at = 21;
+  google.protobuf.Timestamp updated_at = 22;
+}
+
+message DraftDealLine {
+  string listing_id = 1 [(buf.validate.field).string.uuid = true];
+  int64 quantity = 2 [(buf.validate.field).int64.gt = 0];
+}
+
+message CounterDealLine {
+  string line_id = 1 [(buf.validate.field).string.uuid = true];
+  int64 quantity = 2 [(buf.validate.field).int64.gt = 0];
+  common.v1.Money price = 3 [(buf.validate.field).required = true];
+}
+
+message CreateDealDraftRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gte = 0];
+  string deal_id = 3 [(buf.validate.field).string.uuid = true];
+  string ship_from_city_id = 4 [(buf.validate.field).string.uuid = true];
+  string ship_to_warehouse_id = 5 [(buf.validate.field).string.uuid = true];
+  common.v1.CalendarDate desired_date = 6 [(buf.validate.field).required = true];
+  repeated DraftDealLine lines = 7 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 100
+  ];
+  string supplier_organization_id = 8 [(buf.validate.field).string.uuid = true];
+}
+
+message CreateDealDraftResponse {
+  Deal deal = 1;
+}
+
+message UpdateDealDraftRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gte = 0];
+  string deal_id = 3 [(buf.validate.field).string.uuid = true];
+  string ship_from_city_id = 4 [(buf.validate.field).string.uuid = true];
+  string ship_to_warehouse_id = 5 [(buf.validate.field).string.uuid = true];
+  common.v1.CalendarDate desired_date = 6 [(buf.validate.field).required = true];
+  repeated DraftDealLine lines = 7 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 100
+  ];
+}
+
+message UpdateDealDraftResponse {
+  Deal deal = 1;
+}
+
+message SubmitDealRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gte = 0];
+  string deal_id = 3 [(buf.validate.field).string.uuid = true];
+  common.v1.Money goods_total = 4 [(buf.validate.field).required = true];
+}
+
+message SubmitDealResponse {
+  Deal deal = 1;
+}
+
+message ConfirmDealRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gte = 0];
+  string deal_id = 3 [(buf.validate.field).string.uuid = true];
+  common.v1.Money goods_total = 4 [(buf.validate.field).required = true];
+  string ship_from_warehouse_id = 5 [(buf.validate.field).string.uuid = true];
+}
+
+message ConfirmDealResponse {
+  Deal deal = 1;
+}
+
+message CounterDealRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gte = 0];
+  string deal_id = 3 [(buf.validate.field).string.uuid = true];
+  repeated CounterDealLine lines = 4 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 100
+  ];
+  string ship_from_warehouse_id = 5 [(buf.validate.field).string.uuid = true];
+  common.v1.CalendarDate desired_date = 6 [(buf.validate.field).required = true];
+  string reason = 7 [(buf.validate.field).string.max_len = 1000];
+}
+
+message CounterDealResponse {
+  Deal deal = 1;
+}
+
+message AcceptCounterOfferRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gte = 0];
+  string deal_id = 3 [(buf.validate.field).string.uuid = true];
+  common.v1.Money goods_total = 4 [(buf.validate.field).required = true];
+}
+
+message AcceptCounterOfferResponse {
+  Deal deal = 1;
+}
+
+message RejectCounterOfferRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gte = 0];
+  string deal_id = 3 [(buf.validate.field).string.uuid = true];
+  string reason = 4 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.max_len = 1000
+  ];
+}
+
+message RejectCounterOfferResponse {
+  Deal deal = 1;
+}
+
+message RejectDealRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gte = 0];
+  string deal_id = 3 [(buf.validate.field).string.uuid = true];
+  string reason = 4 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.max_len = 1000
+  ];
+}
+
+message RejectDealResponse {
+  Deal deal = 1;
+}
+
+message ChooseDeliveryRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gte = 0];
+  string deal_id = 3 [(buf.validate.field).string.uuid = true];
+  catalog.v1.DeliveryMethod delivery_method = 4 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+}
+
+message ChooseDeliveryResponse {
+  Deal deal = 1;
+}
+
+message CancelDealRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gte = 0];
+  string deal_id = 3 [(buf.validate.field).string.uuid = true];
+  string reason = 4 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.max_len = 1000
+  ];
+}
+
+message CancelDealResponse {
+  Deal deal = 1;
+}
+
+message MarkDealShippedRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gte = 0];
+  string deal_id = 3 [(buf.validate.field).string.uuid = true];
+}
+
+message MarkDealShippedResponse {
+  Deal deal = 1;
+}
+
+message AcceptDealRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gte = 0];
+  string deal_id = 3 [(buf.validate.field).string.uuid = true];
+}
+
+message AcceptDealResponse {
+  Deal deal = 1;
+}
+
+message GetDealRequest {
+  string deal_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetDealResponse {
+  Deal deal = 1;
+  SupplyContract contract = 2;
+}
+
+message ListDealsRequest {
+  common.v1.PageRequest page = 1;
+  DealStatus status = 2 [(buf.validate.field).enum.defined_only = true];
+  string query = 3 [(buf.validate.field).string.max_len = 100];
+  string counterparty_organization_id = 4 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.uuid = true
+  ];
+}
+
+message ListDealsResponse {
+  repeated Deal deals = 1;
+  common.v1.PageResponse page = 2;
+}
+
+service DealService {
+  rpc CreateDealDraft(CreateDealDraftRequest) returns (CreateDealDraftResponse) {
+    option (common.v1.access).permission.name = "deal_create";
+  }
+
+  rpc UpdateDealDraft(UpdateDealDraftRequest) returns (UpdateDealDraftResponse) {
+    option (common.v1.access).permission.name = "deal_edit";
+  }
+
+  rpc SubmitDeal(SubmitDealRequest) returns (SubmitDealResponse) {
+    option (common.v1.access).permission.name = "deal_approve";
+    option (common.v1.access).permission.limit_field = "goods_total";
+  }
+
+  rpc ConfirmDeal(ConfirmDealRequest) returns (ConfirmDealResponse) {
+    option (common.v1.access).permission.name = "deal_approve";
+    option (common.v1.access).permission.limit_field = "goods_total";
+  }
+
+  rpc CounterDeal(CounterDealRequest) returns (CounterDealResponse) {
+    option (common.v1.access).permission.name = "deal_edit";
+  }
+
+  rpc AcceptCounterOffer(AcceptCounterOfferRequest) returns (AcceptCounterOfferResponse) {
+    option (common.v1.access).permission.name = "deal_approve";
+    option (common.v1.access).permission.limit_field = "goods_total";
+  }
+
+  rpc RejectCounterOffer(RejectCounterOfferRequest) returns (RejectCounterOfferResponse) {
+    option (common.v1.access).permission.name = "deal_edit";
+  }
+
+  rpc RejectDeal(RejectDealRequest) returns (RejectDealResponse) {
+    option (common.v1.access).permission.name = "deal_edit";
+  }
+
+  rpc ChooseDelivery(ChooseDeliveryRequest) returns (ChooseDeliveryResponse) {
+    option (common.v1.access).permission.name = "deal_edit";
+  }
+
+  rpc CancelDeal(CancelDealRequest) returns (CancelDealResponse) {
+    option (common.v1.access).permission.name = "deal_edit";
+  }
+
+  rpc MarkDealShipped(MarkDealShippedRequest) returns (MarkDealShippedResponse) {
+    option (common.v1.access).permission.name = "deal_edit";
+  }
+
+  rpc AcceptDeal(AcceptDealRequest) returns (AcceptDealResponse) {
+    option (common.v1.access).permission.name = "document_sign";
+  }
+
+  rpc ListDeals(ListDealsRequest) returns (ListDealsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "deal_view";
+  }
+
+  rpc GetDeal(GetDealRequest) returns (GetDealResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "deal_view";
+  }
+}

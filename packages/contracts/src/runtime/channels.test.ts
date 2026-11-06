@@ -5,6 +5,7 @@ import {
 } from 'vitest';
 
 import {
+  dealChannel,
   marketChannel,
   organizationChannel,
   parseChannel,
@@ -17,6 +18,11 @@ const userId = '8d14e6a2-0b3c-4f57-9a68-12cd45ef7890';
 const warehouseId = 'c5a3e9f1-7b24-4d86-a0c1-5e9d3b7f2a64';
 
 describe('channel names', () => {
+  it('builds and parses a deal channel', () => {
+    expect(dealChannel(organizationId)).toBe(`deal:${organizationId}`);
+    expect(parseChannel(dealChannel(organizationId))).toEqual({ dealId: organizationId, kind: 'deal' });
+  });
+
   it('builds the market channel without an identifier', () => {
     expect(marketChannel()).toBe('market');
   });
@@ -58,7 +64,9 @@ describe('parseChannel', () => {
     'user:',
     'warehouse:',
     ':id',
-    'deal:3f2b8c1e',
+    'deal:',
+    'deal:id:extra',
+    'DEAL:id',
     'ORG:3f2b8c1e',
     'org:3f2b8c1e:extra',
     'org: 3f2b8c1e',

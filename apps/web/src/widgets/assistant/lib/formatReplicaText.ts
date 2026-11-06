@@ -4,6 +4,8 @@ import { NotificationKind } from '@skladburg/contracts/notification/v1/notificat
 
 import type { SectionTranslate } from '@/shared/i18n';
 
+import { getDealNoticeKey } from '@/entities/notification';
+
 import type { AssistantCatalogValue } from '../i18n/assistantSection';
 import type {
   DigestLineValue,
@@ -34,6 +36,14 @@ const formatNotification = (t: AssistantTranslate, notification: Notification): 
   const { params } = notification;
 
   switch (params.case) {
+    case 'dealUpdate': {
+      const { counterpartyName, dealNumber, notice } = params.value;
+
+      return t(`assistant.replica.${getDealNoticeKey(notice)}`, {
+        counterpartyName,
+        dealNumber: String(dealNumber),
+      });
+    }
     case 'partnerVerified': {
       const { organizationName, verificationLevel } = params.value;
 

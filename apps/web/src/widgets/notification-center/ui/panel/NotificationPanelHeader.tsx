@@ -9,7 +9,7 @@ import {
   useAnnounce,
 } from '@/shared/ui';
 
-import type { NotificationTranslate } from '../../lib/formatNotificationMessage';
+import type { NotificationTranslate } from './formatNotificationMessage';
 
 interface NotificationPanelHeaderProps {
   isTitleShown: boolean;

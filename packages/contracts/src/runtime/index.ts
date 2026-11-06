@@ -4,6 +4,7 @@ export {
 } from './actingHeader';
 export {
   type ChannelValue,
+  dealChannel,
   marketChannel,
   organizationChannel,
   parseChannel,
@@ -11,6 +12,10 @@ export {
   warehouseChannel,
 } from './channels';
 export { compareCodeUnits } from './compareCodeUnits';
+export {
+  DEAL_RULE_IDS,
+  type DealRuleId,
+} from './dealRuleIds';
 export { getErrorTraits } from './errorTraits';
 export { getMethodAccess } from './methodAccess';
 export { getPermissionTraits } from './permissionCatalog';

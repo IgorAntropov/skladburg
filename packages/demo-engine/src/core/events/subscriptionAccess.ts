@@ -20,10 +20,12 @@ import {
   resolveEffectivePermissions,
 } from '../access/index';
 import { readActingContext } from '../context/index';
+import { isDealVisibleToOrganization } from '../modules/deals/index';
 import { isProfileVerified } from '../visibility/index';
 
 export const WAREHOUSE_CHANNEL_PERMISSION = getPermissionName(PermissionCode.WAREHOUSE_VIEW);
 export const MARKET_CHANNEL_PERMISSION = getPermissionName(PermissionCode.MARKETPLACE_VIEW);
+export const DEAL_CHANNEL_PERMISSION = getPermissionName(PermissionCode.DEAL_VIEW);
 
 export interface EngineChannelPositionValue {
   epoch: string;
@@ -97,6 +99,31 @@ export const createSubscriptionAccess = (errors: IDomainErrors): ISubscriptionAc
     }
   };
 
+  const evaluateDeal = (reader: IStateReader, dealId: string, headers: Headers, userId: string): void => {
+    const { organizationId, supportSessionId } = readActingContext(headers);
+    const membership = organizationId === undefined || supportSessionId !== undefined
+      ? undefined
+      : reader.listBy('memberships', 'userId', userId).find(candidate => candidate.organizationId === organizationId);
+
+    if (organizationId === undefined || membership === undefined) {
+      throw errors.membershipRequired();
+    }
+
+    const deal = reader.get('deals', dealId);
+
+    if (deal === undefined || !isDealVisibleToOrganization(deal, organizationId)) {
+      throw errors.notFound(EntityKind.DEAL);
+    }
+
+    const canViewDeal = resolveEffectivePermissions(reader, membership).some(
+      permission => permission.permission === DEAL_CHANNEL_PERMISSION && permission.isOrganizationWide,
+    );
+
+    if (!canViewDeal) {
+      throw errors.permissionDenied(DEAL_CHANNEL_PERMISSION);
+    }
+  };
+
   const evaluate = (reader: IStateReader, channel: string, headers: Headers): void => {
     const { userId } = readActingContext(headers);
 
@@ -126,6 +153,12 @@ export const createSubscriptionAccess = (errors: IDomainErrors): ISubscriptionAc
 
     if (parsed.kind === 'warehouse') {
       evaluateWarehouse(reader, parsed.warehouseId, userId);
+
+      return;
+    }
+
+    if (parsed.kind === 'deal') {
+      evaluateDeal(reader, parsed.dealId, headers, userId);
 
       return;
     }

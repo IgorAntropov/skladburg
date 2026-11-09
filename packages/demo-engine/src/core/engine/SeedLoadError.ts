@@ -1,6 +1,6 @@
 export class SeedLoadError extends Error {
-  constructor(cause: unknown) {
-    super('The seed module could not be loaded', { cause });
+  constructor(cause: unknown, message = 'The seed module could not be loaded') {
+    super(message, { cause });
     this.name = 'SeedLoadError';
   }
 }

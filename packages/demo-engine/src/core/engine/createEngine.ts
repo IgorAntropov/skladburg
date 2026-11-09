@@ -36,13 +36,13 @@ import {
   createDeferredDocumentService,
   loadDocuments,
 } from '../modules/documents/loadDocuments';
+import { createDeferredImportService } from '../modules/import/loadImport';
 import {
   createAccessService,
   createCatalogService,
   createCatalogShowcaseService,
   createClockService,
   createDealService,
-  createImportService,
   createNetworkService,
   createNotificationService,
   createNotifier,
@@ -67,6 +67,7 @@ import {
   createEngineHandler,
   createSupportAuditInterceptor,
 } from '../router/index';
+import { createDeferredFleetService } from '../router/loadFleetService';
 import {
   createEngineTasks,
   createScheduler,
@@ -77,6 +78,7 @@ import {
 } from '../seed/seedConfig';
 import {
   createEngineState,
+  ENGINE_SCHEMA_VERSION,
   isCurrentSnapshot,
   type IStateReader,
   type LiveMetaValue,
@@ -152,11 +154,26 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
   return module.createSeedSnapshot(seed);
 };
 
+const PRE_FLEET_SCHEMA_VERSION = 15;
+
 const loadOrSeedSnapshot = async (
   options: CreateEngineOptionsValue,
   loadSeed: typeof loadSeedSnapshot,
 ): Promise<EngineSnapshotValue> => {
   const stored = await options.storage.load();
+
+  if (stored?.schemaVersion === PRE_FLEET_SCHEMA_VERSION && stored.meta.seedVersion === SEED_VERSION) {
+    try {
+      const { addSeedFleet } = await import('../seed/seedFleet');
+      const migrated = addSeedFleet({ ...stored, schemaVersion: ENGINE_SCHEMA_VERSION });
+      await options.storage.replaceAll(migrated);
+
+      return migrated;
+    }
+    catch (error) {
+      throw new SeedLoadError(error, 'The fleet snapshot migration failed');
+    }
+  }
 
   if (isCurrentSnapshot(stored, SEED_VERSION)) {
     return stored;
@@ -229,7 +246,8 @@ export const createEngineWithTasks = async (
     dealService: createDealService(runtime),
     documentService: createDeferredDocumentService(runtime),
     errors,
-    importService: createImportService(runtime, validator),
+    fleetService: createDeferredFleetService(runtime),
+    importService: createDeferredImportService(runtime, validator),
     networkService: createNetworkService(runtime),
     notificationService: createNotificationService(runtime),
     organizationRequisitesService: createOrganizationRequisitesService(runtime),

@@ -60,11 +60,13 @@ export interface TransactionOutcomeValue<TResult> extends CheckpointOutcomeValue
 export type VolatileMetaValue = LiveMetaValue & Pick<EngineMetaValue, 'worldTimeMs'>;
 
 const createTables = (): TablesValue => ({
+  carrierLanes: createTable(TABLE_DEFINITIONS.carrierLanes),
   cities: createTable(TABLE_DEFINITIONS.cities),
   dealReminderMarks: createTable(TABLE_DEFINITIONS.dealReminderMarks),
   deals: createTable(TABLE_DEFINITIONS.deals),
   documentNumbers: createTable(TABLE_DEFINITIONS.documentNumbers),
   documents: createTable(TABLE_DEFINITIONS.documents),
+  drivers: createTable(TABLE_DEFINITIONS.drivers),
   idempotency: createTable(TABLE_DEFINITIONS.idempotency),
   importJobs: createTable(TABLE_DEFINITIONS.importJobs),
   listingPrices: createTable(TABLE_DEFINITIONS.listingPrices),
@@ -91,15 +93,18 @@ const createTables = (): TablesValue => ({
   supportTicketMessages: createTable(TABLE_DEFINITIONS.supportTicketMessages),
   supportTickets: createTable(TABLE_DEFINITIONS.supportTickets),
   users: createTable(TABLE_DEFINITIONS.users),
+  vehicles: createTable(TABLE_DEFINITIONS.vehicles),
   warehouses: createTable(TABLE_DEFINITIONS.warehouses),
 });
 
 const createOverlays = (tables: TablesValue): OverlaysValue => ({
+  carrierLanes: tables.carrierLanes.createOverlay(),
   cities: tables.cities.createOverlay(),
   dealReminderMarks: tables.dealReminderMarks.createOverlay(),
   deals: tables.deals.createOverlay(),
   documentNumbers: tables.documentNumbers.createOverlay(),
   documents: tables.documents.createOverlay(),
+  drivers: tables.drivers.createOverlay(),
   idempotency: tables.idempotency.createOverlay(),
   importJobs: tables.importJobs.createOverlay(),
   listingPrices: tables.listingPrices.createOverlay(),
@@ -126,6 +131,7 @@ const createOverlays = (tables: TablesValue): OverlaysValue => ({
   supportTicketMessages: tables.supportTicketMessages.createOverlay(),
   supportTickets: tables.supportTickets.createOverlay(),
   users: tables.users.createOverlay(),
+  vehicles: tables.vehicles.createOverlay(),
   warehouses: tables.warehouses.createOverlay(),
 });
 

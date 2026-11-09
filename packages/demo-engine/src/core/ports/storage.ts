@@ -34,6 +34,9 @@ export const ENGINE_COLLECTION_NAMES = [
   'payments',
   'supplyContracts',
   'productLinks',
+  'vehicles',
+  'drivers',
+  'carrierLanes',
 ] as const;
 
 export interface EngineChangeSetValue {
@@ -77,11 +80,13 @@ export type StoredRecordValue = StoredObjectValue | Uint8Array;
 export type StoredScalarValue = bigint | boolean | null | number | string;
 
 export const createEmptyCollections = (): Record<EngineCollectionName, EngineCollectionValue> => ({
+  carrierLanes: new Map(),
   cities: new Map(),
   dealReminderMarks: new Map(),
   deals: new Map(),
   documentNumbers: new Map(),
   documents: new Map(),
+  drivers: new Map(),
   idempotency: new Map(),
   importJobs: new Map(),
   listingPrices: new Map(),
@@ -108,5 +113,6 @@ export const createEmptyCollections = (): Record<EngineCollectionName, EngineCol
   supportTicketMessages: new Map(),
   supportTickets: new Map(),
   users: new Map(),
+  vehicles: new Map(),
   warehouses: new Map(),
 });

@@ -20,7 +20,7 @@ import {
   ENGINE_COLLECTION_NAMES,
 } from '../../core/ports/index';
 
-export const INDEXED_DB_VERSION = 13;
+export const INDEXED_DB_VERSION = 14;
 
 const META_STORE_NAME = 'meta';
 const SCHEMA_VERSION_KEY = 'schemaVersion';
@@ -88,20 +88,22 @@ const openDatabase = (
     }
 
     const upgrade = request.transaction;
-    if ((event.oldVersion === 11 || event.oldVersion === 12) && event.newVersion === INDEXED_DB_VERSION && upgrade !== null) {
-      const isBeforeDocuments = event.oldVersion === 11;
-      if (isBeforeDocuments) {
-        request.result.createObjectStore('documentNumbers');
-        request.result.createObjectStore('documents');
-      }
-      request.result.createObjectStore('payments');
-      const meta = upgrade.objectStore(META_STORE_NAME);
-      const storedVersion = meta.get(SCHEMA_VERSION_KEY);
-      storedVersion.addEventListener('success', () => {
-        if (storedVersion.result === (isBeforeDocuments ? 13 : 14)) {
-          meta.put(15, SCHEMA_VERSION_KEY);
+    if (event.oldVersion >= 11 && event.oldVersion <= 13 && event.newVersion === INDEXED_DB_VERSION && upgrade !== null) {
+      const database = request.result;
+      for (const name of ENGINE_COLLECTION_NAMES) {
+        if (!database.objectStoreNames.contains(name)) {
+          database.createObjectStore(name);
         }
-      });
+      }
+      if (event.oldVersion < 13) {
+        const meta = upgrade.objectStore(META_STORE_NAME);
+        const storedVersion = meta.get(SCHEMA_VERSION_KEY);
+        storedVersion.addEventListener('success', () => {
+          if (storedVersion.result === (event.oldVersion === 11 ? 13 : 14)) {
+            meta.put(15, SCHEMA_VERSION_KEY);
+          }
+        });
+      }
       return;
     }
 

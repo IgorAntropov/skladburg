@@ -23,6 +23,11 @@ import type {
   DocumentNumberSequence,
 } from '@skladburg/contracts/document/v1/document';
 import type {
+  CarrierLane,
+  Driver,
+  Vehicle,
+} from '@skladburg/contracts/fleet/v1/fleet';
+import type {
   City,
   MapNode,
   RouteLeg,
@@ -69,6 +74,11 @@ import {
   DocumentNumberSequenceSchema,
   DocumentSchema,
 } from '@skladburg/contracts/document/v1/document';
+import {
+  CarrierLaneSchema,
+  DriverSchema,
+  VehicleSchema,
+} from '@skladburg/contracts/fleet/v1/fleet';
 import {
   CitySchema,
   MapNodeSchema,
@@ -147,11 +157,13 @@ export type TableDefinitionsValue = {
 };
 
 export interface TableIndexesValue {
+  carrierLanes: 'tenantId';
   cities: never;
   dealReminderMarks: never;
   deals: 'customerOrganizationId' | 'supplierOrganizationId';
   documentNumbers: never;
   documents: 'dealId';
+  drivers: 'tenantId';
   idempotency: never;
   importJobs: 'tenantId';
   listingPrices: 'tenantId';
@@ -178,17 +190,20 @@ export interface TableIndexesValue {
   supportTicketMessages: 'ticketId';
   supportTickets: 'authorUserId';
   users: never;
+  vehicles: 'tenantId';
   warehouses: 'tenantId';
 }
 
 export type TableName = EngineCollectionName;
 
 export interface TableRecordsValue {
+  carrierLanes: CarrierLane;
   cities: City;
   dealReminderMarks: DealReminderMarkValue;
   deals: Deal;
   documentNumbers: DocumentNumberSequence;
   documents: Document;
+  drivers: Driver;
   idempotency: IdempotencyRecordValue;
   importJobs: ImportRecordValue;
   listingPrices: ListingPrice;
@@ -215,6 +230,7 @@ export interface TableRecordsValue {
   supportTicketMessages: SupportTicketMessage;
   supportTickets: SupportTicket;
   users: User;
+  vehicles: Vehicle;
   warehouses: Warehouse;
 }
 
@@ -256,6 +272,7 @@ const NOTIFICATION_TABLE: TableDefinition<NotificationRecordValue, 'userId'> = {
 };
 
 export const TABLE_DEFINITIONS: TableDefinitionsValue = {
+  carrierLanes: defineMessageTable(CarrierLaneSchema, lane => lane.id, { tenantId: lane => lane.tenantId }),
   cities: defineMessageTable(CitySchema, city => city.id, {}),
   dealReminderMarks: defineRecordTable(parseDealReminderMark, serializeDealReminderMark),
   deals: defineMessageTable(DealSchema,
@@ -264,6 +281,7 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
       supplierOrganizationId: deal => deal.supplierOrganizationId }),
   documentNumbers: defineMessageTable(DocumentNumberSequenceSchema, sequence => sequence.id, {}),
   documents: defineMessageTable(DocumentSchema, document => document.id, { dealId: document => document.dealId }),
+  drivers: defineMessageTable(DriverSchema, driver => driver.id, { tenantId: driver => driver.tenantId }),
   idempotency: defineRecordTable(parseIdempotencyRecord, serializeIdempotencyRecord),
   importJobs: {
     ...defineRecordTable(parseImportRecord, serializeImportRecord),
@@ -312,5 +330,6 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
     authorUserId: ticket => ticket.authorUserId,
   }),
   users: defineMessageTable(UserSchema, user => user.id, {}),
+  vehicles: defineMessageTable(VehicleSchema, vehicle => vehicle.id, { tenantId: vehicle => vehicle.tenantId }),
   warehouses: defineMessageTable(WarehouseSchema, warehouse => warehouse.id, { tenantId: warehouse => warehouse.tenantId }),
 };

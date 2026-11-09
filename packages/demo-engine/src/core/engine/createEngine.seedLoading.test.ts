@@ -1,4 +1,5 @@
 import { createClient } from '@connectrpc/connect';
+import { FleetService } from '@skladburg/contracts/fleet/v1/fleet';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import {
   afterEach,
@@ -13,6 +14,7 @@ import { callAs } from '../modules/testing/moduleHarness';
 import { createMemoryStorage } from '../ports/index';
 import {
   SeedCityId,
+  SeedOrganizationId,
   SeedUserId,
 } from '../seed/seedIds';
 import { createSeedSnapshot } from '../seed/seedSnapshot';
@@ -30,6 +32,43 @@ afterEach(() => {
 });
 
 describe('engine seed loading', () => {
+  it('adds the fleet to a legacy world once and keeps the world available after a failed migration write', async () => {
+    const { createEngine } = await import('./createEngine');
+    const source = createMemoryStorage();
+    const realTime = { now: (): number => 0 };
+    await createEngine({ epoch: 'source', realTime, storage: source });
+    const snapshot = await source.load();
+    if (snapshot === undefined) {
+      throw new Error('Missing seed snapshot');
+    }
+    expect(snapshot.collections.deals.size).toBeGreaterThan(0);
+    expect(snapshot.collections.documents.size).toBeGreaterThan(0);
+    expect(snapshot.collections.payments.size).toBeGreaterThan(0);
+    const stored = {
+      ...snapshot,
+      collections: { ...snapshot.collections, carrierLanes: new Map(), drivers: new Map(), vehicles: new Map() },
+      schemaVersion: 15,
+    };
+    const storage = createMemoryStorage(stored);
+    const writeFailure = new Error('Migration write failed');
+    const replaceAll = vi.spyOn(storage, 'replaceAll').mockRejectedValueOnce(writeFailure);
+
+    await expect(createEngine({ epoch: 'failed', realTime, storage })).rejects.toMatchObject({
+      cause: writeFailure,
+      name: 'SeedLoadError',
+    });
+    expect(await storage.load()).toEqual(stored);
+
+    const engine = await createEngine({ epoch: 'restored', realTime, storage });
+    const fleet = createClient(FleetService, createEngineTransport(engine, true));
+    const result = await fleet.listVehicles({}, callAs(SeedUserId.ADMIN_4, SeedOrganizationId.CARRIER_1));
+
+    expect(result.vehicles).toHaveLength(3);
+    expect(await storage.load()).toEqual(snapshot);
+    await createEngine({ epoch: 'reopened', realTime, storage });
+    expect(replaceAll).toHaveBeenCalledTimes(2);
+  });
+
   it('publishes seeded deal history only on a new world or reset', async () => {
     const { createEngine } = await import('./createEngine');
     const storage = createMemoryStorage();

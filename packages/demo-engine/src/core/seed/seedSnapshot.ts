@@ -36,6 +36,7 @@ import {
   SEED_VERSION,
   SEED_WORLD_START_MS,
 } from './seedConfig';
+import { createSeedFleetRecords } from './seedFleetRecords';
 import {
   createSeedCities,
   createSeedMapNodes,
@@ -72,7 +73,8 @@ export type SeedRecordsValue = {
   [TName in TableName]: TableRecordsValue[TName][];
 };
 
-export const createSeedRecords = (): SeedRecordsValue => ({
+export const createSeedRecords = (worldStartMs = SEED_WORLD_START_MS): SeedRecordsValue => ({
+  ...createSeedFleetRecords(worldStartMs),
   cities: createSeedCities(),
   dealReminderMarks: [],
   deals: [],
@@ -114,7 +116,7 @@ const encodeRecords = <TName extends TableName>(name: TName, records: SeedRecord
 };
 
 export const createSeedSnapshot = (seed: EngineSeedValue = DEFAULT_ENGINE_SEED): EngineSnapshotValue => {
-  const records = createSeedRecords();
+  const records = createSeedRecords(seed.worldStartMs);
   const collections = createEmptyCollections();
 
   for (const name of ENGINE_COLLECTION_NAMES) {

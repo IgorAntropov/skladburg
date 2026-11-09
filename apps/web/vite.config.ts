@@ -298,6 +298,12 @@ const MAX_ENGINE_GZIP_KILOBYTES = 180.3;
 
 const MAX_ENGINE_SEED_GZIP_KILOBYTES = 14.53;
 
+const MAX_ENGINE_FLEET_MIGRATION_GZIP_KILOBYTES = 2.05;
+
+const MAX_ENGINE_FLEET_GZIP_KILOBYTES = 2.21;
+
+const MAX_ENGINE_IMPORT_GZIP_KILOBYTES = 184.37;
+
 const MAX_ENGINE_SEED_HISTORY_GZIP_KILOBYTES = 3.55;
 
 const MAX_ENGINE_SUPPLIER_BOTS_GZIP_KILOBYTES = 7.14;
@@ -387,6 +393,8 @@ const ENGINE_WORKER_ENTRIES = ['packages/demo-engine/src/host/worker.ts'];
 
 const ENGINE_WORKER_DYNAMIC_ENTRIES = ['packages/demo-engine/src/core/engine/index.ts'];
 
+const ENGINE_IMPORT_ENTRY = 'packages/demo-engine/src/core/modules/import/importService.ts';
+
 const DEFERRED_PRELOAD_ENTRIES = [...ENGINE_WORKER_ENTRIES, ...ENGINE_WORKER_DYNAMIC_ENTRIES];
 
 const ENGINE_WORKER_BUDGET = {
@@ -415,13 +423,34 @@ const ENGINE_WORKER_BUDGET = {
     },
     {
       baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/seed/seedFleet.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_FLEET_MIGRATION_GZIP_KILOBYTES,
+      name: 'engine-fleet-migration',
+    },
+    {
+      baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/modules/fleet/index.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_FLEET_GZIP_KILOBYTES,
+      name: 'engine-fleet',
+    },
+    {
+      baseline: 'engine',
       entries: ['packages/demo-engine/src/core/modules/supplier-bots/index.ts'],
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_SUPPLIER_BOTS_GZIP_KILOBYTES,
       name: 'engine-supplier-bots',
     },
     {
-      baseline: 'engine',
+      entries: [...ENGINE_WORKER_DYNAMIC_ENTRIES, ENGINE_IMPORT_ENTRY],
+      forbiddenPackages: XLSX_READER_PACKAGES,
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_IMPORT_GZIP_KILOBYTES,
+      name: 'engine-import',
+    },
+    {
+      baseline: 'engine-import',
       entries: ['packages/demo-engine/src/core/modules/import/csvReader.ts'],
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_CSV_GZIP_KILOBYTES,
@@ -449,7 +478,7 @@ const ENGINE_WORKER_BUDGET = {
       name: 'engine-payments',
     },
     {
-      baseline: 'engine',
+      baseline: 'engine-import',
       entries: ['packages/demo-engine/src/core/modules/import/xlsxReader.ts'],
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_XLSX_GZIP_KILOBYTES,

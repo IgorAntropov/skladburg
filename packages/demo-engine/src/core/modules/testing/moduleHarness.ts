@@ -32,6 +32,7 @@ import {
 } from '@skladburg/contracts/common/v1/error';
 import { DealService } from '@skladburg/contracts/deal/v1/deal';
 import { DocumentService } from '@skladburg/contracts/document/v1/document';
+import { FleetService } from '@skladburg/contracts/fleet/v1/fleet';
 import { ImportService } from '@skladburg/contracts/import/v1/import';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
@@ -55,13 +56,14 @@ import {
 import { createClockService } from '../clock/index';
 import { createDealService } from '../deals/index';
 import { createDocumentService } from '../documents/index';
+import { createFleetService } from '../fleet/index';
 import {
   createAccessService,
   createOrganizationRequisitesService,
   createOrganizationShowcaseService,
   createUserProfileService,
 } from '../identity/index';
-import { createImportService } from '../import/index';
+import { createImportService } from '../import/importService';
 import { createNetworkService } from '../network/index';
 import { createNotificationService } from '../notifications/index';
 import { createOrganizationService } from '../organizationService';
@@ -150,6 +152,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(ShowcaseService, createCatalogShowcaseService(testRuntime.runtime));
     service(DealService, createDealService(testRuntime.runtime));
     service(DocumentService, createDocumentService(testRuntime.runtime));
+    service(FleetService, createFleetService(testRuntime.runtime));
     service(ClockService, createClockService(testRuntime.runtime, () => testRuntime.clock.getSnapshot()));
     const validator = createRequestValidator(testRuntime.runtime.errors, getContractRegistry());
     service(ImportService, createImportService(testRuntime.runtime, validator));

@@ -483,14 +483,22 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
   it.each([
     { databaseVersion: 11, schemaVersion: 13 },
     { databaseVersion: 12, schemaVersion: 14 },
-  ])('preserves the v$databaseVersion database when adding payment storage', async ({ databaseVersion, schemaVersion }) => {
+    { databaseVersion: 13, schemaVersion: 15 },
+  ])('adds fleet storage to v$databaseVersion and preserves prior records', async ({ databaseVersion, schemaVersion }) => {
     const factory = new IDBFactory();
     const seed = createSeedSnapshot();
     const bytes = Uint8Array.of(10, 1, 97);
     const isBeforeDocuments = databaseVersion === 11;
+    const hasPayments = databaseVersion >= 13;
     const request = factory.open(DATABASE_NAME, databaseVersion);
     request.addEventListener('upgradeneeded', () => {
-      const missingStores = isBeforeDocuments ? ['documentNumbers', 'documents', 'payments'] : ['payments'];
+      const missingStores = ['carrierLanes', 'drivers', 'vehicles'];
+      if (isBeforeDocuments) {
+        missingStores.push('documentNumbers', 'documents');
+      }
+      if (!hasPayments) {
+        missingStores.push('payments');
+      }
       for (const name of Object.keys(seed.collections).filter(name => !missingStores.includes(name))) {
         request.result.createObjectStore(name);
       }
@@ -501,6 +509,9 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
       if (!isBeforeDocuments) {
         request.transaction?.objectStore('documents').put(bytes, 'a');
         request.transaction?.objectStore('documentNumbers').put(bytes, 'a');
+      }
+      if (hasPayments) {
+        request.transaction?.objectStore('payments').put(bytes, 'a');
       }
     });
     const old = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -520,7 +531,10 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     expect(loaded?.collections.deals.get('a')).toEqual(bytes);
     expect(loaded?.collections.documents.get('a')).toEqual(isBeforeDocuments ? undefined : bytes);
     expect(loaded?.collections.documentNumbers.get('a')).toEqual(isBeforeDocuments ? undefined : bytes);
-    expect(loaded?.collections.payments.size).toBe(0);
+    expect(loaded?.collections.payments.get('a')).toEqual(hasPayments ? bytes : undefined);
+    expect(loaded?.collections.carrierLanes).toEqual(new Map());
+    expect(loaded?.collections.drivers).toEqual(new Map());
+    expect(loaded?.collections.vehicles).toEqual(new Map());
   });
 
   it('recreates the stores with the map nodes, drops the old records and stays writable after the upgrade', async () => {

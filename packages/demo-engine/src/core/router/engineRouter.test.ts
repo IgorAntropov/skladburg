@@ -74,6 +74,14 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
     },
     documentService: { getDocument: unused, listDealDocuments: unused, signDocument: unused, signSupplyContract: unused },
     errors,
+    fleetService: {
+      listCarrierLanes: unused,
+      listDrivers: unused,
+      listVehicles: unused,
+      saveCarrierLane: unused,
+      saveDriver: unused,
+      saveVehicle: unused,
+    },
     importService: {
       commitImport: unused, getImportJob: unused, getImportTemplate: unused,
       listImportJobs: unused, previewImport: unused, rollbackImport: unused,

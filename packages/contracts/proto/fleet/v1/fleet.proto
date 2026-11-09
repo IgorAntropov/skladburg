@@ -1,0 +1,181 @@
+syntax = "proto3";
+
+package fleet.v1;
+
+import "buf/validate/validate.proto";
+import "catalog/v1/catalog.proto";
+import "common/v1/method_options.proto";
+import "common/v1/money.proto";
+import "common/v1/page.proto";
+import "google/protobuf/timestamp.proto";
+
+enum VehicleBodyType {
+  VEHICLE_BODY_TYPE_UNSPECIFIED = 0;
+  VEHICLE_BODY_TYPE_CURTAIN_SIDE = 1;
+  VEHICLE_BODY_TYPE_REFRIGERATED = 2;
+  VEHICLE_BODY_TYPE_INSULATED = 3;
+  VEHICLE_BODY_TYPE_FLATBED = 4;
+  VEHICLE_BODY_TYPE_LONG_HAUL = 5;
+  VEHICLE_BODY_TYPE_LOW_LOADER = 6;
+}
+
+enum VehicleCargoKind {
+  VEHICLE_CARGO_KIND_UNSPECIFIED = 0;
+  VEHICLE_CARGO_KIND_GENERAL = 1;
+  VEHICLE_CARGO_KIND_TEMPERATURE_CONTROLLED = 2;
+  VEHICLE_CARGO_KIND_OVERSIZE = 3;
+}
+
+message VehicleAvailability {
+  string city_id = 1 [(buf.validate.field).string.uuid = true];
+  google.protobuf.Timestamp starts_at = 2 [(buf.validate.field).required = true];
+  google.protobuf.Timestamp ends_at = 3 [(buf.validate.field).required = true];
+}
+
+message VehicleDetails {
+  string registration_number = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 32
+  }];
+  VehicleBodyType body_type = 2 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+  int64 payload_grams = 3 [(buf.validate.field).int64.gt = 0];
+  int64 volume_cubic_centimeters = 4 [(buf.validate.field).int64.gt = 0];
+  int32 length_millimeters = 5 [(buf.validate.field).int32.gt = 0];
+  int32 width_millimeters = 6 [(buf.validate.field).int32.gt = 0];
+  int32 height_millimeters = 7 [(buf.validate.field).int32.gt = 0];
+  int32 pallet_places = 8 [(buf.validate.field).int32.gte = 0];
+  repeated VehicleCargoKind cargo_kinds = 9 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.unique = true,
+    (buf.validate.field).repeated.items.enum.defined_only = true,
+    (buf.validate.field).repeated.items.enum.not_in = 0
+  ];
+  catalog.v1.TemperatureRange temperature = 10;
+  repeated VehicleAvailability availability = 11 [(buf.validate.field).repeated.max_items = 64];
+}
+
+message Vehicle {
+  string id = 1;
+  string tenant_id = 2;
+  int64 version = 3;
+  VehicleDetails details = 4;
+}
+
+message Driver {
+  string id = 1;
+  string tenant_id = 2;
+  int64 version = 3;
+  string display_name = 4;
+  bool is_active = 5;
+}
+
+message CarrierLane {
+  string id = 1;
+  string tenant_id = 2;
+  int64 version = 3;
+  string from_city_id = 4;
+  string to_city_id = 5;
+  repeated int32 departure_weekdays = 6;
+  bool is_active = 7;
+  common.v1.Money tariff = 8;
+}
+
+message ListVehiclesRequest {
+  common.v1.PageRequest page = 1;
+}
+
+message ListVehiclesResponse {
+  repeated Vehicle vehicles = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message ListDriversRequest {
+  common.v1.PageRequest page = 1;
+}
+
+message ListDriversResponse {
+  repeated Driver drivers = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message ListCarrierLanesRequest {
+  common.v1.PageRequest page = 1;
+}
+
+message ListCarrierLanesResponse {
+  repeated CarrierLane carrier_lanes = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message SaveVehicleRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int64 expected_version = 2 [(buf.validate.field).int64.gte = 0];
+  string vehicle_id = 3 [(buf.validate.field).string.uuid = true];
+  VehicleDetails details = 4 [(buf.validate.field).required = true];
+}
+
+message SaveVehicleResponse {
+  Vehicle vehicle = 1;
+}
+
+message SaveDriverRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int64 expected_version = 2 [(buf.validate.field).int64.gte = 0];
+  string driver_id = 3 [(buf.validate.field).string.uuid = true];
+  string display_name = 4 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 120
+  }];
+  bool is_active = 5;
+}
+
+message SaveDriverResponse {
+  Driver driver = 1;
+}
+
+message SaveCarrierLaneRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int64 expected_version = 2 [(buf.validate.field).int64.gte = 0];
+  string carrier_lane_id = 3 [(buf.validate.field).string.uuid = true];
+  string from_city_id = 4 [(buf.validate.field).string.uuid = true];
+  string to_city_id = 5 [(buf.validate.field).string.uuid = true];
+  repeated int32 departure_weekdays = 6 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.unique = true,
+    (buf.validate.field).repeated.items.int32.gte = 1,
+    (buf.validate.field).repeated.items.int32.lte = 7
+  ];
+  bool is_active = 7;
+  common.v1.Money tariff = 8 [(buf.validate.field).required = true];
+}
+
+message SaveCarrierLaneResponse {
+  CarrierLane carrier_lane = 1;
+}
+
+service FleetService {
+  rpc ListVehicles(ListVehiclesRequest) returns (ListVehiclesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "fleet_view";
+  }
+  rpc ListDrivers(ListDriversRequest) returns (ListDriversResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "fleet_view";
+  }
+  rpc ListCarrierLanes(ListCarrierLanesRequest) returns (ListCarrierLanesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "fleet_view";
+  }
+  rpc SaveVehicle(SaveVehicleRequest) returns (SaveVehicleResponse) {
+    option (common.v1.access).permission.name = "fleet_edit";
+  }
+  rpc SaveDriver(SaveDriverRequest) returns (SaveDriverResponse) {
+    option (common.v1.access).permission.name = "fleet_edit";
+  }
+  rpc SaveCarrierLane(SaveCarrierLaneRequest) returns (SaveCarrierLaneResponse) {
+    option (common.v1.access).permission.name = "fleet_edit";
+  }
+}

@@ -1,3 +1,5 @@
+import { createClient } from '@connectrpc/connect';
+import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import {
   afterEach,
   beforeEach,
@@ -7,8 +9,15 @@ import {
   vi,
 } from 'vitest';
 
+import { callAs } from '../modules/testing/moduleHarness';
 import { createMemoryStorage } from '../ports/index';
+import {
+  SeedCityId,
+  SeedUserId,
+} from '../seed/seedIds';
 import { createSeedSnapshot } from '../seed/seedSnapshot';
+import { TABLE_DEFINITIONS } from '../state/index';
+import { createEngineTransport } from './testing/engineHarness';
 
 beforeEach(() => {
   vi.resetModules();
@@ -39,6 +48,34 @@ describe('engine seed loading', () => {
     await restored.reset('reset');
     expect(await storage.load()).toEqual(seeded);
     expect(replaceAll).toHaveBeenCalledTimes(2);
+  });
+
+  it('serves a city profile for a restored world while preserving its stored deals and documents', async () => {
+    const { createEngine } = await import('./createEngine');
+    const source = createMemoryStorage();
+    const realTime = { now: (): number => 0 };
+    await createEngine({ epoch: 'source', realTime, storage: source });
+    const snapshot = await source.load();
+    const cityRecord = snapshot?.collections.cities.get(SeedCityId.MOSCOW);
+    if (snapshot === undefined || cityRecord === undefined) {
+      throw new Error('Missing seed city');
+    }
+    expect(snapshot.collections.deals.size).toBeGreaterThan(0);
+    expect(snapshot.collections.documents.size).toBeGreaterThan(0);
+    const city = TABLE_DEFINITIONS.cities.decode(cityRecord);
+    const cities = new Map(snapshot.collections.cities);
+    cities.set(city.id, TABLE_DEFINITIONS.cities.encode({ ...city, localDeliveryProfile: undefined }));
+    const stored = { ...snapshot, collections: { ...snapshot.collections, cities } };
+    const storage = createMemoryStorage(stored);
+    const replaceAll = vi.spyOn(storage, 'replaceAll');
+
+    const engine = await createEngine({ epoch: 'restored', realTime, storage });
+    const network = createClient(NetworkService, createEngineTransport(engine, true));
+    const response = await network.listCities({}, callAs(SeedUserId.ADMIN_1));
+
+    expect(response.cities.find(item => item.id === city.id)?.localDeliveryProfile).toMatchObject({ distanceKm: 22, driveMinutes: 60 });
+    expect(replaceAll).not.toHaveBeenCalled();
+    expect(await storage.load()).toEqual(stored);
   });
 
   it('preserves an incompatible snapshot when deal history cannot load', async () => {

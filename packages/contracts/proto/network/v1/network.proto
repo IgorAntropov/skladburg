@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package network.v1;
 
+import "buf/validate/validate.proto";
 import "common/v1/method_options.proto";
 import "common/v1/page.proto";
 import "organization/v1/organization.proto";
@@ -18,11 +19,17 @@ enum CityTier {
   CITY_TIER_LARGE = 3;
 }
 
+message LocalDeliveryProfile {
+  int32 distance_km = 1 [(buf.validate.field).int32.gt = 0];
+  int32 drive_minutes = 2 [(buf.validate.field).int32.gt = 0];
+}
+
 message City {
   string id = 1;
   string name = 2;
   string time_zone = 3;
   CityTier tier = 4;
+  LocalDeliveryProfile local_delivery_profile = 5;
 }
 
 message MapNode {

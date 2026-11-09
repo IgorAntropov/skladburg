@@ -9,6 +9,7 @@ import {
   RouteLegSchema,
 } from '@skladburg/contracts/network/v1/network';
 
+import { withLocalDeliveryProfile } from '../modules/network/localDelivery';
 import {
   SeedCityId,
   SeedMapNodeId,
@@ -201,12 +202,12 @@ const SEED_CITY_DEFINITIONS: readonly SeedCityDefinitionValue[] = [
   },
 ];
 
-export const createSeedCities = (): City[] => SEED_CITY_DEFINITIONS.map(definition => create(CitySchema, {
+export const createSeedCities = (): City[] => SEED_CITY_DEFINITIONS.map(definition => withLocalDeliveryProfile(create(CitySchema, {
   id: definition.cityId,
   name: definition.name,
   tier: definition.tier,
   timeZone: definition.timeZone,
-}));
+})));
 
 export const createSeedMapNodes = (): MapNode[] => SEED_CITY_DEFINITIONS.map(definition => create(MapNodeSchema, {
   cityId: definition.cityId,

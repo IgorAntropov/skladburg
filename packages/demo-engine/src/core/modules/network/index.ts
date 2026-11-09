@@ -1,3 +1,4 @@
+export { findInterWarehouseRoutes } from './localDelivery';
 export { createNetworkService } from './networkService';
 export {
   createRouteGraph,

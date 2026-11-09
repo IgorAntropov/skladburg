@@ -5,10 +5,7 @@ import type { IModuleRuntime } from '../../moduleRuntime';
 import type { RouteValue } from '../../network/index';
 
 import { toCalendarDate } from '../../../calendar/index';
-import {
-  createRouteGraph,
-  findRoutesFrom,
-} from '../../network/index';
+import { findInterWarehouseRoutes } from '../../network/index';
 
 export interface ShowcaseDestinationValue {
   routes: ReadonlyMap<string, RouteValue> | undefined;
@@ -37,7 +34,7 @@ export const resolveShowcaseDestination = (
   }
 
   return {
-    routes: findRoutesFrom(createRouteGraph(read.list('routeLegs')), warehouse.mapNodeId),
+    routes: findInterWarehouseRoutes(read, warehouse),
     timeZone: warehouse.timeZone,
     today: toCalendarDate(worldTimeMs, warehouse.timeZone),
   };

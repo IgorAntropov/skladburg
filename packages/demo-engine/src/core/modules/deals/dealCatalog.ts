@@ -39,10 +39,7 @@ import {
   readSalesTerms,
   resolveTier,
 } from '../catalog/index';
-import {
-  createRouteGraph,
-  findRoutesFrom,
-} from '../network/index';
+import { findInterWarehouseRoutes } from '../network/index';
 import { snapshotProduct } from './dealProducts';
 import {
   checkDealInteger,
@@ -253,7 +250,7 @@ export const quoteDealDelivery = (
     preparationWorkingDays: terms.preparationWorkingDays,
     priceUnitBaseQuantity: line.priceUnitCoefficient,
     quantity: line.quantity,
-    routes: findRoutesFrom(createRouteGraph(reader.list('routeLegs')), destination.mapNodeId),
+    routes: findInterWarehouseRoutes(reader, destination),
     tiers: reader.get('listingPrices', line.listingId)?.tiers ?? [],
     timeZone: destination.timeZone,
     worldTimeMs: runtime.getWorldTimeMs(),

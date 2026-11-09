@@ -339,6 +339,7 @@ const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
   'import.v1.PreviewImportRequest.templateId',
   'import.v1.GetImportJobRequest.page',
   'import.v1.ListImportJobsRequest.page',
+  'network.v1.City.localDeliveryProfile',
   'network.v1.ListCitiesRequest.page',
   'network.v1.ListMapNodesRequest.page',
   'network.v1.ListRouteLegsRequest.page',

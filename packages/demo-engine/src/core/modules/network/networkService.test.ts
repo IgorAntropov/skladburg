@@ -18,6 +18,7 @@ import {
 
 import { createWarehouseRequest } from '../../engine/testing/engineHarness';
 import {
+  SeedCityId,
   SeedOrganizationId,
   SeedRouteLegId,
   SeedUserId,
@@ -54,6 +55,9 @@ describe('NetworkService.listCities', () => {
 
     expect(response.cities).toHaveLength(SEED_CITY_COUNT);
     expect(response.cities.every(city => city.name !== '' && city.timeZone !== '')).toBe(true);
+    expect(response.cities.find(city => city.id === SeedCityId.MOSCOW)).toMatchObject({
+      localDeliveryProfile: { distanceKm: 22, driveMinutes: 60 },
+    });
     expect(response.page?.nextPageToken).toBe('');
   });
 

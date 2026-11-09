@@ -13,6 +13,7 @@ import type { IModuleRuntime } from '../moduleRuntime';
 
 import { listVisibleMapSites } from '../../visibility/index';
 import { paginate } from '../pagination';
+import { withLocalDeliveryProfile } from './localDelivery';
 
 export const createNetworkService = (runtime: IModuleRuntime): ServiceImpl<typeof NetworkService> => {
   const { errors, guard, read } = runtime;
@@ -22,7 +23,7 @@ export const createNetworkService = (runtime: IModuleRuntime): ServiceImpl<typeo
       guard.guardCall(read, NetworkService.method.listCities, request, context.requestHeader);
       const { items, page } = paginate(read.list('cities'), city => city.id, request.page, errors);
 
-      return create(ListCitiesResponseSchema, { cities: items, page });
+      return create(ListCitiesResponseSchema, { cities: items.map(withLocalDeliveryProfile), page });
     },
     listMapNodes: (request, context) => {
       guard.guardCall(read, NetworkService.method.listMapNodes, request, context.requestHeader);

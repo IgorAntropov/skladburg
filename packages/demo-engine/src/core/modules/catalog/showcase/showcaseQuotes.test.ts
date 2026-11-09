@@ -35,6 +35,7 @@ import {
   buildRub,
   captureFailure,
   listFullShowcase,
+  nextUuid,
   SUPPLIER_1_CALL,
 } from '../testing/catalogFixtures';
 import {
@@ -160,8 +161,36 @@ describe('the price to the warehouse of the customer', () => {
     );
     const [quote] = response.listing?.quotes ?? [];
 
-    expect(quote?.distanceKm).toBe(0);
+    expect(quote?.distanceKm).toBe(22);
     expect(quote?.deliveryPrice?.amountMinor).toBe(150_000n);
+  });
+
+  it('uses the same city distance for the showcase and a new deal when the tariff exceeds the minimum', async () => {
+    const harness = createModuleHarness();
+    await saveSalesTerms(harness, SUPPLIER_6_CALL, {
+      ownDelivery: { minimumChargeMinor: 100_000n, pricePerKmMinor: 5000n },
+      preparationWorkingDays: 1,
+    });
+    const { listing } = await createShowcaseListing(harness, {
+      call: SUPPLIER_6_CALL,
+      listing: { availability: [buildAvailability(SeedWarehouseId.SUPPLIER_6_WAREHOUSE_1)] },
+    });
+    const { listing: shown } = await harness.catalogShowcase.getShowcaseListing({
+      listingId: listing.id,
+      toWarehouseId: CUSTOMER_WAREHOUSE_ID,
+    }, CUSTOMER_CALL);
+    const { deal } = await harness.deal.createDealDraft({
+      dealId: nextUuid(),
+      desiredDate: { day: 20, month: 10, year: 2026 },
+      idempotencyKey: nextUuid(),
+      lines: [{ listingId: listing.id, quantity: listing.minOrderQuantity }],
+      shipFromCityId: SeedCityId.MOSCOW,
+      shipToWarehouseId: CUSTOMER_WAREHOUSE_ID,
+      supplierOrganizationId: SeedOrganizationId.SUPPLIER_6,
+    }, CUSTOMER_CALL);
+
+    expect(shown?.quotes[0]).toMatchObject({ deliveryPrice: { amountMinor: 110_000n }, distanceKm: 22 });
+    expect(deal?.deliveryTotal?.amountMinor).toBe(110_000n);
   });
 
   it('starts the quotes with the cheapest city and lists every city with availability', async () => {

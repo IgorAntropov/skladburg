@@ -702,7 +702,7 @@ describe('seed catalog on the showcase', () => {
     );
     const [quote] = response.listing?.quotes ?? [];
 
-    expect(quote?.distanceKm).toBe(0);
+    expect(quote?.distanceKm).toBe(22);
     expect(quote?.deliveryPrice?.amountMinor).toBe(150_000n);
     expect(quote?.method).toBe(DeliveryMethod.SUPPLIER);
   });

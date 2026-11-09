@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import type { AppSectionValue } from '@/shared/routing';
 
 import { useI18n } from '@/shared/i18n';
+import { cn } from '@/shared/lib/cn';
 import {
   AddressLink,
   SECTION_TITLE_KEYS,
@@ -26,11 +27,13 @@ const NAV_LINK_CLASS_NAME = [
 
 interface SectionNavProps {
   currentSection: AppSectionValue | undefined;
+  isCompact: boolean;
   sections: readonly AppSectionValue[];
 }
 
-export const SectionNav = ({ currentSection, sections }: SectionNavProps): ReactElement => {
+export const SectionNav = ({ currentSection, isCompact, sections }: SectionNavProps): ReactElement => {
   const { t } = useI18n();
+  const linkClassName = cn(NAV_LINK_CLASS_NAME, isCompact && 'sm:max-md:min-w-11 sm:max-md:justify-center sm:max-md:px-1');
 
   return (
     <nav aria-label={t('app.nav.label')} className="-my-2 hidden self-stretch sm:flex">
@@ -43,7 +46,7 @@ export const SectionNav = ({ currentSection, sections }: SectionNavProps): React
             <li className="flex" key={section}>
               <AddressLink
                 aria-current={ariaCurrent}
-                className={NAV_LINK_CLASS_NAME}
+                className={linkClassName}
                 data-testid={`app-nav-link-${section}`}
                 to={{ kind: 'section', section }}
               >

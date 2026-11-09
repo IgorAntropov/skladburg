@@ -38,13 +38,23 @@ describe('resolveAvailableSections', () => {
   });
 
   it('returns nothing for permissions that are not view permissions of a section', () => {
-    expect(resolveAvailableSections(createSession(organizationWide('deal_edit', 'warehouse_create')))).toEqual([]);
+    expect(resolveAvailableSections(createSession(organizationWide('deal_edit', 'warehouse_create', 'fleet_edit')))).toEqual([]);
   });
 
-  it('gives all four sections in the order of sections for all view permissions', () => {
-    const session = createSession(organizationWide('warehouse_view', 'deal_view', 'marketplace_view', 'network_view'));
+  it('keeps the garage after the existing sections for all view permissions', () => {
+    const session = createSession(organizationWide('warehouse_view', 'deal_view', 'marketplace_view', 'network_view', 'fleet_view'));
 
-    expect(resolveAvailableSections(session)).toEqual(['network', 'catalog', 'deals', 'warehouse']);
+    expect(resolveAvailableSections(session)).toEqual(['network', 'catalog', 'deals', 'warehouse', 'garage']);
+  });
+
+  it('shows the garage for the organization-wide fleet view permission alone', () => {
+    expect(resolveAvailableSections(createSession(organizationWide('fleet_view')))).toEqual(['garage']);
+  });
+
+  it('hides the garage for a warehouse-scoped fleet view permission', () => {
+    const session = createSession([{ isOrganizationWide: false, permission: 'fleet_view', warehouseIds: [WAREHOUSE_ID] }]);
+
+    expect(resolveAvailableSections(session)).toEqual([]);
   });
 
   it('hides the deals without the deal view permission', () => {

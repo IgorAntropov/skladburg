@@ -7,6 +7,7 @@ import type {
 } from '@/shared/routing';
 
 import { createLazyComponent } from '@/shared/lib/module-loader';
+import { APP_SECTIONS } from '@/shared/routing';
 
 export type CachedSectionLoader = CachedModuleLoader<SectionModuleValue>;
 
@@ -29,13 +30,13 @@ export type SectionPagesValue = Readonly<Record<AppSectionValue, ComponentType<S
 export const DEFAULT_SECTION_LOADERS: SectionLoadersValue = {
   catalog: () => import('@/pages/catalog').then(module => ({ default: module.CatalogPage })),
   deals: () => import('@/pages/deals').then(module => ({ default: module.DealsPage })),
+  garage: () => import('@/pages/carrier-garage').then(module => ({ default: module.CarrierGaragePage })),
   network: () => import('@/pages/network').then(module => ({ default: module.NetworkPage })),
   warehouse: () => import('@/pages/warehouse').then(module => ({ default: module.WarehousePage })),
 };
 
-export const createSectionPages = (loaders: CachedSectionLoadersValue): SectionPagesValue => ({
-  catalog: createLazyComponent(loaders.catalog),
-  deals: createLazyComponent(loaders.deals),
-  network: createLazyComponent(loaders.network),
-  warehouse: createLazyComponent(loaders.warehouse),
-});
+export const mapSections = <T>(mapSection: (section: AppSectionValue) => T): Readonly<Record<AppSectionValue, T>> =>
+  Object.fromEntries(APP_SECTIONS.map(section => [section, mapSection(section)])) as Readonly<Record<AppSectionValue, T>>;
+
+export const createSectionPages = (loaders: CachedSectionLoadersValue): SectionPagesValue =>
+  mapSections(section => createLazyComponent(loaders[section]));

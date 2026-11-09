@@ -26,6 +26,7 @@ const createLoader = (): Mock<SectionLoader> => vi.fn<SectionLoader>(() => Promi
 const createLoaders = (): MockSectionLoadersValue => ({
   catalog: createLoader(),
   deals: createLoader(),
+  garage: createLoader(),
   network: createLoader(),
   warehouse: createLoader(),
 });
@@ -61,6 +62,7 @@ describe('prewarmStartSection', () => {
     expect(loaders.catalog).toHaveBeenCalledOnce();
     expect(loaders.network).not.toHaveBeenCalled();
     expect(loaders.deals).not.toHaveBeenCalled();
+    expect(loaders.garage).not.toHaveBeenCalled();
     expect(loaders.warehouse).not.toHaveBeenCalled();
   });
 

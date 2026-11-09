@@ -99,6 +99,13 @@ const lazyCatalogFormTestFiles: string[] = [
   'apps/web/src/pages/catalog/ui/order/**/*.test.{ts,tsx}',
   'apps/web/src/pages/catalog/ui/sales-terms/**/*.test.{ts,tsx}',
 ];
+const garagePageFiles: string[] = ['apps/web/src/pages/carrier-garage/**/*.{ts,tsx}'];
+const garageEditorFiles: string[] = [
+  'apps/web/src/pages/carrier-garage/api/commands/**/*.{ts,tsx}',
+  'apps/web/src/pages/carrier-garage/records/**/*.{ts,tsx}',
+  'apps/web/src/pages/carrier-garage/vehicle/**/*.{ts,tsx}',
+  'apps/web/src/pages/carrier-garage/ui/GarageEditorSlot.tsx',
+];
 const lazyDealFormFiles: string[] = [
   'apps/web/src/pages/deals/api/commands/**/*.{ts,tsx}',
   'apps/web/src/pages/deals/ui/inspector/**/*.{ts,tsx}',
@@ -458,6 +465,11 @@ const createWarehouseFormChunkLazyRestriction: LazyModuleRestrictionValue = {
 const sceneCameraControlsChunkLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'the scene camera controls chunk',
   regex: '(^|/)controls(/|$)',
+};
+
+const garageEditorLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the garage editor chunk',
+  regex: '(^|/)(api/commands/|GarageEditorSlot|records/|vehicle/VehicleEditor)',
 };
 
 const networkInspectorChunkLazyRestriction: LazyModuleRestrictionValue = {
@@ -1118,6 +1130,21 @@ export default defineConfig(
     ),
   },
   {
+    files: garageEditorFiles,
+    ignores: webTestFiles,
+    rules: createBoundaryRules(
+      [
+        engineRestriction,
+        registryRestriction,
+        apiTestingEntryRestriction,
+        routingTestingEntryRestriction,
+        ...motionRestrictions,
+        formPackageRestriction,
+      ],
+      webSourceSyntaxRestrictions,
+    ),
+  },
+  {
     files: lazyDealFormFiles,
     ignores: webTestFiles,
     rules: createBoundaryRules(
@@ -1278,6 +1305,19 @@ export default defineConfig(
       [networkInspectorChunkLazyRestriction, networkSitesChunkLazyRestriction, networkMiniMapChunkLazyRestriction],
       [...sceneBoundaryImportRestrictions, ...sectionCatalogImportRestrictions],
     ),
+  },
+  {
+    files: garagePageFiles,
+    ignores: [...webTestFiles, ...sceneSegmentFiles, ...garageEditorFiles],
+    rules: createLazyModuleRules(
+      [garageEditorLazyRestriction],
+      [...chunkBoundaryImportRestrictions, maskSegmentImportRestriction],
+    ),
+  },
+  {
+    files: garageEditorFiles,
+    ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([], chunkBoundaryImportRestrictions),
   },
   {
     files: catalogPageFiles,

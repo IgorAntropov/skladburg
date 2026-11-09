@@ -21,6 +21,7 @@ const createModule = (): SectionModuleValue => ({ default: () => null });
 const createLoaders = (loader: SectionLoader): SectionLoadersValue => ({
   catalog: loader,
   deals: loader,
+  garage: loader,
   network: loader,
   warehouse: loader,
 });
@@ -45,6 +46,7 @@ describe('createCachedSectionLoaders', () => {
     const cached = createCachedSectionLoaders({
       catalog: () => Promise.resolve(catalogModule),
       deals: () => Promise.resolve(dealsModule),
+      garage: () => Promise.resolve(createModule()),
       network: () => Promise.resolve(createModule()),
       warehouse: () => Promise.resolve(createModule()),
     });
@@ -94,7 +96,7 @@ describe('createCachedSectionLoaders', () => {
   it('names the section of every loader in its chunk error', async () => {
     const cached = createCachedSectionLoaders(createLoaders(() => Promise.reject(CHUNK_ERROR)));
 
-    for (const section of ['catalog', 'deals', 'network', 'warehouse'] as const) {
+    for (const section of ['catalog', 'deals', 'garage', 'network', 'warehouse'] as const) {
       const failure: unknown = await cached[section]().then(() => undefined, (error: unknown) => error);
 
       expect(failure).toMatchObject({ section });

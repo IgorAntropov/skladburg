@@ -37,6 +37,7 @@ const createLoader = (): Mock<SectionLoader> => vi.fn<SectionLoader>(() => Promi
 const createLoaders = (): MockSectionLoadersValue => ({
   catalog: createLoader(),
   deals: createLoader(),
+  garage: createLoader(),
   network: createLoader(),
   warehouse: createLoader(),
 });

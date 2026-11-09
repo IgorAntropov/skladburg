@@ -26,6 +26,7 @@ const PANEL_SECTION_ZONES: HudSkeletonZonesValue = {
 export const SECTION_SKELETON_ZONES: Readonly<Record<AppSectionValue, HudSkeletonZonesValue>> = {
   catalog: PANEL_SECTION_ZONES,
   deals: PANEL_SECTION_ZONES,
+  garage: { ...NEUTRAL_SKELETON_ZONES, hasPanel: true },
   network: {
     ...NEUTRAL_SKELETON_ZONES,
     hasInspector: true,

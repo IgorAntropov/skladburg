@@ -8,6 +8,8 @@ import { SECTION_ACCESS_RULES } from '../model/sectionAccessRules';
 import { isPermissionGranted } from './isPermissionGranted';
 
 export const resolveAvailableSections = (session: GetSessionResponse): readonly AppSectionValue[] =>
-  APP_SECTIONS.filter(section => SECTION_ACCESS_RULES[section].permissions.some(
-    code => isPermissionGranted(session.permissions, code, { kind: 'any' }),
-  ));
+  APP_SECTIONS.filter((section) => {
+    const { permissions, scope } = SECTION_ACCESS_RULES[section];
+
+    return permissions.some(code => isPermissionGranted(session.permissions, code, scope));
+  });

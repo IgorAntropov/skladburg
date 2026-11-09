@@ -28,29 +28,29 @@ interface MatrixCaseValue {
   userId: string;
 }
 
-const ALL_SECTIONS: readonly AppSectionValue[] = ['network', 'catalog', 'deals', 'warehouse'];
+const TRADING_SECTIONS: readonly AppSectionValue[] = ['network', 'catalog', 'deals', 'warehouse'];
 
 const MATRIX: readonly MatrixCaseValue[] = [
   {
-    expectedSections: ALL_SECTIONS,
+    expectedSections: TRADING_SECTIONS,
     name: 'administrator of a customer',
     organizationId: SeedOrganizationId.CUSTOMER_1,
     userId: SeedUserId.ADMIN_1,
   },
   {
-    expectedSections: ALL_SECTIONS,
+    expectedSections: TRADING_SECTIONS,
     name: 'administrator of a supplier',
     organizationId: SeedOrganizationId.SUPPLIER_1,
     userId: SeedUserId.ADMIN_2,
   },
   {
-    expectedSections: ['network', 'deals'],
+    expectedSections: ['network', 'deals', 'garage'],
     name: 'administrator of a carrier',
     organizationId: SeedOrganizationId.CARRIER_1,
     userId: SeedUserId.ADMIN_4,
   },
   {
-    expectedSections: ALL_SECTIONS,
+    expectedSections: [...TRADING_SECTIONS, 'garage'],
     name: 'administrator of a supplier and carrier',
     organizationId: SeedOrganizationId.SUPPLIER_4,
     userId: SeedUserId.ADMIN_7,

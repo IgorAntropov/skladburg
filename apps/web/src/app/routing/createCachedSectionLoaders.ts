@@ -10,6 +10,7 @@ import type {
 } from './sectionPages';
 
 import { SectionChunkLoadError } from './SectionChunkLoadError';
+import { mapSections } from './sectionPages';
 
 const createCachedSectionLoader = (section: AppSectionValue, loader: SectionLoader): CachedSectionLoader => {
   return createCachedModuleLoader(loader, {
@@ -17,11 +18,5 @@ const createCachedSectionLoader = (section: AppSectionValue, loader: SectionLoad
   });
 };
 
-export const createCachedSectionLoaders = (loaders: SectionLoadersValue): CachedSectionLoadersValue => {
-  return {
-    catalog: createCachedSectionLoader('catalog', loaders.catalog),
-    deals: createCachedSectionLoader('deals', loaders.deals),
-    network: createCachedSectionLoader('network', loaders.network),
-    warehouse: createCachedSectionLoader('warehouse', loaders.warehouse),
-  };
-};
+export const createCachedSectionLoaders = (loaders: SectionLoadersValue): CachedSectionLoadersValue =>
+  mapSections(section => createCachedSectionLoader(section, loaders[section]));

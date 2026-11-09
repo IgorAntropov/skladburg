@@ -390,9 +390,9 @@ describe('App sections of the persona on the demo engine', () => {
     await expectWarehouseCount(frames, 1);
   });
 
-  it('replaces a section that the storekeeper cannot open with the warehouse', async () => {
+  it.each(['/catalog', '/garage'])('replaces the unavailable address %s with the warehouse for the storekeeper', async (initialPath) => {
     const { location } = await startApplication({
-      initialPath: '/catalog',
+      initialPath,
       preferredContext: { organizationId: SeedOrganizationId.CUSTOMER_1, userId: SeedUserId.STOREKEEPER_1 },
     });
 
@@ -429,14 +429,14 @@ describe('App sections of the persona on the demo engine', () => {
     expect(location.read().path).toBe('/warehouse');
   });
 
-  it('leads the persona that switches to the carrier away from the warehouse and renames the profile button', async () => {
+  it('shows carrier navigation after changing persona on a shared section', async () => {
     const { location } = await startApplication({ initialPath: '/deals' });
 
     await choosePersona(CARRIER_OPTION);
 
     expect(await findProfileButton(CARRIER_BUTTON_NAME)).toBeDefined();
     await waitFor(() => {
-      expect(getNavigationTitles()).toEqual([getSectionTitle('network'), getSectionTitle('deals')]);
+      expect(getNavigationTitles()).toEqual([getSectionTitle('network'), getSectionTitle('deals'), getSectionTitle('garage')]);
     });
     expect(location.read().path).toBe('/deals');
   });

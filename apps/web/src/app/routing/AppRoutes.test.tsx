@@ -69,6 +69,7 @@ const createStubLoader = (section: AppSectionValue): SectionLoader => () => Prom
 const createStubLoaders = (): StubLoadersValue => ({
   catalog: vi.fn(createStubLoader('catalog')),
   deals: vi.fn(createStubLoader('deals')),
+  garage: vi.fn(createStubLoader('garage')),
   network: vi.fn(createStubLoader('network')),
   warehouse: vi.fn(createStubLoader('warehouse')),
 });
@@ -330,6 +331,7 @@ describe('AppRoutes loading', () => {
 
     expect(loaders.catalog).toHaveBeenCalledOnce();
     expect(loaders.deals).not.toHaveBeenCalled();
+    expect(loaders.garage).not.toHaveBeenCalled();
     expect(loaders.network).not.toHaveBeenCalled();
     expect(loaders.warehouse).not.toHaveBeenCalled();
   });
@@ -342,11 +344,13 @@ describe('AppRoutes preload', () => {
     await screen.findByTestId('page-deals');
 
     expect(loaders.network).not.toHaveBeenCalled();
+    expect(loaders.garage).not.toHaveBeenCalled();
 
     idle.runIdle();
 
     expect(loaders.network).toHaveBeenCalledOnce();
     expect(loaders.catalog).toHaveBeenCalledOnce();
+    expect(loaders.garage).toHaveBeenCalledOnce();
     expect(loaders.warehouse).toHaveBeenCalledOnce();
     expect(loaders.deals).toHaveBeenCalledOnce();
   });
@@ -706,6 +710,7 @@ describe('AppRoutes sections of the persona', () => {
     expect(loaders.warehouse).toHaveBeenCalledOnce();
     expect(loaders.catalog).not.toHaveBeenCalled();
     expect(loaders.deals).not.toHaveBeenCalled();
+    expect(loaders.garage).not.toHaveBeenCalled();
   });
 });
 
@@ -737,6 +742,7 @@ describe('AppRoutes session states', () => {
     idle.runIdle();
 
     expect(loaders.deals).not.toHaveBeenCalled();
+    expect(loaders.garage).not.toHaveBeenCalled();
     expect(loaders.network).not.toHaveBeenCalled();
     expect(loaders.warehouse).not.toHaveBeenCalled();
     expect(screen.queryByTestId('page-catalog')).toBeNull();

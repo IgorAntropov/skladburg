@@ -6,33 +6,33 @@ export interface PersonaValue {
   sections: readonly SectionValue[];
 }
 
-const ALL_SECTIONS: readonly SectionValue[] = ['network', 'catalog', 'deals', 'warehouse'];
+const TRADING_SECTIONS: readonly SectionValue[] = ['network', 'catalog', 'deals', 'warehouse'];
 
 export const PERSONAS = {
   constructionCarrier: {
     id: '90000007-0000-4000-8000-000000000000',
     organizationName: 'Широкий путь',
-    sections: ['network', 'deals'],
+    sections: ['network', 'deals', 'garage'],
   },
   constructionCustomer: {
     id: '90000005-0000-4000-8000-000000000000',
     organizationName: 'Каменный двор',
-    sections: ALL_SECTIONS,
+    sections: TRADING_SECTIONS,
   },
   constructionSupplier: {
     id: '90000006-0000-4000-8000-000000000000',
     organizationName: 'Прокатный ряд',
-    sections: ALL_SECTIONS,
+    sections: TRADING_SECTIONS,
   },
   freshCarrier: {
     id: '90000003-0000-4000-8000-000000000000',
     organizationName: 'Северный холод',
-    sections: ['network', 'deals'],
+    sections: ['network', 'deals', 'garage'],
   },
   freshCustomer: {
     id: '90000001-0000-4000-8000-000000000000',
     organizationName: 'Тёплый угол',
-    sections: ALL_SECTIONS,
+    sections: TRADING_SECTIONS,
   },
   freshStorekeeper: {
     id: '90000004-0000-4000-8000-000000000000',
@@ -42,7 +42,7 @@ export const PERSONAS = {
   freshSupplier: {
     id: '90000002-0000-4000-8000-000000000000',
     organizationName: 'Яблоневый край',
-    sections: ALL_SECTIONS,
+    sections: TRADING_SECTIONS,
   },
 } as const satisfies Record<string, PersonaValue>;
 

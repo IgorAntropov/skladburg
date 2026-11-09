@@ -59,10 +59,7 @@ import {
 import { createLocalizer } from '@/shared/i18n';
 import { createCachedModuleLoader } from '@/shared/lib/module-loader';
 import { observeLongTasks } from '@/shared/lib/performance';
-import {
-  APP_SECTIONS,
-  createHashLocation,
-} from '@/shared/routing';
+import { createHashLocation } from '@/shared/routing';
 import { createMemoryLocation } from '@/shared/routing/index.testing';
 import { FakeMediaQueryList } from '@/shared/theme/index.testing';
 
@@ -946,6 +943,13 @@ describe('startApp', () => {
         return within(navigation).getAllByRole('link').map(link => link.textContent);
       };
 
+      const tradingSections = [
+        defaultLocaleCatalog['section.network.title'],
+        defaultLocaleCatalog['section.catalog.title'],
+        defaultLocaleCatalog['section.deals.title'],
+        defaultLocaleCatalog['section.warehouse.title'],
+      ];
+
       afterEach(async () => {
         cleanup();
 
@@ -963,11 +967,11 @@ describe('startApp', () => {
         expect(window.sessionStorage.getItem(ACTING_CONTEXT_STORAGE_KEY)).toContain(SeedUserId.STOREKEEPER_1);
       });
 
-      it('opens the profile persona with all sections when the persona from the address is unknown', async () => {
+      it('opens the profile persona with its sections when the persona from the address is unknown', async () => {
         const location = await startOnEngine('/deals?as=unknown-persona');
 
         expect(await screen.findByRole('heading', { level: 1, name: defaultLocaleCatalog['section.deals.title'] })).toBeDefined();
-        expect(getNavigationLinks()).toHaveLength(APP_SECTIONS.length);
+        expect(getNavigationLinks()).toEqual(tradingSections);
         expect(location.history).toEqual(['/deals']);
       });
 
@@ -992,7 +996,7 @@ describe('startApp', () => {
         await startOnEngine(`/network?as=${SeedPersonaId.FRESH_CUSTOMER}`);
 
         expect(await screen.findByRole('heading', { level: 1, name: defaultLocaleCatalog['section.network.title'] })).toBeDefined();
-        expect(getNavigationLinks()).toHaveLength(APP_SECTIONS.length);
+        expect(getNavigationLinks()).toEqual(tradingSections);
       });
     });
   });

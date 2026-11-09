@@ -301,6 +301,7 @@ export const catalog = {
   'section.catalog.title': 'Каталог',
   'section.deals.placeholder': 'Здесь появятся ваши сделки с документами и статусами',
   'section.deals.title': 'Сделки',
+  'section.garage.title': 'Гараж',
   'section.network.placeholder': 'Здесь появится карта сети: города, склады и фуры в пути',
   'section.network.title': 'Сеть',
   'section.warehouse.title': 'Склад',

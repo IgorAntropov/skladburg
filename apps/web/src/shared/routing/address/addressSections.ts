@@ -12,6 +12,7 @@ export type PlacedAddressValue = Exclude<AppAddressValue, { kind: 'home' }>;
 export const SECTION_TITLE_KEYS = {
   catalog: 'section.catalog.title',
   deals: 'section.deals.title',
+  garage: 'section.garage.title',
   network: 'section.network.title',
   warehouse: 'section.warehouse.title',
 } as const satisfies Record<AppSectionValue, MessageKey>;

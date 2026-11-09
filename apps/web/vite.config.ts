@@ -244,6 +244,12 @@ const MAX_REQUISITES_FORM_GZIP_KILOBYTES = 55.9;
 
 const MAX_REQUISITES_TEXTS_GZIP_KILOBYTES = 1.6;
 
+const MAX_GARAGE_PAGE_GZIP_KILOBYTES = 36.45;
+
+const MAX_GARAGE_EDITOR_GZIP_KILOBYTES = 65.7;
+
+const MAX_GARAGE_TEXTS_GZIP_KILOBYTES = 4;
+
 const MAX_CATALOG_PAGE_GZIP_KILOBYTES = 27.7;
 
 const MAX_CATALOG_OWN_GZIP_KILOBYTES = 31;
@@ -640,6 +646,36 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_REQUISITES_TEXTS_GZIP_KILOBYTES,
     name: 'requisites-texts',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/carrier-garage/ui/CarrierGaragePage.tsx'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_GARAGE_PAGE_GZIP_KILOBYTES,
+    name: 'garage-page',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: [
+      'src/pages/carrier-garage/ui/CarrierGaragePage.tsx',
+      'src/pages/carrier-garage/ui/GarageEditorSlot.tsx',
+    ],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_GARAGE_EDITOR_GZIP_KILOBYTES,
+    name: 'garage-editor',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: [
+      'src/pages/carrier-garage/i18n/ru.ts',
+      'src/pages/carrier-garage/records/i18n/catalogs/ru.ts',
+      'src/pages/carrier-garage/vehicle/ru.ts',
+    ],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_GARAGE_TEXTS_GZIP_KILOBYTES,
+    name: 'garage-texts',
   },
   {
     baseline: STARTUP_BASELINE,

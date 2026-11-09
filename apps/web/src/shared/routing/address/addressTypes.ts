@@ -1,4 +1,4 @@
-export const APP_SECTIONS = ['network', 'catalog', 'deals', 'warehouse'] as const;
+export const APP_SECTIONS = ['network', 'catalog', 'deals', 'warehouse', 'garage'] as const;
 
 export type AppSectionValue = typeof APP_SECTIONS[number];
 

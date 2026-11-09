@@ -15,7 +15,7 @@ const EDITORS = {
   cancel: { label: 'dealInspector.cancel', method: DealService.method.cancelDeal, testId: 'deal-cancel' },
   confirm: { label: 'dealInspector.confirm', method: DealService.method.confirmDeal, testId: 'deal-confirm' },
   counter: { label: 'dealInspector.counter', method: DealService.method.counterDeal, testId: 'deal-counter-open' },
-  delivery: { label: 'dealInspector.deliverySave', method: DealService.method.chooseDelivery, testId: undefined },
+  delivery: { label: 'dealInspector.deliverySave', method: DealService.method.chooseDelivery, testId: 'deal-delivery-open' },
   draft: { label: 'dealInspector.edit', method: DealService.method.updateDealDraft, testId: 'deal-draft-edit' },
   reject: { label: 'dealInspector.reject', method: DealService.method.rejectDeal, testId: undefined },
   rejectOffer: { label: 'dealInspector.rejectOffer', method: DealService.method.rejectCounterOffer, testId: undefined },

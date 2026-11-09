@@ -2,16 +2,14 @@ import type { OrganizationProfile } from '@skladburg/contracts/organization/v1/o
 
 import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import { ProfileKind } from '@skladburg/contracts/organization/v1/organization';
-import {
-  normalizeSearchText,
-  parseSearchQuery,
-} from '@skladburg/contracts/runtime';
+import { parseSearchQuery } from '@skladburg/contracts/runtime';
 import {
   skipToken,
   useQuery,
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
+import { useDocumentIndexQuery } from '@/entities/document';
 import {
   createOwnListingQueryMeta,
   createShowcaseQueryMeta,
@@ -33,6 +31,7 @@ import { warehouseKeys } from '@/entities/warehouse';
 import {
   createOrganizationQueryMeta,
   getOrganizationScope,
+  isReadAccessDenied,
   useActingContext,
   useApiClient,
 } from '@/shared/api';
@@ -50,9 +49,6 @@ import {
 } from '../lib/resolveSearchSources';
 import { resolveSearchStatus } from '../lib/resolveSearchStatus';
 import { useDebouncedValue } from '../lib/useDebouncedValue';
-import { fetchSearchMapSites } from './fetchSearchMapSites';
-import { fetchSearchOrganizations } from './fetchSearchOrganizations';
-import { fetchSearchWarehouses } from './fetchSearchWarehouses';
 import { globalSearchKeys } from './globalSearchKeys';
 import { keepScopedPlaceholder } from './keepScopedPlaceholder';
 import { useSearchSourceState } from './useSearchSourceState';
@@ -63,6 +59,8 @@ const SITE_EVENT_CASES = ['warehouseChanged', 'warehouseCreated'] as const;
 const NO_PROFILES: readonly OrganizationProfile[] = [];
 const NO_GROUPS: readonly SearchGroupValue[] = [];
 
+const loadSearchDirectory = (): Promise<typeof import('./fetchSearchDirectory')> => import('./fetchSearchDirectory');
+
 const hasProfile = (profiles: readonly OrganizationProfile[], kind: ProfileKind): boolean => (
   profiles.some(profile => profile.kind === kind)
 );
@@ -71,14 +69,15 @@ export const useGlobalSearch = (query: string, organizationId: string | undefine
   const client = useApiClient();
   const { userId } = useActingContext();
   const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
+  const hasDocumentPermission = useCan(PermissionCode.DOCUMENT_VIEW, { kind: 'organization' });
   const canViewCatalog = useCan(PermissionCode.CATALOG_VIEW);
   const canViewMarketplace = useCan(PermissionCode.MARKETPLACE_VIEW);
   const canViewNetwork = useCan(PermissionCode.NETWORK_VIEW);
   const canViewWarehouse = useCan(PermissionCode.WAREHOUSE_VIEW);
   const { data: organization, isLoading: isOrganizationLoading } = useActingOrganizationQuery();
 
-  const normalizedQuery = useMemo(() => normalizeSearchText(query), [query]);
   const parsedQuery = useMemo(() => parseSearchQuery(query), [query]);
+  const normalizedQuery = parsedQuery.tokens.join(' ');
   const debouncedQuery = useDebouncedValue(normalizedQuery, SERVER_SEARCH_DELAY_MS);
 
   const profiles = organization?.profiles ?? NO_PROFILES;
@@ -96,8 +95,10 @@ export const useGlobalSearch = (query: string, organizationId: string | undefine
   }), [canViewCatalog, canViewMarketplace, canViewNetwork, canViewWarehouse, profiles]);
 
   const isSearchActive = queryKind === 'active' && organizationId !== undefined;
+  const canViewDocuments = canViewDeals && hasDocumentPermission;
   const isServerQuerySettled = debouncedQuery === normalizedQuery;
-  const isDirectoryAvailable = sources.cities || sources.sites !== 'none';
+  const isDirectoryAvailable = sources.sites !== 'none';
+  const siteQueryMeta = createOrganizationQueryMeta(organizationId, SITE_EVENT_CASES);
 
   const directoryOptions = useMemo(() => createNetworkDirectoryQueryOptions(client), [client]);
 
@@ -105,20 +106,26 @@ export const useGlobalSearch = (query: string, organizationId: string | undefine
 
   const organizationsQuery = useQuery({
     meta: { channels: [] },
-    queryFn: isSearchActive && sources.organizations ? () => fetchSearchOrganizations(client) : skipToken,
+    queryFn: isSearchActive && sources.organizations
+      ? () => loadSearchDirectory().then(module => module.fetchSearchOrganizations(client))
+      : skipToken,
     queryKey: globalSearchKeys.organizations(scope),
     staleTime: ORGANIZATIONS_STALE_TIME_MS,
   });
 
   const mapSitesQuery = useQuery({
-    meta: createOrganizationQueryMeta(organizationId, SITE_EVENT_CASES),
-    queryFn: isSearchActive && sources.sites === 'map' ? () => fetchSearchMapSites(client) : skipToken,
+    meta: siteQueryMeta,
+    queryFn: isSearchActive && sources.sites === 'map'
+      ? () => loadSearchDirectory().then(module => module.fetchSearchMapSites(client))
+      : skipToken,
     queryKey: networkKeys.mapSites(scope),
   });
 
   const warehousesQuery = useQuery({
-    meta: createOrganizationQueryMeta(organizationId, SITE_EVENT_CASES),
-    queryFn: isSearchActive && sources.sites === 'warehouses' ? () => fetchSearchWarehouses(client) : skipToken,
+    meta: siteQueryMeta,
+    queryFn: isSearchActive && sources.sites === 'warehouses'
+      ? () => loadSearchDirectory().then(module => module.fetchSearchWarehouses(client))
+      : skipToken,
     queryKey: warehouseKeys.list(scope),
   });
 
@@ -148,7 +155,9 @@ export const useGlobalSearch = (query: string, organizationId: string | undefine
     queryKey: globalSearchKeys.deals(scope, userId, normalizedQuery),
   });
 
+  const documentsQuery = useDocumentIndexQuery(isSearchActive && canViewDocuments);
   const deals = useSearchSourceState(dealsQuery, canViewDeals);
+  const documents = useSearchSourceState(documentsQuery, canViewDocuments, isReadAccessDenied(documentsQuery.error));
   const directory = useSearchSourceState(directoryQuery, isDirectoryAvailable);
   const organizations = useSearchSourceState(organizationsQuery, sources.organizations);
   const mapSites = useSearchSourceState(mapSitesQuery, sources.sites === 'map');
@@ -166,12 +175,13 @@ export const useGlobalSearch = (query: string, organizationId: string | undefine
           organizationName,
           query: parsedQuery,
           sources,
-          states: { deals, directory, mapSites, organizations, ownListings, showcaseListings, warehouses },
+          states: { deals, directory, documents, mapSites, organizations, ownListings, showcaseListings, warehouses },
         })
       : NO_GROUPS
   ), [
     deals,
     directory,
+    documents,
     hasSources,
     mapSites,
     organizationId,
@@ -187,5 +197,5 @@ export const useGlobalSearch = (query: string, organizationId: string | undefine
 
   const status = resolveSearchStatus({ groups, hasSources, isSourcePending: isOrganizationLoading, queryKind });
 
-  return useMemo(() => ({ groups, normalizedQuery, status }), [groups, normalizedQuery, status]);
+  return { groups, normalizedQuery, status };
 };

@@ -24,6 +24,7 @@ import {
   ProductSchema,
 } from '@skladburg/contracts/catalog/v1/catalog';
 import {
+  DeliveryMethod,
   type ListShowcaseListingsRequest,
   type ListShowcaseListingsResponse,
   ListShowcaseListingsResponseSchema,
@@ -38,6 +39,14 @@ import {
   type ListDealsResponse,
   ListDealsResponseSchema,
 } from '@skladburg/contracts/deal/v1/deal';
+import {
+  DocumentSchema,
+  DocumentService,
+  DocumentType,
+  type ListDealDocumentsRequest,
+  type ListDealDocumentsResponse,
+  ListDealDocumentsResponseSchema,
+} from '@skladburg/contracts/document/v1/document';
 import {
   CitySchema,
   ListCitiesResponseSchema,
@@ -102,6 +111,7 @@ import {
   TEST_ORGANIZATION_ID,
   TEST_USER_ID,
 } from '@/shared/api/index.testing';
+import { withTestLocalizer } from '@/shared/i18n/index.testing';
 
 import type { SearchGroupValue } from '../model/searchResultTypes';
 
@@ -134,7 +144,10 @@ const STOREKEEPER: PersonaValue = {
 
 const ACCOUNTANT: PersonaValue = { permissions: [], profiles: [ProfileKind.SUPPLIER] };
 
+const DOCUMENT_READER: PersonaValue = { ...ACCOUNTANT, permissions: [PermissionCode.DEAL_VIEW, PermissionCode.DOCUMENT_VIEW] };
+
 interface HandlersValue {
+  listDealDocuments: Mock<(request: ListDealDocumentsRequest) => ListDealDocumentsResponse>;
   listDeals: Mock<(request: ListDealsRequest) => ListDealsResponse>;
   listMapSites: Mock<(request: ListMapSitesRequest) => ListMapSitesResponse>;
   listOrganizationShowcases: Mock<(request: ListOrganizationShowcasesRequest) => ListOrganizationShowcasesResponse>;
@@ -153,6 +166,7 @@ const createOwnListingsResponse = (id: string, name: string): ListOwnListingsRes
 );
 
 const createHandlers = (): HandlersValue => ({
+  listDealDocuments: vi.fn((_request: ListDealDocumentsRequest): ListDealDocumentsResponse => create(ListDealDocumentsResponseSchema, {})),
   listDeals: vi.fn((_request: ListDealsRequest): ListDealsResponse => create(ListDealsResponseSchema, {
     deals: [create(DealSchema, { id: 'deal-1001', number: 1001 })],
   })),
@@ -226,6 +240,7 @@ const createRuntime = (persona: PersonaValue, handlers: HandlersValue): ApiRunti
     });
     router.service(OrganizationShowcaseService, { listOrganizationShowcases: handlers.listOrganizationShowcases });
     router.service(DealService, { listDeals: handlers.listDeals });
+    router.service(DocumentService, { listDealDocuments: handlers.listDealDocuments });
     router.service(CatalogService, { listOwnListings: handlers.listOwnListings });
     router.service(ShowcaseService, { listShowcaseListings: handlers.listShowcaseListings });
   },
@@ -251,10 +266,10 @@ const renderSearch = (
   const runtime = createRuntime(persona, handlers);
   const queryClient = new QueryClient({ defaultOptions: { queries: { networkMode: 'always', retry: false } } });
 
-  const Wrapper = ({ children }: { children: ReactNode }): ReactElement => (
+  const Wrapper = ({ children }: { children: ReactNode }): ReactElement => withTestLocalizer(
     <ApiRuntimeProvider runtime={runtime}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    </ApiRuntimeProvider>
+    </ApiRuntimeProvider>,
   );
 
   const { rerender, result } = renderHook(
@@ -291,15 +306,19 @@ describe('useGlobalSearch', () => {
     expect(handlers.listMapSites).not.toHaveBeenCalled();
   });
 
-  it('reports no-sources for a persona without a single source and requests nothing', async () => {
+  it.each([
+    ACCOUNTANT,
+    { ...ACCOUNTANT, permissions: [PermissionCode.DOCUMENT_VIEW] } satisfies PersonaValue,
+  ])('reports no-sources for a persona without a single accessible source', async (persona) => {
     const handlers = createHandlers();
-    const { result } = renderSearch(ACCOUNTANT, handlers, { organizationId: TEST_ORGANIZATION_ID, query: 'яблоки' });
+    const { result } = renderSearch(persona, handlers, { organizationId: TEST_ORGANIZATION_ID, query: 'яблоки' });
 
     await waitFor(() => {
       expect(result.current.status).toBe('no-sources');
     });
 
     expect(handlers.listDeals).not.toHaveBeenCalled();
+    expect(handlers.listDealDocuments).not.toHaveBeenCalled();
     expect(handlers.listOwnListings).not.toHaveBeenCalled();
     expect(handlers.listOrganizationShowcases).not.toHaveBeenCalled();
   });
@@ -316,6 +335,118 @@ describe('useGlobalSearch', () => {
       });
     });
     expect(handlers.listDeals).toHaveBeenCalledWith(expect.objectContaining({ query: '1001' }), expect.anything());
+    expect(handlers.listDealDocuments).not.toHaveBeenCalled();
+  });
+
+  it('reuses the same document index for changes to the search and lists a shared supply contract once', async () => {
+    const handlers = createHandlers();
+    handlers.listDeals.mockImplementation(request => create(ListDealsResponseSchema, {
+      deals: request.query === ''
+        ? [
+            create(DealSchema, { deliveryMethod: DeliveryMethod.SUPPLIER, id: 'deal-1002', number: 1002 }),
+            create(DealSchema, { deliveryMethod: DeliveryMethod.CUSTOMER, id: 'deal-1001', number: 1001 }),
+          ]
+        : [],
+    }));
+    const contract = create(DocumentSchema, { displayNumber: '17', id: 'contract-1', type: DocumentType.SUPPLY_CONTRACT });
+    const invoice = create(DocumentSchema, { displayNumber: '17', id: 'invoice-1', type: DocumentType.INVOICE });
+    handlers.listDealDocuments.mockImplementation(request => create(ListDealDocumentsResponseSchema, {
+      documents: request.dealId === 'deal-1002' ? [contract, invoice] : [contract],
+    }));
+    const { rerender, result } = renderSearch(DOCUMENT_READER, handlers, { organizationId: TEST_ORGANIZATION_ID, query: '17' });
+
+    await waitFor(() => {
+      const documents = result.current.groups.find(group => group.id === 'documents');
+
+      expect(documents?.options.map(option => option.objectId)).toEqual(['contract-1', 'invoice-1']);
+    });
+
+    rerender({ organizationId: TEST_ORGANIZATION_ID, query: '№17 счет' });
+
+    await waitFor(() => {
+      const documents = result.current.groups.find(group => group.id === 'documents');
+
+      expect(documents?.options).toMatchObject([{
+        address: { kind: 'object', object: { id: 'invoice-1', type: 'document' } },
+      }]);
+      expect(documents?.options[0]?.title).toMatch(/^Счёт № 17 · Сделка № 1\s?002$/);
+    });
+    expect(handlers.listDeals.mock.calls.filter(([request]) => request.query === '')).toHaveLength(1);
+    expect(handlers.listDealDocuments).toHaveBeenCalledTimes(2);
+  });
+
+  it('removes document results immediately when the user changes within the same organization', async () => {
+    const handlers = createHandlers();
+    handlers.listDeals.mockImplementation(request => create(ListDealsResponseSchema, {
+      deals: request.query === '' ? [create(DealSchema, { deliveryMethod: DeliveryMethod.SUPPLIER, id: 'deal-1001', number: 1001 })] : [],
+    }));
+    handlers.listDealDocuments
+      .mockImplementationOnce(() => create(ListDealDocumentsResponseSchema, {
+        documents: [create(DocumentSchema, { displayNumber: '17', id: 'first-invoice', type: DocumentType.INVOICE })],
+      }))
+      .mockImplementation(() => create(ListDealDocumentsResponseSchema, {
+        documents: [create(DocumentSchema, { displayNumber: '17', id: 'next-invoice', type: DocumentType.INVOICE })],
+      }));
+    const { queryClient, result, runtime } = renderSearch(DOCUMENT_READER, handlers, { organizationId: TEST_ORGANIZATION_ID, query: '17' });
+    const getDocumentGroup = (): SearchGroupValue | undefined => result.current.groups.find(group => group.id === 'documents');
+
+    await waitFor(() => {
+      expect(getDocumentGroup()?.options[0]?.objectId).toBe('first-invoice');
+    });
+
+    const nextUserId = 'f0000004-0000-4000-8000-000000000000';
+    queryClient.setQueryData(
+      sessionKeys.current(TEST_ORGANIZATION_ID, nextUserId),
+      queryClient.getQueryData(sessionKeys.current(TEST_ORGANIZATION_ID, TEST_USER_ID)),
+    );
+    act(() => {
+      runtime.actingContext.set({ organizationId: TEST_ORGANIZATION_ID, userId: nextUserId });
+    });
+
+    expect(getDocumentGroup()?.options).toEqual([]);
+
+    await waitFor(() => {
+      expect(getDocumentGroup()?.options[0]?.objectId).toBe('next-invoice');
+    });
+    expect(handlers.listDealDocuments).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps document results after a transient error and removes them after access is denied', async () => {
+    const handlers = createHandlers();
+    handlers.listDeals.mockImplementation(request => create(ListDealsResponseSchema, {
+      deals: request.query === '' ? [create(DealSchema, { deliveryMethod: DeliveryMethod.SUPPLIER, id: 'deal-1001', number: 1001 })] : [],
+    }));
+    handlers.listDealDocuments
+      .mockImplementationOnce(() => create(ListDealDocumentsResponseSchema, {
+        documents: [create(DocumentSchema, { displayNumber: '17', id: 'invoice-1', type: DocumentType.INVOICE })],
+      }))
+      .mockImplementationOnce(() => {
+        throw new ConnectError('unavailable', Code.Unavailable);
+      })
+      .mockImplementation(() => {
+        throw new ConnectError('permission denied', Code.PermissionDenied);
+      });
+    const { queryClient, rerender, result } = renderSearch(DOCUMENT_READER, handlers, {
+      organizationId: TEST_ORGANIZATION_ID,
+      query: '17',
+    });
+    const getDocumentGroup = (): SearchGroupValue | undefined => result.current.groups.find(group => group.id === 'documents');
+
+    await waitFor(() => {
+      expect(getDocumentGroup()?.options[0]?.objectId).toBe('invoice-1');
+    });
+
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['documents'] });
+    });
+    rerender({ organizationId: TEST_ORGANIZATION_ID, query: 'счет' });
+    expect(getDocumentGroup()?.options[0]?.objectId).toBe('invoice-1');
+
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['documents'] });
+    });
+    rerender({ organizationId: TEST_ORGANIZATION_ID, query: '17' });
+    expect(getDocumentGroup()).toMatchObject({ options: [], status: 'error' });
   });
 
   it('finds companies and the own catalog of a supplier in a fixed order and no showcase', async () => {

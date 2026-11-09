@@ -1,6 +1,7 @@
 import type { Deal } from '@skladburg/contracts/deal/v1/deal';
 import type { ReactElement } from 'react';
 
+import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
 import {
   useLayoutEffect,
   useRef,
@@ -25,6 +26,7 @@ import type { DealEditorValue } from './dealInspectorTypes';
 
 import { dealInspectorSection } from '../../i18n/inspectorSection';
 import { DealStatusBadge } from '../DealStatusBadge';
+import { DealFolderSlot } from '../folder/DealFolderSlot';
 import { ApproveDealButton } from './ApproveDealButton';
 import { getDealActions } from './dealActionAvailability';
 import { DealActionOpenButton } from './DealActionOpenButton';
@@ -38,9 +40,19 @@ interface DealInspectorBodyProps extends DealInspectorProps {
 
 interface DealInspectorProps extends DealCommandContextValue {
   counterpartyName: string | undefined;
+  documentFocusRequest?: number | undefined;
+  initialDocumentId?: string | undefined;
 }
 
-const DealInspectorBody = ({ counterpartyName, deal, onRefresh, onUpdated, t }: DealInspectorBodyProps): ReactElement => {
+const DealInspectorBody = ({
+  counterpartyName,
+  deal,
+  documentFocusRequest,
+  initialDocumentId,
+  onRefresh,
+  onUpdated,
+  t,
+}: DealInspectorBodyProps): ReactElement => {
   const { organizationId } = useActingContext();
   const { data: session } = useSessionQuery();
   const [editor, setEditor] = useState<DealEditorValue | undefined>(undefined);
@@ -54,6 +66,7 @@ const DealInspectorBody = ({ counterpartyName, deal, onRefresh, onUpdated, t }: 
   const party = isCustomer ? 'customer' : (isSupplier ? 'supplier' : undefined);
   const actions = getDealActions(deal.status, party);
   const hasActions = editor === undefined && actions.length > 0;
+  const hasFolder = deal.deliveryMethod !== DeliveryMethod.UNSPECIFIED;
   const ownCompany = session?.organizations.find(organization => organization.id === organizationId)?.name
     ?? t('dealInspector.ownCompany');
   const otherCompany = counterpartyName ?? t('dealInspector.notSpecified');
@@ -74,6 +87,10 @@ const DealInspectorBody = ({ counterpartyName, deal, onRefresh, onUpdated, t }: 
 
   const handleRequestStatusFocus = (): void => {
     pendingFocusRef.current = 'status';
+  };
+
+  const handleFocusStatus = (): void => {
+    statusRef.current?.focus();
   };
 
   useLayoutEffect(() => {
@@ -105,7 +122,17 @@ const DealInspectorBody = ({ counterpartyName, deal, onRefresh, onUpdated, t }: 
         </div>
       </dl>
       <DealTerms deal={deal} t={t} />
-      <DealHistory deal={deal} t={t} />
+      {hasFolder && (
+        <DealFolderSlot
+          deal={deal}
+          documentFocusRequest={documentFocusRequest}
+          initialDocumentId={initialDocumentId}
+          onFocusStatus={handleFocusStatus}
+          onRefresh={onRefresh}
+          onUpdated={handleUpdated}
+          party={party}
+        />
+      )}
       {editor !== undefined && (
         <div ref={editorRef}>
           <DealEditor
@@ -137,6 +164,7 @@ const DealInspectorBody = ({ counterpartyName, deal, onRefresh, onUpdated, t }: 
             : <DealActionOpenButton action={action} deal={deal} key={action} onOpen={setEditor} t={t} />)}
         </section>
       )}
+      <DealHistory deal={deal} t={t} />
     </div>
   );
 };

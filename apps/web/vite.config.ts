@@ -142,6 +142,14 @@ const ORGANIZATION_BADGE_MODULES = [
   'src/entities/organization/ui/VerificationBadge.tsx',
 ];
 
+const DEAL_FORM_MODULES = [
+  'src/pages/deals/api/commands/dealFormValidation.ts',
+  'src/pages/deals/api/commands/useDealWarehouseOptions.ts',
+  'src/pages/deals/ui/inspector/dealLineLabels.ts',
+  'src/pages/deals/ui/inspector/DealEditorForm.tsx',
+  'src/pages/deals/ui/inspector/DealWarehouseField.tsx',
+];
+
 const TOOLTIP_SHARED_MODULES = [
   'src/shared/ui/action-button/AccessButton.tsx',
   'src/shared/ui/action-button/ActionButton.tsx',
@@ -257,6 +265,18 @@ const MAX_GLOBAL_SEARCH_TEXTS_GZIP_KILOBYTES = 1.4;
 const MAX_DEALS_BOARD_GZIP_KILOBYTES = 18.79;
 
 const MAX_DEAL_INSPECTOR_GZIP_KILOBYTES = 68.89;
+
+const MAX_DEAL_FOLDER_GZIP_KILOBYTES = 54;
+
+const MAX_DOCUMENT_VIEW_GZIP_KILOBYTES = 57.56;
+
+const MAX_DEAL_DRAFT_FORM_GZIP_KILOBYTES = 60.12;
+
+const MAX_DOCUMENT_INDEX_GZIP_KILOBYTES = 16.82;
+
+const MAX_DOCUMENT_ROUTE_GZIP_KILOBYTES = 2.09;
+
+const MAX_GLOBAL_SEARCH_DIRECTORY_GZIP_KILOBYTES = 1.61;
 
 const MAX_COUNTER_FORM_GZIP_KILOBYTES = 70.3;
 
@@ -592,6 +612,54 @@ const LAZY_ENTRY_BUDGETS = [
   },
   {
     baseline: STARTUP_BASELINE,
+    entries: ['src/pages/deals/ui/folder/dealFolderEntry.tsx'],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_DEAL_FOLDER_GZIP_KILOBYTES,
+    name: 'deal-folder',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/deals/ui/folder/documents/documentViewEntry.ts'],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_DOCUMENT_VIEW_GZIP_KILOBYTES,
+    name: 'document-view',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/deals/ui/inspector/DealDraftForm.tsx'],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_DEAL_DRAFT_FORM_GZIP_KILOBYTES,
+    name: 'deal-draft-form',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/entities/document/api/documentIndex.ts'],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_DOCUMENT_INDEX_GZIP_KILOBYTES,
+    name: 'document-index',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/deals/ui/DealDocumentRoute.tsx'],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_DOCUMENT_ROUTE_GZIP_KILOBYTES,
+    name: 'document-route',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/features/global-search/api/fetchSearchDirectory.ts'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_GLOBAL_SEARCH_DIRECTORY_GZIP_KILOBYTES,
+    name: 'global-search-directory',
+  },
+  {
+    baseline: STARTUP_BASELINE,
     entries: ['src/pages/deals/ui/inspector/counterFormEntry.ts'],
     forbiddenPackages: ['@react-three/*', 'three'],
     isRequired: true,
@@ -823,6 +891,11 @@ export default defineConfig({
               includeDependenciesRecursively: false,
               name: 'organization-badges',
               test: (moduleId: string): boolean => ORGANIZATION_BADGE_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'deal-form-shared',
+              test: (moduleId: string): boolean => DEAL_FORM_MODULES.some(entry => hasEntryModule([moduleId], entry)),
             },
             {
               includeDependenciesRecursively: false,

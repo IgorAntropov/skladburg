@@ -1,0 +1,1 @@
+export { DealDocumentView } from './DealDocumentView';

@@ -245,6 +245,7 @@ describe('global search panel with its controller', () => {
     openWithQuery('голден');
 
     await screen.findByTestId(`global-search-option-own-listings-${OWN_LISTING_ID}`);
+    await screen.findByText('Нашёл 2 результата');
 
     const input = getInput();
     const listbox = screen.getByRole('listbox');
@@ -265,7 +266,6 @@ describe('global search panel with its controller', () => {
     });
 
     expect(document.getElementById(firstOptionId)?.getAttribute('aria-selected')).toBe('true');
-    expect(await screen.findByText('Нашёл 2 результата')).toBeDefined();
   });
 
   it('walks down through the groups with the arrow keys, wraps around and opens the active row on Enter', async () => {

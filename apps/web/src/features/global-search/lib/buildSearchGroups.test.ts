@@ -53,6 +53,7 @@ const ALL_SOURCES: SearchSourcesValue = {
 const NO_STATES: SearchSourceStatesValue = {
   deals: undefined,
   directory: undefined,
+  documents: undefined,
   mapSites: undefined,
   organizations: undefined,
   ownListings: undefined,

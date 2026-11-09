@@ -9,11 +9,14 @@ import { toSearchSourceState } from '../lib/toSearchSourceState';
 export const useSearchSourceState = <TData>(
   result: UseQueryResult<TData>,
   isAvailable: boolean,
+  isDataHidden = false,
 ): SearchSourceStateValue<TData> | undefined => {
   const { data, error, isError, isPlaceholderData, refetch } = result;
 
   return useMemo(
-    () => (isAvailable ? toSearchSourceState({ data, error, isError, isPlaceholderData, refetch }) : undefined),
-    [data, error, isAvailable, isError, isPlaceholderData, refetch],
+    () => (isAvailable
+      ? toSearchSourceState({ data: isDataHidden ? undefined : data, error, isError, isPlaceholderData, refetch })
+      : undefined),
+    [data, error, isAvailable, isDataHidden, isError, isPlaceholderData, refetch],
   );
 };

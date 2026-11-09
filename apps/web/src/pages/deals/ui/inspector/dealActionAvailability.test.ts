@@ -14,9 +14,12 @@ describe('getDealActions', () => {
     expect(getDealActions(DealStatus.COUNTER_OFFERED, 'customer')).toEqual(['accept', 'rejectOffer', 'cancel']);
   });
 
-  it('keeps the pre-payment cancellation boundary', () => {
+  it('lets the customer cancel after funding until shipment', () => {
     expect(getDealActions(DealStatus.AWAITING_PAYMENT, 'customer')).toEqual(['cancel']);
-    expect(getDealActions(DealStatus.PAID, 'customer')).toEqual([]);
+    expect(getDealActions(DealStatus.PAID, 'customer')).toEqual(['cancel']);
+    expect(getDealActions(DealStatus.PICKING, 'customer')).toEqual(['cancel']);
+    expect(getDealActions(DealStatus.PAID, 'supplier')).toEqual([]);
+    expect(getDealActions(DealStatus.SHIPPED, 'customer')).toEqual([]);
   });
 
   it('prevents actions from a third party or on a hidden supplier draft', () => {

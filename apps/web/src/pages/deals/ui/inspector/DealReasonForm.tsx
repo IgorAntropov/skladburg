@@ -29,6 +29,7 @@ export const DealReasonForm = ({ deal, isCurrentAction, kind, onClose, onRefresh
     <DealEditorForm
       access={access}
       command={form.command}
+      formTestId={kind === 'cancelDeal' ? 'deal-cancel-form' : undefined}
       isCurrentAction={isCurrentAction}
       isDirty={form.isDirty}
       label={t(REASON_LABELS[kind])}

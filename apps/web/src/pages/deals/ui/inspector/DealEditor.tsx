@@ -21,28 +21,33 @@ import type {
 
 import { ConfirmDealForm } from './ConfirmDealForm';
 import { DealDeliveryForm } from './DealDeliveryForm';
-import { DealDraftForm } from './DealDraftForm';
 import { DealReasonForm } from './DealReasonForm';
 
-const loadCounterForm = createCachedModuleLoader(() => import('./counterFormEntry'));
+const loadCounterForm = createCachedModuleLoader(() =>
+  import('./counterFormEntry').then(({ CounterDealForm }) => ({ Form: CounterDealForm })));
+const loadDraftForm = createCachedModuleLoader(() => import('./DealDraftForm').then(({ DealDraftForm }) => ({ Form: DealDraftForm })));
 
 interface ActiveDealEditorProps extends DealEditorProps {
   action: DealEditorValue;
 }
 
-const CounterFormLoader = (props: DealEditorProps): ReactElement => {
+interface DealFormLoaderProps extends DealEditorProps {
+  loadForm: typeof loadCounterForm;
+}
+
+const DealFormLoader = ({ loadForm, ...props }: DealFormLoaderProps): ReactElement => {
   const { t: baseText } = useI18n();
   const { onClose, t } = props;
-  const { load, state } = useChunkLoader(loadCounterForm);
+  const { load, state } = useChunkLoader(loadForm);
 
   useEffect(() => {
     load();
   }, [load]);
 
   if (state.kind === 'loaded') {
-    const { CounterDealForm } = state.module;
+    const { Form } = state.module;
 
-    return <CounterDealForm {...props} />;
+    return <Form {...props} />;
   }
 
   if (state.kind === 'failed') {
@@ -73,11 +78,11 @@ export const DealEditor = ({ action, ...props }: ActiveDealEditorProps): ReactEl
     case 'confirm':
       return <ConfirmDealForm {...props} />;
     case 'counter':
-      return <CounterFormLoader {...props} />;
+      return <DealFormLoader {...props} loadForm={loadCounterForm} />;
     case 'delivery':
       return <DealDeliveryForm {...props} />;
     case 'draft':
-      return <DealDraftForm {...props} />;
+      return <DealFormLoader {...props} loadForm={loadDraftForm} />;
     case 'reject':
       return <DealReasonForm {...props} kind="rejectDeal" />;
     case 'rejectOffer':

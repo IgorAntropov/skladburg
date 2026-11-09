@@ -20,12 +20,14 @@ export const DealDeliveryForm = ({ deal, isCurrentAction, onClose, onRefresh, on
     <DealEditorForm
       access={access}
       command={form.command}
+      formTestId="deal-delivery-form"
       isCurrentAction={isCurrentAction}
       isDirty={form.isDirty}
       label={t('dealInspector.deliverySave')}
       onClose={onClose}
       onRefresh={onRefresh}
       onSubmit={form.handleSubmit}
+      submitTestId="deal-delivery-submit"
       t={t}
       version={deal.version}
     >

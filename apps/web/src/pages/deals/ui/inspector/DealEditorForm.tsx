@@ -105,7 +105,13 @@ export const DealEditorForm = ({
   return (
     <section className="flex flex-col gap-3">
       <h3 className="text-base font-semibold text-on-panel" id={titleId} ref={titleRef} tabIndex={-1}>{label}</h3>
-      <Button aria-disabled={command.isPending} className="self-start" onClick={handleBack} variant="secondary">
+      <Button
+        aria-disabled={command.isPending}
+        className="self-start"
+        data-testid="deal-editor-back"
+        onClick={handleBack}
+        variant="secondary"
+      >
         {t('dealInspector.back')}
       </Button>
       {isLeavePending && (

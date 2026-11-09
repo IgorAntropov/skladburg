@@ -28,6 +28,7 @@ export const SearchOptionDetail = ({ option, t }: SearchOptionDetailProps): Reac
   switch (detail.kind) {
     case 'city':
     case 'deal':
+    case 'document':
       return undefined;
     case 'organization':
       return (

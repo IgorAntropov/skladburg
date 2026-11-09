@@ -12,6 +12,7 @@ import type {
 import type { SearchCandidateValue } from './rankSearchOptions';
 import type { SearchSourcesValue } from './resolveSearchSources';
 
+import { buildDocumentSearchOptions } from './buildDocumentSearchOptions';
 import {
   toCityCandidate,
   toMapSiteCandidate,
@@ -35,11 +36,6 @@ interface CombinedStateValue {
   isStale: boolean;
   retry: () => void;
   status: SearchGroupStatusValue;
-}
-
-interface GroupDraftValue {
-  candidates: readonly SearchCandidateValue[];
-  hasNextPage: boolean;
 }
 
 const combineStates = (states: readonly SearchSourceStateValue<unknown>[]): CombinedStateValue => {
@@ -74,22 +70,23 @@ const assembleGroup = (
   id: SearchGroupIdValue,
   sources: readonly SearchSourceStateValue<unknown>[],
   query: SearchQueryValue,
-  createDraft: (isStale: boolean) => GroupDraftValue,
+  createCandidates: (isStale: boolean) => readonly SearchCandidateValue[],
+  hasNextPage = false,
 ): SearchGroupValue | undefined => {
-  const { error, isStale, retry, status } = combineStates(sources);
+  const group: SearchGroupValue = { ...combineStates(sources), hasMore: false, id, options: [] };
 
-  if (status !== 'ready') {
-    return { error, hasMore: false, id, isStale: false, options: [], retry, status };
+  if (group.status !== 'ready') {
+    return group;
   }
 
-  const { candidates, hasNextPage } = createDraft(isStale);
+  const candidates = createCandidates(group.isStale);
   const { hasMore, options } = rankSearchOptions({ candidates, hasNextPage, query });
 
   if (options.length > 0) {
-    return { error: null, hasMore, id, isStale, options, retry, status };
+    return { ...group, hasMore, options };
   }
 
-  return isStale ? { error: null, hasMore: false, id, isStale: false, options: [], retry, status: 'loading' } : undefined;
+  return group.isStale ? { ...group, isStale: false, status: 'loading' } : undefined;
 };
 
 const hasNextPageToken = (page: undefined | { nextPageToken: string }): boolean => (page?.nextPageToken ?? '') !== '';
@@ -101,7 +98,7 @@ export const buildSearchGroups = ({
   sources,
   states,
 }: BuildSearchGroupsInputValue): SearchGroupValue[] => {
-  const { deals, directory, mapSites, organizations, ownListings, showcaseListings, warehouses } = states;
+  const { deals, directory, documents, mapSites, organizations, ownListings, showcaseListings, warehouses } = states;
   const groups: (SearchGroupValue | undefined)[] = [];
 
   const cityNameById: ReadonlyMap<string, string> = new Map(
@@ -109,59 +106,61 @@ export const buildSearchGroups = ({
   );
 
   if (sources.organizations && organizations !== undefined) {
-    groups.push(assembleGroup('organizations', [organizations], query, () => ({
-      candidates: toCandidates(organizations.data ?? [], organization => toOrganizationCandidate(organization, query)),
-      hasNextPage: false,
-    })));
+    groups.push(assembleGroup('organizations', [organizations], query, () =>
+      toCandidates(organizations.data ?? [], organization => toOrganizationCandidate(organization, query))));
   }
 
   if (sources.sites === 'map' && mapSites !== undefined && directory !== undefined) {
-    groups.push(assembleGroup('sites', [mapSites, directory], query, () => ({
-      candidates: toCandidates(
+    groups.push(assembleGroup('sites', [mapSites, directory], query, () =>
+      toCandidates(
         mapSites.data ?? [],
         site => toMapSiteCandidate(site, { cityNameById, organizationId, query }),
-      ),
-      hasNextPage: false,
-    })));
+      )));
   }
 
   if (sources.sites === 'warehouses' && warehouses !== undefined && directory !== undefined) {
-    groups.push(assembleGroup('sites', [warehouses, directory], query, () => ({
-      candidates: toCandidates(
+    groups.push(assembleGroup('sites', [warehouses, directory], query, () =>
+      toCandidates(
         warehouses.data ?? [],
         warehouse => toWarehouseCandidate(warehouse, organizationName, { cityNameById, query }),
-      ),
-      hasNextPage: false,
-    })));
+      )));
   }
 
   if (sources.cities && directory !== undefined) {
-    groups.push(assembleGroup('cities', [directory], query, () => ({
-      candidates: toCandidates(directory.data?.mapNodes ?? [], (node) => {
+    groups.push(assembleGroup('cities', [directory], query, () =>
+      toCandidates(directory.data?.mapNodes ?? [], (node) => {
         const cityName = cityNameById.get(node.cityId);
 
         return cityName === undefined ? undefined : toCityCandidate(node.id, cityName, query);
-      }),
-      hasNextPage: false,
-    })));
+      })));
   }
 
   if (sources.ownListings && ownListings !== undefined) {
-    groups.push(assembleGroup('own-listings', [ownListings], query, isStale => ({
-      candidates: toCandidates(ownListings.data?.items ?? [], item => toOwnListingCandidate(item, query, isStale)),
-      hasNextPage: hasNextPageToken(ownListings.data),
-    })));
+    groups.push(assembleGroup(
+      'own-listings',
+      [ownListings],
+      query,
+      isStale => toCandidates(ownListings.data?.items ?? [], item => toOwnListingCandidate(item, query, isStale)),
+      hasNextPageToken(ownListings.data),
+    ));
   }
 
   if (sources.showcaseListings && showcaseListings !== undefined) {
-    groups.push(assembleGroup('showcase-listings', [showcaseListings], query, isStale => ({
-      candidates: toCandidates(showcaseListings.data?.items ?? [], item => toShowcaseListingCandidate(item, query, isStale)),
-      hasNextPage: hasNextPageToken(showcaseListings.data),
-    })));
+    groups.push(assembleGroup(
+      'showcase-listings',
+      [showcaseListings],
+      query,
+      isStale => toCandidates(showcaseListings.data?.items ?? [], item => toShowcaseListingCandidate(item, query, isStale)),
+      hasNextPageToken(showcaseListings.data),
+    ));
   }
 
   if (deals !== undefined) {
-    groups.push(assembleGroup('deals', [deals], query, () => deals.data ?? { candidates: [], hasNextPage: false }));
+    groups.push(assembleGroup('deals', [deals], query, () => deals.data?.candidates ?? [], deals.data?.hasNextPage));
+  }
+
+  if (documents !== undefined) {
+    groups.push(assembleGroup('documents', [documents], query, () => buildDocumentSearchOptions(documents.data ?? [], query)));
   }
 
   return groups.filter(group => group !== undefined);

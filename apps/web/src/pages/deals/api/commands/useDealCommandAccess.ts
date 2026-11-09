@@ -12,14 +12,14 @@ import { findDealApprovalLimit } from './dealApprovalLimit';
 
 export const useDealCommandAccess = (method: DescMethod): CommandAccessValue => useCommandAccess(method, { kind: 'organization' });
 
-export const useDealApprovalAccess = (method: DescMethod, amount: Money | undefined): {
+export const useDealApprovalAccess = (method: DescMethod, amount: Money | undefined, permission?: string): {
   access: CommandAccessValue;
   limit: Money | undefined;
 } => {
   const access = useDealCommandAccess(method);
   const { data } = useSessionQuery();
   const limit = access.status === 'allowed' && data !== undefined && amount !== undefined
-    ? findDealApprovalLimit(data.permissions, amount)
+    ? findDealApprovalLimit(data.permissions, amount, permission)
     : undefined;
 
   return { access, limit };

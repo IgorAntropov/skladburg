@@ -5,6 +5,7 @@ import type {
 import type { DealStatus } from '@skladburg/contracts/deal/v1/deal';
 
 import { expect } from '@playwright/test';
+import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
 
 import { expectNoAxeViolations } from '../fixtures/axe.ts';
 import { createNotificationRobot } from './notification-robot.ts';
@@ -16,7 +17,11 @@ const TAB_IDS = ['mine', 'active', 'closed'] as const;
 
 interface DealRobotValue {
   acceptCounterOffer: () => Promise<void>;
-  createDraft: (warehouseId: string, quantity: string) => Promise<string>;
+  choosePickup: () => Promise<void>;
+  confirm: (warehouseId: string) => Promise<void>;
+  createDraft: (warehouseId: string, quantity: string, desiredDate?: string) => Promise<string>;
+  discardCancellation: () => Promise<void>;
+  expectCancellationReason: (reason: string) => Promise<void>;
   expectDraftsPrivate: () => Promise<void>;
   expectGoodsTotal: (amount: string) => Promise<void>;
   expectInMyQueue: (address: string) => Promise<void>;
@@ -27,6 +32,7 @@ interface DealRobotValue {
   openFromSearch: (address: string, query: string) => Promise<void>;
   openReceivedNotification: (address: string) => Promise<void>;
   sendCounterOffer: (warehouseId: string, price: string) => Promise<void>;
+  startCancellation: (reason: string) => Promise<void>;
   submitDraft: () => Promise<void>;
 }
 
@@ -36,6 +42,8 @@ export const createDealRobot = (page: Page): DealRobotValue => {
   const board = page.getByTestId('deals-board');
   const inspector = page.getByTestId('deal-inspector');
   const order = page.getByTestId('order-form');
+  const cancellation = inspector.getByTestId('deal-cancel-form');
+  const cancellationReason = cancellation.locator('input');
   const counter = page.getByTestId('deal-counter-form');
   const submit = inspector.getByTestId('deal-submit');
   const notifications = createNotificationRobot(page);
@@ -50,16 +58,35 @@ export const createDealRobot = (page: Page): DealRobotValue => {
     async acceptCounterOffer(): Promise<void> {
       await inspector.getByTestId('deal-counter-accept').click();
     },
-    async createDraft(warehouseId: string, quantity: string): Promise<string> {
+    async choosePickup(): Promise<void> {
+      await inspector.getByTestId('deal-delivery-open').click();
+      const delivery = inspector.getByTestId('deal-delivery-form');
+      await delivery.locator('select').selectOption(String(DeliveryMethod.CUSTOMER));
+      await delivery.getByTestId('deal-delivery-submit').click();
+    },
+    async confirm(warehouseId: string): Promise<void> {
+      await inspector.getByTestId('deal-confirm').click();
+      await inspector.getByTestId('deal-confirm-warehouse').locator('select').selectOption(warehouseId);
+      await inspector.getByTestId('deal-confirm-submit').click();
+    },
+    async createDraft(warehouseId: string, quantity: string, desiredDate = DRAFT_DATE): Promise<string> {
       await page.getByTestId('order-open').click();
       await expect(order).toBeVisible();
       await expect(order.getByTestId('order-warehouse').locator('select')).toHaveValue(warehouseId);
       await order.getByTestId('order-quantity').locator('input').fill(quantity);
-      await order.getByTestId('order-date').locator('input').fill(DRAFT_DATE);
+      await order.getByTestId('order-date').locator('input').fill(desiredDate);
       await order.getByTestId('order-create').click();
       await expect(inspector).toBeVisible();
       await expect.poll(readAddress).toMatch(/^#\/deals\/[\da-f-]{36}$/u);
       return readAddress();
+    },
+    async discardCancellation(): Promise<void> {
+      await inspector.getByTestId('deal-editor-back').click();
+      await inspector.getByTestId('deal-editor-leave-confirm-leave').click();
+      await expect(cancellation).toBeHidden();
+    },
+    async expectCancellationReason(reason): Promise<void> {
+      await expect(cancellationReason).toHaveValue(reason);
     },
     async expectDraftsPrivate(): Promise<void> {
       for (const tab of TAB_IDS) {
@@ -118,6 +145,10 @@ export const createDealRobot = (page: Page): DealRobotValue => {
       await counter.getByTestId('deal-counter-price-0').locator('input').fill(price);
       await counter.getByTestId('deal-counter-date').locator('input').fill(COUNTER_DATE);
       await counter.getByTestId('deal-counter-submit').click();
+    },
+    async startCancellation(reason): Promise<void> {
+      await inspector.getByTestId('deal-cancel').click();
+      await cancellationReason.fill(reason);
     },
     async submitDraft(): Promise<void> {
       await submit.click();

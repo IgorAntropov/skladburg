@@ -1,12 +1,16 @@
 import type { EffectivePermission } from '@skladburg/contracts/access/v1/access';
 import type { Money } from '@skladburg/contracts/common/v1/money';
 
-export const findDealApprovalLimit = (permissions: readonly EffectivePermission[], requested: Money): Money | undefined => {
+export const findDealApprovalLimit = (
+  permissions: readonly EffectivePermission[],
+  requested: Money,
+  permission = 'deal_approve',
+): Money | undefined => {
   let maximum: Money | undefined;
   let currencyMaximum: Money | undefined;
 
   for (const grant of permissions) {
-    if (grant.permission !== 'deal_approve' || !grant.isOrganizationWide) {
+    if (grant.permission !== permission || !grant.isOrganizationWide) {
       continue;
     }
 

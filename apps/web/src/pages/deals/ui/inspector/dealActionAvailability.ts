@@ -22,6 +22,8 @@ const PARTY_ACTIONS: Record<PartyValue, Partial<Record<DealStatus, readonly Deal
     [DealStatus.AWAITING_LOGISTICS]: ['delivery'],
     [DealStatus.COUNTER_OFFERED]: ['accept', 'rejectOffer'],
     [DealStatus.DRAFT]: ['submit', 'draft'],
+    [DealStatus.PAID]: ['cancel'],
+    [DealStatus.PICKING]: ['cancel'],
   },
   supplier: {
     [DealStatus.SUBMITTED]: ['confirm', 'counter', 'reject'],

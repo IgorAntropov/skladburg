@@ -5,6 +5,7 @@ import {
   useEffect,
   useEffectEvent,
   useId,
+  useLayoutEffect,
   useReducer,
   useRef,
 } from 'react';
@@ -174,7 +175,7 @@ export const SearchController = ({
     };
   }, [inputRef, rootRef]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const input = inputRef.current;
 
     if (input === null || !isPanelOpen) {

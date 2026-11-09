@@ -5,6 +5,7 @@ export default defineConfig([
   ...fsd.configs.recommended,
   {
     files: [
+      './src/entities/document/**',
       './src/entities/listing/**',
       './src/entities/network/**',
       './src/entities/support-ticket/**',

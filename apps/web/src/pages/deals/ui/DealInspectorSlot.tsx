@@ -18,6 +18,8 @@ import {
 interface DealInspectorSlotProps {
   counterpartyName: string | undefined;
   deal: Deal;
+  documentFocusRequest?: number | undefined;
+  initialDocumentId?: string | undefined;
   onRefresh: () => void;
   onUpdated: (deal: Deal) => void;
 }

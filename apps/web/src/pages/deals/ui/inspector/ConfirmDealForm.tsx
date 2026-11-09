@@ -31,7 +31,13 @@ export const ConfirmDealForm = ({ deal, isCurrentAction, onClose, onRefresh, onU
       t={t}
       version={deal.version}
     >
-      <DealWarehouseField field={form.getFieldProps('shipFromWarehouseId')} label={t('dealInspector.shipFrom')} query={query} t={t} />
+      <DealWarehouseField
+        field={form.getFieldProps('shipFromWarehouseId')}
+        label={t('dealInspector.shipFrom')}
+        query={query}
+        t={t}
+        testId="deal-confirm-warehouse"
+      />
       <DealLimitReason amount={deal.goodsTotal} limit={limit} t={t} />
     </DealEditorForm>
   );

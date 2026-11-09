@@ -25,6 +25,7 @@ export { getFieldViolations } from './errors/getFieldViolations';
 export { getViolationMessageKey } from './errors/getViolationMessageKey';
 export type { KnownErrorCode } from './errors/isKnownErrorCode';
 export { isKnownErrorCode } from './errors/isKnownErrorCode';
+export { isReadAccessDenied } from './errors/isReadAccessDenied';
 export { parseApiError } from './errors/parseApiError';
 export { translateApiError } from './errors/translateApiError';
 export { translatePermissionDenial } from './errors/translatePermissionDenial';

@@ -6,7 +6,6 @@ import type { ReactElement } from 'react';
 
 import { create } from '@bufbuild/protobuf';
 import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
-import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import { GetDealResponseSchema } from '@skladburg/contracts/deal/v1/deal';
 import {
   useQuery,
@@ -22,7 +21,7 @@ import {
   useSessionQuery,
 } from '@/entities/session';
 import {
-  parseApiError,
+  isReadAccessDenied,
   useActingContext,
   useApiClient,
 } from '@/shared/api';
@@ -30,6 +29,10 @@ import {
   useCatalogSection,
   useI18n,
 } from '@/shared/i18n';
+import {
+  createCachedModuleLoader,
+  createLazyComponent,
+} from '@/shared/lib/module-loader';
 import { useViewportClass } from '@/shared/lib/viewport';
 import {
   Button,
@@ -58,11 +61,31 @@ import {
 } from './DealsBoard';
 import { DealTracker } from './DealTracker';
 
+export interface DealsPageContentProps extends DealsPageProps {
+  documentRoute: DocumentRouteValue | undefined;
+}
+
 interface DealsPageProps {
   focus: ObjectRefValue | undefined;
 }
 
-export const DealsPage = ({ focus }: DealsPageProps): ReactElement => {
+interface DocumentRouteValue {
+  dealId: string | undefined;
+  documentId: string;
+  error: Error | null;
+  focusRequest: number;
+  isFetching: boolean;
+  isUnavailable: boolean;
+  refetch: () => Promise<unknown>;
+  unavailable: ReactElement;
+}
+
+const loadDealDocumentRoute = createCachedModuleLoader(() => import('./DealDocumentRoute').then(module => ({
+  default: module.DealDocumentRoute,
+})));
+const DealDocumentRoute = createLazyComponent(loadDealDocumentRoute);
+
+const DealsPageContent = ({ documentRoute, focus }: DealsPageContentProps): ReactElement => {
   const { t } = useI18n();
   const { retry, status, t: dealsT } = useCatalogSection(dealsSection);
   const client = useApiClient();
@@ -74,23 +97,26 @@ export const DealsPage = ({ focus }: DealsPageProps): ReactElement => {
   const inspectorFocus = useInspectorFocus('deals', focus);
   const viewportClass = useViewportClass();
 
-  const dealId = focus?.type === 'deal' ? focus.id : undefined;
+  const documentId = documentRoute?.documentId;
+  const dealId = focus?.type === 'deal' ? focus.id : documentRoute?.dealId;
   const dealOptions = createDealQueryOptions({ client, organizationId, userId }, canViewDeals ? dealId : undefined);
   const dealQuery = useQuery(dealOptions);
   const { data: sites } = useMapSitesQuery(canViewDeals && canViewNetwork);
 
-  const errorCode = dealQuery.error === null ? undefined : parseApiError(dealQuery.error).code;
-  const isUnavailable = !canViewDeals || errorCode === ErrorCode.NOT_FOUND || errorCode === ErrorCode.PERMISSION_DENIED;
+  const isUnavailable = !canViewDeals || documentRoute?.isUnavailable === true || isReadAccessDenied(dealQuery.error);
+  const inspectorQuery = dealId === undefined && documentRoute !== undefined ? documentRoute : dealQuery;
   const deal = isUnavailable ? undefined : dealQuery.data?.deal;
   const organizationNames = new Map((canViewNetwork ? sites : undefined)?.map(site => [site.organizationId, site.organizationName]));
   const tracker = deal !== undefined && dealsT !== undefined ? <DealTracker deal={deal} t={dealsT} /> : undefined;
 
   const handleRefresh = (): void => {
-    void dealQuery.refetch();
+    void inspectorQuery.refetch();
   };
 
   const handleUpdated = (updatedDeal: Deal): void => {
-    if (updatedDeal.id !== dealId || queryClient.getQueryState(dealOptions.queryKey) === undefined) {
+    const current = queryClient.getQueryState(dealOptions.queryKey);
+
+    if (updatedDeal.id !== dealId || current === undefined || isReadAccessDenied(current.error)) {
       return;
     }
 
@@ -134,17 +160,18 @@ export const DealsPage = ({ focus }: DealsPageProps): ReactElement => {
     );
   })();
 
-  const inspector = dealId === undefined || dealsT === undefined
+  const inspector = (dealId === undefined && documentId === undefined) || dealsT === undefined
     ? undefined
     : (
         <div className="flex flex-col gap-3" data-testid="deal-inspector">
           {isUnavailable && !isSessionPending
-            ? <EmptyState data-testid="deal-unavailable" icon={ClipboardList} text={dealsT('deals.inspector.notFound')} />
+            ? (documentRoute?.unavailable
+              ?? <EmptyState data-testid="deal-unavailable" icon={ClipboardList} text={dealsT('deals.inspector.notFound')} />)
             : (
                 <WidgetStates
                   data={deal}
-                  error={dealQuery.error}
-                  isRetrying={dealQuery.isFetching}
+                  error={inspectorQuery.error}
+                  isRetrying={inspectorQuery.isFetching}
                   loadingLabel={dealsT('deals.loading')}
                   onRetry={handleRefresh}
                   skeleton={<DealInspectorSkeleton />}
@@ -155,6 +182,8 @@ export const DealsPage = ({ focus }: DealsPageProps): ReactElement => {
                       <DealInspectorSlot
                         counterpartyName={organizationNames.get(getDealCounterpartyId(current, organizationId ?? ''))}
                         deal={current}
+                        documentFocusRequest={documentRoute?.focusRequest}
+                        initialDocumentId={documentId}
                         key={`${organizationId ?? ''}:${userId ?? ''}:${current.id}`}
                         onRefresh={handleRefresh}
                         onUpdated={handleUpdated}
@@ -188,3 +217,9 @@ export const DealsPage = ({ focus }: DealsPageProps): ReactElement => {
     </div>
   );
 };
+
+export const DealsPage = ({ focus }: DealsPageProps): ReactElement => (
+  focus?.type === 'document'
+    ? <DealDocumentRoute focus={focus} Page={DealsPageContent} />
+    : <DealsPageContent documentRoute={undefined} focus={focus} />
+);

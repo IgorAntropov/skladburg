@@ -33,8 +33,6 @@ const CENTER_ACTIONS = {
   openChat: { labelKey: 'assistant.link.openChat', tab: 'help', testId: 'assistant-replica-link-open-chat' },
 } as const satisfies Record<ReplicaCenterActionValue, { labelKey: string; tab: ReplicaCenterTabValue; testId: string }>;
 
-const CENTER_BUTTON_CLASS_NAME = '-mx-1 px-1! text-sm font-medium text-link underline underline-offset-2';
-
 export const ReplicaLinks = ({ notificationIds, onNavigate, onOpenCenter, replica, t }: ReplicaLinksProps): ReactElement => {
   const markRead = useMarkNotificationsRead(notificationIds);
 
@@ -80,10 +78,9 @@ export const ReplicaLinks = ({ notificationIds, onNavigate, onOpenCenter, replic
       ))}
       {centerAction !== undefined && (
         <Button
-          className={CENTER_BUTTON_CLASS_NAME}
           data-testid={centerAction.testId}
           onClick={handleCenterClick}
-          variant="ghost"
+          variant="link"
         >
           {t(centerAction.labelKey)}
         </Button>

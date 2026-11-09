@@ -18,14 +18,22 @@ const BUTTON_SIZE_CLASS_NAMES: Readonly<Record<ButtonSizeValue, string>> = {
   md: 'min-h-11 px-4 text-base',
 };
 
+const LINK_SIZE_CLASS_NAMES: Readonly<Record<ButtonSizeValue, string>> = {
+  lg: 'min-h-12 text-base',
+  md: 'min-h-11 text-sm',
+};
+
+const GHOST_CLASS_NAME = [
+  'border-transparent bg-transparent text-link',
+  'enabled:not-aria-disabled:hover:bg-hover enabled:not-aria-disabled:hover:text-on-panel',
+  'enabled:not-aria-disabled:active:bg-line enabled:not-aria-disabled:active:text-on-panel',
+  'aria-expanded:bg-line aria-expanded:text-on-panel',
+  'disabled:text-on-panel-muted aria-disabled:not-aria-busy:text-on-panel-muted',
+].join(' ');
+
 const BUTTON_VARIANT_CLASS_NAMES: Readonly<Record<ButtonVariantValue, string>> = {
-  ghost: [
-    'border-transparent bg-transparent text-link',
-    'enabled:not-aria-disabled:hover:bg-hover enabled:not-aria-disabled:hover:text-on-panel',
-    'enabled:not-aria-disabled:active:bg-line enabled:not-aria-disabled:active:text-on-panel',
-    'aria-expanded:bg-line aria-expanded:text-on-panel',
-    'disabled:text-on-panel-muted aria-disabled:not-aria-busy:text-on-panel-muted',
-  ].join(' '),
+  ghost: GHOST_CLASS_NAME,
+  link: cn(GHOST_CLASS_NAME, '-mx-1 px-1 underline underline-offset-2'),
   neutral: [
     'border-transparent bg-transparent text-on-panel',
     'enabled:not-aria-disabled:hover:bg-hover',
@@ -56,5 +64,6 @@ interface ButtonClassNameOptionsValue {
 }
 
 export const buttonClassName = ({ size = 'md', variant = 'primary' }: ButtonClassNameOptionsValue): string => {
-  return cn(BUTTON_BASE_CLASS_NAME, BUTTON_SIZE_CLASS_NAMES[size], BUTTON_VARIANT_CLASS_NAMES[variant]);
+  const sizeClassName = variant === 'link' ? LINK_SIZE_CLASS_NAMES[size] : BUTTON_SIZE_CLASS_NAMES[size];
+  return cn(BUTTON_BASE_CLASS_NAME, sizeClassName, BUTTON_VARIANT_CLASS_NAMES[variant]);
 };

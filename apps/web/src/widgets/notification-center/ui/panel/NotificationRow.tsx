@@ -37,8 +37,6 @@ const LINK_LABEL_KEY_BY_KIND = {
   organization: 'notification.link.organization',
 } as const satisfies Record<NotificationLinkKind, string>;
 
-const OPEN_CHAT_BUTTON_CLASS_NAME = '-mx-1 px-1! text-sm font-medium text-link underline underline-offset-2';
-
 const TIME_FORMAT: DateTimeFormatPartsValue = { day: 'numeric', hour: '2-digit', minute: '2-digit', month: 'short' };
 
 const ROW_CLASS_NAME = 'flex gap-3 border-b border-line pt-3 pr-4 pl-3 last:border-b-0';
@@ -110,10 +108,9 @@ export const NotificationRow = ({ notification, onLinkClick, onTabRequest, t }: 
             ))}
             {isChatOpenable && (
               <Button
-                className={OPEN_CHAT_BUTTON_CLASS_NAME}
                 data-testid="notification-center-link-open-chat"
                 onClick={handleOpenChatClick}
-                variant="ghost"
+                variant="link"
               >
                 {t('notification.link.openChat')}
               </Button>

@@ -15,11 +15,47 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.doUnmock('../seed/seedDealHistory');
   vi.doUnmock('../seed/seedSnapshot');
   vi.restoreAllMocks();
 });
 
 describe('engine seed loading', () => {
+  it('publishes seeded deal history only on a new world or reset', async () => {
+    const { createEngine } = await import('./createEngine');
+    const storage = createMemoryStorage();
+    const replaceAll = vi.spyOn(storage, 'replaceAll');
+    const realTime = { now: (): number => 0 };
+    await createEngine({ epoch: 'new', realTime, storage });
+    const seeded = await storage.load();
+
+    expect(seeded?.collections.deals.size).toBeGreaterThan(0);
+    expect(replaceAll).toHaveBeenCalledTimes(1);
+
+    const restored = await createEngine({ epoch: 'restored', realTime, storage });
+    expect(await storage.load()).toEqual(seeded);
+    expect(replaceAll).toHaveBeenCalledTimes(1);
+
+    await restored.reset('reset');
+    expect(await storage.load()).toEqual(seeded);
+    expect(replaceAll).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves an incompatible snapshot when deal history cannot load', async () => {
+    const snapshot = createSeedSnapshot();
+    const stored = { ...snapshot, meta: { ...snapshot.meta, seedVersion: snapshot.meta.seedVersion - 1 } };
+    const storage = createMemoryStorage(stored);
+    const replaceAll = vi.spyOn(storage, 'replaceAll');
+    vi.doMock('../seed/seedDealHistory', () => {
+      throw new Error('Deal history chunk is unavailable');
+    });
+    const { createEngine } = await import('./createEngine');
+
+    await expect(createEngine({ epoch: 'new', realTime: { now: () => 0 }, storage })).rejects.toMatchObject({ name: 'SeedLoadError' });
+    expect(replaceAll).not.toHaveBeenCalled();
+    expect(await storage.load()).toEqual(stored);
+  });
+
   it('restores a current snapshot when the seed module cannot be loaded', async () => {
     const snapshot = createSeedSnapshot();
     const storage = createMemoryStorage(snapshot);

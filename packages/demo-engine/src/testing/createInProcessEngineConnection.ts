@@ -6,6 +6,7 @@ import { connectToEngine } from '../client/index';
 import { createEngine } from '../core/engine/createEngine';
 import { isSeedLoadError } from '../core/engine/SeedLoadError';
 import { createMemoryStorage } from '../core/ports/index';
+import { DEFAULT_ENGINE_SEED } from '../core/seed/seedConfig';
 import {
   createEngineHost,
   ENGINE_LOCK_NAME,
@@ -50,7 +51,7 @@ export const createInProcessEngineConnection = (options: InProcessEngineOptionsV
       return `in-process-id-${String(idCounter)}`;
     },
     loadCore: () => Promise.resolve({
-      createEngine: engineOptions => createEngine({ ...engineOptions, seed: options.seed }),
+      createEngine: engineOptions => createEngine({ ...engineOptions, seed: options.seed ?? DEFAULT_ENGINE_SEED }),
       isSeedLoadError,
     }),
     lockManager,

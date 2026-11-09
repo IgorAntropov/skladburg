@@ -40,6 +40,7 @@ import {
   ENGINE_BASE_URL,
 } from '../../protocol';
 import {
+  DEFAULT_ENGINE_SEED,
   SeedCityId,
   SeedMapNodeId,
 } from '../../seed/index';
@@ -166,6 +167,7 @@ export const createTestEngine = async (
   const engine = await createEngine({
     epoch: TEST_ENGINE_EPOCH,
     realTime,
+    seed: DEFAULT_ENGINE_SEED,
     ...overrides,
     storage,
   });

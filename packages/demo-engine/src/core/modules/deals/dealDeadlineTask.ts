@@ -4,7 +4,7 @@ import { timestampMs } from '@bufbuild/protobuf/wkt';
 import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
 import { DealNotice } from '@skladburg/contracts/notification/v1/notification';
 
-import type { SchedulerTaskValue } from '../../scheduler/scheduler';
+import type { SchedulerTransactionTaskValue } from '../../scheduler/scheduler';
 import type { IStateTransaction } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
@@ -46,7 +46,7 @@ const remindDeal = (runtime: IModuleRuntime, transaction: IStateTransaction, dea
   transaction.put('dealReminderMarks', mark);
 };
 
-export const createDealDeadlineTask = (runtime: IModuleRuntime): SchedulerTaskValue => ({
+export const createDealDeadlineTask = (runtime: IModuleRuntime): SchedulerTransactionTaskValue => ({
   id: 'deal-deadline-reminders',
   intervalMs: DEAL_DEADLINE_RULES.pollIntervalMs,
   run: (transaction) => {

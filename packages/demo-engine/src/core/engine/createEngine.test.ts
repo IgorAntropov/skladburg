@@ -1071,6 +1071,7 @@ describe('checkpoint', () => {
     expect(storage.commits[0]?.meta.schedulerDueAtMs).toEqual({
       'deal-deadline-reminders': DEFAULT_ENGINE_SEED.worldStartMs + 60_000,
       'safe-deal-payments': DEFAULT_ENGINE_SEED.worldStartMs + 60_000,
+      'supplier-bots': DEFAULT_ENGINE_SEED.worldStartMs + 60_000,
       'support-access-expiry': DEFAULT_ENGINE_SEED.worldStartMs + 15_000,
       'support-bot': DEFAULT_ENGINE_SEED.worldStartMs + 1_000,
     });

@@ -70,6 +70,27 @@ const createRecordingTask = (id: string, intervalMs: number, log: string[]): Sch
 });
 
 describe('createScheduler', () => {
+  it('awaits a due command task without wrapping it in a transaction', async () => {
+    const { commandCount, realTime, scheduler } = createFixture();
+    const log: string[] = [];
+    scheduler.register({
+      id: 'commands',
+      intervalMs: 1_000,
+      runCommands: async (dueAtMs: number): Promise<void> => {
+        await Promise.resolve();
+        log.push(String(dueAtMs));
+      },
+    });
+    scheduler.register(createRecordingTask('transaction', 1_000, log));
+
+    realTime.advance(1_000);
+    await scheduler.tick();
+
+    expect(log).toEqual([String(START_MS + 1_000), 'transaction']);
+    expect(commandCount()).toBe(1);
+    expect(scheduler.readDueAtMs()).toEqual({ commands: START_MS + 2_000, transaction: START_MS + 2_000 });
+  });
+
   it('does nothing before a task is due', async () => {
     const { commandCount, realTime, scheduler } = createFixture();
     const run = vi.fn();

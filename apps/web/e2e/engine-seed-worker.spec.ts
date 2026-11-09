@@ -27,6 +27,7 @@ import {
 import { createEngineWorkerRobot } from './robots/engine-worker-robot.ts';
 
 const SEED_REQUEST = '**/assets/seedSnapshot-*.js';
+const DEAL_HISTORY_REQUEST = '**/assets/seedDealHistory-*.js';
 
 const createStoredImport = async (page: Page): Promise<string> => {
   const worker = await createEngineWorkerRobot(page);
@@ -34,6 +35,7 @@ const createStoredImport = async (page: Page): Promise<string> => {
   try {
     await expect.poll(worker.readStartup).toMatchObject({ kind: 'ready', storage: 'indexed-db' });
     expect(worker.hasRequestedChunk('seedSnapshot')).toBe(true);
+    expect(worker.hasRequestedChunk('seedDealHistory')).toBe(true);
     const response = fromBinary(PreviewImportResponseSchema, await worker.call('import.v1.ImportService/PreviewImport',
       toBinary(PreviewImportRequestSchema, create(PreviewImportRequestSchema, {
         fileBytes: readFileSync(new URL('./fixtures/catalog-import.csv', import.meta.url)),
@@ -66,12 +68,14 @@ const expectStoredImport = async (worker: EngineWorkerRobotValue, jobId: string)
 test('loads the seed for a fresh world and restores saved changes without the seed chunk', async ({ page }) => {
   const jobId = await createStoredImport(page);
   await page.context().route(SEED_REQUEST, route => route.abort('failed'));
+  await page.context().route(DEAL_HISTORY_REQUEST, route => route.abort('failed'));
   const restored = await createEngineWorkerRobot(page);
 
   try {
     await expect.poll(restored.readStartup).toMatchObject({ kind: 'ready', storage: 'indexed-db' });
     await expectStoredImport(restored, jobId);
     expect(restored.hasRequestedChunk('seedSnapshot')).toBe(false);
+    expect(restored.hasRequestedChunk('seedDealHistory')).toBe(false);
   }
   finally {
     await restored.stop();

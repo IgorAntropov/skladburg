@@ -128,7 +128,7 @@ const SEED_SUPPLIERS: readonly SeedSupplierValue[] = [
     warehouseIds: [SeedWarehouseId.SUPPLIER_3_WAREHOUSE_1],
   },
   {
-    isAutoConfirmEnabled: false,
+    isAutoConfirmEnabled: true,
     number: 4,
     organizationId: SeedOrganizationId.SUPPLIER_4,
     ownDelivery: undefined,

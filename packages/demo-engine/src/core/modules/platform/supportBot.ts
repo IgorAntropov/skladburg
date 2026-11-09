@@ -14,7 +14,7 @@ import {
   SupportTicketStatus,
 } from '@skladburg/contracts/support/v1/support_ticket';
 
-import type { SchedulerTaskValue } from '../../scheduler/scheduler';
+import type { SchedulerTransactionTaskValue } from '../../scheduler/scheduler';
 import type { IStateTransaction } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
@@ -26,7 +26,7 @@ import {
 
 export const SUPPORT_BOT_TASK_ID = 'support-bot';
 
-export const createSupportBotTask = (runtime: IModuleRuntime): SchedulerTaskValue => {
+export const createSupportBotTask = (runtime: IModuleRuntime): SchedulerTransactionTaskValue => {
   const { notifier, outbox, random } = runtime;
 
   const answerTicket = (transaction: IStateTransaction, ticketId: string): void => {

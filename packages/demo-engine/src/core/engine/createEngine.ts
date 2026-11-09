@@ -56,6 +56,7 @@ import {
 import { createDemoPaymentProvider } from '../modules/payments/demoPaymentProvider';
 import {
   createDeferredPaymentService,
+  createDeferredPaymentTask,
   loadPayments,
 } from '../modules/payments/loadPayments';
 import {
@@ -151,14 +152,17 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
   return module.createSeedSnapshot(seed);
 };
 
-const loadOrSeedSnapshot = async (options: CreateEngineOptionsValue): Promise<EngineSnapshotValue> => {
+const loadOrSeedSnapshot = async (
+  options: CreateEngineOptionsValue,
+  loadSeed: typeof loadSeedSnapshot,
+): Promise<EngineSnapshotValue> => {
   const stored = await options.storage.load();
 
   if (isCurrentSnapshot(stored, SEED_VERSION)) {
     return stored;
   }
 
-  const seeded = await loadSeedSnapshot(options.seed);
+  const seeded = await loadSeed(options.seed);
   await options.storage.replaceAll(seeded);
 
   return seeded;
@@ -167,9 +171,10 @@ const loadOrSeedSnapshot = async (options: CreateEngineOptionsValue): Promise<En
 export const createEngineWithTasks = async (
   options: CreateEngineOptionsValue,
   createTasks: (runtime: IModuleRuntime) => readonly SchedulerTaskValue[],
+  loadSeed = loadSeedSnapshot,
 ): Promise<IDemoEngine> => {
   const { realTime, storage } = options;
-  const snapshot = await loadOrSeedSnapshot(options);
+  const snapshot = await loadOrSeedSnapshot(options, loadSeed);
   let epoch = options.epoch;
   let clock = createClockFromMeta(snapshot.meta, realTime);
   const random = createSwitchableRandom(createRandom(snapshot.meta.randomState));
@@ -283,7 +288,7 @@ export const createEngineWithTasks = async (
   const checkpoint = (): Promise<void> => queue.enqueue(runCheckpoint);
 
   const reset = (nextEpoch: string): Promise<void> => queue.enqueue(async () => {
-    const seeded = await loadSeedSnapshot(options.seed);
+    const seeded = await loadSeed(options.seed);
     await storage.replaceAll(seeded);
     state.replaceAll(seeded);
     clock = createClockFromMeta(seeded.meta, realTime);
@@ -343,5 +348,23 @@ export const createEngineWithTasks = async (
   };
 };
 
+const loadDemoSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<EngineSnapshotValue> => {
+  const snapshot = await loadSeedSnapshot(seed);
+
+  if (seed !== undefined) {
+    return snapshot;
+  }
+
+  try {
+    const { addSeedDealHistory } = await import('../seed/seedDealHistory');
+
+    return await addSeedDealHistory(snapshot, (storage, realTime) =>
+      createEngineWithTasks({ epoch: 'seed', realTime, storage }, runtime => [createDeferredPaymentTask(runtime)]));
+  }
+  catch (error) {
+    throw new SeedLoadError(error);
+  }
+};
+
 export const createEngine = (options: CreateEngineOptionsValue): Promise<IDemoEngine> =>
-  createEngineWithTasks(options, createEngineTasks);
+  createEngineWithTasks(options, createEngineTasks, loadDemoSeedSnapshot);

@@ -88,7 +88,7 @@ const EXPECTED_SALES_TERMS = [
   { delivery: [1200n, 150_000n], isAutoConfirmEnabled: false, organizationId: SeedOrganizationId.SUPPLIER_1, preparation: 2 },
   { delivery: [1400n, 180_000n], isAutoConfirmEnabled: false, organizationId: SeedOrganizationId.SUPPLIER_2, preparation: 1 },
   { delivery: [1600n, 300_000n], isAutoConfirmEnabled: false, organizationId: SeedOrganizationId.SUPPLIER_3, preparation: 3 },
-  { delivery: undefined, isAutoConfirmEnabled: false, organizationId: SeedOrganizationId.SUPPLIER_4, preparation: 2 },
+  { delivery: undefined, isAutoConfirmEnabled: true, organizationId: SeedOrganizationId.SUPPLIER_4, preparation: 2 },
   { delivery: undefined, isAutoConfirmEnabled: false, organizationId: SeedOrganizationId.SUPPLIER_5, preparation: 1 },
   { delivery: [1400n, 150_000n], isAutoConfirmEnabled: true, organizationId: SeedOrganizationId.SUPPLIER_6, preparation: 1 },
   { delivery: [1600n, 250_000n], isAutoConfirmEnabled: true, organizationId: SeedOrganizationId.SUPPLIER_7, preparation: 2 },

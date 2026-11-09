@@ -2,7 +2,7 @@ import type { SupportAccessSession } from '@skladburg/contracts/support/v1/suppo
 
 import { SupportAccessStatus } from '@skladburg/contracts/support/v1/support_access';
 
-import type { SchedulerTaskValue } from '../../scheduler/scheduler';
+import type { SchedulerTransactionTaskValue } from '../../scheduler/scheduler';
 import type { IStateTransaction } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
@@ -26,7 +26,7 @@ const isExpired = (session: SupportAccessSession, nowMs: number): boolean => {
     && readTimestampMs(session.requestedAt) + SUPPORT_ACCESS_REQUEST_TTL_MS <= nowMs;
 };
 
-export const createSupportAccessExpiryTask = (runtime: IModuleRuntime): SchedulerTaskValue => {
+export const createSupportAccessExpiryTask = (runtime: IModuleRuntime): SchedulerTransactionTaskValue => {
   const transitioner = createSupportAccessTransitioner(runtime);
 
   return {

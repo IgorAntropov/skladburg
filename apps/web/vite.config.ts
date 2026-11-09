@@ -298,6 +298,10 @@ const MAX_ENGINE_GZIP_KILOBYTES = 180.3;
 
 const MAX_ENGINE_SEED_GZIP_KILOBYTES = 14.53;
 
+const MAX_ENGINE_SEED_HISTORY_GZIP_KILOBYTES = 3.55;
+
+const MAX_ENGINE_SUPPLIER_BOTS_GZIP_KILOBYTES = 7.14;
+
 const MAX_ENGINE_XLSX_GZIP_KILOBYTES = 25.54;
 
 const MAX_ENGINE_CSV_GZIP_KILOBYTES = 2;
@@ -401,6 +405,20 @@ const ENGINE_WORKER_BUDGET = {
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_SEED_GZIP_KILOBYTES,
       name: 'engine-seed',
+    },
+    {
+      baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/seed/seedDealHistory.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_SEED_HISTORY_GZIP_KILOBYTES,
+      name: 'engine-seed-history',
+    },
+    {
+      baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/modules/supplier-bots/index.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_SUPPLIER_BOTS_GZIP_KILOBYTES,
+      name: 'engine-supplier-bots',
     },
     {
       baseline: 'engine',
@@ -990,6 +1008,9 @@ export default defineConfig({
             name: 'worker-runtime',
             tags: ['$initial'],
             test: (moduleId: string): boolean => !ENGINE_WORKER_ENTRIES.some(entry => hasEntryModule([moduleId], entry)),
+          }, {
+            name: 'engine-runtime',
+            test: (moduleId: string): boolean => hasEntryModule([moduleId], 'packages/demo-engine/src/core/engine/createEngine.ts'),
           }],
         },
       },

@@ -14,7 +14,15 @@ export interface IScheduler {
   tick: () => Promise<void>;
 }
 
-export interface SchedulerTaskValue {
+export interface SchedulerCommandTaskValue {
+  id: string;
+  intervalMs: number;
+  runCommands: (dueAtMs: number) => Promise<void>;
+}
+
+export type SchedulerTaskValue = SchedulerCommandTaskValue | SchedulerTransactionTaskValue;
+
+export interface SchedulerTransactionTaskValue {
   id: string;
   intervalMs: number;
   run: (transaction: IStateTransaction, dueAtMs: number) => void;
@@ -72,9 +80,14 @@ export const createScheduler = (options: CreateSchedulerOptionsValue): ISchedule
     entry.dueAtMs += task.intervalMs;
 
     try {
-      await options.command((transaction) => {
-        task.run(transaction, dueAtMs);
-      });
+      if ('runCommands' in task) {
+        await task.runCommands(dueAtMs);
+      }
+      else {
+        await options.command((transaction) => {
+          task.run(transaction, dueAtMs);
+        });
+      }
     }
     catch (error) {
       console.log('> Scheduler -> runEntry:', { error, taskId: task.id });

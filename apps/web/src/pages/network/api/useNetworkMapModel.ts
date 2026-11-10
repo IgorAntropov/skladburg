@@ -1,7 +1,6 @@
 import {
   useCallback,
   useMemo,
-  useState,
 } from 'react';
 
 import type { NetworkMapModelValue } from '@/entities/network';
@@ -26,7 +25,6 @@ export const useNetworkMapModel = (): NetworkMapModelStateValue => {
   const { locale } = useI18n();
   const directoryQuery = useNetworkDirectoryQuery();
   const sitesQuery = useMapSitesQuery();
-  const [isRetrying, setIsRetrying] = useState(false);
 
   const directory = directoryQuery.data;
   const sites = sitesQuery.data;
@@ -49,26 +47,14 @@ export const useNetworkMapModel = (): NetworkMapModelStateValue => {
   const retry = useCallback((): void => {
     console.log('> useNetworkMapModel -> retry:', { isDirectoryFailed, isSitesFailed });
 
-    const refetches: Promise<unknown>[] = [];
-
     if (isDirectoryFailed) {
-      refetches.push(refetchDirectory());
+      void refetchDirectory();
     }
 
     if (isSitesFailed) {
-      refetches.push(refetchSites());
+      void refetchSites();
     }
-
-    if (refetches.length === 0) {
-      return;
-    }
-
-    setIsRetrying(true);
-
-    void Promise.all(refetches).finally(() => {
-      setIsRetrying(false);
-    });
   }, [isDirectoryFailed, isSitesFailed, refetchDirectory, refetchSites]);
 
-  return { data, error, isRetrying, retry };
+  return { data, error, isRetrying: directoryQuery.isFetching || sitesQuery.isFetching, retry };
 };

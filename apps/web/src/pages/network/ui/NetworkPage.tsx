@@ -22,6 +22,7 @@ import {
 import { SceneCameraControls } from '@/widgets/scene-viewport';
 
 import { useNetworkMapModel } from '../api/useNetworkMapModel';
+import { useNetworkTrips } from '../api/useNetworkTrips';
 import { EMPTY_NETWORK_MAP_MODEL } from '../model/emptyNetworkMapModel';
 import { DEFAULT_ORGANIZATION_DIRECTORY_FILTER } from '../model/organizationDirectoryFilter';
 import { useOrganizationDirectoryTable } from '../model/useOrganizationDirectoryTable';
@@ -29,6 +30,7 @@ import { NetworkCompaniesTab } from './NetworkCompaniesTab';
 import { NetworkInspector } from './NetworkInspector';
 import { NetworkSceneViewport } from './NetworkSceneViewport';
 import { NetworkSitesTab } from './NetworkSitesTab';
+import { NetworkTripsTab } from './NetworkTripsTab';
 import { OrganizationDirectoryPanelSlot } from './OrganizationDirectoryPanelSlot';
 
 interface NetworkPageProps {
@@ -41,6 +43,8 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
   const { t } = useI18n();
   const inspectorFocus = useInspectorFocus('network', focus);
   const modelState = useNetworkMapModel();
+  const tripState = useNetworkTrips();
+  const trips = tripState.canView ? tripState.query.data : undefined;
   const [listTabsResetKey, setListTabsResetKey] = useState(0);
   const [directoryFilter, setDirectoryFilter] = useState(DEFAULT_ORGANIZATION_DIRECTORY_FILTER);
   const directoryTable = useOrganizationDirectoryTable();
@@ -71,7 +75,8 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
       label: t('hud.lists.deals'),
     },
     {
-      content: <EmptyState media={<AssistantPortrait size="sm" />} text={t('hud.lists.empty.trips')} />,
+      content: <NetworkTripsTab model={modelState.data} state={tripState} />,
+      count: trips?.rows.length,
       id: 'trips',
       label: t('hud.lists.trips'),
     },
@@ -114,6 +119,7 @@ export const NetworkPage = ({ focus }: NetworkPageProps): ReactElement => {
             label={t('section.network.placeholder')}
             onWorldSiteSelect={handleWorldSiteSelect}
             sceneData={sceneData}
+            tripActors={trips?.scene}
           />
         )}
         sceneControls={<SceneCameraControls />}

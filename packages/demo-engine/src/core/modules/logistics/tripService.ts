@@ -19,6 +19,7 @@ import { ProfileKind } from '@skladburg/contracts/organization/v1/organization';
 import type { IDomainErrors } from '../../errors/index';
 import type { IStateReader } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
+import type { ReadTripMapTrack } from './tripMapTrack';
 
 import { isProfileVerified } from '../../visibility/index';
 import { requireDealPartyProfiles } from '../deals/dealAccess';
@@ -35,11 +36,18 @@ import {
   advanceTrip,
   requireTripTransition,
 } from './tripMachine';
+import { createTripMapTrackReader } from './tripMapTrack';
 import { readTripBodyTemperature } from './tripTemperature';
 
 type TripServiceValue = Pick<ServiceImpl<typeof LogisticsService>, 'assignTrip' | 'confirmTransportOrder' | 'getTrip' | 'listTrips'>;
 
-const projectTrip = (read: IStateReader, trip: TripRecord, organizationId: string, worldTimeMs: number): Trip | undefined => {
+const projectTrip = (
+  read: IStateReader,
+  trip: TripRecord,
+  organizationId: string,
+  worldTimeMs: number,
+  readMapTrack?: ReadTripMapTrack,
+): Trip | undefined => {
   const order = trip.transportOrder;
   if (order === undefined) {
     return undefined;
@@ -57,6 +65,7 @@ const projectTrip = (read: IStateReader, trip: TripRecord, organizationId: strin
     delivery: order.delivery,
     departedAt: trip.departedAt,
     id: trip.id,
+    mapTrack: readMapTrack?.(order, trip.assignment),
     ownAssignment: isCarrier ? trip.assignment : undefined,
     pickup: order.pickup,
     plannedArrivalAt: trip.assignment?.arrivalAt,
@@ -159,7 +168,9 @@ export const createTripService = (runtime: IModuleRuntime): TripServiceValue => 
       const method = LogisticsService.method.getTrip;
       const { organizationId } = guard.guardPermissionCall(read, method, request, context.requestHeader);
       const record = read.get('trips', request.tripId);
-      const trip = record === undefined ? undefined : projectTrip(read, record, organizationId, getWorldTimeMs());
+      const trip = record === undefined
+        ? undefined
+        : projectTrip(read, record, organizationId, getWorldTimeMs(), createTripMapTrackReader(read));
       if (trip === undefined) {
         throw errors.notFound(EntityKind.TRIP);
       }
@@ -170,8 +181,9 @@ export const createTripService = (runtime: IModuleRuntime): TripServiceValue => 
       const method = LogisticsService.method.listTrips;
       const { organizationId } = guard.guardPermissionCall(read, method, request, context.requestHeader);
       const worldTimeMs = getWorldTimeMs();
+      const readMapTrack = createTripMapTrackReader(read);
       const candidates = read.list('trips').flatMap((record) => {
-        const trip = projectTrip(read, record, organizationId, worldTimeMs);
+        const trip = projectTrip(read, record, organizationId, worldTimeMs, readMapTrack);
 
         return trip === undefined ? [] : [trip];
       });

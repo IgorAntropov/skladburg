@@ -41,7 +41,7 @@ import {
 import type { OrganizationDirectoryFilterValue } from '../../model/organizationDirectoryFilter';
 
 import { DEFAULT_ORGANIZATION_DIRECTORY_FILTER } from '../../model/organizationDirectoryFilter';
-import { organizationShowcaseKeys } from './organizationShowcaseKeys';
+import { organizationShowcaseKeys } from '../organizationShowcaseKeys';
 import { useOrganizationShowcasesQuery } from './useOrganizationShowcasesQuery';
 
 const SPHERE_ID = 'f2000001-0000-4000-8000-000000000000';

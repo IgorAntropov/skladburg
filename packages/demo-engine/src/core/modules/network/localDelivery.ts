@@ -33,7 +33,10 @@ export const withLocalDeliveryProfile = (city: City): City => {
   return profile === undefined ? city : { ...city, localDeliveryProfile: create(LocalDeliveryProfileSchema, profile) };
 };
 
-export const findInterWarehouseRoutes = (reader: IStateReader, destination: Warehouse): ReadonlyMap<string, RouteValue> => {
+export const findInterWarehouseRoutes = (
+  reader: IStateReader,
+  destination: Pick<Warehouse, 'cityId' | 'mapNodeId'>,
+): ReadonlyMap<string, RouteValue> => {
   const { cityId, mapNodeId } = destination;
   const routes = findRoutesFrom(createRouteGraph(reader.list('routeLegs')), mapNodeId);
   const city = reader.get('cities', cityId);

@@ -41,10 +41,11 @@ import {
 } from './src/shared/theme/themeConstants.ts';
 
 const HUD_SHARED_MODULES = [
-  'node_modules/@bufbuild/protobuf/dist/esm/wkt/google/protobuf/timestamp_pb.js',
   'node_modules/@connectrpc/connect/dist/esm/code.js',
   'node_modules/@connectrpc/connect/dist/esm/connect-error.js',
   'node_modules/@connectrpc/connect/dist/esm/protocol-connect/code-string.js',
+  'node_modules/lucide-react/dist/esm/icons/ban.mjs',
+  'node_modules/lucide-react/dist/esm/icons/chevron-down.mjs',
   'node_modules/lucide-react/dist/esm/icons/truck.mjs',
   'packages/contracts/src/gen/access/v1/permission_pb.ts',
   'packages/contracts/src/gen/network/v1/network_pb.ts',
@@ -52,9 +53,13 @@ const HUD_SHARED_MODULES = [
   'packages/contracts/src/runtime/permissionCodeNames.ts',
   'packages/demo-engine/src/protocol/constants.ts',
   'src/entities/network/api/fetchNetworkDirectory.ts',
+  'src/entities/network/api/fetchMapSites.ts',
   'src/entities/network/api/networkDirectoryQueryOptions.ts',
   'src/entities/network/api/networkKeys.ts',
+  'src/entities/network/api/useMapSitesQuery.ts',
   'src/entities/network/api/useNetworkDirectoryQuery.ts',
+  'src/entities/transport/api/transportQueryScope.ts',
+  'src/features/scene-settings/lib/getDefaultGraphicsPreference.ts',
   'src/features/scene-settings/model/graphicsPreference.ts',
   'src/features/scene-settings/model/graphicsPreferenceStorage.ts',
   'src/features/scene-settings/model/useSceneSettingsStore.ts',
@@ -73,6 +78,7 @@ const HUD_SHARED_MODULES = [
   'src/shared/theme/useThemePreference.ts',
   'src/shared/ui/chunk-load-notice/ChunkLoadNotice.tsx',
   'src/shared/ui/empty-state/EmptyState.tsx',
+  'src/shared/ui/tabs/getNextTabIndex.ts',
   'src/shared/ui/tabs/Tabs.tsx',
   'src/entities/organization/api/organizationKeys.ts',
   'src/entities/organization/config/sideBadges.ts',
@@ -86,6 +92,7 @@ const STARTUP_CONTRACT_MODULES = [
   'node_modules/@bufbuild/protobuf/dist/esm/codegenv2/file.js',
   'node_modules/@bufbuild/protobuf/dist/esm/codegenv2/message.js',
   'node_modules/@bufbuild/protobuf/dist/esm/codegenv2/restore-json-names.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/codegenv2/service.js',
   'node_modules/@bufbuild/protobuf/dist/esm/create.js',
   'node_modules/@bufbuild/protobuf/dist/esm/descriptors.js',
   'node_modules/@bufbuild/protobuf/dist/esm/extensions.js',
@@ -109,11 +116,14 @@ const STARTUP_CONTRACT_MODULES = [
   'node_modules/@bufbuild/protobuf/dist/esm/wire/text-format.js',
   'node_modules/@bufbuild/protobuf/dist/esm/wire/varint.js',
   'node_modules/@bufbuild/protobuf/dist/esm/wkt/google/protobuf/descriptor_pb.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/wkt/google/protobuf/timestamp_pb.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/wkt/timestamp.js',
   'node_modules/@bufbuild/protobuf/dist/esm/wkt/wrappers.js',
   'packages/contracts/src/gen/common/v1/entity_pb.ts',
   'packages/contracts/src/gen/common/v1/error_pb.ts',
   'packages/contracts/src/gen/common/v1/money_pb.ts',
   'packages/contracts/src/runtime/channels.ts',
+  'packages/contracts/src/runtime/compareCodeUnits.ts',
   'packages/contracts/src/runtime/errorTraits.ts',
   'packages/contracts/src/runtime/index.ts',
 ];
@@ -258,6 +268,12 @@ const MAX_NETWORK_MINI_MAP_GZIP_KILOBYTES = 3;
 const MAX_NETWORK_SITES_GZIP_KILOBYTES = 4.5;
 
 const MAX_NETWORK_COMPANIES_GZIP_KILOBYTES = 12.5;
+
+const MAX_NETWORK_TRIP_READ_GZIP_KILOBYTES = 19.2;
+
+const MAX_NETWORK_TRIP_LIST_GZIP_KILOBYTES = 3.55;
+
+const MAX_NETWORK_TRIP_ACTORS_GZIP_KILOBYTES = 4.95;
 
 const MAX_ORGANIZATION_TABLE_GZIP_KILOBYTES = 12;
 
@@ -688,6 +704,30 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_NETWORK_COMPANIES_GZIP_KILOBYTES,
     name: 'network-companies',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/network/api/readNetworkTrips.ts'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_NETWORK_TRIP_READ_GZIP_KILOBYTES,
+    name: 'network-trip-read',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/network/ui/NetworkTripsList.tsx'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_NETWORK_TRIP_LIST_GZIP_KILOBYTES,
+    name: 'network-trip-list',
+  },
+  {
+    baseline: 'scene',
+    entries: ['src/pages/network/scene/trips/NetworkTripActors.tsx'],
+    forbiddenPackages: FORBIDDEN_SCENE_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_NETWORK_TRIP_ACTORS_GZIP_KILOBYTES,
+    name: 'network-trip-actors',
   },
   {
     baseline: STARTUP_BASELINE,
@@ -1169,6 +1209,11 @@ export default defineConfig({
               includeDependenciesRecursively: false,
               name: 'organization-badges',
               test: (moduleId: string): boolean => ORGANIZATION_BADGE_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'organization-showcase-utils',
+              test: /[\\/]pages[\\/]network[\\/](?:api[\\/]organizationShowcaseKeys|lib[\\/]sortOrganizationProfiles)\.ts$/u,
             },
             {
               includeDependenciesRecursively: false,

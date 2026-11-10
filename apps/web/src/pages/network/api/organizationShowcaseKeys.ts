@@ -1,4 +1,4 @@
-import type { OrganizationDirectoryFilterValue } from '../../model/organizationDirectoryFilter';
+import type { OrganizationDirectoryFilterValue } from '../model/organizationDirectoryFilter';
 
 interface OrganizationShowcaseKeysValue {
   all: readonly ['organization-showcase'];

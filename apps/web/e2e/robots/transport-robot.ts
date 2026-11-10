@@ -11,6 +11,7 @@ import {
 } from '@skladburg/contracts/fleet/v1/fleet';
 
 export const TRANSPORT_DATE = '2026-10-13';
+export const TRANSPORT_REGISTRATION_NUMBER = 'А001АА 000';
 
 const VEHICLE_ID = 'e1000001-0000-4000-8000-000000000000';
 const DRIVER_ID = 'e2000001-0000-4000-8000-000000000000';

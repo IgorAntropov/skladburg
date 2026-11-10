@@ -17,16 +17,16 @@ import { useCallback } from 'react';
 import {
   collectPages,
   createOrganizationQueryMeta,
-  getOrganizationScope,
   useActingContext,
   useApiClient,
 } from '@/shared/api';
 
-const TRANSPORT_EVENTS = ['transportRequestChanged'] as const;
-const LIVE_TRIP_REFRESH_MS = 15_000;
+import {
+  TRANSPORT_EVENTS,
+  transportScope,
+} from './transportQueryScope';
 
-const transportScope = (organizationId: string | undefined, userId: string | undefined): readonly string[] =>
-  ['transport', getOrganizationScope(organizationId), userId ?? ''];
+const LIVE_TRIP_REFRESH_MS = 15_000;
 
 type ReadTransportValue<TData> = (service: Client<typeof LogisticsService>, signal: AbortSignal) => Promise<TData>;
 
@@ -76,11 +76,12 @@ export const useTransportOffers = (id: string | undefined, isEnabled: boolean): 
     return { items: response.candidates, nextPageToken: response.page?.nextPageToken ?? '' };
   }));
 
-export const useTrips = (isEnabled: boolean): UseQueryResult<Trip[]> =>
-  useTransportQuery(['trips'], isEnabled, (service, signal) => collectPages(async (page) => {
-    const response = await service.listTrips({ page }, { signal });
-    return { items: response.trips, nextPageToken: response.page?.nextPageToken ?? '' };
-  }));
+export const readTransportTrips: ReadTransportValue<Trip[]> = (service, signal) => collectPages(async (page) => {
+  const response = await service.listTrips({ page }, { signal });
+  return { items: response.trips, nextPageToken: response.page?.nextPageToken ?? '' };
+});
+
+export const useTrips = (isEnabled: boolean): UseQueryResult<Trip[]> => useTransportQuery(['trips'], isEnabled, readTransportTrips);
 
 const refreshWhileMeasuring = (trip: Trip | undefined): false | number =>
   trip?.bodyTemperature !== undefined && trip.arrivedAt === undefined ? LIVE_TRIP_REFRESH_MS : false;

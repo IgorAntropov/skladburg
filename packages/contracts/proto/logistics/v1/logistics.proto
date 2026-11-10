@@ -114,6 +114,12 @@ message TripTemperatureReading {
   google.protobuf.Timestamp measured_at = 2;
 }
 
+message TripMapTrack {
+  repeated string route_leg_ids = 1;
+  string carrier_organization_id = 2;
+  string registration_number = 3;
+}
+
 message Trip {
   string id = 1;
   string deal_id = 2;
@@ -129,6 +135,7 @@ message Trip {
   TripAssignment own_assignment = 12;
   payment.v1.TransportPaymentBreakdown carrier_payment = 13;
   TripTemperatureReading body_temperature = 14;
+  TripMapTrack map_track = 15;
 }
 
 message GetTripRequest {

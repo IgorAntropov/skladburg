@@ -1,7 +1,4 @@
-import type {
-  TransportOffer,
-  TransportRequestRecord,
-} from '@skladburg/contracts/logistics/v1/logistics_records';
+import type { TransportRequestRecord } from '@skladburg/contracts/logistics/v1/logistics_records';
 
 import { create } from '@bufbuild/protobuf';
 import {
@@ -19,9 +16,7 @@ import {
   canCarryTransportRequest,
   isTransportDealParty,
 } from './transportMatching';
-
-export const readOwnTransportOffer = (read: IStateReader, requestId: string, organizationId: string): TransportOffer | undefined =>
-  read.listBy('transportOffers', 'transportRequestId', requestId).find(offer => offer.carrierOrganizationId === organizationId);
+import { readOwnTransportOffer } from './transportOfferRecords';
 
 export const projectTransportRequest = (
   read: IStateReader,

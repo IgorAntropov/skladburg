@@ -23,7 +23,7 @@ import type { IModuleRuntime } from '../moduleRuntime';
 import { SUPPORTED_CURRENCY_CODE } from '../catalog/catalogRules';
 import { publishTransportChanges } from './transportEvents';
 import { canCarryTransportRequest } from './transportMatching';
-import { readOwnTransportOffer } from './transportProjection';
+import { readOwnTransportOffer } from './transportOfferRecords';
 
 const requirePositiveAmount = (errors: IDomainErrors, amount: Money | undefined): Money => {
   if (amount === undefined) {

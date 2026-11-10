@@ -1,7 +1,6 @@
 import {
   useCallback,
   useMemo,
-  useState,
 } from 'react';
 
 import {
@@ -35,7 +34,6 @@ export const useOrganizationDirectory = (
   const showcasesQuery = useOrganizationShowcasesQuery(filter);
   const spheresQuery = useSpheresQuery();
   const actingOrganizationQuery = useActingOrganizationQuery();
-  const [isRetrying, setIsRetrying] = useState(false);
 
   const showcases = showcasesQuery.data;
   const spheres = spheresQuery.data;
@@ -70,36 +68,24 @@ export const useOrganizationDirectory = (
   const retry = useCallback((): void => {
     console.log('> useOrganizationDirectory -> retry:', { isModelFailed, isShowcasesFailed, isSpheresFailed });
 
-    const refetches: Promise<unknown>[] = [];
-
     if (isShowcasesFailed) {
-      refetches.push(refetchShowcases());
+      void refetchShowcases();
     }
 
     if (isSpheresFailed) {
-      refetches.push(refetchSpheres());
+      void refetchSpheres();
     }
 
     if (isModelFailed) {
       retryModel();
     }
-
-    if (refetches.length === 0) {
-      return;
-    }
-
-    setIsRetrying(true);
-
-    void Promise.all(refetches).finally(() => {
-      setIsRetrying(false);
-    });
   }, [isModelFailed, isShowcasesFailed, isSpheresFailed, refetchShowcases, refetchSpheres, retryModel]);
 
   return {
     data,
     error,
     isPlaceholderData: showcasesQuery.isPlaceholderData,
-    isRetrying: isRetrying || modelState.isRetrying,
+    isRetrying: showcasesQuery.isFetching || spheresQuery.isFetching || modelState.isRetrying,
     isViewerUnverified,
     retry,
   };

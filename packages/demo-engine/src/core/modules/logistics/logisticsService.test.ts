@@ -32,6 +32,7 @@ import {
 import {
   LogisticsService,
   PublishTransportRequestRequestSchema,
+  TripMapTrackSchema,
 } from '@skladburg/contracts/logistics/v1/logistics';
 import { TransportRequestStatus } from '@skladburg/contracts/logistics/v1/logistics_records';
 import { TripStatus } from '@skladburg/contracts/logistics/v1/trip_records';
@@ -54,7 +55,9 @@ import {
 } from '../../engine/testing/engineHarness';
 import {
   SeedCityId,
+  SeedMapNodeId,
   SeedOrganizationId,
+  SeedRouteLegId,
   SeedUserId,
   SeedWarehouseId,
 } from '../../seed/index';
@@ -448,6 +451,7 @@ describe('LogisticsService', () => {
     await selectFixture(fixture);
     const draft = await logistics.getTrip({ tripId: id }, CARRIER_ONE);
     expect(draft.trip).toMatchObject({ id, status: TripStatus.AWAITING_CONFIRMATION, version: 1 });
+    expect(draft.trip?.mapTrack).toBeUndefined();
     const request = { expectedVersion: 1, idempotencyKey: nextUuid(), tripId: id };
     const outsider = await captureError(logistics.confirmTransportOrder(request, CARRIER_TWO));
     expect(readErrorDetail(outsider).code).toBe(ErrorCode.NOT_FOUND);
@@ -545,6 +549,53 @@ describe('LogisticsService', () => {
     });
     expect((await assign(unassigned)).trip?.status).toBe(TripStatus.ASSIGNED);
   });
+
+  it('projects an assigned local trip only to participants with the trip permission', async () => {
+    const fixture = await prepareDeal();
+    const { harness, logistics, publish } = fixture;
+    await harness.runtime.command((transaction) => {
+      const destination = transaction.get('warehouses', SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1);
+      const [lane] = transaction.listBy('carrierLanes', 'tenantId', SeedOrganizationId.CARRIER_1);
+      if (destination === undefined || lane === undefined) {
+        throw new Error('Expected a local destination and a carrier lane');
+      }
+      transaction.put('warehouses', { ...destination, cityId: SeedCityId.KRASNODAR, mapNodeId: SeedMapNodeId.KRASNODAR });
+      transaction.put('carrierLanes', { ...lane, id: nextUuid(), toCityId: SeedCityId.KRASNODAR });
+    });
+    const request = await publishFixture({
+      ...fixture,
+      publish: { ...publish, deliveryWindow: window(PICKUP_START, PICKUP_START + 120 * MINUTE_MS) },
+    });
+    const tripId = request.id;
+    await selectFixture(request);
+    await logistics.confirmTransportOrder({ expectedVersion: 1, idempotencyKey: nextUuid(), tripId }, CARRIER_ONE);
+    const vehicle = harness.state.read.listBy('vehicles', 'tenantId', SeedOrganizationId.CARRIER_1)
+      .find(candidate => candidate.details?.availability.some(window => window.cityId === SeedCityId.KRASNODAR));
+    const [driver] = harness.state.read.listBy('drivers', 'tenantId', SeedOrganizationId.CARRIER_1);
+    if (vehicle === undefined || driver === undefined) {
+      throw new Error('Expected fleet resources at the local departure city');
+    }
+    await logistics.assignTrip({
+      departureAt: timestampFromMs(PICKUP_START), driverId: driver.id, expectedVersion: 2, idempotencyKey: nextUuid(),
+      tripId, vehicleId: vehicle.id,
+    }, CARRIER_ONE);
+
+    const { trip } = await logistics.getTrip({ tripId }, SUPPLIER_1_CALL);
+    expect(trip).toMatchObject({
+      delivery: { mapNodeId: SeedMapNodeId.KRASNODAR, warehouseId: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1 },
+      mapTrack: { carrierOrganizationId: SeedOrganizationId.CARRIER_1, registrationNumber: 'А001АА 000', routeLegIds: [] },
+      pickup: { mapNodeId: SeedMapNodeId.KRASNODAR, warehouseId: SeedWarehouseId.SUPPLIER_1_WAREHOUSE_1 },
+    });
+    expect(trip?.ownAssignment).toBeUndefined();
+    const userId = await addTestMember(harness, {
+      organizationId: SeedOrganizationId.SUPPLIER_1, permissions: ['deal_view'], warehouseIds: [],
+    });
+    const caller = callAs(userId, SeedOrganizationId.SUPPLIER_1);
+    const deniedTrip = await captureError(logistics.getTrip({ tripId }, caller));
+    expect(readErrorDetail(deniedTrip).code).toBe(ErrorCode.PERMISSION_DENIED);
+    const deniedList = await captureError(logistics.listTrips({}, caller));
+    expect(readErrorDetail(deniedList).code).toBe(ErrorCode.PERMISSION_DENIED);
+  });
 });
 
 describe('exchange trip through Connect', () => {
@@ -563,6 +614,16 @@ describe('exchange trip through Connect', () => {
       status: TripStatus.LOADED,
     });
     expect(loaded?.bodyTemperature).toBeUndefined();
+    const mapTrack = create(TripMapTrackSchema, {
+      carrierOrganizationId: SeedOrganizationId.CARRIER_1,
+      registrationNumber: 'А001АА 000',
+      routeLegIds: [SeedRouteLegId.VORONEZH_KRASNODAR, SeedRouteLegId.MOSCOW_VORONEZH],
+    });
+    for (const caller of [CARRIER_ONE, CUSTOMER_CALL, SUPPLIER_1_CALL]) {
+      expect((await logistics.getTrip({ tripId }, caller)).trip?.mapTrack).toEqual(mapTrack);
+      expect((await logistics.listTrips({}, caller)).trips.find(trip => trip.id === tripId)?.mapTrack).toEqual(mapTrack);
+    }
+    expect((await logistics.listTrips({}, CARRIER_TWO)).trips).toEqual([]);
     expect(await readDeal()).toMatchObject({ deadlines: { arrivalDueAt: arrivalAt }, status: DealStatus.SHIPPED });
     expect((await readDeal())?.deadlines?.acceptanceDueAt).toBeUndefined();
 
@@ -598,6 +659,7 @@ describe('exchange trip through Connect', () => {
     await tickAt(restored, INTERCITY_ARRIVAL + 5 * MINUTE_MS);
     const restoredLogistics = createClient(LogisticsService, createEngineTransport(restored.engine, true));
     expect((await restoredLogistics.getTrip({ tripId }, CARRIER_ONE)).trip?.bodyTemperature).toEqual(arrivedTrip?.bodyTemperature);
+    expect((await restoredLogistics.getTrip({ tripId }, CUSTOMER_CALL)).trip?.mapTrack).toEqual(mapTrack);
   });
 
   it('refunds all blocked funds on cancellation of an assigned trip without creating either payout', async () => {

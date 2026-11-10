@@ -124,6 +124,7 @@ export const catalog = {
   'network.sites.group.network': 'Площадки сети',
   'network.sites.group.own': 'Ваши площадки',
   'network.sites.loading': 'Загружаем площадки…',
+  'network.trips.loadingList': 'Загружаем рейсы…',
   'object.type.cell': 'Ячейка',
   'object.type.city': 'Город',
   'object.type.dashboard': 'Дашборд',

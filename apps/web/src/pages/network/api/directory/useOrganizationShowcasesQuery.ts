@@ -15,8 +15,8 @@ import {
 
 import type { OrganizationDirectoryFilterValue } from '../../model/organizationDirectoryFilter';
 
+import { organizationShowcaseKeys } from '../organizationShowcaseKeys';
 import { fetchOrganizationShowcases } from './fetchOrganizationShowcases';
-import { organizationShowcaseKeys } from './organizationShowcaseKeys';
 
 const SHOWCASE_STALE_TIME_MS = 30_000;
 

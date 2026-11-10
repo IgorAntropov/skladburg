@@ -1,3 +1,5 @@
+import type { NetworkTripActorsValue } from './networkTripActor';
+
 export interface NetworkFocusRequestValue {
   id: string;
   sequence: number;
@@ -27,4 +29,5 @@ export interface NetworkSceneInteractionValue {
   onHoverStart: (id: string) => void;
   onSelect: (target: NetworkMapTargetValue) => void;
   selected: NetworkMapSelectionValue | undefined;
+  tripActors?: NetworkTripActorsValue | undefined;
 }

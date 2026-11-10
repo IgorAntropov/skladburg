@@ -21,10 +21,13 @@ import {
   QUALITY_LEVEL_SETTINGS,
   WorldTerrain,
 } from '@/shared/3d';
+import { createCachedModuleLoader } from '@/shared/lib/module-loader';
 
 import type { NetworkSceneInteractionValue } from '../model/networkSceneInteraction';
+import type { NetworkTripActorsValue } from '../model/networkTripActor';
 import type { NetworkSceneLayoutValue } from './layout';
 
+import { useLoadedModule } from '../lib/useLoadedModule';
 import { listSiteBannerEntries } from './banner/listSiteBannerEntries';
 import { loadSiteBannerFonts } from './banner/siteBannerFonts';
 import {
@@ -62,6 +65,25 @@ import {
   buildStreetLamps,
   buildWindowSets,
 } from './night';
+
+interface NetworkTripActorSlotProps {
+  layout: NetworkSceneLayoutValue;
+  tracks: NetworkTripActorsValue;
+}
+
+const loadTripActors = createCachedModuleLoader(() => import('./trips/NetworkTripActors'));
+
+const NetworkTripActorSlot = ({ layout, tracks }: NetworkTripActorSlotProps): null | ReactElement => {
+  const { state } = useLoadedModule(loadTripActors);
+
+  if (state.kind !== 'loaded') {
+    return null;
+  }
+
+  const { NetworkTripActors } = state.module;
+
+  return <NetworkTripActors layout={layout} tracks={tracks} />;
+};
 
 const createTerrainParams = (layout: NetworkSceneLayoutValue): Parameters<typeof loadWorldTerrain>[0] => ({
   reserved: layout.terrainReserved,
@@ -137,6 +159,7 @@ const NetworkWorldScene = ({
   const selectedIds = useMemo(() => listSelectedIds(selected), [selected]);
   const hoveredId = interaction?.hoveredId;
   const hoveredSiteIds = interaction?.hoveredSiteIds ?? EMPTY_ID_LIST;
+  const tracks = interaction?.tripActors;
 
   useNetworkCameraFocus(layout, interaction);
   useNetworkPointerPicking(layout, interaction, markMode);
@@ -156,6 +179,7 @@ const NetworkWorldScene = ({
     <>
       <WorldTerrain level={level} terrain={terrain} />
       <NetworkRoads hasShadowReceive={hasShadows} roads={layout.roads} />
+      {tracks !== undefined && tracks.actors.length > 0 && <NetworkTripActorSlot layout={layout} tracks={tracks} />}
       <NetworkStreetLamps boxGeometry={boxGeometry} lamps={lamps} level={level} />
       <NetworkCityPlazas cities={layout.cities} hasShadowReceive={hasShadows} />
       <NetworkShadowBlobs buildings={layout.buildings} level={level} terrain={terrain} />

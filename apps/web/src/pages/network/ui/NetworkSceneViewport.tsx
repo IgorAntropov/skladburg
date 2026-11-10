@@ -18,6 +18,7 @@ import type {
   NetworkMapTargetValue,
   NetworkSceneInteractionValue,
 } from '../model/networkSceneInteraction';
+import type { NetworkTripActorsValue } from '../model/networkTripActor';
 
 import { listOrganizationSiteIds } from '../lib/listOrganizationSiteIds';
 import { resolveNetworkFocusRequest } from '../lib/resolveNetworkFocusRequest';
@@ -33,6 +34,7 @@ interface NetworkSceneViewportProps {
   label: string;
   onWorldSiteSelect: () => void;
   sceneData: NetworkMapModelValue | undefined;
+  tripActors?: NetworkTripActorsValue | undefined;
 }
 
 export const NetworkSceneViewport = ({
@@ -40,6 +42,7 @@ export const NetworkSceneViewport = ({
   label,
   onWorldSiteSelect,
   sceneData,
+  tripActors,
 }: NetworkSceneViewportProps): ReactElement => {
   const navigate = useNavigate();
   const hoveredId = useNetworkMapStore(state => state.hoveredId);
@@ -84,6 +87,7 @@ export const NetworkSceneViewport = ({
     onHoverStart: handleHoverStart,
     onSelect: handleSelect,
     selected,
+    tripActors,
   }), [
     focusRequest,
     handleHoverEnd,
@@ -92,6 +96,7 @@ export const NetworkSceneViewport = ({
     hoveredId,
     hoveredSiteIds,
     selected,
+    tripActors,
   ]);
 
   return (

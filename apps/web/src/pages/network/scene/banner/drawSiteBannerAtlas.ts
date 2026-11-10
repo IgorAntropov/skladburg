@@ -175,6 +175,21 @@ const drawLogo = (
   return true;
 };
 
+export const drawSiteBannerNear = (
+  context: SiteBannerDrawContextValue,
+  cell: SiteBannerCellPixelsValue,
+  entry: SiteBannerEntryValue,
+  colors: SiteBannerColorsValue,
+  logo: SiteBannerLogoImageValue | undefined,
+): void => {
+  drawNearFrame(context, entry.side, cell, colors);
+  drawSideGlyph(context, entry.side, cell, SITE_BANNER_NEAR_GLYPH, colors);
+
+  if (!drawLogo(context, logo, cell)) {
+    drawMonogram(context, entry, cell, colors);
+  }
+};
+
 export const drawSiteBannerAtlas = (
   context: SiteBannerDrawContextValue,
   layout: SiteBannerAtlasLayoutValue,
@@ -194,13 +209,6 @@ export const drawSiteBannerAtlas = (
   }
 
   for (const [index, entry] of entries.slice(0, layout.capacity).entries()) {
-    const cell = readNearCellPixels(layout, index);
-
-    drawNearFrame(context, entry.side, cell, colors);
-    drawSideGlyph(context, entry.side, cell, SITE_BANNER_NEAR_GLYPH, colors);
-
-    if (!drawLogo(context, readLogo(entry.logoPath), cell)) {
-      drawMonogram(context, entry, cell, colors);
-    }
+    drawSiteBannerNear(context, readNearCellPixels(layout, index), entry, colors, readLogo(entry.logoPath));
   }
 };

@@ -1,4 +1,9 @@
 export {
+  TRANSPORT_EVENTS,
+  transportScope,
+} from './api/transportQueryScope';
+export {
+  readTransportTrips,
   useRefreshTransport,
   useTransportOffers,
   useTransportRequest,

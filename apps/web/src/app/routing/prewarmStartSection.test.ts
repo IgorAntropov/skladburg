@@ -28,6 +28,7 @@ const createLoaders = (): MockSectionLoadersValue => ({
   deals: createLoader(),
   garage: createLoader(),
   network: createLoader(),
+  transport: createLoader(),
   warehouse: createLoader(),
 });
 
@@ -63,6 +64,7 @@ describe('prewarmStartSection', () => {
     expect(loaders.network).not.toHaveBeenCalled();
     expect(loaders.deals).not.toHaveBeenCalled();
     expect(loaders.garage).not.toHaveBeenCalled();
+    expect(loaders.transport).not.toHaveBeenCalled();
     expect(loaders.warehouse).not.toHaveBeenCalled();
   });
 

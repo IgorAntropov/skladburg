@@ -8,7 +8,7 @@ import type { AppSectionValue } from '@/shared/routing';
 
 import {
   APP_SECTIONS,
-  OBJECT_HOME_SECTION,
+  getPlacedAddressSection,
   OBJECT_TYPES,
 } from '@/shared/routing';
 
@@ -36,12 +36,12 @@ describe('resolveRoute', () => {
 
   it.each(OBJECT_TYPES)('opens the object of the type %s in its home section when it is available', (type) => {
     const object = { id: OBJECT_ID, type };
-    const section = OBJECT_HOME_SECTION[type];
+    const section = getPlacedAddressSection({ kind: 'object', object });
 
     expect(resolveRoute({ kind: 'object', object }, APP_SECTIONS)).toEqual({ focus: object, kind: 'page', section });
   });
 
-  it.each(OBJECT_TYPES.filter(type => OBJECT_HOME_SECTION[type] !== 'warehouse'))(
+  it.each(OBJECT_TYPES.filter(type => getPlacedAddressSection({ kind: 'object', object: { id: OBJECT_ID, type } }) !== 'warehouse'))(
     'reports the object of the type %s as unavailable when its home section is not available',
     (type) => {
       expect(resolveRoute({ kind: 'object', object: { id: OBJECT_ID, type } }, WAREHOUSE_ONLY)).toEqual({ kind: 'object-unavailable' });

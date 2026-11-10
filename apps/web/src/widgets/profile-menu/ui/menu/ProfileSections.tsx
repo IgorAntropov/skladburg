@@ -4,7 +4,7 @@ import type { AppSectionValue } from '@/shared/routing';
 
 import { useI18n } from '@/shared/i18n';
 import {
-  SECTION_TITLE_KEYS,
+  getSectionTitleKey,
   useNavigate,
 } from '@/shared/routing';
 import {
@@ -42,7 +42,7 @@ export const ProfileSections = ({ currentSection, sections }: ProfileSectionsPro
       <DropdownMenuRadioGroup label={t('app.nav.label')} onValueChange={handleSectionChange} value={currentSection}>
         {sections.map(section => (
           <DropdownMenuRadioItem indicatorPlacement="none" key={section} value={section}>
-            <span className={SECTION_LABEL_CLASS_NAME}>{t(SECTION_TITLE_KEYS[section])}</span>
+            <span className={SECTION_LABEL_CLASS_NAME}>{t(getSectionTitleKey(section))}</span>
           </DropdownMenuRadioItem>
         ))}
       </DropdownMenuRadioGroup>

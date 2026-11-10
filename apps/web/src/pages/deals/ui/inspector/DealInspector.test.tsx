@@ -42,6 +42,7 @@ import { DealInspector } from './DealInspector';
 
 vi.mock('@/entities/session', () => ({
   useCommandAccess: () => ({ status: 'allowed' }),
+  useOrganizationApprovalAccess: () => ({ access: { status: 'allowed' }, limit: undefined }),
   useSessionQuery: () => ({ data: undefined }),
 }));
 
@@ -98,7 +99,9 @@ describe('deal inspector focus', () => {
   it('returns focus to the action that opened the form', async () => {
     renderInspector();
     fireEvent.click(await screen.findByTestId('deal-cancel'));
-    fireEvent.click(screen.getByRole('button', { name: catalog['dealInspector.back'] }));
+    const heading = await screen.findByRole('heading', { name: catalog['dealInspector.cancel'] });
+    expect(document.activeElement).toBe(heading);
+    fireEvent.click(await screen.findByRole('button', { name: catalog['dealInspector.back'] }));
 
     expect(document.activeElement).toBe(screen.getByTestId('deal-cancel'));
   });
@@ -106,7 +109,8 @@ describe('deal inspector focus', () => {
   it('leaves focus on the control the user reached while the command was pending', async () => {
     renderInspector();
     fireEvent.click(await screen.findByTestId('deal-cancel'));
-    fireEvent.change(screen.getByRole('textbox', { name: catalog['dealInspector.reason'] }), { target: { value: 'Изменились планы' } });
+    const reason = await screen.findByRole('textbox', { name: catalog['dealInspector.reason'] });
+    fireEvent.change(reason, { target: { value: 'Изменились планы' } });
     fireEvent.click(screen.getByTestId('deal-cancel-submit'));
     const outside = screen.getByTestId('outside-control');
     outside.focus();
@@ -141,7 +145,8 @@ describe('deal inspector focus', () => {
   it('moves focus to the current status when the command removes the opening action', async () => {
     renderInspector();
     fireEvent.click(await screen.findByTestId('deal-cancel'));
-    fireEvent.change(screen.getByRole('textbox', { name: catalog['dealInspector.reason'] }), { target: { value: 'Изменились планы' } });
+    const reason = await screen.findByRole('textbox', { name: catalog['dealInspector.reason'] });
+    fireEvent.change(reason, { target: { value: 'Изменились планы' } });
     fireEvent.click(screen.getByTestId('deal-cancel-submit'));
 
     await waitFor(() => {

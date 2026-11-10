@@ -28,7 +28,7 @@ interface MatrixCaseValue {
   userId: string;
 }
 
-const TRADING_SECTIONS: readonly AppSectionValue[] = ['network', 'catalog', 'deals', 'warehouse'];
+const TRADING_SECTIONS: readonly AppSectionValue[] = ['network', 'catalog', 'deals', 'warehouse', 'transport'];
 
 const MATRIX: readonly MatrixCaseValue[] = [
   {
@@ -44,13 +44,13 @@ const MATRIX: readonly MatrixCaseValue[] = [
     userId: SeedUserId.ADMIN_2,
   },
   {
-    expectedSections: ['network', 'deals', 'garage'],
+    expectedSections: ['network', 'deals', 'garage', 'transport'],
     name: 'administrator of a carrier',
     organizationId: SeedOrganizationId.CARRIER_1,
     userId: SeedUserId.ADMIN_4,
   },
   {
-    expectedSections: [...TRADING_SECTIONS, 'garage'],
+    expectedSections: ['network', 'catalog', 'deals', 'warehouse', 'garage', 'transport'],
     name: 'administrator of a supplier and carrier',
     organizationId: SeedOrganizationId.SUPPLIER_4,
     userId: SeedUserId.ADMIN_7,

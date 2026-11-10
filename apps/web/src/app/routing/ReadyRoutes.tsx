@@ -9,15 +9,11 @@ import type {
   SectionPagesValue,
 } from './sectionPages';
 
-import { NotFoundScreen } from './NotFoundScreen';
-import { ObjectUnavailableScreen } from './ObjectUnavailableScreen';
+import { LandingLinkScreen } from './LandingLinkScreen';
 import { resolveRoute } from './resolveRoute';
 import { RouteFrame } from './RouteFrame';
 import { SectionPreloader } from './SectionPreloader';
 import { SectionRedirect } from './SectionRedirect';
-
-const NOT_FOUND_RESET_KEY = 'not-found';
-const OBJECT_UNAVAILABLE_RESET_KEY = 'object-unavailable';
 
 interface ReadyRoutesProps {
   cachedLoaders: CachedSectionLoadersValue;
@@ -40,31 +36,22 @@ export const ReadyRoutes = ({
     return <SectionRedirect section={landingSection} />;
   }
 
+  let screen: ReactElement;
+  const section = route.kind === 'page' ? route.section : undefined;
   if (route.kind === 'page') {
     const Page = sectionPages[route.section];
-
-    return (
-      <>
-        <RouteFrame errorResetKey={route.section} path={path}>
-          <Page focus={route.focus} />
-        </RouteFrame>
-        <SectionPreloader loaders={cachedLoaders} section={route.section} sections={sections} />
-      </>
-    );
+    screen = <Page focus={route.focus} />;
   }
-
-  const isObjectUnavailable = route.kind === 'object-unavailable';
-  const errorResetKey = isObjectUnavailable ? OBJECT_UNAVAILABLE_RESET_KEY : NOT_FOUND_RESET_KEY;
-  const screen = isObjectUnavailable
-    ? <ObjectUnavailableScreen landingSection={landingSection} />
-    : <NotFoundScreen landingSection={landingSection} />;
+  else {
+    screen = <LandingLinkScreen kind={route.kind === 'not-found' ? 'notFound' : 'objectUnavailable'} landingSection={landingSection} />;
+  }
 
   return (
     <>
-      <RouteFrame errorResetKey={errorResetKey} path={path}>
+      <RouteFrame errorResetKey={section ?? route.kind} path={path}>
         {screen}
       </RouteFrame>
-      <SectionPreloader loaders={cachedLoaders} section={undefined} sections={sections} />
+      <SectionPreloader loaders={cachedLoaders} section={section} sections={sections} />
     </>
   );
 };

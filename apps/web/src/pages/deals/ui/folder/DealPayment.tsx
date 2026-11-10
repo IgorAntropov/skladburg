@@ -3,6 +3,7 @@ import type { Deal } from '@skladburg/contracts/deal/v1/deal';
 import type { SafeDealPayment } from '@skladburg/contracts/payment/v1/payment';
 import type { ReactElement } from 'react';
 
+import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
 import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
 import { SafeDealPaymentStatus } from '@skladburg/contracts/payment/v1/payment';
 import { useRef } from 'react';
@@ -76,7 +77,7 @@ export const DealPayment = ({ deal, t }: DealPaymentProps): null | ReactElement 
             return <p className="text-sm text-on-panel-muted">{t('dealFolder.waitingForInvoice')}</p>;
           }
 
-          const total = getInvoiceTotal(payment);
+          const total = payment.fundedAmount ?? (deal.deliveryMethod === DeliveryMethod.EXCHANGE ? undefined : getInvoiceTotal(payment));
           const isFundShown = canFundDeal && payment.status === SafeDealPaymentStatus.INVOICED && total !== undefined;
 
           return (

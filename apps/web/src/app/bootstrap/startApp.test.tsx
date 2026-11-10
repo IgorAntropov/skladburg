@@ -948,6 +948,7 @@ describe('startApp', () => {
         defaultLocaleCatalog['section.catalog.title'],
         defaultLocaleCatalog['section.deals.title'],
         defaultLocaleCatalog['section.warehouse.title'],
+        defaultLocaleCatalog['section.transport.title'],
       ];
 
       afterEach(async () => {

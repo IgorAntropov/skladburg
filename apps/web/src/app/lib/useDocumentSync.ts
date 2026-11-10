@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { useI18n } from '@/shared/i18n';
 import {
   getAddressSection,
-  SECTION_TITLE_KEYS,
+  getSectionTitleKey,
   useAddress,
 } from '@/shared/routing';
 import { useTenantSettings } from '@/shared/tenant';
@@ -16,7 +16,7 @@ export const useDocumentSync = (): void => {
   const section = address === undefined ? undefined : getAddressSection(address);
   const sectionTitle = address === undefined
     ? t('routing.notFound.title')
-    : section === undefined ? undefined : t(SECTION_TITLE_KEYS[section]);
+    : section === undefined ? undefined : t(getSectionTitleKey(section));
   const title = sectionTitle === undefined ? brandName : t('app.documentTitle', { brand: brandName, section: sectionTitle });
 
   useEffect(() => {

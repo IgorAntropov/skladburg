@@ -4,7 +4,7 @@ import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
 export type DealFulfillmentActionValue = 'acceptDeal' | 'markDealShipped';
 
 export const isSupportedDealDelivery = (method: DeliveryMethod): boolean =>
-  method === DeliveryMethod.CUSTOMER || method === DeliveryMethod.SUPPLIER;
+  method === DeliveryMethod.CUSTOMER || method === DeliveryMethod.SUPPLIER || method === DeliveryMethod.EXCHANGE;
 
 export const getDealFulfillmentAction = (
   status: DealStatus,

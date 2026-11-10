@@ -45,6 +45,7 @@ const HUD_SHARED_MODULES = [
   'node_modules/@connectrpc/connect/dist/esm/code.js',
   'node_modules/@connectrpc/connect/dist/esm/connect-error.js',
   'node_modules/@connectrpc/connect/dist/esm/protocol-connect/code-string.js',
+  'node_modules/lucide-react/dist/esm/icons/truck.mjs',
   'packages/contracts/src/gen/access/v1/permission_pb.ts',
   'packages/contracts/src/gen/network/v1/network_pb.ts',
   'packages/contracts/src/gen/notification/v1/notification_events_pb.ts',
@@ -129,6 +130,12 @@ const LISTING_SHARED_MODULES = [
   'node_modules/lucide-react/dist/esm/icons/pencil-line.mjs',
 ];
 
+const ORGANIZATION_CONTRACT_MODULES = [
+  'packages/contracts/src/gen/common/v1/method_options_pb.ts',
+  'packages/contracts/src/gen/common/v1/page_pb.ts',
+  'packages/contracts/src/gen/organization/v1/organization_pb.ts',
+];
+
 const CATALOG_EDIT_SHARED_MODULES = [
   'src/entities/listing/api/useOwnListingQuery.ts',
   'src/pages/catalog/lib/formatDestinationLabel.ts',
@@ -138,6 +145,11 @@ const CATALOG_EDIT_SHARED_MODULES = [
 ];
 
 const ORGANIZATION_BADGE_MODULES = [
+  'node_modules/lucide-react/dist/esm/icons/badge-check.mjs',
+  'node_modules/lucide-react/dist/esm/icons/shield-question-mark.mjs',
+  'node_modules/lucide-react/dist/esm/icons/shield.mjs',
+  'src/entities/organization/config/verificationLevels.ts',
+  'src/entities/organization/lib/normalizeVerificationLevel.ts',
   'src/entities/organization/ui/ProfileBadge.tsx',
   'src/entities/organization/ui/VerificationBadge.tsx',
 ];
@@ -145,9 +157,42 @@ const ORGANIZATION_BADGE_MODULES = [
 const DEAL_FORM_MODULES = [
   'src/pages/deals/api/commands/dealFormValidation.ts',
   'src/pages/deals/api/commands/useDealWarehouseOptions.ts',
-  'src/pages/deals/ui/inspector/dealLineLabels.ts',
   'src/pages/deals/ui/inspector/DealEditorForm.tsx',
   'src/pages/deals/ui/inspector/DealWarehouseField.tsx',
+];
+
+const DEAL_COMMAND_ACCESS_MODULES = [
+  'src/entities/session/api/useOrganizationApprovalAccess.ts',
+  'src/entities/session/lib/findOrganizationApprovalLimit.ts',
+  'src/pages/deals/api/commands/useDealCommandAccess.ts',
+];
+
+const DEAL_COMMAND_CONTEXT_MODULES = [
+  'src/pages/deals/api/commands/dealCommandContext.ts',
+  'src/pages/deals/api/commands/useDealConflictRefresh.ts',
+];
+
+const DEAL_DOCUMENT_FORMAT_MODULES = [
+  'node_modules/lucide-react/dist/esm/icons/file-pen-line.mjs',
+  'node_modules/lucide-react/dist/esm/icons/file-x.mjs',
+  'src/pages/deals/ui/folder/documents/DealDocumentStatus.tsx',
+  'src/pages/deals/ui/folder/documents/documentLabels.ts',
+];
+
+const DEAL_STATUS_MODULES = [
+  'node_modules/lucide-react/dist/esm/icons/circle-dot.mjs',
+  'node_modules/lucide-react/dist/esm/icons/circle-x.mjs',
+  'node_modules/lucide-react/dist/esm/icons/clipboard-list.mjs',
+  'src/pages/deals/i18n/dealsSection.ts',
+  'src/pages/deals/lib/dealStatus.ts',
+  'src/pages/deals/ui/DealStatusBadge.tsx',
+];
+
+const MONEY_FORMAT_MODULES = [
+  'src/shared/lib/money/formatMinorAsDecimal.ts',
+  'src/shared/lib/money/formatMoney.ts',
+  'src/shared/lib/money/getMinorScale.ts',
+  'src/shared/lib/money/parseDecimalToMinor.ts',
 ];
 
 const TOOLTIP_SHARED_MODULES = [
@@ -250,6 +295,18 @@ const MAX_GARAGE_EDITOR_GZIP_KILOBYTES = 65.7;
 
 const MAX_GARAGE_TEXTS_GZIP_KILOBYTES = 4;
 
+const MAX_TRANSPORT_WORKSPACE_GZIP_KILOBYTES = 19.7;
+
+const MAX_TRANSPORT_INSPECTOR_GZIP_KILOBYTES = 53.25;
+
+const MAX_TRANSPORT_EDITOR_GZIP_KILOBYTES = 76.45;
+
+const MAX_DEAL_TRANSPORT_GZIP_KILOBYTES = 41.85;
+
+const MAX_PUBLISH_TRANSPORT_FORM_GZIP_KILOBYTES = 67.35;
+
+const MAX_TRANSPORT_TEXTS_GZIP_KILOBYTES = 3.75;
+
 const MAX_CATALOG_PAGE_GZIP_KILOBYTES = 27.7;
 
 const MAX_CATALOG_OWN_GZIP_KILOBYTES = 31;
@@ -271,6 +328,10 @@ const MAX_GLOBAL_SEARCH_TEXTS_GZIP_KILOBYTES = 1.4;
 const MAX_DEALS_BOARD_GZIP_KILOBYTES = 18.79;
 
 const MAX_DEAL_INSPECTOR_GZIP_KILOBYTES = 68.89;
+
+const MAX_DEAL_TRACKER_GZIP_KILOBYTES = 20;
+
+const MAX_DEAL_STANDARD_FORMS_GZIP_KILOBYTES = 70.25;
 
 const MAX_DEAL_FOLDER_GZIP_KILOBYTES = 54;
 
@@ -312,7 +373,11 @@ const MAX_ENGINE_LOGISTICS_GZIP_KILOBYTES = 5.5;
 
 const MAX_ENGINE_LOGISTICS_PUBLISH_GZIP_KILOBYTES = 6.7;
 
+const MAX_ENGINE_TRANSPORT_OFFER_GZIP_KILOBYTES = 5.9;
+
 const MAX_ENGINE_TRIP_GZIP_KILOBYTES = 10.75;
+
+const MAX_ENGINE_TRIP_ASSIGNMENT_GZIP_KILOBYTES = 2.1;
 
 const MAX_ENGINE_TRIP_MIGRATION_GZIP_KILOBYTES = 1;
 
@@ -474,6 +539,13 @@ const ENGINE_WORKER_BUDGET = {
     },
     {
       baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/modules/logistics/submitTransportOffer.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_TRANSPORT_OFFER_GZIP_KILOBYTES,
+      name: 'engine-transport-offer',
+    },
+    {
+      baseline: 'engine',
       entries: [
         'packages/demo-engine/src/core/modules/logistics/selectTransportOffer.ts',
         'packages/demo-engine/src/core/modules/logistics/tripService.ts',
@@ -481,6 +553,13 @@ const ENGINE_WORKER_BUDGET = {
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_TRIP_GZIP_KILOBYTES,
       name: 'engine-trip',
+    },
+    {
+      baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/modules/logistics/tripAssignment.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_TRIP_ASSIGNMENT_GZIP_KILOBYTES,
+      name: 'engine-trip-assignment',
     },
     {
       baseline: 'engine',
@@ -727,6 +806,53 @@ const LAZY_ENTRY_BUDGETS = [
   },
   {
     baseline: STARTUP_BASELINE,
+    entries: ['src/pages/transport-workspace/index.ts'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_TRANSPORT_WORKSPACE_GZIP_KILOBYTES,
+    name: 'transport-workspace',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/transport-workspace/ui/transportInspectorEntry.ts'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_TRANSPORT_INSPECTOR_GZIP_KILOBYTES,
+    name: 'transport-inspector',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/transport-workspace/ui/forms/transportEditorEntry.ts'],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_TRANSPORT_EDITOR_GZIP_KILOBYTES,
+    name: 'transport-editor',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/deals/ui/transport/dealTransportEntry.tsx'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_DEAL_TRANSPORT_GZIP_KILOBYTES,
+    name: 'deal-transport',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/deals/ui/transport/PublishTransportForm.tsx'],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_PUBLISH_TRANSPORT_FORM_GZIP_KILOBYTES,
+    name: 'publish-transport-form',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/transport-workspace/i18n/ru.ts', 'src/pages/deals/ui/transport/dealTransportRu.ts'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_TRANSPORT_TEXTS_GZIP_KILOBYTES,
+    name: 'transport-texts',
+  },
+  {
+    baseline: STARTUP_BASELINE,
     entries: ['src/pages/deals/ui/DealsPage.tsx'],
     forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
     isRequired: true,
@@ -736,10 +862,26 @@ const LAZY_ENTRY_BUDGETS = [
   {
     baseline: STARTUP_BASELINE,
     entries: ['src/pages/deals/ui/inspector/dealInspectorEntry.ts'],
-    forbiddenPackages: ['@react-three/*', 'three'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
     isRequired: true,
     maxGzipKiloBytes: MAX_DEAL_INSPECTOR_GZIP_KILOBYTES,
     name: 'deal-inspector',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/deals/ui/DealTracker.tsx'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_DEAL_TRACKER_GZIP_KILOBYTES,
+    name: 'deal-tracker',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/deals/ui/inspector/DealStandardForms.tsx'],
+    forbiddenPackages: ['@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_DEAL_STANDARD_FORMS_GZIP_KILOBYTES,
+    name: 'deal-standard-forms',
   },
   {
     baseline: STARTUP_BASELINE,
@@ -1015,6 +1157,11 @@ export default defineConfig({
             },
             {
               includeDependenciesRecursively: false,
+              name: 'organization-contract',
+              test: (moduleId: string): boolean => ORGANIZATION_CONTRACT_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
               name: 'catalog-edit-shared',
               test: (moduleId: string): boolean => CATALOG_EDIT_SHARED_MODULES.some(entry => hasEntryModule([moduleId], entry)),
             },
@@ -1027,6 +1174,41 @@ export default defineConfig({
               includeDependenciesRecursively: false,
               name: 'deal-form-shared',
               test: (moduleId: string): boolean => DEAL_FORM_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'deal-command-access',
+              test: (moduleId: string): boolean => DEAL_COMMAND_ACCESS_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'deal-command-context',
+              test: (moduleId: string): boolean => DEAL_COMMAND_CONTEXT_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'deal-document-format',
+              test: (moduleId: string): boolean => DEAL_DOCUMENT_FORMAT_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'deal-query-scope',
+              test: (moduleId: string): boolean => hasEntryModule([moduleId], 'src/pages/deals/api/dealQueryScope.ts'),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'deal-status',
+              test: (moduleId: string): boolean => DEAL_STATUS_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'deal-line-labels',
+              test: (moduleId: string): boolean => hasEntryModule([moduleId], 'src/pages/deals/ui/inspector/dealLineLabels.ts'),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'money-format',
+              test: (moduleId: string): boolean => MONEY_FORMAT_MODULES.some(entry => hasEntryModule([moduleId], entry)),
             },
             {
               includeDependenciesRecursively: false,
@@ -1124,6 +1306,10 @@ export default defineConfig({
           }, {
             name: 'engine-runtime',
             test: (moduleId: string): boolean => hasEntryModule([moduleId], 'packages/demo-engine/src/core/engine/createEngine.ts'),
+          }, {
+            includeDependenciesRecursively: false,
+            name: 'engine-transport-shared',
+            test: /[\\/]core[\\/]modules[\\/]logistics[\\/]transport(?:Events|Matching)\.ts$/,
           }],
         },
       },

@@ -1,10 +1,10 @@
 import type { EffectivePermission } from '@skladburg/contracts/access/v1/access';
 import type { Money } from '@skladburg/contracts/common/v1/money';
 
-export const findDealApprovalLimit = (
+export const findOrganizationApprovalLimit = (
   permissions: readonly EffectivePermission[],
   requested: Money,
-  permission = 'deal_approve',
+  permission: string,
 ): Money | undefined => {
   let maximum: Money | undefined;
   let currencyMaximum: Money | undefined;

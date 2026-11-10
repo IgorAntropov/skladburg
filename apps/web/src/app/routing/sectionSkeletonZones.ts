@@ -34,6 +34,7 @@ export const SECTION_SKELETON_ZONES: Readonly<Record<AppSectionValue, HudSkeleto
     hasTracker: true,
     lists: { hasHeader: false },
   },
+  transport: PANEL_SECTION_ZONES,
   warehouse: {
     ...NEUTRAL_SKELETON_ZONES,
     hasInspector: true,

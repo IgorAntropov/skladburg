@@ -557,17 +557,28 @@ describe('exchange trip through Connect', () => {
 
     const arrivalAt = timestampFromMs(INTERCITY_ARRIVAL);
     await tickAt(testEngine, PICKUP_START - MINUTE_MS);
-    expect((await logistics.getTrip({ tripId }, CARRIER_ONE)).trip).toMatchObject({
+    const loaded = (await logistics.getTrip({ tripId }, CARRIER_ONE)).trip;
+    expect(loaded).toMatchObject({
       plannedArrivalAt: arrivalAt,
       status: TripStatus.LOADED,
     });
+    expect(loaded?.bodyTemperature).toBeUndefined();
     expect(await readDeal()).toMatchObject({ deadlines: { arrivalDueAt: arrivalAt }, status: DealStatus.SHIPPED });
     expect((await readDeal())?.deadlines?.acceptanceDueAt).toBeUndefined();
 
     await tickAt(testEngine, PICKUP_START);
-    expect((await logistics.getTrip({ tripId }, CARRIER_ONE)).trip).toMatchObject({
+    const departed = (await logistics.getTrip({ tripId }, CARRIER_ONE)).trip;
+    expect(departed).toMatchObject({
+      bodyTemperature: { measuredAt: timestampFromMs(PICKUP_START) },
       departedAt: timestampFromMs(PICKUP_START), status: TripStatus.IN_TRANSIT,
     });
+    const temperature = departed?.bodyTemperature?.deciCelsius ?? Number.NaN;
+    expect(temperature).toBeGreaterThanOrEqual(20);
+    expect(temperature).toBeLessThanOrEqual(40);
+    expect((await logistics.getTrip({ tripId }, CUSTOMER_CALL)).trip?.bodyTemperature).toEqual(departed?.bodyTemperature);
+    expect((await logistics.getTrip({ tripId }, SUPPLIER_1_CALL)).trip?.bodyTemperature).toEqual(departed?.bodyTemperature);
+    const hidden = await captureError(logistics.getTrip({ tripId }, CARRIER_TWO));
+    expect(readErrorDetail(hidden).code).toBe(ErrorCode.NOT_FOUND);
     expect((await readDeal())?.status).toBe(DealStatus.IN_TRANSIT);
 
     await tickAt(testEngine, INTERCITY_ARRIVAL - MINUTE_MS);
@@ -575,10 +586,18 @@ describe('exchange trip through Connect', () => {
     expect((await readDeal())?.status).toBe(DealStatus.IN_TRANSIT);
 
     await tickAt(testEngine, INTERCITY_ARRIVAL);
-    expect((await logistics.getTrip({ tripId }, CARRIER_ONE)).trip).toMatchObject({ arrivedAt: arrivalAt, status: TripStatus.ARRIVED });
+    const arrivedTrip = (await logistics.getTrip({ tripId }, CARRIER_ONE)).trip;
+    expect(arrivedTrip).toMatchObject({
+      arrivedAt: arrivalAt, bodyTemperature: { measuredAt: arrivalAt }, status: TripStatus.ARRIVED,
+    });
     const arrived = await readDeal();
     expect(arrived).toMatchObject({ deadlines: { arrivalDueAt: arrivalAt }, status: DealStatus.ARRIVED });
     expect(timestampMs(arrived?.deadlines?.acceptanceDueAt ?? arrivalAt)).toBeGreaterThan(INTERCITY_ARRIVAL);
+
+    const restored = await createTestEngine({ storage: testEngine.storage });
+    await tickAt(restored, INTERCITY_ARRIVAL + 5 * MINUTE_MS);
+    const restoredLogistics = createClient(LogisticsService, createEngineTransport(restored.engine, true));
+    expect((await restoredLogistics.getTrip({ tripId }, CARRIER_ONE)).trip?.bodyTemperature).toEqual(arrivedTrip?.bodyTemperature);
   });
 
   it('refunds all blocked funds on cancellation of an assigned trip without creating either payout', async () => {

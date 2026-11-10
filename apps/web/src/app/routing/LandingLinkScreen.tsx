@@ -5,7 +5,7 @@ import type { AppSectionValue } from '@/shared/routing';
 import { useI18n } from '@/shared/i18n';
 import {
   AddressLink,
-  SECTION_TITLE_KEYS,
+  getSectionTitleKey,
 } from '@/shared/routing';
 import {
   buttonClassName,
@@ -15,25 +15,24 @@ import {
 const ACTION_LINK_CLASS_NAME = buttonClassName({ size: 'lg' });
 
 interface LandingLinkScreenProps {
-  actionKey: 'routing.notFound.action' | 'routing.objectUnavailable.action';
-  actionTestId?: string | undefined;
+  kind: 'notFound' | 'objectUnavailable';
   landingSection: AppSectionValue;
-  titleKey: 'routing.notFound.title' | 'routing.objectUnavailable.title';
 }
 
-export const LandingLinkScreen = ({
-  actionKey,
-  actionTestId,
-  landingSection,
-  titleKey,
-}: LandingLinkScreenProps): ReactElement => {
+export const LandingLinkScreen = ({ kind, landingSection }: LandingLinkScreenProps): ReactElement => {
   const { t } = useI18n();
+  const isNotFound = kind === 'notFound';
 
   const landingAction = (
-    <AddressLink className={ACTION_LINK_CLASS_NAME} data-testid={actionTestId} to={{ kind: 'section', section: landingSection }}>
-      {t(actionKey, { section: t(SECTION_TITLE_KEYS[landingSection]) })}
+    <AddressLink
+      className={ACTION_LINK_CLASS_NAME}
+      data-testid={isNotFound ? 'not-found-action' : undefined}
+      to={{ kind: 'section', section: landingSection }}
+    >
+      {t(`routing.${kind}.action`, { section: t(getSectionTitleKey(landingSection)) })}
     </AddressLink>
   );
+  const screen = <StatusScreen action={landingAction} layout="section" title={t(`routing.${kind}.title`)} tone="neutral" />;
 
-  return <StatusScreen action={landingAction} layout="section" title={t(titleKey)} tone="neutral" />;
+  return isNotFound ? <div className="contents" data-testid="not-found">{screen}</div> : screen;
 };

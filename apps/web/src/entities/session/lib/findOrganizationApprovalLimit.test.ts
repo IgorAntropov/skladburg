@@ -7,7 +7,7 @@ import {
   it,
 } from 'vitest';
 
-import { findDealApprovalLimit } from './dealApprovalLimit';
+import { findOrganizationApprovalLimit } from './findOrganizationApprovalLimit';
 
 const request = create(MoneySchema, { amountMinor: 9_007_199_254_740_993n, currencyCode: 'RUB' });
 const lowerLimit = create(MoneySchema, { amountMinor: request.amountMinor - 1n, currencyCode: 'RUB' });
@@ -16,24 +16,32 @@ const usdLimit = create(MoneySchema, { amountMinor: request.amountMinor * 2n, cu
 const scopedUnlimited = create(EffectivePermissionSchema, { permission: 'deal_approve', warehouseIds: ['own-warehouse'] });
 const organizationGrant = create(EffectivePermissionSchema, { isOrganizationWide: true, permission: 'deal_approve' });
 
-describe('findDealApprovalLimit', () => {
+describe('findOrganizationApprovalLimit', () => {
   it('uses the matching currency and retains bigint precision', () => {
-    expect(findDealApprovalLimit([
+    expect(findOrganizationApprovalLimit([
       { ...organizationGrant, amountLimit: lowerLimit },
       { ...organizationGrant, amountLimit: usdLimit },
       scopedUnlimited,
-    ], request)).toBe(lowerLimit);
+    ], request, 'deal_approve')).toBe(lowerLimit);
   });
 
   it('accepts the exact limit', () => {
-    expect(findDealApprovalLimit([{ ...organizationGrant, amountLimit: request }], request)).toBeUndefined();
+    expect(findOrganizationApprovalLimit([{ ...organizationGrant, amountLimit: request }], request, 'deal_approve')).toBeUndefined();
   });
 
   it('honors an unlimited organization grant', () => {
-    expect(findDealApprovalLimit([{ ...organizationGrant, amountLimit: lowerLimit }, organizationGrant], request)).toBeUndefined();
+    expect(findOrganizationApprovalLimit([
+      { ...organizationGrant, amountLimit: lowerLimit }, organizationGrant,
+    ], request, 'deal_approve')).toBeUndefined();
   });
 
   it('reports an incompatible currency when no grant covers the request currency', () => {
-    expect(findDealApprovalLimit([{ ...organizationGrant, amountLimit: usdLimit }], request)).toBe(usdLimit);
+    expect(findOrganizationApprovalLimit([{ ...organizationGrant, amountLimit: usdLimit }], request, 'deal_approve')).toBe(usdLimit);
+  });
+
+  it('ignores unrelated grants when choosing a transport offer', () => {
+    expect(findOrganizationApprovalLimit([
+      { ...organizationGrant, amountLimit: lowerLimit, permission: 'transport_offer_approve' }, organizationGrant,
+    ], request, 'transport_offer_approve')).toBe(lowerLimit);
   });
 });

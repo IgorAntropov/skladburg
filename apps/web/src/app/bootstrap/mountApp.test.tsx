@@ -39,6 +39,7 @@ const createLoaders = (): MockSectionLoadersValue => ({
   deals: createLoader(),
   garage: createLoader(),
   network: createLoader(),
+  transport: createLoader(),
   warehouse: createLoader(),
 });
 

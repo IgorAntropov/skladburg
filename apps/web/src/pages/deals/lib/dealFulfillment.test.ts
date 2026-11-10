@@ -12,7 +12,9 @@ describe('getDealFulfillmentAction', () => {
   it('offers shipment to the supplier for supported deliveries after payment', () => {
     expect(getDealFulfillmentAction(DealStatus.PAID, DeliveryMethod.CUSTOMER, 'supplier')).toBe('markDealShipped');
     expect(getDealFulfillmentAction(DealStatus.PICKING, DeliveryMethod.SUPPLIER, 'supplier')).toBe('markDealShipped');
-    expect(getDealFulfillmentAction(DealStatus.PAID, DeliveryMethod.EXCHANGE, 'supplier')).toBeUndefined();
+    expect(getDealFulfillmentAction(DealStatus.PAID, DeliveryMethod.EXCHANGE, 'supplier')).toBe('markDealShipped');
+    expect(getDealFulfillmentAction(DealStatus.PICKING, DeliveryMethod.EXCHANGE, 'supplier')).toBe('markDealShipped');
+    expect(getDealFulfillmentAction(DealStatus.PAID, DeliveryMethod.UNSPECIFIED, 'supplier')).toBeUndefined();
     expect(getDealFulfillmentAction(DealStatus.PAID, DeliveryMethod.CUSTOMER, 'customer')).toBeUndefined();
   });
 

@@ -3,6 +3,7 @@ export type { CreateSessionQueryOptionsValue } from './api/sessionQueryOptions';
 export { createSessionQueryOptions } from './api/sessionQueryOptions';
 export { useCan } from './api/useCan';
 export { useCommandAccess } from './api/useCommandAccess';
+export { useOrganizationApprovalAccess } from './api/useOrganizationApprovalAccess';
 export { useProfileSummary } from './api/useProfileSummary';
 export { useSessionQuery } from './api/useSessionQuery';
 export { isPermissionGranted } from './lib/isPermissionGranted';

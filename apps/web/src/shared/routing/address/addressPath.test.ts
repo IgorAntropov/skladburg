@@ -6,9 +6,9 @@ import {
 
 import type { AppAddressValue } from './addressTypes';
 
+import { getPlacedAddressSection } from './addressSections';
 import {
   APP_SECTIONS,
-  OBJECT_HOME_SECTION,
   OBJECT_TYPES,
 } from './addressTypes';
 import { formatAddressPath } from './formatAddressPath';
@@ -32,6 +32,7 @@ describe('formatAddressPath', () => {
     ['handling_unit', '/handling-units/'],
     ['cell', '/cells/'],
     ['vehicle', '/vehicles/'],
+    ['transport_request', '/transport-requests/'],
     ['trip', '/trips/'],
     ['warehouse', '/warehouses/'],
     ['site', '/sites/'],
@@ -68,12 +69,16 @@ describe('parseAddressPath round trip', () => {
 
   it('gives every object type a home section from the section list', () => {
     for (const type of OBJECT_TYPES) {
-      expect(APP_SECTIONS).toContain(OBJECT_HOME_SECTION[type]);
+      expect(APP_SECTIONS).toContain(getPlacedAddressSection({ kind: 'object', object: { id: DEAL_ID, type } }));
     }
   });
 
   it('maps objects to their home sections', () => {
-    expect(OBJECT_HOME_SECTION).toEqual({
+    const sections = Object.fromEntries(
+      OBJECT_TYPES.map(type => [type, getPlacedAddressSection({ kind: 'object', object: { id: DEAL_ID, type } })]),
+    );
+
+    expect(sections).toEqual({
       cell: 'warehouse',
       city: 'network',
       dashboard: 'network',
@@ -83,7 +88,8 @@ describe('parseAddressPath round trip', () => {
       listing: 'catalog',
       organization: 'network',
       site: 'network',
-      trip: 'network',
+      transport_request: 'transport',
+      trip: 'transport',
       vehicle: 'network',
       warehouse: 'warehouse',
     });

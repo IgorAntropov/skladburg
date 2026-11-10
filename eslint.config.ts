@@ -110,6 +110,15 @@ const lazyDealFormFiles: string[] = [
   'apps/web/src/pages/deals/api/commands/**/*.{ts,tsx}',
   'apps/web/src/pages/deals/ui/inspector/**/*.{ts,tsx}',
 ];
+const transportFormHookFiles: string[] = ['apps/web/src/pages/transport-workspace/api/useTransportWorkspaceForms.ts'];
+const transportMoneyFiles: string[] = [
+  ...transportFormHookFiles,
+  'apps/web/src/pages/transport-workspace/model/transportFormValues.ts',
+  'apps/web/src/pages/transport-workspace/ui/TransportCargoDetails.tsx',
+  'apps/web/src/pages/transport-workspace/ui/TransportRequestInspector.tsx',
+  'apps/web/src/pages/transport-workspace/ui/TransportRequestOffers.tsx',
+  'apps/web/src/pages/transport-workspace/ui/TransportTripInspector.tsx',
+];
 const lazySceneViewportFiles: string[] = ['apps/web/src/widgets/scene-viewport/**/*.{ts,tsx}'];
 const lazySceneCameraControlsChunkFiles: string[] = ['apps/web/src/widgets/scene-viewport/ui/controls/**/*.{ts,tsx}'];
 const lazyNetworkPageFiles: string[] = ['apps/web/src/pages/network/**/*.{ts,tsx}'];
@@ -1145,7 +1154,7 @@ export default defineConfig(
     ),
   },
   {
-    files: lazyDealFormFiles,
+    files: [...lazyDealFormFiles, ...transportFormHookFiles],
     ignores: webTestFiles,
     rules: createBoundaryRules(
       [
@@ -1317,6 +1326,10 @@ export default defineConfig(
   {
     files: garageEditorFiles,
     ignores: [...webTestFiles, ...sceneSegmentFiles],
+    rules: createLazyModuleRules([], chunkBoundaryImportRestrictions),
+  },
+  {
+    files: transportMoneyFiles,
     rules: createLazyModuleRules([], chunkBoundaryImportRestrictions),
   },
   {

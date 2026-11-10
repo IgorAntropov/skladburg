@@ -32,6 +32,7 @@ export const DEFAULT_SECTION_LOADERS: SectionLoadersValue = {
   deals: () => import('@/pages/deals').then(module => ({ default: module.DealsPage })),
   garage: () => import('@/pages/carrier-garage').then(module => ({ default: module.CarrierGaragePage })),
   network: () => import('@/pages/network').then(module => ({ default: module.NetworkPage })),
+  transport: () => import('@/pages/transport-workspace').then(module => ({ default: module.TransportWorkspacePage })),
   warehouse: () => import('@/pages/warehouse').then(module => ({ default: module.WarehousePage })),
 };
 

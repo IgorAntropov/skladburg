@@ -1,3 +1,4 @@
+import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
 import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
 
 import type { DealEditorValue } from './dealInspectorTypes';
@@ -30,12 +31,22 @@ const PARTY_ACTIONS: Record<PartyValue, Partial<Record<DealStatus, readonly Deal
   },
 };
 
-export const getDealActions = (status: DealStatus, party: PartyValue | undefined): readonly DealActionValue[] => {
+export const getDealActions = (
+  status: DealStatus,
+  party: PartyValue | undefined,
+  deliveryMethod = DeliveryMethod.UNSPECIFIED,
+  canPublish = false,
+): readonly DealActionValue[] => {
   if (party === undefined || (party === 'supplier' && status === DealStatus.DRAFT)) {
     return [];
   }
 
-  const actions = PARTY_ACTIONS[party][status] ?? [];
+  const isExchange = deliveryMethod === DeliveryMethod.EXCHANGE;
+  const actions = (PARTY_ACTIONS[party][status] ?? []).filter(action => !isExchange || action !== 'delivery');
+
+  if (canPublish && !isExchange && status === DealStatus.AGREED) {
+    actions.push('publishTransport');
+  }
 
   return CANCELLABLE_STATUSES.has(status) ? [...actions, 'cancel'] : actions;
 };

@@ -2,7 +2,7 @@ export type { PlacedAddressValue } from './address/addressSections';
 export {
   getAddressSection,
   getPlacedAddressSection,
-  SECTION_TITLE_KEYS,
+  getSectionTitleKey,
 } from './address/addressSections';
 export type {
   AppAddressValue,
@@ -12,7 +12,6 @@ export type {
 } from './address/addressTypes';
 export {
   APP_SECTIONS,
-  OBJECT_HOME_SECTION,
   OBJECT_TYPES,
 } from './address/addressTypes';
 export {

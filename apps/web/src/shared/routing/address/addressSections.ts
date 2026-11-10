@@ -5,20 +5,16 @@ import type {
   AppSectionValue,
 } from './addressTypes';
 
-import { OBJECT_HOME_SECTION } from './addressTypes';
+import { OBJECT_ROUTES } from './addressTypes';
 
 export type PlacedAddressValue = Exclude<AppAddressValue, { kind: 'home' }>;
 
-export const SECTION_TITLE_KEYS = {
-  catalog: 'section.catalog.title',
-  deals: 'section.deals.title',
-  garage: 'section.garage.title',
-  network: 'section.network.title',
-  warehouse: 'section.warehouse.title',
-} as const satisfies Record<AppSectionValue, MessageKey>;
+type SectionTitleKey = Extract<MessageKey, `section.${AppSectionValue}.title`>;
+
+export const getSectionTitleKey = (section: AppSectionValue): SectionTitleKey => `section.${section}.title`;
 
 export const getPlacedAddressSection = (address: PlacedAddressValue): AppSectionValue => {
-  return address.kind === 'section' ? address.section : OBJECT_HOME_SECTION[address.object.type];
+  return address.kind === 'section' ? address.section : OBJECT_ROUTES[address.object.type].section;
 };
 
 export const getAddressSection = (address: AppAddressValue): AppSectionValue | undefined => {

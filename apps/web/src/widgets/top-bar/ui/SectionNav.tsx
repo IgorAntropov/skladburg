@@ -6,7 +6,7 @@ import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
 import {
   AddressLink,
-  SECTION_TITLE_KEYS,
+  getSectionTitleKey,
 } from '@/shared/routing';
 
 const NAV_LABEL_CLASS_NAME = [
@@ -40,7 +40,7 @@ export const SectionNav = ({ currentSection, isCompact, sections }: SectionNavPr
       <ul className="flex gap-0.5">
         {sections.map((section) => {
           const ariaCurrent = section === currentSection ? 'page' : undefined;
-          const title = t(SECTION_TITLE_KEYS[section]);
+          const title = t(getSectionTitleKey(section));
 
           return (
             <li className="flex" key={section}>

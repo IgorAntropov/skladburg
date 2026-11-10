@@ -31,15 +31,15 @@ import {
   readCarrierTripPayment,
 } from '../payments/transportSettlement';
 import { publishTripChanges } from './transportEvents';
-import { buildTripAssignment } from './tripAssignment';
 import {
   advanceTrip,
   requireTripTransition,
 } from './tripMachine';
+import { readTripBodyTemperature } from './tripTemperature';
 
 type TripServiceValue = Pick<ServiceImpl<typeof LogisticsService>, 'assignTrip' | 'confirmTransportOrder' | 'getTrip' | 'listTrips'>;
 
-const projectTrip = (read: IStateReader, trip: TripRecord, organizationId: string): Trip | undefined => {
+const projectTrip = (read: IStateReader, trip: TripRecord, organizationId: string, worldTimeMs: number): Trip | undefined => {
   const order = trip.transportOrder;
   if (order === undefined) {
     return undefined;
@@ -51,6 +51,7 @@ const projectTrip = (read: IStateReader, trip: TripRecord, organizationId: strin
 
   return create(TripSchema, {
     arrivedAt: trip.arrivedAt,
+    bodyTemperature: readTripBodyTemperature(trip, worldTimeMs),
     carrierPayment: isCarrier ? readCarrierTripPayment(read, trip) : undefined,
     dealId: trip.dealId,
     delivery: order.delivery,
@@ -85,32 +86,36 @@ const readCarrierTrip = (
 };
 
 export const createTripService = (runtime: IModuleRuntime): TripServiceValue => {
-  const { command, errors, guard, idempotency, read } = runtime;
+  const { command, errors, getWorldTimeMs, guard, idempotency, read } = runtime;
 
   return {
-    assignTrip: (request, context) => command((transaction) => {
-      const method = LogisticsService.method.assignTrip;
-      const { admission, organizationId, user } = guard.guardPermissionCall(transaction, method, request, context.requestHeader);
-      if (admission.kind !== 'membership') {
-        throw errors.permissionDenied('trip_edit');
-      }
+    assignTrip: async (request, context) => {
+      const { buildTripAssignment } = await import('./tripAssignment');
 
-      return idempotency.run(transaction, {
-        handler: () => {
-          const trip = readCarrierTrip(errors, transaction, request.tripId, organizationId);
-          requireTripTransition(errors, 'assign', trip, request.expectedVersion);
-          trip.assignment = buildTripAssignment(errors, transaction, trip, request);
-          advanceTrip(runtime, transaction, trip, 'assign', user.id);
-          publishTripChanges(runtime, transaction, trip);
+      return command((transaction) => {
+        const method = LogisticsService.method.assignTrip;
+        const { admission, organizationId, user } = guard.guardPermissionCall(transaction, method, request, context.requestHeader);
+        if (admission.kind !== 'membership') {
+          throw errors.permissionDenied('trip_edit');
+        }
 
-          return create(AssignTripResponseSchema, { trip: projectTrip(transaction, trip, organizationId) });
-        },
-        idempotencyKey: request.idempotencyKey,
-        method,
-        request,
-        scope: organizationId,
+        return idempotency.run(transaction, {
+          handler: () => {
+            const trip = readCarrierTrip(errors, transaction, request.tripId, organizationId);
+            requireTripTransition(errors, 'assign', trip, request.expectedVersion);
+            trip.assignment = buildTripAssignment(errors, transaction, trip, request);
+            advanceTrip(runtime, transaction, trip, 'assign', user.id);
+            publishTripChanges(runtime, transaction, trip);
+
+            return create(AssignTripResponseSchema, { trip: projectTrip(transaction, trip, organizationId, transaction.worldTimeMs) });
+          },
+          idempotencyKey: request.idempotencyKey,
+          method,
+          request,
+          scope: organizationId,
+        });
       });
-    }),
+    },
     confirmTransportOrder: async (request, context) => {
       const { issueDealDocuments } = await loadDocuments();
 
@@ -139,7 +144,9 @@ export const createTripService = (runtime: IModuleRuntime): TripServiceValue => 
             advanceTrip(runtime, transaction, trip, 'confirm', user.id);
             publishTripChanges(runtime, transaction, trip);
 
-            return create(ConfirmTransportOrderResponseSchema, { trip: projectTrip(transaction, trip, organizationId) });
+            return create(ConfirmTransportOrderResponseSchema, {
+              trip: projectTrip(transaction, trip, organizationId, transaction.worldTimeMs),
+            });
           },
           idempotencyKey: request.idempotencyKey,
           method,
@@ -152,7 +159,7 @@ export const createTripService = (runtime: IModuleRuntime): TripServiceValue => 
       const method = LogisticsService.method.getTrip;
       const { organizationId } = guard.guardPermissionCall(read, method, request, context.requestHeader);
       const record = read.get('trips', request.tripId);
-      const trip = record === undefined ? undefined : projectTrip(read, record, organizationId);
+      const trip = record === undefined ? undefined : projectTrip(read, record, organizationId, getWorldTimeMs());
       if (trip === undefined) {
         throw errors.notFound(EntityKind.TRIP);
       }
@@ -162,8 +169,9 @@ export const createTripService = (runtime: IModuleRuntime): TripServiceValue => 
     listTrips: (request, context) => {
       const method = LogisticsService.method.listTrips;
       const { organizationId } = guard.guardPermissionCall(read, method, request, context.requestHeader);
+      const worldTimeMs = getWorldTimeMs();
       const candidates = read.list('trips').flatMap((record) => {
-        const trip = projectTrip(read, record, organizationId);
+        const trip = projectTrip(read, record, organizationId, worldTimeMs);
 
         return trip === undefined ? [] : [trip];
       });

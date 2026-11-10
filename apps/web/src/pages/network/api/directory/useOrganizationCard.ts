@@ -2,7 +2,6 @@ import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import {
   useCallback,
   useMemo,
-  useState,
 } from 'react';
 
 import {
@@ -28,7 +27,6 @@ export interface OrganizationCardStateValue {
 export const useOrganizationCard = (organizationId: string): OrganizationCardStateValue => {
   const showcaseQuery = useOrganizationShowcaseQuery(organizationId);
   const spheresQuery = useSpheresQuery();
-  const [isRetrying, setIsRetrying] = useState(false);
 
   const showcase = showcaseQuery.data;
   const spheres = spheresQuery.data;
@@ -57,26 +55,13 @@ export const useOrganizationCard = (organizationId: string): OrganizationCardSta
   const retry = useCallback((): void => {
     console.log('> useOrganizationCard -> retry:', { isShowcaseFailed, isSpheresFailed });
 
-    const refetches: Promise<unknown>[] = [];
-
     if (isShowcaseFailed) {
-      refetches.push(refetchShowcase());
+      void refetchShowcase();
     }
-
     if (isSpheresFailed) {
-      refetches.push(refetchSpheres());
+      void refetchSpheres();
     }
-
-    if (refetches.length === 0) {
-      return;
-    }
-
-    setIsRetrying(true);
-
-    void Promise.all(refetches).finally(() => {
-      setIsRetrying(false);
-    });
   }, [isShowcaseFailed, isSpheresFailed, refetchShowcase, refetchSpheres]);
 
-  return { data, error, isNotFound, isRetrying, retry };
+  return { data, error, isNotFound, isRetrying: showcaseQuery.isFetching || spheresQuery.isFetching, retry };
 };

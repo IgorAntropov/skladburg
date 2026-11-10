@@ -26,6 +26,7 @@ export const DealFolder = ({
   onRefresh,
   onUpdated,
   party,
+  transportCard,
 }: DealFolderProps): ReactElement => {
   const { t: baseText } = useI18n();
   const { retry, status, t } = useCatalogSection(dealFolderSection);
@@ -40,6 +41,7 @@ export const DealFolder = ({
   return (
     <>
       <DealDocuments deal={deal} initialDocumentId={initialDocumentId} key={documentFocusRequest} onRefresh={onRefresh} />
+      {transportCard}
       <DealPayment deal={deal} t={t} />
       {action !== undefined && (
         <DealFulfillmentButton

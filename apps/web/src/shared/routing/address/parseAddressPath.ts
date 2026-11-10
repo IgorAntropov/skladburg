@@ -6,7 +6,7 @@ import type {
 
 import {
   APP_SECTIONS,
-  OBJECT_PATH_SEGMENTS,
+  OBJECT_ROUTES,
   OBJECT_TYPES,
 } from './addressTypes';
 
@@ -17,7 +17,7 @@ const findSection = (segment: string): AppSectionValue | undefined => {
 };
 
 const findObjectType = (segment: string): ObjectTypeValue | undefined => {
-  return OBJECT_TYPES.find(type => OBJECT_PATH_SEGMENTS[type] === segment);
+  return OBJECT_TYPES.find(type => OBJECT_ROUTES[type].segment === segment);
 };
 
 export const parseAddressPath = (path: string): AppAddressValue | undefined => {
@@ -31,11 +31,7 @@ export const parseAddressPath = (path: string): AppAddressValue | undefined => {
 
   const trimmedPath = path.endsWith('/') ? path.slice(0, -1) : path;
   const segments = trimmedPath.slice(1).split('/');
-  const [firstSegment, secondSegment] = segments;
-
-  if (firstSegment === undefined) {
-    return undefined;
-  }
+  const [firstSegment = '', secondSegment] = segments;
 
   if (segments.length === 1) {
     const section = findSection(firstSegment);

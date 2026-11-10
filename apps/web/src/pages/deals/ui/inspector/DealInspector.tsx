@@ -1,6 +1,7 @@
 import type { Deal } from '@skladburg/contracts/deal/v1/deal';
 import type { ReactElement } from 'react';
 
+import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
 import {
   useLayoutEffect,
@@ -8,7 +9,10 @@ import {
   useState,
 } from 'react';
 
-import { useSessionQuery } from '@/entities/session';
+import {
+  isPermissionGranted,
+  useSessionQuery,
+} from '@/entities/session';
 import { useActingContext } from '@/shared/api';
 import {
   useCatalogSection,
@@ -27,6 +31,7 @@ import type { DealEditorValue } from './dealInspectorTypes';
 import { dealInspectorSection } from '../../i18n/inspectorSection';
 import { DealStatusBadge } from '../DealStatusBadge';
 import { DealFolderSlot } from '../folder/DealFolderSlot';
+import { DealTransportSlot } from '../transport/DealTransportSlot';
 import { ApproveDealButton } from './ApproveDealButton';
 import { getDealActions } from './dealActionAvailability';
 import { DealActionOpenButton } from './DealActionOpenButton';
@@ -64,9 +69,12 @@ const DealInspectorBody = ({
   const isCustomer = organizationId === deal.customerOrganizationId;
   const isSupplier = organizationId === deal.supplierOrganizationId;
   const party = isCustomer ? 'customer' : (isSupplier ? 'supplier' : undefined);
-  const actions = getDealActions(deal.status, party);
+  const canPublish = session !== undefined
+    && isPermissionGranted(session.permissions, PermissionCode.TRANSPORT_REQUEST_CREATE, { kind: 'organization' });
+  const actions = getDealActions(deal.status, party, deal.deliveryMethod, canPublish);
   const hasActions = editor === undefined && actions.length > 0;
   const hasFolder = deal.deliveryMethod !== DeliveryMethod.UNSPECIFIED;
+  const hasTransportRequest = deal.deliveryMethod === DeliveryMethod.EXCHANGE && party !== undefined;
   const ownCompany = session?.organizations.find(organization => organization.id === organizationId)?.name
     ?? t('dealInspector.ownCompany');
   const otherCompany = counterpartyName ?? t('dealInspector.notSpecified');
@@ -78,7 +86,8 @@ const DealInspectorBody = ({
 
   const handleUpdated = (updated: Deal): void => {
     if (editor !== undefined && editorRef.current?.contains(document.activeElement) === true) {
-      pendingFocusRef.current = getDealActions(updated.status, party).includes(editor) ? editor : 'status';
+      const currentActions = getDealActions(updated.status, party, updated.deliveryMethod, canPublish);
+      pendingFocusRef.current = currentActions.includes(editor) ? editor : 'status';
     }
 
     onUpdated(updated);
@@ -91,6 +100,18 @@ const DealInspectorBody = ({
 
   const handleFocusStatus = (): void => {
     statusRef.current?.focus();
+  };
+
+  const handlePublished = (): void => {
+    if (editorRef.current?.contains(document.activeElement) === true) {
+      pendingFocusRef.current = 'status';
+    }
+    onRefresh();
+    setEditor(undefined);
+  };
+
+  const handleOpenPublish = (): void => {
+    setEditor('publishTransport');
   };
 
   useLayoutEffect(() => {
@@ -122,6 +143,7 @@ const DealInspectorBody = ({
         </div>
       </dl>
       <DealTerms deal={deal} t={t} />
+      {hasTransportRequest && <DealTransportSlot dealId={deal.id} kind="request" />}
       {hasFolder && (
         <DealFolderSlot
           deal={deal}
@@ -131,6 +153,7 @@ const DealInspectorBody = ({
           onRefresh={onRefresh}
           onUpdated={handleUpdated}
           party={party}
+          transportCard={hasTransportRequest ? <DealTransportSlot dealId={deal.id} kind="trip" /> : undefined}
         />
       )}
       {editor !== undefined && (
@@ -140,6 +163,7 @@ const DealInspectorBody = ({
             deal={deal}
             isCurrentAction={actions.includes(editor)}
             onClose={handleClose}
+            onPublished={handlePublished}
             onRefresh={onRefresh}
             onUpdated={handleUpdated}
             t={t}
@@ -149,8 +173,12 @@ const DealInspectorBody = ({
       {hasActions && (
         <section className="flex flex-col gap-2" ref={actionListRef}>
           <h3 className="text-base font-semibold">{t('dealInspector.actions')}</h3>
-          {actions.map(action => action === 'submit' || action === 'accept'
-            ? (
+          {actions.map((action) => {
+            if (action === 'publishTransport') {
+              return <DealTransportSlot key={action} kind="publish" onOpen={handleOpenPublish} />;
+            }
+            if (action === 'submit' || action === 'accept') {
+              return (
                 <ApproveDealButton
                   deal={deal}
                   key={`${action}-${String(deal.version)}`}
@@ -160,8 +188,10 @@ const DealInspectorBody = ({
                   onUpdated={onUpdated}
                   t={t}
                 />
-              )
-            : <DealActionOpenButton action={action} deal={deal} key={action} onOpen={setEditor} t={t} />)}
+              );
+            }
+            return <DealActionOpenButton action={action} deal={deal} key={action} onOpen={setEditor} t={t} />;
+          })}
         </section>
       )}
       <DealHistory deal={deal} t={t} />

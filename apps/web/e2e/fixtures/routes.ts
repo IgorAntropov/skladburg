@@ -1,4 +1,4 @@
-export const SECTIONS = ['network', 'catalog', 'deals', 'warehouse', 'garage'] as const;
+export const SECTIONS = ['network', 'catalog', 'deals', 'warehouse', 'garage', 'transport'] as const;
 
 export interface ObjectRouteValue {
   id: string;

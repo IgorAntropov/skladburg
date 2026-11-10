@@ -33,7 +33,7 @@ import {
 } from '@/shared/i18n';
 import {
   APP_SECTIONS,
-  OBJECT_HOME_SECTION,
+  getPlacedAddressSection,
   OBJECT_TYPES,
   RoutingProvider,
 } from '@/shared/routing';
@@ -71,6 +71,7 @@ const createStubLoaders = (): StubLoadersValue => ({
   deals: vi.fn(createStubLoader('deals')),
   garage: vi.fn(createStubLoader('garage')),
   network: vi.fn(createStubLoader('network')),
+  transport: vi.fn(createStubLoader('transport')),
   warehouse: vi.fn(createStubLoader('warehouse')),
 });
 
@@ -183,11 +184,12 @@ describe('AppRoutes sections', () => {
       listing: 'listings',
       organization: 'organizations',
       site: 'sites',
+      transport_request: 'transport-requests',
       trip: 'trips',
       vehicle: 'vehicles',
       warehouse: 'warehouses',
     } as const;
-    const section = OBJECT_HOME_SECTION[type];
+    const section = getPlacedAddressSection({ kind: 'object', object: { id: OBJECT_ID, type } });
 
     await renderRoutes(`/${segments[type]}/${OBJECT_ID}`);
 

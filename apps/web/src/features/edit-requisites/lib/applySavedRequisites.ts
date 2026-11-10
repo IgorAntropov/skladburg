@@ -64,23 +64,11 @@ export const applySavedRequisites = (
   saved: OrganizationRequisites,
   options: ApplySavedRequisitesOptionsValue,
 ): RequisitesEditorStateValue => {
-  if (options.source === 'reload') {
-    return {
-      epoch: state.epoch + 1,
-      formVersion: saved.version,
-      requisites: saved,
-      signatoriesVersion: saved.version,
-    };
-  }
-
-  const isFormSource = options.source === 'form';
-  const isSignatoriesSource = options.source === 'signatories';
-  const hasFormDataChanged = !isFormDataEqual(state.requisites, saved);
-  const haveSignatoriesChanged = !areSignatoryListsEqual(state.requisites.signatories, saved.signatories);
-
-  const isFormVersionAdvanced = isFormSource || !hasFormDataChanged || !options.isFormDirty;
-  const isSignatoriesVersionAdvanced = isSignatoriesSource || !haveSignatoriesChanged || !options.isSignatoryEditing;
-  const isFormRecreated = !isFormSource && hasFormDataChanged && !options.isFormDirty;
+  const hasExternalFormChange = options.source === 'signatories' && !isFormDataEqual(state.requisites, saved);
+  const isFormVersionAdvanced = !hasExternalFormChange || !options.isFormDirty;
+  const isSignatoriesVersionAdvanced = options.source !== 'form' || !options.isSignatoryEditing
+    || areSignatoryListsEqual(state.requisites.signatories, saved.signatories);
+  const isFormRecreated = options.source === 'reload' || (hasExternalFormChange && !options.isFormDirty);
 
   return {
     epoch: isFormRecreated ? state.epoch + 1 : state.epoch,

@@ -5,7 +5,7 @@ import type { FormFieldIssueValue } from '@skladburg/contracts/forms';
 import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { SaveVehicleRequestFormRules } from '@skladburg/contracts/forms/fleet/v1/fleet';
 
-import { parseIsoCalendarDate } from '@/shared/lib/calendar-date';
+import { parseUtcDateTime } from '@/shared/lib/calendar-date';
 
 export interface AvailabilityRowValue {
   cityId: string;
@@ -37,8 +37,6 @@ type ReadBoundaryValue
 
 export const VEHICLE_AVAILABILITY_CAPACITY = SaveVehicleRequestFormRules.fields['details.availability'].maxItems;
 
-const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
-
 const AVAILABILITY_PATH_PATTERN = /^details\.availability\[(\d+)\]\.(city_id|ends_at|starts_at)(?:\.|$)/;
 
 const readDisplayBoundary = (timestamp: Timestamp | undefined): AvailabilityBoundaryValue => {
@@ -66,33 +64,16 @@ export const toAvailabilityRow = (window: undefined | VehicleAvailability, sourc
 };
 
 const readBoundary = (date: string, rawTime: string, original: Timestamp | undefined): ReadBoundaryValue => {
-  const parts = parseIsoCalendarDate(date);
-  if (parts === undefined || parts.year < 1 || parts.year > 9999) {
-    return { field: 'date' };
+  const parsed = parseUtcDateTime(date, rawTime);
+  if (parsed.field !== undefined) {
+    return { field: parsed.field };
   }
 
-  const calendarDay = new Date(0);
-  calendarDay.setUTCFullYear(parts.year, parts.month - 1, parts.day);
-
-  if (calendarDay.toISOString().slice(0, 10) !== date) {
-    return { field: 'date' };
-  }
-
-  const time = rawTime.trim();
-
-  if (!TIME_PATTERN.test(time)) {
-    return { field: 'time' };
-  }
-
-  const previous = readDisplayBoundary(original);
-
-  if (original !== undefined && date === previous.date && time === previous.time) {
+  if (original !== undefined && Math.floor(Number(original.seconds) / 60) === parsed.value.getTime() / 60_000) {
     return { value: original };
   }
 
-  calendarDay.setUTCHours(Number(time.slice(0, 2)), Number(time.slice(3)));
-
-  return { value: timestampFromDate(calendarDay) };
+  return { value: timestampFromDate(parsed.value) };
 };
 
 export const readAvailabilityWindows = (

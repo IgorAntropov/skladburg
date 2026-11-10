@@ -12,12 +12,13 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { ClipboardList } from 'lucide-react';
+import { useEffect } from 'react';
 
 import type { ObjectRefValue } from '@/shared/routing';
 
 import { useMapSitesQuery } from '@/entities/network';
 import {
-  useCan,
+  isPermissionGranted,
   useSessionQuery,
 } from '@/entities/session';
 import {
@@ -32,11 +33,14 @@ import {
 import {
   createCachedModuleLoader,
   createLazyComponent,
+  useChunkLoader,
 } from '@/shared/lib/module-loader';
 import { useViewportClass } from '@/shared/lib/viewport';
 import {
   Button,
+  ChunkLoadNotice,
   EmptyState,
+  Skeleton,
   SkeletonGroup,
   WidgetStates,
 } from '@/shared/ui';
@@ -46,6 +50,8 @@ import {
 } from '@/widgets/hud-layout';
 import { ObjectInspector } from '@/widgets/object-inspector';
 import { ScenePlaceholder } from '@/widgets/scene-viewport';
+
+import type { DealsTranslate } from '../i18n/dealsSection';
 
 import { createDealQueryOptions } from '../api/dealQueryOptions';
 import { dealKeys } from '../api/dealQueryScope';
@@ -59,7 +65,6 @@ import {
   DealsBoard,
   DealsBoardSkeleton,
 } from './DealsBoard';
-import { DealTracker } from './DealTracker';
 
 export interface DealsPageContentProps extends DealsPageProps {
   documentRoute: DocumentRouteValue | undefined;
@@ -84,6 +89,37 @@ const loadDealDocumentRoute = createCachedModuleLoader(() => import('./DealDocum
   default: module.DealDocumentRoute,
 })));
 const DealDocumentRoute = createLazyComponent(loadDealDocumentRoute);
+const loadDealTracker = createCachedModuleLoader(() => import('./DealTracker'));
+
+interface DealTrackerSlotProps {
+  deal: Deal;
+  t: DealsTranslate;
+}
+
+const DealTrackerSlot = ({ deal, t }: DealTrackerSlotProps): ReactElement => {
+  const { t: baseText } = useI18n();
+  const { load, state } = useChunkLoader(loadDealTracker);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (state.kind === 'loaded') {
+    return <state.module.DealTracker deal={deal} t={t} />;
+  }
+  if (state.kind === 'failed') {
+    return (
+      <ChunkLoadNotice
+        message={baseText('routing.chunkError.message')}
+        onRetry={load}
+        recovery={state.recovery}
+        repeatedMessage={baseText('routing.chunkError.repeated')}
+      />
+    );
+  }
+
+  return <SkeletonGroup isFilled label={t('deals.loading')}><Skeleton className="h-16" /></SkeletonGroup>;
+};
 
 const DealsPageContent = ({ documentRoute, focus }: DealsPageContentProps): ReactElement => {
   const { t } = useI18n();
@@ -91,14 +127,16 @@ const DealsPageContent = ({ documentRoute, focus }: DealsPageContentProps): Reac
   const client = useApiClient();
   const queryClient = useQueryClient();
   const { organizationId, userId } = useActingContext();
-  const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
-  const canViewNetwork = useCan(PermissionCode.NETWORK_VIEW);
-  const { isPending: isSessionPending } = useSessionQuery();
+  const { data: session, isPending: isSessionPending } = useSessionQuery();
   const inspectorFocus = useInspectorFocus('deals', focus);
   const viewportClass = useViewportClass();
 
   const documentId = documentRoute?.documentId;
   const dealId = focus?.type === 'deal' ? focus.id : documentRoute?.dealId;
+  const canViewDeals = session !== undefined
+    && isPermissionGranted(session.permissions, PermissionCode.DEAL_VIEW, { kind: 'organization' });
+  const canViewNetwork = session !== undefined
+    && isPermissionGranted(session.permissions, PermissionCode.NETWORK_VIEW, { kind: 'any' });
   const dealOptions = createDealQueryOptions({ client, organizationId, userId }, canViewDeals ? dealId : undefined);
   const dealQuery = useQuery(dealOptions);
   const { data: sites } = useMapSitesQuery(canViewDeals && canViewNetwork);
@@ -107,7 +145,7 @@ const DealsPageContent = ({ documentRoute, focus }: DealsPageContentProps): Reac
   const inspectorQuery = dealId === undefined && documentRoute !== undefined ? documentRoute : dealQuery;
   const deal = isUnavailable ? undefined : dealQuery.data?.deal;
   const organizationNames = new Map((canViewNetwork ? sites : undefined)?.map(site => [site.organizationId, site.organizationName]));
-  const tracker = deal !== undefined && dealsT !== undefined ? <DealTracker deal={deal} t={dealsT} /> : undefined;
+  const tracker = deal !== undefined && dealsT !== undefined ? <DealTrackerSlot deal={deal} t={dealsT} /> : undefined;
 
   const handleRefresh = (): void => {
     void inspectorQuery.refetch();

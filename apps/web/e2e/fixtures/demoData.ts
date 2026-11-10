@@ -6,13 +6,13 @@ export interface PersonaValue {
   sections: readonly SectionValue[];
 }
 
-const TRADING_SECTIONS: readonly SectionValue[] = ['network', 'catalog', 'deals', 'warehouse'];
+const TRADING_SECTIONS: readonly SectionValue[] = ['network', 'catalog', 'deals', 'warehouse', 'transport'];
 
 export const PERSONAS = {
   constructionCarrier: {
     id: '90000007-0000-4000-8000-000000000000',
     organizationName: 'Широкий путь',
-    sections: ['network', 'deals', 'garage'],
+    sections: ['network', 'deals', 'garage', 'transport'],
   },
   constructionCustomer: {
     id: '90000005-0000-4000-8000-000000000000',
@@ -27,7 +27,7 @@ export const PERSONAS = {
   freshCarrier: {
     id: '90000003-0000-4000-8000-000000000000',
     organizationName: 'Северный холод',
-    sections: ['network', 'deals', 'garage'],
+    sections: ['network', 'deals', 'garage', 'transport'],
   },
   freshCustomer: {
     id: '90000001-0000-4000-8000-000000000000',

@@ -109,6 +109,11 @@ message SelectTransportOfferResponse {
   TransportRequest transport_request = 1;
 }
 
+message TripTemperatureReading {
+  sint32 deci_celsius = 1;
+  google.protobuf.Timestamp measured_at = 2;
+}
+
 message Trip {
   string id = 1;
   string deal_id = 2;
@@ -123,6 +128,7 @@ message Trip {
   TransportOrder transport_order = 11;
   TripAssignment own_assignment = 12;
   payment.v1.TransportPaymentBreakdown carrier_payment = 13;
+  TripTemperatureReading body_temperature = 14;
 }
 
 message GetTripRequest {

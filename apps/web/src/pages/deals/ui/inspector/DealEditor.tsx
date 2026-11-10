@@ -1,6 +1,11 @@
-import type { ReactElement } from 'react';
+import type {
+  ComponentType,
+  ReactElement,
+} from 'react';
 
 import { useEffect } from 'react';
+
+import type { CachedModuleLoader } from '@/shared/lib/module-loader';
 
 import { useI18n } from '@/shared/i18n';
 import {
@@ -15,30 +20,37 @@ import {
 } from '@/shared/ui';
 
 import type {
-  DealEditorProps,
+  ActiveDealEditorProps,
   DealEditorValue,
 } from './dealInspectorTypes';
-
-import { ConfirmDealForm } from './ConfirmDealForm';
-import { DealDeliveryForm } from './DealDeliveryForm';
-import { DealReasonForm } from './DealReasonForm';
 
 const loadCounterForm = createCachedModuleLoader(() =>
   import('./counterFormEntry').then(({ CounterDealForm }) => ({ Form: CounterDealForm })));
 const loadDraftForm = createCachedModuleLoader(() => import('./DealDraftForm').then(({ DealDraftForm }) => ({ Form: DealDraftForm })));
+const loadPublishForm = createCachedModuleLoader(() =>
+  import('../transport/PublishTransportForm').then(({ PublishTransportForm }) => ({ Form: PublishTransportForm })));
+const loadStandardForm = createCachedModuleLoader(() =>
+  import('./DealStandardForms').then(({ DealStandardForms }) => ({ Form: DealStandardForms })));
 
-interface ActiveDealEditorProps extends DealEditorProps {
-  action: DealEditorValue;
+interface DealFormModuleValue {
+  Form: ComponentType<ActiveDealEditorProps>;
 }
 
-interface DealFormLoaderProps extends DealEditorProps {
-  loadForm: typeof loadCounterForm;
-}
+const FORM_LOADERS = {
+  cancel: loadStandardForm,
+  confirm: loadStandardForm,
+  counter: loadCounterForm,
+  delivery: loadStandardForm,
+  draft: loadDraftForm,
+  publishTransport: loadPublishForm,
+  reject: loadStandardForm,
+  rejectOffer: loadStandardForm,
+} satisfies Record<DealEditorValue, CachedModuleLoader<DealFormModuleValue>>;
 
-const DealFormLoader = ({ loadForm, ...props }: DealFormLoaderProps): ReactElement => {
+export const DealEditor = (props: ActiveDealEditorProps): ReactElement => {
   const { t: baseText } = useI18n();
-  const { onClose, t } = props;
-  const { load, state } = useChunkLoader(loadForm);
+  const { action, onClose, t } = props;
+  const { load, state } = useChunkLoader<DealFormModuleValue>(FORM_LOADERS[action]);
 
   useEffect(() => {
     load();
@@ -69,23 +81,4 @@ const DealFormLoader = ({ loadForm, ...props }: DealFormLoaderProps): ReactEleme
       <Skeleton shape="block" />
     </SkeletonGroup>
   );
-};
-
-export const DealEditor = ({ action, ...props }: ActiveDealEditorProps): ReactElement => {
-  switch (action) {
-    case 'cancel':
-      return <DealReasonForm {...props} kind="cancelDeal" />;
-    case 'confirm':
-      return <ConfirmDealForm {...props} />;
-    case 'counter':
-      return <DealFormLoader {...props} loadForm={loadCounterForm} />;
-    case 'delivery':
-      return <DealDeliveryForm {...props} />;
-    case 'draft':
-      return <DealFormLoader {...props} loadForm={loadDraftForm} />;
-    case 'reject':
-      return <DealReasonForm {...props} kind="rejectDeal" />;
-    case 'rejectOffer':
-      return <DealReasonForm {...props} kind="rejectCounterOffer" />;
-  }
 };

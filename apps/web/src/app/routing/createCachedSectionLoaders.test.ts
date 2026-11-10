@@ -5,6 +5,8 @@ import {
   vi,
 } from 'vitest';
 
+import { APP_SECTIONS } from '@/shared/routing';
+
 import type {
   SectionLoader,
   SectionLoadersValue,
@@ -23,6 +25,7 @@ const createLoaders = (loader: SectionLoader): SectionLoadersValue => ({
   deals: loader,
   garage: loader,
   network: loader,
+  transport: loader,
   warehouse: loader,
 });
 
@@ -48,6 +51,7 @@ describe('createCachedSectionLoaders', () => {
       deals: () => Promise.resolve(dealsModule),
       garage: () => Promise.resolve(createModule()),
       network: () => Promise.resolve(createModule()),
+      transport: () => Promise.resolve(createModule()),
       warehouse: () => Promise.resolve(createModule()),
     });
 
@@ -96,7 +100,7 @@ describe('createCachedSectionLoaders', () => {
   it('names the section of every loader in its chunk error', async () => {
     const cached = createCachedSectionLoaders(createLoaders(() => Promise.reject(CHUNK_ERROR)));
 
-    for (const section of ['catalog', 'deals', 'garage', 'network', 'warehouse'] as const) {
+    for (const section of APP_SECTIONS) {
       const failure: unknown = await cached[section]().then(() => undefined, (error: unknown) => error);
 
       expect(failure).toMatchObject({ section });

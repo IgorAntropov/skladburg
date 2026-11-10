@@ -42,7 +42,7 @@ import {
   syncQueriesWithRealtime,
 } from '@/shared/api';
 import { createLocalizer } from '@/shared/i18n';
-import { SECTION_TITLE_KEYS } from '@/shared/routing';
+import { getSectionTitleKey } from '@/shared/routing';
 import { createMemoryLocation } from '@/shared/routing/index.testing';
 
 import { App } from './App';
@@ -354,7 +354,7 @@ const getNavigationTitles = (): string[] => {
   return within(navigation).getAllByRole('link').map(link => link.textContent);
 };
 
-const getSectionTitle = (section: AppSectionValue): string => defaultLocaleCatalog[SECTION_TITLE_KEYS[section]];
+const getSectionTitle = (section: AppSectionValue): string => defaultLocaleCatalog[getSectionTitleKey(section)];
 
 const formatPersonaOption = (name: string, role: string, organizationName: string): string => {
   return defaultLocaleCatalog['persona.option']
@@ -390,7 +390,7 @@ describe('App sections of the persona on the demo engine', () => {
     await expectWarehouseCount(frames, 1);
   });
 
-  it.each(['/catalog', '/garage'])('replaces the unavailable address %s with the warehouse for the storekeeper', async (initialPath) => {
+  it.each(['/catalog', '/garage', '/transport'])('redirects the storekeeper from %s to the warehouse', async (initialPath) => {
     const { location } = await startApplication({
       initialPath,
       preferredContext: { organizationId: SeedOrganizationId.CUSTOMER_1, userId: SeedUserId.STOREKEEPER_1 },
@@ -436,7 +436,12 @@ describe('App sections of the persona on the demo engine', () => {
 
     expect(await findProfileButton(CARRIER_BUTTON_NAME)).toBeDefined();
     await waitFor(() => {
-      expect(getNavigationTitles()).toEqual([getSectionTitle('network'), getSectionTitle('deals'), getSectionTitle('garage')]);
+      expect(getNavigationTitles()).toEqual([
+        getSectionTitle('network'),
+        getSectionTitle('deals'),
+        getSectionTitle('garage'),
+        getSectionTitle('transport'),
+      ]);
     });
     expect(location.read().path).toBe('/deals');
   });

@@ -25,7 +25,7 @@ import { toObjectAddress } from './toObjectAddress';
 
 const OBJECT_ID = 'f0000010-0000-4000-8000-000000000000';
 
-const ADDRESS_TYPES_WITHOUT_OBJECT_KIND: readonly ObjectTypeValue[] = ['listing'];
+const ADDRESS_TYPES_WITHOUT_OBJECT_KIND: readonly ObjectTypeValue[] = ['listing', 'transport_request'];
 
 const OBJECT_TYPE_BY_KIND_NAME = [
   [ObjectKind.CELL, 'cell'],

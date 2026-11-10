@@ -2,10 +2,8 @@ import type {
   Interceptor,
   ServiceImpl,
 } from '@connectrpc/connect';
-import type { Money } from '@skladburg/contracts/common/v1/money';
 
 import { create } from '@bufbuild/protobuf';
-import { timestampFromMs } from '@bufbuild/protobuf/wkt';
 import { createFetchHandler } from '@connectrpc/connect/protocol';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import {
@@ -13,15 +11,10 @@ import {
   ListTransportOffersResponseSchema,
   ListTransportRequestsResponseSchema,
   LogisticsService,
-  SubmitTransportOfferResponseSchema,
   TransportOfferCandidateSchema,
 } from '@skladburg/contracts/logistics/v1/logistics';
-import {
-  TransportOfferSchema,
-  TransportRequestStatus,
-} from '@skladburg/contracts/logistics/v1/logistics_records';
+import { TransportRequestStatus } from '@skladburg/contracts/logistics/v1/logistics_records';
 
-import type { IDomainErrors } from '../../errors/index';
 import type { EngineRequestHandler } from '../../router/engineRouter';
 import type { IModuleRuntime } from '../moduleRuntime';
 
@@ -30,30 +23,12 @@ import {
   createServiceRouter,
 } from '../../router/engineRouter';
 import { compareIds } from '../../state/index';
-import { SUPPORTED_CURRENCY_CODE } from '../catalog/catalogRules';
 import { paginate } from '../pagination';
-import { publishTransportChanges } from './transportEvents';
 import { canCarryTransportRequest } from './transportMatching';
-import {
-  projectTransportRequest,
-  readOwnTransportOffer,
-} from './transportProjection';
-
-const requirePositiveAmount = (errors: IDomainErrors, amount: Money | undefined): Money => {
-  if (amount === undefined) {
-    throw errors.internal();
-  }
-  if (amount.amountMinor <= 0n) {
-    throw errors.validationFailed([{ fieldPath: 'amount.amount_minor', ruleId: 'int64.gt' }]);
-  }
-  if (amount.currencyCode !== SUPPORTED_CURRENCY_CODE) {
-    throw errors.validationFailed([{ fieldPath: 'amount.currency_code', ruleId: 'money.currency_unsupported' }]);
-  }
-  return amount;
-};
+import { projectTransportRequest } from './transportProjection';
 
 export const createLogisticsService = (runtime: IModuleRuntime): ServiceImpl<typeof LogisticsService> => {
-  const { command, errors, getWorldTimeMs, guard, idempotency, read } = runtime;
+  const { errors, getWorldTimeMs, guard, read } = runtime;
 
   const tripService = async (): Promise<ReturnType<typeof import('./tripService')['createTripService']>> =>
     (await import('./tripService')).createTripService(runtime);
@@ -123,40 +98,8 @@ export const createLogisticsService = (runtime: IModuleRuntime): ServiceImpl<typ
       (await import('./publishTransportRequest')).publishTransportRequest(runtime, request, context),
     selectTransportOffer: async (request, context) =>
       (await import('./selectTransportOffer')).selectTransportOffer(runtime, request, context),
-    submitTransportOffer: (request, context) => command((transaction) => {
-      const method = LogisticsService.method.submitTransportOffer;
-      const { organizationId } = guard.guardPermissionCall(transaction, method, request, context.requestHeader);
-
-      return idempotency.run(transaction, {
-        handler: () => {
-          const record = transaction.get('transportRequests', request.transportRequestId);
-          const now = getWorldTimeMs();
-          if (record?.status !== TransportRequestStatus.OPEN
-            || !canCarryTransportRequest(transaction, record, organizationId, now)) {
-            throw errors.notFound(EntityKind.TRANSPORT_REQUEST);
-          }
-          if (readOwnTransportOffer(transaction, record.id, organizationId) !== undefined) {
-            throw errors.validationFailed([{ fieldPath: 'transport_request_id', ruleId: 'logistics.offer_exists' }]);
-          }
-
-          const offer = create(TransportOfferSchema, {
-            amount: requirePositiveAmount(errors, request.amount),
-            carrierOrganizationId: organizationId,
-            id: runtime.random.uuid(),
-            submittedAt: timestampFromMs(now),
-            transportRequestId: record.id,
-          });
-          transaction.put('transportOffers', offer);
-          publishTransportChanges(runtime, transaction, [organizationId, record.shipperOrganizationId]);
-
-          return create(SubmitTransportOfferResponseSchema, { offer });
-        },
-        idempotencyKey: request.idempotencyKey,
-        method,
-        request,
-        scope: organizationId,
-      });
-    }),
+    submitTransportOffer: async (request, context) =>
+      (await import('./submitTransportOffer')).submitTransportOffer(runtime, request, context),
   };
 };
 

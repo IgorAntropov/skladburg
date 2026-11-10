@@ -22,7 +22,7 @@ const EDITORS = {
 } as const;
 
 interface DealActionOpenButtonProps extends Pick<DealCommandContextValue, 'deal'> {
-  action: DealEditorValue;
+  action: Exclude<DealEditorValue, 'publishTransport'>;
   onOpen: (action: DealEditorValue) => void;
   t: DealInspectorTranslate;
 }

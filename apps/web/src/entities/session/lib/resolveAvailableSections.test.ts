@@ -57,6 +57,16 @@ describe('resolveAvailableSections', () => {
     expect(resolveAvailableSections(session)).toEqual([]);
   });
 
+  it.each(['transport_request_view', 'trip_view'])('shows transport for the organization-wide permission %s alone', (permission) => {
+    expect(resolveAvailableSections(createSession(organizationWide(permission)))).toEqual(['transport']);
+  });
+
+  it.each(['transport_request_view', 'trip_view'])('hides transport for the warehouse-scoped permission %s', (permission) => {
+    const session = createSession([{ isOrganizationWide: false, permission, warehouseIds: [WAREHOUSE_ID] }]);
+
+    expect(resolveAvailableSections(session)).toEqual([]);
+  });
+
   it('hides the deals without the deal view permission', () => {
     const session = createSession(organizationWide('network_view', 'marketplace_view', 'warehouse_view'));
 

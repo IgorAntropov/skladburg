@@ -53,15 +53,13 @@ export const buildTripAssignment = (
   }
 
   const transport = transaction.get('transportRequests', trip.id);
-  if (departureAt === undefined || transport === undefined
-    || !canUseVehicleForTransportRequest(transaction, transport, carrierId, transaction.worldTimeMs, { departureAt, vehicleId })) {
-    throw errors.validationFailed([{ fieldPath: 'departure_at', ruleId: 'logistics.departure_unavailable' }]);
-  }
-
-  const arrivalAt = { ...departureAt, seconds: departureAt.seconds + BigInt(trip.driveMinutes) * SECONDS_PER_MINUTE };
+  const arrivalAt = departureAt === undefined
+    ? undefined
+    : { ...departureAt, seconds: departureAt.seconds + BigInt(trip.driveMinutes) * SECONDS_PER_MINUTE };
   const start = readNanoseconds(departureAt);
   const end = readNanoseconds(arrivalAt);
-  if (start === undefined || end === undefined) {
+  if (departureAt === undefined || transport === undefined || start === undefined || end === undefined
+    || !canUseVehicleForTransportRequest(transaction, transport, carrierId, transaction.worldTimeMs, { departureAt, vehicleId })) {
     throw errors.validationFailed([{ fieldPath: 'departure_at', ruleId: 'logistics.departure_unavailable' }]);
   }
   if (transaction.listBy('trips', 'vehicleId', vehicleId).some(other => overlapsAssignment(other, start, end, trip.id))) {

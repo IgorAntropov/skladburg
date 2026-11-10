@@ -69,19 +69,33 @@ export {
   SEED_WORLD_START_MS,
 } from './seedConfig';
 
-export type SeedRecordsValue = {
-  [TName in TableName]: TableRecordsValue[TName][];
-};
+export type SeedRecordsValue
+  = & Omit<SeedTableRecordsValue, UnseededTableName>
+    & Partial<Pick<SeedTableRecordsValue, UnseededTableName>>;
+
+type SeedTableRecordsValue = { [TName in TableName]: TableRecordsValue[TName][] };
+
+type UnseededTableName
+  = | 'dealReminderMarks'
+    | 'deals'
+    | 'documentNumbers'
+    | 'documents'
+    | 'idempotency'
+    | 'importJobs'
+    | 'payments'
+    | 'productLinks'
+    | 'supplyContracts'
+    | 'supportAccessSessions'
+    | 'supportAuditEntries'
+    | 'supportBotQueue'
+    | 'supportTicketMessages'
+    | 'supportTickets'
+    | 'transportOffers'
+    | 'transportRequests';
 
 export const createSeedRecords = (worldStartMs = SEED_WORLD_START_MS): SeedRecordsValue => ({
   ...createSeedFleetRecords(worldStartMs),
   cities: createSeedCities(),
-  dealReminderMarks: [],
-  deals: [],
-  documentNumbers: [],
-  documents: [],
-  idempotency: [],
-  importJobs: [],
   listingPrices: createSeedListingPrices(),
   listings: createSeedListings(),
   mapNodes: createSeedMapNodes(),
@@ -90,49 +104,44 @@ export const createSeedRecords = (worldStartMs = SEED_WORLD_START_MS): SeedRecor
   organizationRequisites: createSeedRequisites(),
   organizations: [...createSeedOrganizations(), ...createSeedPlatformOrganizations()],
   organizationSettings: [...createSeedOrganizationSettings(), ...createSeedPlatformOrganizationSettings()],
-  payments: [],
   personas: createSeedPersonas(),
   priceLists: createSeedPriceLists(),
-  productLinks: [],
   products: createSeedProducts(),
   roles: [...createSeedRoles(), ...createSeedPlatformRoles()],
   routeLegs: createSeedRouteLegs(),
   salesTerms: createSeedSalesTerms(),
   spheres: createSeedSpheres(),
-  supplyContracts: [],
-  supportAccessSessions: [],
-  supportAuditEntries: [],
-  supportBotQueue: [],
-  supportTicketMessages: [],
-  supportTickets: [],
   users: [...createSeedUsers(), ...createSeedPlatformUsers()],
   warehouses: createSeedWarehouses(),
 });
 
-const encodeRecords = <TName extends TableName>(name: TName, records: SeedRecordsValue[TName]): EngineCollectionValue => {
+const encodeRecords = <TName extends TableName>(name: TName, records: SeedTableRecordsValue[TName]): EngineCollectionValue => {
   const definition = TABLE_DEFINITIONS[name];
 
   return new Map(records.map(record => [definition.getId(record), definition.encode(record)]));
 };
 
-export const createSeedSnapshot = (seed: EngineSeedValue = DEFAULT_ENGINE_SEED): EngineSnapshotValue => {
-  const records = createSeedRecords(seed.worldStartMs);
+export const createSeedSnapshot = ({ randomSeed, worldStartMs }: EngineSeedValue = DEFAULT_ENGINE_SEED): EngineSnapshotValue => {
+  const records = createSeedRecords(worldStartMs);
   const collections = createEmptyCollections();
 
   for (const name of ENGINE_COLLECTION_NAMES) {
-    collections[name] = encodeRecords(name, records[name]);
+    const seeded = records[name];
+    if (seeded !== undefined) {
+      collections[name] = encodeRecords(name, seeded);
+    }
   }
 
   return {
     collections,
     meta: {
       channelSeq: {},
-      randomState: createSeededRandom(seed.randomSeed).getState(),
+      randomState: createSeededRandom(randomSeed).getState(),
       schedulerDueAtMs: {},
       seedVersion: SEED_VERSION,
       timeScale: SEED_TIME_SCALE,
-      traceRandomState: createSeededRandom(seed.randomSeed ^ SEED_TRACE_RANDOM_SALT).getState(),
-      worldTimeMs: seed.worldStartMs,
+      traceRandomState: createSeededRandom(randomSeed ^ SEED_TRACE_RANDOM_SALT).getState(),
+      worldTimeMs: worldStartMs,
     },
     schemaVersion: ENGINE_SCHEMA_VERSION,
   };

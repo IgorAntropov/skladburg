@@ -28,6 +28,10 @@ import type {
   Vehicle,
 } from '@skladburg/contracts/fleet/v1/fleet';
 import type {
+  TransportOffer,
+  TransportRequestRecord,
+} from '@skladburg/contracts/logistics/v1/logistics_records';
+import type {
   City,
   MapNode,
   RouteLeg,
@@ -79,6 +83,10 @@ import {
   DriverSchema,
   VehicleSchema,
 } from '@skladburg/contracts/fleet/v1/fleet';
+import {
+  TransportOfferSchema,
+  TransportRequestRecordSchema,
+} from '@skladburg/contracts/logistics/v1/logistics_records';
 import {
   CitySchema,
   MapNodeSchema,
@@ -189,6 +197,8 @@ export interface TableIndexesValue {
   supportBotQueue: never;
   supportTicketMessages: 'ticketId';
   supportTickets: 'authorUserId';
+  transportOffers: 'transportRequestId';
+  transportRequests: 'dealId';
   users: never;
   vehicles: 'tenantId';
   warehouses: 'tenantId';
@@ -229,6 +239,8 @@ export interface TableRecordsValue {
   supportBotQueue: SupportBotQueueRecordValue;
   supportTicketMessages: SupportTicketMessage;
   supportTickets: SupportTicket;
+  transportOffers: TransportOffer;
+  transportRequests: TransportRequestRecord;
   users: User;
   vehicles: Vehicle;
   warehouses: Warehouse;
@@ -329,6 +341,10 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   supportTickets: defineMessageTable(SupportTicketSchema, ticket => ticket.id, {
     authorUserId: ticket => ticket.authorUserId,
   }),
+  transportOffers: defineMessageTable(TransportOfferSchema, offer => offer.id, {
+    transportRequestId: offer => offer.transportRequestId,
+  }),
+  transportRequests: defineMessageTable(TransportRequestRecordSchema, request => request.id, { dealId: request => request.dealId }),
   users: defineMessageTable(UserSchema, user => user.id, {}),
   vehicles: defineMessageTable(VehicleSchema, vehicle => vehicle.id, { tenantId: vehicle => vehicle.tenantId }),
   warehouses: defineMessageTable(WarehouseSchema, warehouse => warehouse.id, { tenantId: warehouse => warehouse.tenantId }),

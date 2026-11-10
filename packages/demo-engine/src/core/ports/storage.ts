@@ -37,6 +37,8 @@ export const ENGINE_COLLECTION_NAMES = [
   'vehicles',
   'drivers',
   'carrierLanes',
+  'transportOffers',
+  'transportRequests',
 ] as const;
 
 export interface EngineChangeSetValue {
@@ -112,6 +114,8 @@ export const createEmptyCollections = (): Record<EngineCollectionName, EngineCol
   supportBotQueue: new Map(),
   supportTicketMessages: new Map(),
   supportTickets: new Map(),
+  transportOffers: new Map(),
+  transportRequests: new Map(),
   users: new Map(),
   vehicles: new Map(),
   warehouses: new Map(),

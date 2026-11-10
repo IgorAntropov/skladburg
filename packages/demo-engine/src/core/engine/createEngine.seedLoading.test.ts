@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 describe('engine seed loading', () => {
-  it('adds the fleet to a legacy world once and keeps the world available after a failed migration write', async () => {
+  it.each([15, 16])('migrates a schema %d world once and preserves it after a failed write', async (schemaVersion) => {
     const { createEngine } = await import('./createEngine');
     const source = createMemoryStorage();
     const realTime = { now: (): number => 0 };
@@ -46,8 +46,10 @@ describe('engine seed loading', () => {
     expect(snapshot.collections.payments.size).toBeGreaterThan(0);
     const stored = {
       ...snapshot,
-      collections: { ...snapshot.collections, carrierLanes: new Map(), drivers: new Map(), vehicles: new Map() },
-      schemaVersion: 15,
+      collections: schemaVersion === 15
+        ? { ...snapshot.collections, carrierLanes: new Map(), drivers: new Map(), vehicles: new Map() }
+        : snapshot.collections,
+      schemaVersion,
     };
     const storage = createMemoryStorage(stored);
     const writeFailure = new Error('Migration write failed');

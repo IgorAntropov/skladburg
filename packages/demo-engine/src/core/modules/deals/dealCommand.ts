@@ -34,7 +34,7 @@ export interface DealCommandInputValue<TInput extends DescMessage, TOutput exten
   notice: DealNotice | undefined;
   reason?: string;
   request: MessageShape<TInput> & VersionedDealRequestValue;
-  response: (deal: Deal) => MessageShape<TOutput>;
+  response: (deal: Deal, transaction: IStateTransaction) => MessageShape<TOutput>;
 }
 
 interface VersionedDealRequestValue {
@@ -78,7 +78,7 @@ export const runDealCommand = <TInput extends DescMessage, TOutput extends DescM
       transaction.put('deals', next);
       publishDealEffects(runtime, transaction, next, input.notice,
         input.command === 'updateDealDraft' ? DealChange.LINES : DealChange.STATUS, caller.organizationId);
-      return input.response(projectDeal(next, caller.organizationId));
+      return input.response(projectDeal(next, caller.organizationId), transaction);
     },
     idempotencyKey: input.request.idempotencyKey,
     method: input.method,

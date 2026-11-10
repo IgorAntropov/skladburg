@@ -1,0 +1,5 @@
+syntax = "proto3";
+
+package logistics.v1;
+
+message TransportRequestChanged {}

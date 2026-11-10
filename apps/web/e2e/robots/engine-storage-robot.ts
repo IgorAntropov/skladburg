@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 
 const DATABASE_NAME = 'skladburg-demo-engine';
-const FLEET_STORES = ['carrierLanes', 'drivers', 'vehicles'] as const;
+const STORES_ADDED_AFTER_V13 = ['carrierLanes', 'drivers', 'transportOffers', 'transportRequests', 'vehicles'] as const;
 const PRE_FLEET_DATABASE_VERSION = 13;
 const PRE_FLEET_SCHEMA_VERSION = 15;
 
@@ -97,7 +97,7 @@ export const readStoredEngineSnapshot = async (page: Page, storeNames: readonly 
   }, { databaseName: DATABASE_NAME, storeNames });
 
 export const recreatePreFleetEngineDatabase = async (page: Page): Promise<void> =>
-  page.evaluate(async ({ databaseName, fleetStores, legacyDatabaseVersion, legacySchemaVersion }): Promise<void> => {
+  page.evaluate(async ({ databaseName, legacyDatabaseVersion, legacySchemaVersion, newStores }): Promise<void> => {
     const read = <TValue>(request: IDBRequest<TValue>): Promise<TValue> => new Promise((resolve, reject) => {
       request.onsuccess = (): void => {
         resolve(request.result);
@@ -107,7 +107,7 @@ export const recreatePreFleetEngineDatabase = async (page: Page): Promise<void> 
       };
     });
     const current = await read(indexedDB.open(databaseName));
-    const names = Array.from(current.objectStoreNames).filter(name => !fleetStores.some(store => store === name));
+    const names = Array.from(current.objectStoreNames).filter(name => !newStores.some(store => store === name));
     const stores = await (async () => {
       try {
         const transaction = current.transaction(names, 'readonly');
@@ -159,7 +159,7 @@ export const recreatePreFleetEngineDatabase = async (page: Page): Promise<void> 
     (await read(request)).close();
   }, {
     databaseName: DATABASE_NAME,
-    fleetStores: FLEET_STORES,
     legacyDatabaseVersion: PRE_FLEET_DATABASE_VERSION,
     legacySchemaVersion: PRE_FLEET_SCHEMA_VERSION,
+    newStores: STORES_ADDED_AFTER_V13,
   });

@@ -132,7 +132,7 @@ describe('seed contents', () => {
     const snapshot = createSeedSnapshot();
 
     for (const name of ENGINE_COLLECTION_NAMES) {
-      expect(snapshot.collections[name].size, name).toBe(records[name].length);
+      expect(snapshot.collections[name].size, name).toBe(records[name]?.length ?? 0);
 
       for (const id of snapshot.collections[name].keys()) {
         expect(id, name).toMatch(UUID_PATTERN);

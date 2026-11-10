@@ -492,7 +492,7 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     const hasPayments = databaseVersion >= 13;
     const request = factory.open(DATABASE_NAME, databaseVersion);
     request.addEventListener('upgradeneeded', () => {
-      const missingStores = ['carrierLanes', 'drivers', 'vehicles'];
+      const missingStores = ['carrierLanes', 'drivers', 'vehicles', 'transportOffers', 'transportRequests'];
       if (isBeforeDocuments) {
         missingStores.push('documentNumbers', 'documents');
       }

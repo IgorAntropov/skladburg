@@ -65,7 +65,7 @@ const createErrorNormalizer = (errors: IDomainErrors): Interceptor => next => as
   }
 };
 
-const createPathDispatcher = (handlers: readonly UniversalHandler[]): UniversalHandlerFn => {
+export const createPathDispatcher = (handlers: readonly UniversalHandler[]): UniversalHandlerFn => {
   const handlersByPath = new Map(handlers.map(handler => [handler.requestPath, handler]));
 
   return (request) => {
@@ -75,13 +75,16 @@ const createPathDispatcher = (handlers: readonly UniversalHandler[]): UniversalH
   };
 };
 
-export const createEngineHandler = (options: CreateEngineHandlerOptionsValue): EngineRequestHandler => {
-  const router = createConnectRouter({
+export const createServiceRouter = (errors: IDomainErrors, supportAudit: Interceptor): ReturnType<typeof createConnectRouter> =>
+  createConnectRouter({
     connect: true,
     grpc: false,
     grpcWeb: false,
-    interceptors: [createErrorNormalizer(options.errors), options.supportAudit],
+    interceptors: [createErrorNormalizer(errors), supportAudit],
   });
+
+export const createEngineHandler = (options: CreateEngineHandlerOptionsValue): EngineRequestHandler => {
+  const router = createServiceRouter(options.errors, options.supportAudit);
 
   router.service(AccessService, options.accessService);
   router.service(CatalogService, options.catalogService);

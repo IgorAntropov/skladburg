@@ -88,7 +88,7 @@ describe('the platform operator organization in the seed', () => {
 
   it('starts without support access sessions', () => {
     expect(createSeedSnapshot().collections.supportAccessSessions.size).toBe(0);
-    expect(createSeedRecords().supportAccessSessions).toEqual([]);
+    expect(createSeedReader().list('supportAccessSessions')).toEqual([]);
   });
 });
 

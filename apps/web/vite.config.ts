@@ -308,6 +308,8 @@ const MAX_ENGINE_FLEET_MIGRATION_GZIP_KILOBYTES = 2.05;
 
 const MAX_ENGINE_FLEET_GZIP_KILOBYTES = 2.21;
 
+const MAX_ENGINE_LOGISTICS_GZIP_KILOBYTES = 5.5;
+
 const MAX_ENGINE_IMPORT_GZIP_KILOBYTES = 184.37;
 
 const MAX_ENGINE_SEED_HISTORY_GZIP_KILOBYTES = 3.55;
@@ -440,6 +442,13 @@ const ENGINE_WORKER_BUDGET = {
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_FLEET_GZIP_KILOBYTES,
       name: 'engine-fleet',
+    },
+    {
+      baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/modules/logistics/index.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_LOGISTICS_GZIP_KILOBYTES,
+      name: 'engine-logistics',
     },
     {
       baseline: 'engine',

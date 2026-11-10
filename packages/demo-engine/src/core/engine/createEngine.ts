@@ -5,7 +5,7 @@ import { timestampMs } from '@bufbuild/protobuf/wkt';
 import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
 import { SafeDealPaymentStatus } from '@skladburg/contracts/payment/v1/payment';
 import {
-  COMPRESSED_CONTRACT_IMAGE_BASE64,
+  COMPRESSED_VALIDATION_IMAGE_BASE64,
   createContractRegistry,
 } from '@skladburg/contracts/registry';
 
@@ -68,6 +68,7 @@ import {
   createSupportAuditInterceptor,
 } from '../router/index';
 import { createDeferredFleetService } from '../router/loadFleetService';
+import { loadLogisticsHandler } from '../router/loadLogisticsHandler';
 import {
   createEngineTasks,
   createScheduler,
@@ -98,7 +99,7 @@ const getEngineContractRegistry = async (): Promise<FileRegistry> => {
   if (contractRegistry === undefined) {
     const compressed = new ReadableStream<Uint8Array<ArrayBuffer>>({
       start: (controller) => {
-        controller.enqueue(Uint8Array.from(base64Decode(COMPRESSED_CONTRACT_IMAGE_BASE64)));
+        controller.enqueue(Uint8Array.from(base64Decode(COMPRESSED_VALIDATION_IMAGE_BASE64)));
         controller.close();
       },
     });
@@ -156,22 +157,31 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
 
 const PRE_FLEET_SCHEMA_VERSION = 15;
 
+const PRE_MARKETPLACE_SCHEMA_VERSION = 16;
+
 const loadOrSeedSnapshot = async (
   options: CreateEngineOptionsValue,
   loadSeed: typeof loadSeedSnapshot,
 ): Promise<EngineSnapshotValue> => {
   const stored = await options.storage.load();
 
-  if (stored?.schemaVersion === PRE_FLEET_SCHEMA_VERSION && stored.meta.seedVersion === SEED_VERSION) {
+  if (stored?.meta.seedVersion === SEED_VERSION
+    && (stored.schemaVersion === PRE_FLEET_SCHEMA_VERSION || stored.schemaVersion === PRE_MARKETPLACE_SCHEMA_VERSION)) {
     try {
-      const { addSeedFleet } = await import('../seed/seedFleet');
-      const migrated = addSeedFleet({ ...stored, schemaVersion: ENGINE_SCHEMA_VERSION });
+      const upgraded = {
+        ...stored,
+        collections: { ...stored.collections, transportOffers: new Map(), transportRequests: new Map() },
+        schemaVersion: ENGINE_SCHEMA_VERSION,
+      };
+      const migrated = stored.schemaVersion === PRE_FLEET_SCHEMA_VERSION
+        ? (await import('../seed/seedFleet')).addSeedFleet(upgraded)
+        : upgraded;
       await options.storage.replaceAll(migrated);
 
       return migrated;
     }
     catch (error) {
-      throw new SeedLoadError(error, 'The fleet snapshot migration failed');
+      throw new SeedLoadError(error, 'The saved world migration failed');
     }
   }
 
@@ -238,6 +248,7 @@ export const createEngineWithTasks = async (
     random,
     read: state.read,
   };
+  const supportAudit = createSupportAuditInterceptor(runtime);
   const handler = createEngineHandler({
     accessService: createAccessService(runtime),
     catalogService: createCatalogService(runtime),
@@ -255,7 +266,7 @@ export const createEngineWithTasks = async (
     organizationShowcaseService: createOrganizationShowcaseService(runtime),
     paymentService: createDeferredPaymentService(runtime),
     supportAccessService: createSupportAccessService(runtime),
-    supportAudit: createSupportAuditInterceptor(runtime),
+    supportAudit,
     supportTicketService: createSupportTicketService(runtime),
     userProfileService: createUserProfileService(runtime),
   });
@@ -299,7 +310,9 @@ export const createEngineWithTasks = async (
     await loadPayments();
   }
 
-  const handle = (request: Request): Promise<Response> => queue.enqueue(() => handler(request));
+  const logisticsHandler = loadLogisticsHandler(runtime, supportAudit);
+  const handle = (request: Request): Promise<Response> => queue.enqueue(() =>
+    new URL(request.url).pathname.startsWith('/logistics.v1.LogisticsService/') ? logisticsHandler(request) : handler(request));
 
   const tick = (): Promise<void> => queue.enqueue(() => scheduler.tick());
 

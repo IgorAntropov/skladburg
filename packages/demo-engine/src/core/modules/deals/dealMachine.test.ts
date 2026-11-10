@@ -69,7 +69,8 @@ const expectedRows = [
   { command: 'startTransit', from: DealStatus.SHIPPED, permission: '', side: 'system', status: DealStatus.IN_TRANSIT },
   { command: 'submitDeal', from: DealStatus.DRAFT, permission: 'deal_approve', side: 'customer', status: DealStatus.SUBMITTED },
   { command: 'updateDealDraft', from: DealStatus.DRAFT, permission: 'deal_edit', side: 'customer', status: DealStatus.DRAFT },
-  { command: 'waitLogistics', from: DealStatus.AGREED, permission: '', side: 'system', status: DealStatus.AWAITING_LOGISTICS },
+  { command: 'publishTransportRequest', from: DealStatus.AGREED, permission: 'transport_request_create', side: 'either',
+    status: DealStatus.AWAITING_LOGISTICS },
 ] satisfies { command: DealCommand; from: DealStatus; permission: string; side: string; status: DealStatus }[];
 const commands = [...new Set(expectedRows.map(row => row.command))];
 

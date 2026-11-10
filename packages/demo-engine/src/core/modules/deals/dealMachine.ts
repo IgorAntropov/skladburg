@@ -48,6 +48,7 @@ export const DEAL_TRANSITIONS = {
     [DealStatus.PICKING]: transition(DealStatus.SHIPPED, 'supplier', 'deal_edit'),
   },
   openClaim: { [DealStatus.ACCEPTING]: transition(DealStatus.CLAIM, 'customer', 'claim_create') },
+  publishTransportRequest: { [DealStatus.AGREED]: transition(DealStatus.AWAITING_LOGISTICS, 'either', 'transport_request_create') },
   rejectCounterOffer: { [DealStatus.COUNTER_OFFERED]: transition(DealStatus.REJECTED, 'customer', 'deal_edit') },
   rejectDeal: { [DealStatus.SUBMITTED]: transition(DealStatus.REJECTED, 'supplier', 'deal_edit') },
   requestPayment: { [DealStatus.DOCUMENTS_CONFIRMED]: transition(DealStatus.AWAITING_PAYMENT, 'system', '') },
@@ -58,7 +59,6 @@ export const DEAL_TRANSITIONS = {
   startTransit: { [DealStatus.SHIPPED]: transition(DealStatus.IN_TRANSIT, 'system', '') },
   submitDeal: { [DealStatus.DRAFT]: transition(DealStatus.SUBMITTED, 'customer', 'deal_approve') },
   updateDealDraft: { [DealStatus.DRAFT]: transition(DealStatus.DRAFT, 'customer', 'deal_edit') },
-  waitLogistics: { [DealStatus.AGREED]: transition(DealStatus.AWAITING_LOGISTICS, 'system', '') },
 } satisfies Record<string, Partial<Record<DealStatus, DealMachineTransitionValue>>>;
 
 export type DealCommand = keyof typeof DEAL_TRANSITIONS;
@@ -77,6 +77,7 @@ const intendedStatuses: Record<DealCommand, DealStatus> = {
   fund: DealStatus.PAID,
   markDealShipped: DealStatus.SHIPPED,
   openClaim: DealStatus.CLAIM,
+  publishTransportRequest: DealStatus.AWAITING_LOGISTICS,
   rejectCounterOffer: DealStatus.REJECTED,
   rejectDeal: DealStatus.REJECTED,
   requestPayment: DealStatus.AWAITING_PAYMENT,
@@ -87,7 +88,6 @@ const intendedStatuses: Record<DealCommand, DealStatus> = {
   startTransit: DealStatus.IN_TRANSIT,
   submitDeal: DealStatus.SUBMITTED,
   updateDealDraft: DealStatus.DRAFT,
-  waitLogistics: DealStatus.AWAITING_LOGISTICS,
 };
 
 export const dealMachine = createStateMachine<DealCommand, DealStatus, DealMachineTransitionValue>({

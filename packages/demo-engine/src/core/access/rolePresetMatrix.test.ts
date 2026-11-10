@@ -21,6 +21,7 @@ import {
   DealService,
   SubmitDealRequestSchema,
 } from '@skladburg/contracts/deal/v1/deal';
+import { SelectTransportOfferRequestSchema } from '@skladburg/contracts/logistics/v1/logistics';
 import {
   CreateWarehouseRequestSchema,
   OrganizationService,
@@ -118,6 +119,13 @@ const LIMITED_REQUESTS: ReadonlyMap<string, MessageShape<DescMessage>> = new Map
     expectedVersion: 1,
     goodsTotal: { amountMinor: 100n, currencyCode: 'RUB' },
     idempotencyKey: CREATE_WAREHOUSE_KEY,
+  })],
+  ['logistics.v1.LogisticsService.SelectTransportOffer', create(SelectTransportOfferRequestSchema, {
+    confirmedAmount: { amountMinor: 100n, currencyCode: 'RUB' },
+    expectedVersion: 1,
+    idempotencyKey: CREATE_WAREHOUSE_KEY,
+    transportOfferId: UNKNOWN_DEAL_ID,
+    transportRequestId: UNKNOWN_DEAL_ID,
   })],
   ['payment.v1.PaymentService.FundDeal', create(FundDealRequestSchema, {
     amount: { amountMinor: 100n, currencyCode: 'RUB' },

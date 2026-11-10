@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package logistics.v1;
+
+import "buf/validate/validate.proto";
+import "catalog/v1/catalog.proto";
+import "common/v1/money.proto";
+import "fleet/v1/fleet.proto";
+import "google/protobuf/timestamp.proto";
+
+enum TransportRequestStatus {
+  TRANSPORT_REQUEST_STATUS_UNSPECIFIED = 0;
+  TRANSPORT_REQUEST_STATUS_OPEN = 1;
+  TRANSPORT_REQUEST_STATUS_SELECTED = 2;
+  TRANSPORT_REQUEST_STATUS_CANCELLED = 3;
+}
+
+message TransportCargo {
+  fleet.v1.VehicleCargoKind cargo_kind = 1 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).enum.not_in = 0
+  ];
+  repeated fleet.v1.VehicleBodyType body_types = 2 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.unique = true,
+    (buf.validate.field).repeated.items.enum.defined_only = true,
+    (buf.validate.field).repeated.items.enum.not_in = 0
+  ];
+  int64 weight_grams = 3 [(buf.validate.field).int64.gt = 0];
+  int64 volume_cubic_centimeters = 4 [(buf.validate.field).int64.gt = 0];
+  int32 length_millimeters = 5 [(buf.validate.field).int32.gt = 0];
+  int32 width_millimeters = 6 [(buf.validate.field).int32.gt = 0];
+  int32 height_millimeters = 7 [(buf.validate.field).int32.gt = 0];
+  int32 pallet_places = 8 [(buf.validate.field).int32.gte = 0];
+  catalog.v1.TemperatureRange temperature = 9;
+}
+
+message TransportWindow {
+  google.protobuf.Timestamp starts_at = 1 [(buf.validate.field).required = true];
+  google.protobuf.Timestamp ends_at = 2 [(buf.validate.field).required = true];
+}
+
+message TransportOffer {
+  string id = 1;
+  string transport_request_id = 2;
+  string carrier_organization_id = 3;
+  common.v1.Money amount = 4;
+  google.protobuf.Timestamp submitted_at = 5;
+}
+
+message TransportRequestRecord {
+  string id = 1;
+  string deal_id = 2;
+  string shipper_organization_id = 3;
+  string supplier_organization_id = 4;
+  string customer_organization_id = 5;
+  string selected_offer_id = 6;
+  int32 drive_minutes = 7;
+  int32 version = 8;
+  string from_city_id = 9;
+  string to_city_id = 10;
+  TransportCargo cargo = 11;
+  TransportWindow pickup_window = 12;
+  TransportWindow delivery_window = 13;
+  TransportRequestStatus status = 14;
+  google.protobuf.Timestamp published_at = 15;
+}

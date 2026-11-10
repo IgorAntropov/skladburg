@@ -50,6 +50,7 @@ import {
 
 import { CONTRACT_IMAGE_BASE64 } from '../gen/contract_image';
 import { CONTRACT_IMAGE_BASE64 as COMPRESSED_CONTRACT_IMAGE_BASE64 } from '../gen/contract_image_deflate';
+import { CONTRACT_IMAGE_BASE64 as COMPRESSED_VALIDATION_IMAGE_BASE64 } from '../gen/contract_validation_image_deflate';
 import {
   CreateWarehouseRequestSchema,
   file_organization_v1_organization,
@@ -269,4 +270,12 @@ it('embeds the same descriptor bytes in the compressed image', () => {
   const compressed = base64Decode(COMPRESSED_CONTRACT_IMAGE_BASE64);
   const bytes = base64Decode(CONTRACT_IMAGE_BASE64);
   expect(new Uint8Array(inflateSync(compressed))).toEqual(bytes);
+});
+
+it('preserves every descriptor used in validation while omitting RPC descriptors from the engine image', () => {
+  const fullImage = fromBinary(FileDescriptorSetSchema, base64Decode(CONTRACT_IMAGE_BASE64));
+  const compressedValidation = base64Decode(COMPRESSED_VALIDATION_IMAGE_BASE64);
+  const validationImage = fromBinary(FileDescriptorSetSchema, new Uint8Array(inflateSync(compressedValidation)));
+
+  expect(validationImage.file).toEqual(fullImage.file.map(file => ({ ...file, service: [] })));
 });

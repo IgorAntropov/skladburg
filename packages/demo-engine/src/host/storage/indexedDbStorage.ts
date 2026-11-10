@@ -20,7 +20,7 @@ import {
   ENGINE_COLLECTION_NAMES,
 } from '../../core/ports/index';
 
-export const INDEXED_DB_VERSION = 14;
+export const INDEXED_DB_VERSION = 15;
 
 const META_STORE_NAME = 'meta';
 const SCHEMA_VERSION_KEY = 'schemaVersion';
@@ -88,7 +88,7 @@ const openDatabase = (
     }
 
     const upgrade = request.transaction;
-    if (event.oldVersion >= 11 && event.oldVersion <= 13 && event.newVersion === INDEXED_DB_VERSION && upgrade !== null) {
+    if (event.oldVersion >= 11 && event.oldVersion <= 14 && event.newVersion === INDEXED_DB_VERSION && upgrade !== null) {
       const database = request.result;
       for (const name of ENGINE_COLLECTION_NAMES) {
         if (!database.objectStoreNames.contains(name)) {

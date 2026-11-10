@@ -67,13 +67,17 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
       });
     },
     cancelDeal: async (request, context) => {
-      const { annulDealDocuments } = await loadDocuments();
+      const [{ annulDealDocuments }, { cancelTransportRequest }] = await Promise.all([
+        loadDocuments(),
+        import('../logistics/transportLifecycle'),
+      ]);
       const payment = runtime.read.get('payments', request.dealId);
       const payments = payment === undefined ? undefined : await loadPayments();
       return runDealCommand(runtime, {
         command: 'cancelDeal',
         handle: (transaction, _caller, deal) => {
           annulDealDocuments(transaction, deal);
+          cancelTransportRequest(runtime, transaction, deal.id);
           payments?.refundDealPayment(runtime, transaction, deal);
           return endNegotiation(transaction, deal);
         },
@@ -90,7 +94,7 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
       return runDealCommand(runtime, {
         command: 'chooseDelivery',
         handle: (transaction, _caller, deal) => {
-          if (request.deliveryMethod === DeliveryMethod.EXCHANGE
+          if (deal.deliveryMethod === DeliveryMethod.EXCHANGE || request.deliveryMethod === DeliveryMethod.EXCHANGE
             || (request.deliveryMethod === DeliveryMethod.SUPPLIER && deal.deliveryTotal === undefined)) {
             failDealValidation(runtime.errors, 'delivery_method', 'deal.delivery_method.unavailable');
           }

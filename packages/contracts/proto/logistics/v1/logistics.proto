@@ -1,0 +1,133 @@
+syntax = "proto3";
+
+package logistics.v1;
+
+import "buf/validate/validate.proto";
+import "common/v1/method_options.proto";
+import "common/v1/money.proto";
+import "common/v1/page.proto";
+import "google/protobuf/timestamp.proto";
+import "logistics/v1/logistics_records.proto";
+
+message TransportRequestSummary {
+  string id = 1;
+  string from_city_id = 2;
+  string to_city_id = 3;
+  TransportCargo cargo = 4;
+  TransportWindow pickup_window = 5;
+  TransportWindow delivery_window = 6;
+  TransportRequestStatus status = 7;
+  google.protobuf.Timestamp published_at = 8;
+}
+
+message DealTransportRequest {
+  string deal_id = 1;
+  string shipper_organization_id = 2;
+  string selected_carrier_organization_id = 3;
+  TransportOffer selected_offer = 4;
+  int32 version = 5;
+}
+
+message CarrierTransportRequest {
+  TransportOffer own_offer = 1;
+}
+
+message TransportRequest {
+  TransportRequestSummary summary = 1;
+  oneof perspective {
+    DealTransportRequest deal = 2;
+    CarrierTransportRequest carrier = 3;
+  }
+}
+
+message TransportOfferCandidate {
+  TransportOffer offer = 1;
+  bool is_compatible = 2;
+}
+
+message PublishTransportRequestRequest {
+  string deal_id = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gt = 0];
+  TransportCargo cargo = 3 [(buf.validate.field).required = true];
+  TransportWindow pickup_window = 4 [(buf.validate.field).required = true];
+  TransportWindow delivery_window = 5 [(buf.validate.field).required = true];
+  string idempotency_key = 6 [(buf.validate.field).string.uuid = true];
+}
+
+message PublishTransportRequestResponse {
+  TransportRequest transport_request = 1;
+}
+
+message GetTransportRequestRequest {
+  string transport_request_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetTransportRequestResponse {
+  TransportRequest transport_request = 1;
+}
+
+message ListTransportRequestsRequest {
+  common.v1.PageRequest page = 1;
+}
+
+message ListTransportRequestsResponse {
+  repeated TransportRequest transport_requests = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message ListTransportOffersRequest {
+  string transport_request_id = 1 [(buf.validate.field).string.uuid = true];
+  common.v1.PageRequest page = 2;
+}
+
+message ListTransportOffersResponse {
+  repeated TransportOfferCandidate candidates = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message SubmitTransportOfferRequest {
+  string transport_request_id = 1 [(buf.validate.field).string.uuid = true];
+  common.v1.Money amount = 2 [(buf.validate.field).required = true];
+  string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
+}
+
+message SubmitTransportOfferResponse {
+  TransportOffer offer = 1;
+}
+
+message SelectTransportOfferRequest {
+  string transport_request_id = 1 [(buf.validate.field).string.uuid = true];
+  string transport_offer_id = 2 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 3 [(buf.validate.field).int32.gt = 0];
+  common.v1.Money confirmed_amount = 4 [(buf.validate.field).required = true];
+  string idempotency_key = 5 [(buf.validate.field).string.uuid = true];
+}
+
+message SelectTransportOfferResponse {
+  TransportRequest transport_request = 1;
+}
+
+service LogisticsService {
+  rpc PublishTransportRequest(PublishTransportRequestRequest) returns (PublishTransportRequestResponse) {
+    option (common.v1.access).permission.name = "transport_request_create";
+  }
+  rpc GetTransportRequest(GetTransportRequestRequest) returns (GetTransportRequestResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "transport_request_view";
+  }
+  rpc ListTransportRequests(ListTransportRequestsRequest) returns (ListTransportRequestsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "transport_request_view";
+  }
+  rpc ListTransportOffers(ListTransportOffersRequest) returns (ListTransportOffersResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "transport_request_view";
+  }
+  rpc SubmitTransportOffer(SubmitTransportOfferRequest) returns (SubmitTransportOfferResponse) {
+    option (common.v1.access).permission.name = "transport_offer_create";
+  }
+  rpc SelectTransportOffer(SelectTransportOfferRequest) returns (SelectTransportOfferResponse) {
+    option (common.v1.access).permission.name = "transport_offer_approve";
+    option (common.v1.access).permission.limit_field = "confirmed_amount";
+  }
+}

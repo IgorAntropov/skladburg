@@ -155,6 +155,8 @@ describe('safe deal through Connect', () => {
     const { deal: shipped } = await deals.markDealShipped({
       dealId, expectedVersion: paid?.version ?? 0, idempotencyKey: nextUuid(),
     }, SUPPLIER_1_CALL);
+    expect(shipped?.status).toBe(DealStatus.SHIPPED);
+    expect(shipped?.transitions.at(-1)).toMatchObject({ from: DealStatus.PAID, to: DealStatus.SHIPPED });
     expect((await readPayment())?.status).toBe(SafeDealPaymentStatus.HELD);
     const arrival = shipped?.deadlines?.arrivalDueAt;
     expect(arrival).toBeDefined();

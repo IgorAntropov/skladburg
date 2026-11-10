@@ -3,9 +3,11 @@ import type { Page } from '@playwright/test';
 
 import { createClient } from '@connectrpc/connect';
 import { createConnectTransport } from '@connectrpc/connect-web';
+import { CatalogService } from '@skladburg/contracts/catalog/v1/catalog';
 import { ShowcaseService } from '@skladburg/contracts/catalog/v1/showcase';
 import { DealService } from '@skladburg/contracts/deal/v1/deal';
 import { DocumentService } from '@skladburg/contracts/document/v1/document';
+import { LogisticsService } from '@skladburg/contracts/logistics/v1/logistics';
 import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
 import { PaymentService } from '@skladburg/contracts/payment/v1/payment';
 
@@ -27,8 +29,10 @@ export const DEAL_SUPPLIER: WorkerActingContextValue = {
 };
 
 export interface DealWorkerRobotValue extends EngineWorkerRobotValue {
+  catalog: Client<typeof CatalogService>;
   deals: Client<typeof DealService>;
   documents: Client<typeof DocumentService>;
+  logistics: Client<typeof LogisticsService>;
   notifications: Client<typeof NotificationService>;
   payments: Client<typeof PaymentService>;
   showcase: Client<typeof ShowcaseService>;
@@ -51,8 +55,10 @@ export const createDealWorkerRobot = async (
 
   return {
     ...worker,
+    catalog: createClient(CatalogService, transport),
     deals: createClient(DealService, transport),
     documents: createClient(DocumentService, transport),
+    logistics: createClient(LogisticsService, transport),
     notifications: createClient(NotificationService, transport),
     payments: createClient(PaymentService, transport),
     showcase: createClient(ShowcaseService, transport),

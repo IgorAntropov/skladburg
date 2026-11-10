@@ -3,7 +3,6 @@ import type {
   ServiceImpl,
 } from '@connectrpc/connect';
 import type { Money } from '@skladburg/contracts/common/v1/money';
-import type { TransportRequestRecord } from '@skladburg/contracts/logistics/v1/logistics_records';
 
 import { create } from '@bufbuild/protobuf';
 import { timestampFromMs } from '@bufbuild/protobuf/wkt';
@@ -14,7 +13,6 @@ import {
   ListTransportOffersResponseSchema,
   ListTransportRequestsResponseSchema,
   LogisticsService,
-  SelectTransportOfferResponseSchema,
   SubmitTransportOfferResponseSchema,
   TransportOfferCandidateSchema,
 } from '@skladburg/contracts/logistics/v1/logistics';
@@ -28,35 +26,18 @@ import type { EngineRequestHandler } from '../../router/engineRouter';
 import type { IModuleRuntime } from '../moduleRuntime';
 
 import {
-  enforcePermissionAmountLimit,
-  resolvePermissionGrants,
-} from '../../access/index';
-import {
   createPathDispatcher,
   createServiceRouter,
 } from '../../router/engineRouter';
 import { compareIds } from '../../state/index';
 import { SUPPORTED_CURRENCY_CODE } from '../catalog/catalogRules';
 import { paginate } from '../pagination';
-import { publishTransportRequest } from './publishTransportRequest';
-import {
-  publishTransportChanges,
-  transportRequestAudience,
-} from './transportLifecycle';
-import {
-  canCarryTransportRequest,
-  isTransportDealParty,
-} from './transportMatching';
+import { publishTransportChanges } from './transportEvents';
+import { canCarryTransportRequest } from './transportMatching';
 import {
   projectTransportRequest,
   readOwnTransportOffer,
 } from './transportProjection';
-
-const requireOpenRequest = (errors: IDomainErrors, request: TransportRequestRecord): void => {
-  if (request.status !== TransportRequestStatus.OPEN) {
-    throw errors.invalidTransition(EntityKind.TRANSPORT_REQUEST, TransportRequestStatus[request.status], 'OPEN');
-  }
-};
 
 const requirePositiveAmount = (errors: IDomainErrors, amount: Money | undefined): Money => {
   if (amount === undefined) {
@@ -74,7 +55,12 @@ const requirePositiveAmount = (errors: IDomainErrors, amount: Money | undefined)
 export const createLogisticsService = (runtime: IModuleRuntime): ServiceImpl<typeof LogisticsService> => {
   const { command, errors, getWorldTimeMs, guard, idempotency, read } = runtime;
 
+  const tripService = async (): Promise<ReturnType<typeof import('./tripService')['createTripService']>> =>
+    (await import('./tripService')).createTripService(runtime);
+
   return {
+    assignTrip: async (request, context) => (await tripService()).assignTrip(request, context),
+    confirmTransportOrder: async (request, context) => (await tripService()).confirmTransportOrder(request, context),
     getTransportRequest: (request, context) => {
       const method = LogisticsService.method.getTransportRequest;
       const { organizationId } = guard.guardPermissionCall(read, method, request, context.requestHeader);
@@ -86,6 +72,7 @@ export const createLogisticsService = (runtime: IModuleRuntime): ServiceImpl<typ
 
       return create(GetTransportRequestResponseSchema, { transportRequest: view });
     },
+    getTrip: async (request, context) => (await tripService()).getTrip(request, context),
     listTransportOffers: (request, context) => {
       const method = LogisticsService.method.listTransportOffers;
       const { organizationId } = guard.guardPermissionCall(read, method, request, context.requestHeader);
@@ -131,62 +118,11 @@ export const createLogisticsService = (runtime: IModuleRuntime): ServiceImpl<typ
 
       return create(ListTransportRequestsResponseSchema, { page, transportRequests: items.map(candidate => candidate.view) });
     },
-    publishTransportRequest: (request, context) => publishTransportRequest(runtime, request, context),
-    selectTransportOffer: (request, context) => command((transaction) => {
-      const method = LogisticsService.method.selectTransportOffer;
-      const caller = guard.guardPermissionCall(transaction, method, request, context.requestHeader);
-      const { admission, organizationId } = caller;
-
-      return idempotency.run(transaction, {
-        handler: () => {
-          const record = transaction.get('transportRequests', request.transportRequestId);
-          if (record === undefined || !isTransportDealParty(record, organizationId)) {
-            throw errors.notFound(EntityKind.TRANSPORT_REQUEST);
-          }
-          if (admission.kind !== 'membership' || record.shipperOrganizationId !== organizationId) {
-            throw errors.permissionDenied('transport_offer_approve');
-          }
-          if (record.version !== request.expectedVersion) {
-            throw errors.versionConflict(EntityKind.TRANSPORT_REQUEST, record.version);
-          }
-          requireOpenRequest(errors, record);
-
-          const offer = transaction.get('transportOffers', request.transportOfferId);
-          if (offer?.transportRequestId !== record.id || offer.amount === undefined) {
-            throw errors.notFound(EntityKind.TRANSPORT_OFFER);
-          }
-
-          enforcePermissionAmountLimit(resolvePermissionGrants(transaction, admission.membership),
-            'transport_offer_approve', offer.amount, errors);
-          const { confirmedAmount } = request;
-          if (offer.amount.amountMinor !== confirmedAmount?.amountMinor || offer.amount.currencyCode !== confirmedAmount.currencyCode) {
-            throw errors.validationFailed([{ fieldPath: 'confirmed_amount', ruleId: 'logistics.amount_mismatch' }]);
-          }
-          const now = getWorldTimeMs();
-          if (!canCarryTransportRequest(transaction, record, offer.carrierOrganizationId, now)) {
-            throw errors.validationFailed([{ fieldPath: 'transport_offer_id', ruleId: 'logistics.offer_unavailable' }]);
-          }
-
-          const audience = transportRequestAudience(runtime, transaction, record);
-          const next = {
-            ...record,
-            selectedOfferId: offer.id,
-            status: TransportRequestStatus.SELECTED,
-            version: record.version + 1,
-          };
-          transaction.put('transportRequests', next);
-          publishTransportChanges(runtime, transaction, audience);
-
-          return create(SelectTransportOfferResponseSchema, {
-            transportRequest: projectTransportRequest(transaction, next, organizationId, now),
-          });
-        },
-        idempotencyKey: request.idempotencyKey,
-        method,
-        request,
-        scope: organizationId,
-      });
-    }),
+    listTrips: async (request, context) => (await tripService()).listTrips(request, context),
+    publishTransportRequest: async (request, context) =>
+      (await import('./publishTransportRequest')).publishTransportRequest(runtime, request, context),
+    selectTransportOffer: async (request, context) =>
+      (await import('./selectTransportOffer')).selectTransportOffer(runtime, request, context),
     submitTransportOffer: (request, context) => command((transaction) => {
       const method = LogisticsService.method.submitTransportOffer;
       const { organizationId } = guard.guardPermissionCall(transaction, method, request, context.requestHeader);

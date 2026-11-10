@@ -9,7 +9,6 @@ import {
   type Deal,
   type DealDeadlines,
   DealStatus,
-  DealTransitionSchema,
 } from '@skladburg/contracts/deal/v1/deal';
 import { DealChange } from '@skladburg/contracts/deal/v1/deal_events';
 import { DealNotice } from '@skladburg/contracts/notification/v1/notification';
@@ -26,39 +25,16 @@ import type { IModuleRuntime } from '../moduleRuntime';
 import { getStartOfDayInstant } from '../../calendar/zonedTime';
 import { createDealDeadlines } from '../deals/dealDeadlines';
 import {
+  advanceSystemDeal,
   postDealNotice,
   publishDealEffects,
 } from '../deals/dealEffects';
-import {
-  type DealCommand,
-  dealMachine,
-} from '../deals/dealMachine';
 import { rub } from '../deals/dealRules';
+import { getExchangePayments } from './loadExchangePayments';
 import { advancePayment } from './paymentMachine';
 
 const MINUTE_MS = 60_000;
 const ACCEPTANCE_NOTICE_LEAD_MS = 60 * MINUTE_MS;
-
-const advanceDeal = (
-  runtime: IModuleRuntime,
-  transaction: IStateTransaction,
-  deal: Deal,
-  command: DealCommand,
-  notice?: DealNotice,
-  actingOrganizationId: string = deal.customerOrganizationId,
-): void => {
-  const transition = dealMachine.requireTransition(runtime.errors, command, deal, undefined);
-  if (transition.side !== 'system' || deal.version >= 2_147_483_647) {
-    throw runtime.errors.unavailable();
-  }
-  const at = timestampFromMs(transaction.worldTimeMs);
-  deal.transitions.push(create(DealTransitionSchema, { at, from: deal.status, to: transition.status }));
-  deal.status = transition.status;
-  deal.updatedAt = at;
-  deal.version++;
-  transaction.put('deals', deal);
-  publishDealEffects(runtime, transaction, deal, notice, DealChange.STATUS, actingOrganizationId);
-};
 
 const writePayment = (
   runtime: IModuleRuntime,
@@ -90,7 +66,8 @@ export const holdPaymentForShipment = (runtime: IModuleRuntime, transaction: ISt
   if (record?.payment === undefined) {
     throw runtime.errors.internal();
   }
-  deal.deadlines = planDeliveryDeadlines(runtime, transaction, deal);
+  deal.deadlines = getExchangePayments(runtime.errors, deal)?.prepareExchangeShipment(runtime, transaction, deal, record)
+    ?? planDeliveryDeadlines(runtime, transaction, deal);
   advancePayment(runtime.errors, record.payment, 'hold', transaction.worldTimeMs);
   writePayment(runtime, transaction, deal, record);
 };
@@ -103,11 +80,17 @@ export const scheduleAcceptedPayout = (runtime: IModuleRuntime, transaction: ISt
     throw runtime.errors.internal();
   }
   advancePayment(runtime.errors, payment, 'release', transaction.worldTimeMs);
-  payment.payouts.push(create(SafeDealPayoutSchema, {
-    amount: rub(payment.goodsAmount.amountMinor + payment.deliveryAmount.amountMinor - payment.commissionAmount.amountMinor),
-    organizationId: deal.supplierOrganizationId,
-    status: PayoutStatus.PENDING,
-  }));
+  const exchange = getExchangePayments(runtime.errors, deal);
+  if (exchange !== undefined) {
+    exchange.appendExchangePayouts(runtime, transaction, deal, record);
+  }
+  else {
+    payment.payouts.push(create(SafeDealPayoutSchema, {
+      amount: rub(payment.goodsAmount.amountMinor + payment.deliveryAmount.amountMinor - payment.commissionAmount.amountMinor),
+      organizationId: deal.supplierOrganizationId,
+      status: PayoutStatus.PENDING,
+    }));
+  }
   const dueAt = runtime.paymentProvider.schedulePayout(transaction.worldTimeMs);
   record.bankDueAt = timestampFromMs(dueAt);
   writePayment(runtime, transaction, deal, record);
@@ -133,14 +116,14 @@ const processBankOperation = (runtime: IModuleRuntime, transaction: IStateTransa
     throw runtime.errors.internal();
   }
   if (deal.status === DealStatus.ACCEPTED && payment.status === SafeDealPaymentStatus.TO_PAYOUT) {
-    advanceDeal(runtime, transaction, deal, 'settle');
+    advanceSystemDeal(runtime, transaction, deal, 'settle');
   }
   if (timestampMs(record.bankDueAt) > transaction.worldTimeMs) {
     return;
   }
   if (payment.status === SafeDealPaymentStatus.AWAITING_FUNDS && deal.status === DealStatus.AWAITING_PAYMENT) {
     advancePayment(runtime.errors, payment, 'block', transaction.worldTimeMs);
-    advanceDeal(runtime, transaction, deal, 'fund', DealNotice.FUNDS_BLOCKED);
+    advanceSystemDeal(runtime, transaction, deal, 'fund', DealNotice.FUNDS_BLOCKED);
   }
   else if (payment.status === SafeDealPaymentStatus.TO_PAYOUT && deal.status === DealStatus.SETTLEMENT) {
     advancePayment(runtime.errors, payment, 'payOut', transaction.worldTimeMs);
@@ -148,8 +131,9 @@ const processBankOperation = (runtime: IModuleRuntime, transaction: IStateTransa
       payout.paidAt = timestampFromMs(transaction.worldTimeMs);
       payout.status = PayoutStatus.PAID;
     }
+    getExchangePayments(runtime.errors, deal)?.markTripPaid(runtime, transaction, deal);
     advancePayment(runtime.errors, payment, 'close', transaction.worldTimeMs);
-    advanceDeal(runtime, transaction, deal, 'close', DealNotice.PAID_OUT);
+    advanceSystemDeal(runtime, transaction, deal, 'close', DealNotice.PAID_OUT);
   }
   else {
     return;
@@ -164,12 +148,18 @@ const processDelivery = (
   deal: Deal,
   record: SafeDealPaymentRecord,
 ): void => {
-  if (deal.status === DealStatus.SHIPPED) {
-    advanceDeal(runtime, transaction, deal, 'startTransit');
+  const exchange = getExchangePayments(runtime.errors, deal);
+  if (exchange !== undefined) {
+    exchange.progressExchangeDelivery(runtime, transaction, deal);
   }
-  const arrival = deal.deadlines?.arrivalDueAt;
-  if (deal.status === DealStatus.IN_TRANSIT && arrival !== undefined && timestampMs(arrival) <= transaction.worldTimeMs) {
-    advanceDeal(runtime, transaction, deal, 'arrive', DealNotice.ARRIVED, deal.supplierOrganizationId);
+  else {
+    if (deal.status === DealStatus.SHIPPED) {
+      advanceSystemDeal(runtime, transaction, deal, 'startTransit');
+    }
+    const arrival = deal.deadlines?.arrivalDueAt;
+    if (deal.status === DealStatus.IN_TRANSIT && arrival !== undefined && timestampMs(arrival) <= transaction.worldTimeMs) {
+      advanceSystemDeal(runtime, transaction, deal, 'arrive', DealNotice.ARRIVED, deal.supplierOrganizationId);
+    }
   }
   const acceptance = deal.deadlines?.acceptanceDueAt;
   if ((deal.status !== DealStatus.ARRIVED && deal.status !== DealStatus.ACCEPTING) || acceptance === undefined) {
@@ -178,7 +168,7 @@ const processDelivery = (
   const remaining = timestampMs(acceptance) - transaction.worldTimeMs;
   if (remaining <= 0) {
     scheduleAcceptedPayout(runtime, transaction, deal);
-    advanceDeal(runtime, transaction, deal, 'autoAccept', DealNotice.ACCEPTED);
+    advanceSystemDeal(runtime, transaction, deal, 'autoAccept', DealNotice.ACCEPTED);
   }
   else if (!record.acceptanceNoticeSent && remaining <= ACCEPTANCE_NOTICE_LEAD_MS) {
     postDealNotice(runtime, transaction, deal, DealNotice.ACCEPTANCE_DUE, deal.customerOrganizationId);

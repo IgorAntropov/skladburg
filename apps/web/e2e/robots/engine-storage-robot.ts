@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 
 const DATABASE_NAME = 'skladburg-demo-engine';
-const STORES_ADDED_AFTER_V13 = ['carrierLanes', 'drivers', 'transportOffers', 'transportRequests', 'vehicles'] as const;
+const STORES_ADDED_AFTER_V13 = ['carrierLanes', 'drivers', 'transportOffers', 'transportRequests', 'trips', 'vehicles'] as const;
 const PRE_FLEET_DATABASE_VERSION = 13;
 const PRE_FLEET_SCHEMA_VERSION = 15;
 

@@ -1,6 +1,27 @@
+import { create } from '@bufbuild/protobuf';
+import { timestampFromMs } from '@bufbuild/protobuf/wkt';
 import { createClient } from '@connectrpc/connect';
-import { FleetService } from '@skladburg/contracts/fleet/v1/fleet';
+import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
+import {
+  DealSchema,
+  DealStatus,
+} from '@skladburg/contracts/deal/v1/deal';
+import {
+  FleetService,
+  VehicleBodyType,
+  VehicleCargoKind,
+} from '@skladburg/contracts/fleet/v1/fleet';
+import {
+  TransportOfferSchema,
+  TransportRequestRecordSchema,
+  TransportRequestStatus,
+} from '@skladburg/contracts/logistics/v1/logistics_records';
+import { TripStatus } from '@skladburg/contracts/logistics/v1/trip_records';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
+import {
+  SafeDealPaymentRecordSchema,
+  SafeDealPaymentStatus,
+} from '@skladburg/contracts/payment/v1/payment';
 import {
   afterEach,
   beforeEach,
@@ -10,22 +31,87 @@ import {
   vi,
 } from 'vitest';
 
+import type { EngineSnapshotValue } from '../ports/index';
+
 import { callAs } from '../modules/testing/moduleHarness';
 import { createMemoryStorage } from '../ports/index';
 import {
   SeedCityId,
   SeedOrganizationId,
   SeedUserId,
+  SeedWarehouseId,
 } from '../seed/seedIds';
 import { createSeedSnapshot } from '../seed/seedSnapshot';
 import { TABLE_DEFINITIONS } from '../state/index';
 import { createEngineTransport } from './testing/engineHarness';
+
+const TRIP_DEAL_ID = '00000000-0000-4000-8000-000000000111';
+const TRIP_REQUEST_ID = '00000000-0000-4000-8000-000000000112';
+const TRIP_OFFER_ID = '00000000-0000-4000-8000-000000000113';
+
+const withSelectedOffer = (snapshot: EngineSnapshotValue): EngineSnapshotValue => {
+  const deal = create(DealSchema, {
+    customerOrganizationId: SeedOrganizationId.CUSTOMER_1,
+    deliveryMethod: DeliveryMethod.EXCHANGE,
+    goodsTotal: { amountMinor: 10_000n, currencyCode: 'RUB' },
+    id: TRIP_DEAL_ID,
+    shipFromWarehouseId: SeedWarehouseId.SUPPLIER_6_WAREHOUSE_1,
+    shipToWarehouseId: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1,
+    status: DealStatus.AWAITING_LOGISTICS,
+    supplierOrganizationId: SeedOrganizationId.SUPPLIER_6,
+    version: 2,
+  });
+  const { worldTimeMs } = snapshot.meta;
+  const request = create(TransportRequestRecordSchema, {
+    cargo: {
+      bodyTypes: [VehicleBodyType.REFRIGERATED],
+      cargoKind: VehicleCargoKind.GENERAL,
+      heightMillimeters: 1_000,
+      lengthMillimeters: 1_000,
+      volumeCubicCentimeters: 1_000_000n,
+      weightGrams: 1_000n,
+      widthMillimeters: 1_000,
+    },
+    customerOrganizationId: deal.customerOrganizationId,
+    dealId: deal.id,
+    deliveryWindow: { endsAt: timestampFromMs(worldTimeMs + 10_800_000), startsAt: timestampFromMs(worldTimeMs + 7_200_000) },
+    driveMinutes: 60,
+    fromCityId: SeedCityId.MOSCOW,
+    id: TRIP_REQUEST_ID,
+    pickupWindow: { endsAt: timestampFromMs(worldTimeMs + 7_200_000), startsAt: timestampFromMs(worldTimeMs + 3_600_000) },
+    publishedAt: timestampFromMs(worldTimeMs),
+    selectedOfferId: TRIP_OFFER_ID,
+    shipperOrganizationId: deal.supplierOrganizationId,
+    status: TransportRequestStatus.SELECTED,
+    supplierOrganizationId: deal.supplierOrganizationId,
+    toCityId: SeedCityId.MOSCOW,
+    version: 2,
+  });
+  const offer = create(TransportOfferSchema, {
+    amount: { amountMinor: 100_000n, currencyCode: 'RUB' },
+    carrierOrganizationId: SeedOrganizationId.CARRIER_1,
+    id: TRIP_OFFER_ID,
+    transportRequestId: request.id,
+  });
+
+  return {
+    ...snapshot,
+    collections: {
+      ...snapshot.collections,
+      deals: new Map([...snapshot.collections.deals, [deal.id, TABLE_DEFINITIONS.deals.encode(deal)]]),
+      transportOffers: new Map([[offer.id, TABLE_DEFINITIONS.transportOffers.encode(offer)]]),
+      transportRequests: new Map([[request.id, TABLE_DEFINITIONS.transportRequests.encode(request)]]),
+    },
+    schemaVersion: 17,
+  };
+};
 
 beforeEach(() => {
   vi.resetModules();
 });
 
 afterEach(() => {
+  vi.doUnmock('../modules/payments/loadExchangePayments');
   vi.doUnmock('../seed/seedDealHistory');
   vi.doUnmock('../seed/seedSnapshot');
   vi.restoreAllMocks();
@@ -69,6 +155,94 @@ describe('engine seed loading', () => {
     expect(await storage.load()).toEqual(snapshot);
     await createEngine({ epoch: 'reopened', realTime, storage });
     expect(replaceAll).toHaveBeenCalledTimes(2);
+  });
+
+  it('restores a selected offer as a draft trip once and preserves the old snapshot if migration cannot write', async () => {
+    const { createEngine } = await import('./createEngine');
+    const realTime = { now: (): number => 0 };
+    const stored = withSelectedOffer(createSeedSnapshot());
+    const storage = createMemoryStorage(stored);
+    const writeFailure = new Error('Migration write failed');
+    const replaceAll = vi.spyOn(storage, 'replaceAll').mockRejectedValueOnce(writeFailure);
+
+    await expect(createEngine({ epoch: 'failed', realTime, storage })).rejects.toMatchObject({
+      cause: writeFailure,
+      name: 'SeedLoadError',
+    });
+    expect(await storage.load()).toEqual(stored);
+
+    await createEngine({ epoch: 'restored', realTime, storage });
+    const migrated = await storage.load();
+    const storedTrip = migrated?.collections.trips.get(TRIP_REQUEST_ID);
+    if (storedTrip === undefined || migrated === undefined) {
+      throw new Error('Missing migrated trip');
+    }
+    expect(migrated).toEqual({
+      ...stored,
+      collections: { ...stored.collections, trips: migrated.collections.trips },
+      schemaVersion: 18,
+    });
+    expect(migrated.collections.trips.size).toBe(1);
+    const trip = TABLE_DEFINITIONS.trips.decode(storedTrip);
+    expect(trip).toMatchObject({
+      dealId: TRIP_DEAL_ID,
+      id: TRIP_REQUEST_ID,
+      status: TripStatus.AWAITING_CONFIRMATION,
+      transportOrder: {
+        amount: { amountMinor: 100_000n, currencyCode: 'RUB' },
+        carrierOrganizationId: SeedOrganizationId.CARRIER_1,
+        delivery: { warehouseId: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1 },
+        offerId: TRIP_OFFER_ID,
+        pickup: { warehouseId: SeedWarehouseId.SUPPLIER_6_WAREHOUSE_1 },
+        shipperOrganizationId: SeedOrganizationId.SUPPLIER_6,
+      },
+      version: 1,
+    });
+    expect(trip.assignment).toBeUndefined();
+    expect(trip.transportOrder?.confirmedAt).toBeUndefined();
+
+    await createEngine({ epoch: 'reopened', realTime, storage });
+    expect(await storage.load()).toEqual(migrated);
+    expect(replaceAll).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves the legacy snapshot when the selected offer is missing', async () => {
+    const { createEngine } = await import('./createEngine');
+    const selected = withSelectedOffer(createSeedSnapshot());
+    const stored = { ...selected, collections: { ...selected.collections, transportOffers: new Map() } };
+    const storage = createMemoryStorage(stored);
+    const replaceAll = vi.spyOn(storage, 'replaceAll');
+
+    await expect(createEngine({ epoch: 'failed', realTime: { now: () => 0 }, storage })).rejects.toMatchObject({ name: 'SeedLoadError' });
+    expect(replaceAll).not.toHaveBeenCalled();
+    expect(await storage.load()).toEqual(stored);
+  });
+
+  it('preserves the snapshot when the active exchange payment cannot be loaded on startup', async () => {
+    const snapshot = createSeedSnapshot();
+    const payment = create(SafeDealPaymentRecordSchema, {
+      id: TRIP_DEAL_ID,
+      payment: { dealId: TRIP_DEAL_ID, status: SafeDealPaymentStatus.BLOCKED },
+      transportSettlement: { tripId: TRIP_REQUEST_ID },
+    });
+    const stored = {
+      ...snapshot,
+      collections: { ...snapshot.collections, payments: new Map([[payment.id, TABLE_DEFINITIONS.payments.encode(payment)]]) },
+    };
+    const storage = createMemoryStorage(stored);
+    const replaceAll = vi.spyOn(storage, 'replaceAll');
+    const loadFailure = new Error('The exchange payment chunk is unavailable');
+    vi.doMock('../modules/payments/loadExchangePayments', () => ({
+      loadExchangePayments: (): Promise<never> => Promise.reject(loadFailure),
+    }));
+    const { createEngine } = await import('./createEngine');
+
+    await expect(createEngine({ epoch: 'failed', realTime: { now: () => 0 }, storage })).rejects.toMatchObject({
+      cause: loadFailure,
+      name: 'SeedLoadError',
+    });
+    expect(replaceAll).not.toHaveBeenCalled();
+    expect(await storage.load()).toEqual(stored);
   });
 
   it('publishes seeded deal history only on a new world or reset', async () => {

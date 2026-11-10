@@ -26,10 +26,8 @@ import type { IModuleRuntime } from '../moduleRuntime';
 
 import { runDealCommand } from '../deals/dealCommand';
 import { findInterWarehouseRoutes } from '../network/index';
-import {
-  publishTransportChanges,
-  transportRequestAudience,
-} from './transportLifecycle';
+import { transportRequestAudience } from './transportAudience';
+import { publishTransportChanges } from './transportEvents';
 import {
   findDepartureRange,
   readTransportWindow,
@@ -90,7 +88,7 @@ export const publishTransportRequest = (
     }
 
     transaction.put('transportRequests', record);
-    publishTransportChanges(runtime, transaction, transportRequestAudience(runtime, transaction, record));
+    publishTransportChanges(runtime, transaction, transportRequestAudience(transaction, record));
 
     const next = clone(DealSchema, deal);
     next.deliveryMethod = DeliveryMethod.EXCHANGE;

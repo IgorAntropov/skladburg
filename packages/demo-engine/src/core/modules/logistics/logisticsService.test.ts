@@ -1,16 +1,30 @@
 import type { Client } from '@connectrpc/connect';
-import type { Deal } from '@skladburg/contracts/deal/v1/deal';
+import type {
+  CreateDealDraftRequest,
+  Deal,
+} from '@skladburg/contracts/deal/v1/deal';
 import type { PublishTransportRequestRequest } from '@skladburg/contracts/logistics/v1/logistics';
 
 import { create } from '@bufbuild/protobuf';
-import { timestampFromMs } from '@bufbuild/protobuf/wkt';
+import {
+  timestampFromMs,
+  timestampMs,
+} from '@bufbuild/protobuf/wkt';
 import { createClient } from '@connectrpc/connect';
 import { MembershipSchema } from '@skladburg/contracts/access/v1/access';
 import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
-import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
+import {
+  DealService,
+  DealStatus,
+} from '@skladburg/contracts/deal/v1/deal';
+import {
+  DocumentService,
+  DocumentType,
+} from '@skladburg/contracts/document/v1/document';
 import {
   CarrierLaneSchema,
+  DriverSchema,
   VehicleBodyType,
   VehicleCargoKind,
   VehicleSchema,
@@ -20,6 +34,11 @@ import {
   PublishTransportRequestRequestSchema,
 } from '@skladburg/contracts/logistics/v1/logistics';
 import { TransportRequestStatus } from '@skladburg/contracts/logistics/v1/logistics_records';
+import { TripStatus } from '@skladburg/contracts/logistics/v1/trip_records';
+import {
+  PaymentService,
+  SafeDealPaymentStatus,
+} from '@skladburg/contracts/payment/v1/payment';
 import { organizationChannel } from '@skladburg/contracts/runtime';
 import {
   describe,
@@ -27,6 +46,12 @@ import {
   it,
 } from 'vitest';
 
+import {
+  createEngineTransport,
+  createSpyStorage,
+  createTestEngine,
+  type TestEngineValue,
+} from '../../engine/testing/engineHarness';
 import {
   SeedCityId,
   SeedOrganizationId,
@@ -50,11 +75,14 @@ import {
   type ModuleHarnessValue,
   readErrorDetail,
 } from '../testing/moduleHarness';
+import { markTripShipped } from './tripLifecycle';
 
 const CARRIER_ONE = callAs(SeedUserId.ADMIN_4, SeedOrganizationId.CARRIER_1);
 const CARRIER_TWO = callAs(SeedUserId.ADMIN_8, SeedOrganizationId.CARRIER_2);
+const MINUTE_MS = 60_000;
 const PICKUP_START = Date.UTC(2026, 9, 12, 7);
-const AMOUNT = buildRub(7_500_000n);
+const INTERCITY_ARRIVAL = PICKUP_START + (570 + 400) * MINUTE_MS;
+const AMOUNT = buildRub(75_000n);
 
 const window = (startsAt: number, endsAt: number): PublishTransportRequestRequest['pickupWindow'] => ({
   $typeName: 'logistics.v1.TransportWindow',
@@ -64,6 +92,7 @@ const window = (startsAt: number, endsAt: number): PublishTransportRequestReques
 
 interface DealFixtureValue {
   deal: Deal;
+  draft: CreateDealDraftRequest;
   harness: ModuleHarnessValue;
   logistics: Client<typeof LogisticsService>;
   publish: PublishTransportRequestRequest;
@@ -75,8 +104,7 @@ interface RequestFixtureValue extends DealFixtureValue {
   version: number;
 }
 
-const prepareDeal = async (): Promise<DealFixtureValue> => {
-  const { harness, request } = await createDealFixture();
+const agreeDeal = async (harness: ModuleHarnessValue, request: CreateDealDraftRequest): Promise<Deal> => {
   const submitted = await createSubmittedDeal(harness, request);
   const { deal } = await harness.deal.confirmDeal({
     dealId: submitted.id,
@@ -89,6 +117,12 @@ const prepareDeal = async (): Promise<DealFixtureValue> => {
     throw new Error('Expected an agreed deal');
   }
 
+  return deal;
+};
+
+const prepareDeal = async (): Promise<DealFixtureValue> => {
+  const { harness, request } = await createDealFixture();
+  const deal = await agreeDeal(harness, request);
   const publish = create(PublishTransportRequestRequestSchema, {
     cargo: {
       bodyTypes: [VehicleBodyType.REFRIGERATED],
@@ -108,11 +142,10 @@ const prepareDeal = async (): Promise<DealFixtureValue> => {
     pickupWindow: window(PICKUP_START, Date.UTC(2026, 9, 12, 12)),
   });
 
-  return { deal, harness, logistics: createClient(LogisticsService, harness.transport), publish };
+  return { deal, draft: request, harness, logistics: createClient(LogisticsService, harness.transport), publish };
 };
 
-const prepareRequest = async (caller = CUSTOMER_CALL): Promise<RequestFixtureValue> => {
-  const fixture = await prepareDeal();
+const publishFixture = async (fixture: DealFixtureValue, caller = CUSTOMER_CALL): Promise<RequestFixtureValue> => {
   const { transportRequest } = await fixture.logistics.publishTransportRequest(fixture.publish, caller);
   const id = transportRequest?.summary?.id;
   if (id === undefined || transportRequest?.perspective.case !== 'deal') {
@@ -125,6 +158,77 @@ const prepareRequest = async (caller = CUSTOMER_CALL): Promise<RequestFixtureVal
     id,
     version: transportRequest.perspective.value.version,
   };
+};
+
+const prepareRequest = async (caller = CUSTOMER_CALL): Promise<RequestFixtureValue> => publishFixture(await prepareDeal(), caller);
+
+const selectFixture = async (fixture: RequestFixtureValue, caller = CUSTOMER_CALL): Promise<void> => {
+  const { createOffer, id, logistics, version } = fixture;
+  const { offer } = await logistics.submitTransportOffer({ ...createOffer, idempotencyKey: nextUuid() }, CARRIER_ONE);
+  if (offer === undefined) {
+    throw new Error('Expected a transport offer');
+  }
+  await logistics.selectTransportOffer({
+    confirmedAmount: AMOUNT,
+    expectedVersion: version,
+    idempotencyKey: nextUuid(),
+    transportOfferId: offer.id,
+    transportRequestId: id,
+  }, caller);
+};
+
+const tickAt = async (testEngine: TestEngineValue, worldTimeMs: number): Promise<void> => {
+  const { timeScale, worldTimeMs: current } = testEngine.engine.getClockSnapshot();
+  testEngine.realTime.advance(Math.ceil((worldTimeMs - current) / timeScale));
+  await testEngine.engine.tick();
+};
+
+const prepareFundedTrip = async (): Promise<{
+  dealId: string;
+  deals: Client<typeof DealService>;
+  fundedAmount: typeof AMOUNT;
+  logistics: Client<typeof LogisticsService>;
+  payments: Client<typeof PaymentService>;
+  testEngine: TestEngineValue;
+  tripId: string;
+}> => {
+  const fixture = await prepareDeal();
+  const { deal, harness } = fixture;
+  const testEngine = await createTestEngine({ storage: createSpyStorage(await harness.storage.load()) });
+  const transport = createEngineTransport(testEngine.engine, true);
+  const deals = createClient(DealService, transport);
+  const documents = createClient(DocumentService, transport);
+  const logistics = createClient(LogisticsService, transport);
+  const payments = createClient(PaymentService, transport);
+  const published = await publishFixture({ ...fixture, logistics });
+  const tripId = published.id;
+  const dealId = deal.id;
+  await selectFixture(published);
+  await logistics.confirmTransportOrder({ expectedVersion: 1, idempotencyKey: nextUuid(), tripId }, CARRIER_ONE);
+  const vehicle = harness.state.read.listBy('vehicles', 'tenantId', SeedOrganizationId.CARRIER_1)
+    .find(candidate => candidate.details?.availability.some(window => window.cityId === SeedCityId.KRASNODAR));
+  const [driver] = harness.state.read.listBy('drivers', 'tenantId', SeedOrganizationId.CARRIER_1);
+  if (vehicle === undefined || driver === undefined || deal.goodsTotal === undefined) {
+    throw new Error('Expected goods total and fleet resources for the intercity trip');
+  }
+  await logistics.assignTrip({
+    departureAt: timestampFromMs(PICKUP_START),
+    driverId: driver.id,
+    expectedVersion: 2,
+    idempotencyKey: nextUuid(),
+    tripId,
+    vehicleId: vehicle.id,
+  }, CARRIER_ONE);
+  for (const document of (await documents.listDealDocuments({ dealId }, SUPPLIER_1_CALL)).documents) {
+    const sign = document.type === DocumentType.SUPPLY_CONTRACT ? documents.signSupplyContract : documents.signDocument;
+    await sign({ dealId, documentId: document.id, expectedVersion: 1, idempotencyKey: nextUuid() }, SUPPLIER_1_CALL);
+    await sign({ dealId, documentId: document.id, expectedVersion: 2, idempotencyKey: nextUuid() }, CUSTOMER_CALL);
+  }
+  const fundedAmount = buildRub(deal.goodsTotal.amountMinor + AMOUNT.amountMinor);
+  await payments.fundDeal({ amount: fundedAmount, dealId, expectedVersion: 1, idempotencyKey: nextUuid() }, CUSTOMER_CALL);
+  await tickAt(testEngine, testEngine.engine.getClockSnapshot().worldTimeMs + 5 * MINUTE_MS);
+
+  return { dealId, deals, fundedAmount, logistics, payments, testEngine, tripId };
 };
 
 describe('LogisticsService', () => {
@@ -205,7 +309,7 @@ describe('LogisticsService', () => {
         ...vehicle, id: nextUuid(), tenantId: SeedOrganizationId.CARRIER_2,
       }));
     });
-    const cheaper = buildRub(7_000_000n);
+    const cheaper = buildRub(70_000n);
     const alternative = await logistics.submitTransportOffer({
       ...createOffer, amount: cheaper, idempotencyKey: nextUuid(),
     }, CARRIER_TWO);
@@ -320,5 +424,186 @@ describe('LogisticsService', () => {
     expect(closed.transportRequest?.summary?.status).toBe(TransportRequestStatus.CANCELLED);
     expect(harness.state.read.get('deals', deal.id)?.status).toBe(DealStatus.CANCELLED);
     expect((await logistics.listTransportRequests({}, CARRIER_ONE)).transportRequests).toEqual([]);
+  });
+
+  it('keeps a supplier-paid offer open when it exceeds the amount available for settlement', async () => {
+    const { createOffer, harness, id, logistics, version } = await prepareRequest(SUPPLIER_1_CALL);
+    const amount = buildRub(89_000n);
+    const { offer } = await logistics.submitTransportOffer({ ...createOffer, amount, idempotencyKey: nextUuid() }, CARRIER_ONE);
+    const failure = await captureError(logistics.selectTransportOffer({
+      confirmedAmount: amount,
+      expectedVersion: version,
+      idempotencyKey: nextUuid(),
+      transportOfferId: offer?.id ?? '',
+      transportRequestId: id,
+    }, SUPPLIER_1_CALL));
+    expect(readErrorDetail(failure).code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(harness.state.read.get('transportRequests', id)?.status).toBe(TransportRequestStatus.OPEN);
+    expect(harness.state.read.get('trips', id)).toBeUndefined();
+  });
+
+  it('creates one trip for a selected offer and lets only its carrier confirm the transport order', async () => {
+    const fixture = await prepareRequest();
+    const { deal, harness, id, logistics } = fixture;
+    await selectFixture(fixture);
+    const draft = await logistics.getTrip({ tripId: id }, CARRIER_ONE);
+    expect(draft.trip).toMatchObject({ id, status: TripStatus.AWAITING_CONFIRMATION, version: 1 });
+    const request = { expectedVersion: 1, idempotencyKey: nextUuid(), tripId: id };
+    const outsider = await captureError(logistics.confirmTransportOrder(request, CARRIER_TWO));
+    expect(readErrorDetail(outsider).code).toBe(ErrorCode.NOT_FOUND);
+    expect((await logistics.listTrips({}, CARRIER_TWO)).trips).toEqual([]);
+
+    const confirmed = await logistics.confirmTransportOrder(request, CARRIER_ONE);
+    expect(confirmed.trip).toMatchObject({
+      id,
+      status: TripStatus.CONFIRMED,
+      transportOrder: { amount: AMOUNT, confirmedByUserId: SeedUserId.ADMIN_4 },
+      version: 2,
+    });
+    expect(await logistics.confirmTransportOrder(request, CARRIER_ONE)).toEqual(confirmed);
+    const payer = await logistics.getTrip({ tripId: id }, CUSTOMER_CALL);
+    expect(payer.trip?.transportOrder?.amount).toEqual(AMOUNT);
+    expect(payer.trip?.transportOrder?.confirmedByUserId).toBe('');
+    const supplier = await logistics.getTrip({ tripId: id }, SUPPLIER_1_CALL);
+    expect(supplier.trip?.transportOrder).toBeUndefined();
+    expect(harness.state.read.get('deals', deal.id)?.status).toBe(DealStatus.LOGISTICS_CHOSEN);
+    const invoices = harness.state.read.listBy('documents', 'dealId', deal.id).filter(document => document.type === DocumentType.INVOICE);
+    expect(invoices).toHaveLength(1);
+    expect(invoices[0]?.content?.terms).toMatchObject({ case: 'invoice', value: { deliveryTotal: buildRub(0n) } });
+  });
+
+  it('rejects simultaneous overlapping reservations and rechecks driver availability before shipment', async () => {
+    const first = await prepareRequest();
+    const { draft, harness, logistics } = first;
+    const secondDeal = await agreeDeal(harness, { ...draft, dealId: nextUuid(), idempotencyKey: nextUuid() });
+    const second = await publishFixture({
+      ...first,
+      deal: secondDeal,
+      publish: { ...first.publish, dealId: secondDeal.id, expectedVersion: secondDeal.version, idempotencyKey: nextUuid() },
+    });
+    await selectFixture(first);
+    await selectFixture(second);
+    for (const { id } of [first, second]) {
+      await logistics.confirmTransportOrder({ expectedVersion: 1, idempotencyKey: nextUuid(), tripId: id }, CARRIER_ONE);
+    }
+    const vehicle = harness.state.read.listBy('vehicles', 'tenantId', SeedOrganizationId.CARRIER_1)
+      .find(candidate => candidate.details?.availability.some(window => window.cityId === SeedCityId.KRASNODAR));
+    const [driver] = harness.state.read.listBy('drivers', 'tenantId', SeedOrganizationId.CARRIER_1);
+    if (vehicle === undefined || driver === undefined) {
+      throw new Error('Expected fleet resources at the departure city');
+    }
+    const departureAt = timestampFromMs(PICKUP_START);
+    const assign = (tripId: string): ReturnType<typeof logistics.assignTrip> => logistics.assignTrip({
+      departureAt, driverId: driver.id, expectedVersion: 2, idempotencyKey: nextUuid(), tripId, vehicleId: vehicle.id,
+    }, CARRIER_ONE);
+    const results = await Promise.allSettled([assign(first.id), assign(second.id)]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+    const assigned = (await logistics.listTrips({}, CARRIER_ONE)).trips.find(trip => trip.status === TripStatus.ASSIGNED);
+    if (assigned === undefined) {
+      throw new Error('Expected one assigned trip');
+    }
+    expect(assigned.ownAssignment).toMatchObject({ departureAt, driverId: driver.id, vehicleId: vehicle.id });
+    const customer = await logistics.getTrip({ tripId: assigned.id }, CUSTOMER_CALL);
+    expect(customer.trip?.ownAssignment).toBeUndefined();
+
+    const otherVehicleId = nextUuid();
+    await harness.runtime.command((transaction) => {
+      transaction.put('vehicles', create(VehicleSchema, { ...vehicle, id: otherVehicleId }));
+    });
+    const unassigned = assigned.id === first.id ? second.id : first.id;
+    const overlappingDriver = await captureError(logistics.assignTrip({
+      departureAt, driverId: driver.id, expectedVersion: 2, idempotencyKey: nextUuid(), tripId: unassigned, vehicleId: otherVehicleId,
+    }, CARRIER_ONE));
+    expect(readErrorDetail(overlappingDriver)).toMatchObject({
+      code: ErrorCode.VALIDATION_FAILED,
+      params: { case: 'validationFailed', value: { violations: [{ fieldPath: 'driver_id', ruleId: 'logistics.driver_reserved' }] } },
+    });
+
+    await harness.runtime.command((transaction) => {
+      transaction.put('drivers', create(DriverSchema, { ...driver, isActive: false }));
+    });
+    const assignedDeal = assigned.id === first.id ? first.deal : second.deal;
+    const invalidShipment = await captureError(
+      harness.runtime.command((transaction) => {
+        markTripShipped(harness.runtime, transaction, assignedDeal);
+      }),
+    );
+    expect(readErrorDetail(invalidShipment).code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(harness.state.read.get('trips', assigned.id)?.status).toBe(TripStatus.ASSIGNED);
+
+    const currentDeal = harness.state.read.get('deals', assignedDeal.id);
+    if (currentDeal === undefined) {
+      throw new Error('Expected the current assigned deal');
+    }
+    await harness.deal.cancelDeal({
+      dealId: currentDeal.id, expectedVersion: currentDeal.version, idempotencyKey: nextUuid(), reason: 'Отменили поставку',
+    }, CUSTOMER_CALL);
+    expect(harness.state.read.get('trips', assigned.id)?.status).toBe(TripStatus.CANCELLED);
+    await harness.runtime.command((transaction) => {
+      transaction.put('drivers', driver);
+    });
+    expect((await assign(unassigned)).trip?.status).toBe(TripStatus.ASSIGNED);
+  });
+});
+
+describe('exchange trip through Connect', () => {
+  it('moves the intercity deal from shipment to arrival at the scheduled world times', async () => {
+    const { dealId, deals, logistics, testEngine, tripId } = await prepareFundedTrip();
+    const readDeal = async (): Promise<Deal | undefined> => (await deals.getDeal({ dealId }, CUSTOMER_CALL)).deal;
+    const paid = await readDeal();
+    expect(paid?.status).toBe(DealStatus.PAID);
+    await deals.markDealShipped({ dealId, expectedVersion: paid?.version ?? 0, idempotencyKey: nextUuid() }, SUPPLIER_1_CALL);
+
+    const arrivalAt = timestampFromMs(INTERCITY_ARRIVAL);
+    await tickAt(testEngine, PICKUP_START - MINUTE_MS);
+    expect((await logistics.getTrip({ tripId }, CARRIER_ONE)).trip).toMatchObject({
+      plannedArrivalAt: arrivalAt,
+      status: TripStatus.LOADED,
+    });
+    expect(await readDeal()).toMatchObject({ deadlines: { arrivalDueAt: arrivalAt }, status: DealStatus.SHIPPED });
+    expect((await readDeal())?.deadlines?.acceptanceDueAt).toBeUndefined();
+
+    await tickAt(testEngine, PICKUP_START);
+    expect((await logistics.getTrip({ tripId }, CARRIER_ONE)).trip).toMatchObject({
+      departedAt: timestampFromMs(PICKUP_START), status: TripStatus.IN_TRANSIT,
+    });
+    expect((await readDeal())?.status).toBe(DealStatus.IN_TRANSIT);
+
+    await tickAt(testEngine, INTERCITY_ARRIVAL - MINUTE_MS);
+    expect((await logistics.getTrip({ tripId }, CARRIER_ONE)).trip?.status).toBe(TripStatus.IN_TRANSIT);
+    expect((await readDeal())?.status).toBe(DealStatus.IN_TRANSIT);
+
+    await tickAt(testEngine, INTERCITY_ARRIVAL);
+    expect((await logistics.getTrip({ tripId }, CARRIER_ONE)).trip).toMatchObject({ arrivedAt: arrivalAt, status: TripStatus.ARRIVED });
+    const arrived = await readDeal();
+    expect(arrived).toMatchObject({ deadlines: { arrivalDueAt: arrivalAt }, status: DealStatus.ARRIVED });
+    expect(timestampMs(arrived?.deadlines?.acceptanceDueAt ?? arrivalAt)).toBeGreaterThan(INTERCITY_ARRIVAL);
+  });
+
+  it('refunds all blocked funds on cancellation of an assigned trip without creating either payout', async () => {
+    const { dealId, deals, fundedAmount, logistics, payments, testEngine, tripId } = await prepareFundedTrip();
+    const { deal } = await deals.getDeal({ dealId }, CUSTOMER_CALL);
+    expect(deal?.status).toBe(DealStatus.PAID);
+    expect((await logistics.getTrip({ tripId }, CARRIER_ONE)).trip?.status).toBe(TripStatus.ASSIGNED);
+    expect((await payments.getDealPayment({ dealId }, CUSTOMER_CALL)).payment).toMatchObject({
+      fundedAmount, payouts: [], status: SafeDealPaymentStatus.BLOCKED,
+    });
+
+    const cancel = { dealId, expectedVersion: deal?.version ?? 0, idempotencyKey: nextUuid(), reason: 'Отменили поставку' };
+    const cancelled = await deals.cancelDeal(cancel, CUSTOMER_CALL);
+    expect(cancelled.deal?.status).toBe(DealStatus.CANCELLED);
+    expect(await deals.cancelDeal(cancel, CUSTOMER_CALL)).toEqual(cancelled);
+    await tickAt(testEngine, INTERCITY_ARRIVAL + MINUTE_MS);
+
+    const { trip } = await logistics.getTrip({ tripId }, CARRIER_ONE);
+    expect(trip).toMatchObject({ status: TripStatus.CANCELLED, version: 4 });
+    expect(trip?.departedAt).toBeUndefined();
+    expect(trip?.carrierPayment?.carrierPayout).toBeUndefined();
+    const { payment } = await payments.getDealPayment({ dealId }, CUSTOMER_CALL);
+    expect(payment).toMatchObject({ fundedAmount, payouts: [], status: SafeDealPaymentStatus.REFUNDED });
+    expect(payment?.transitions.map(transition => transition.to)).toEqual([
+      SafeDealPaymentStatus.AWAITING_FUNDS, SafeDealPaymentStatus.BLOCKED, SafeDealPaymentStatus.REFUNDED,
+    ]);
   });
 });

@@ -20,15 +20,10 @@ export const groupDeals = (deals: readonly Deal[], organizationId: string): Deal
   const groups: DealGroupsValue = { active: [], closed: [], mine: [] };
 
   for (const deal of deals) {
-    if (CLOSED_STATUSES.has(deal.status)) {
-      groups.closed.push(deal);
-    }
-    else if (isOrganizationTurn(deal, organizationId)) {
-      groups.mine.push(deal);
-    }
-    else {
-      groups.active.push(deal);
-    }
+    const group = CLOSED_STATUSES.has(deal.status)
+      ? groups.closed
+      : isOrganizationTurn(deal, organizationId) ? groups.mine : groups.active;
+    group.push(deal);
   }
 
   return groups;

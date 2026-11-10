@@ -2,6 +2,7 @@ export { CONTRACT_IMAGE_BASE64 as COMPRESSED_CONTRACT_IMAGE_BASE64 } from '../ge
 export { CONTRACT_IMAGE_BASE64 as COMPRESSED_VALIDATION_IMAGE_BASE64 } from '../gen/contract_validation_image_deflate';
 export {
   createContractRegistry,
+  createValidationContractRegistry,
   getContractRegistry,
   getRuleSchema,
 } from './contractRegistry';

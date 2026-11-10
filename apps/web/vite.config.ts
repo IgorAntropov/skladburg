@@ -310,6 +310,12 @@ const MAX_ENGINE_FLEET_GZIP_KILOBYTES = 2.21;
 
 const MAX_ENGINE_LOGISTICS_GZIP_KILOBYTES = 5.5;
 
+const MAX_ENGINE_LOGISTICS_PUBLISH_GZIP_KILOBYTES = 6.7;
+
+const MAX_ENGINE_TRIP_GZIP_KILOBYTES = 10.75;
+
+const MAX_ENGINE_TRIP_MIGRATION_GZIP_KILOBYTES = 1;
+
 const MAX_ENGINE_IMPORT_GZIP_KILOBYTES = 184.37;
 
 const MAX_ENGINE_SEED_HISTORY_GZIP_KILOBYTES = 3.55;
@@ -325,6 +331,8 @@ const MAX_ENGINE_DOCUMENTS_GZIP_KILOBYTES = 4;
 const MAX_ENGINE_NEGOTIATION_GZIP_KILOBYTES = 4.2;
 
 const MAX_ENGINE_PAYMENTS_GZIP_KILOBYTES = 3;
+
+const MAX_ENGINE_EXCHANGE_PAYMENTS_GZIP_KILOBYTES = 6.1;
 
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
@@ -438,6 +446,13 @@ const ENGINE_WORKER_BUDGET = {
     },
     {
       baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/engine/migrateTripRecords.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_TRIP_MIGRATION_GZIP_KILOBYTES,
+      name: 'engine-trip-migration',
+    },
+    {
+      baseline: 'engine',
       entries: ['packages/demo-engine/src/core/modules/fleet/index.ts'],
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_FLEET_GZIP_KILOBYTES,
@@ -449,6 +464,23 @@ const ENGINE_WORKER_BUDGET = {
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_LOGISTICS_GZIP_KILOBYTES,
       name: 'engine-logistics',
+    },
+    {
+      baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/modules/logistics/publishTransportRequest.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_LOGISTICS_PUBLISH_GZIP_KILOBYTES,
+      name: 'engine-logistics-publish',
+    },
+    {
+      baseline: 'engine',
+      entries: [
+        'packages/demo-engine/src/core/modules/logistics/selectTransportOffer.ts',
+        'packages/demo-engine/src/core/modules/logistics/tripService.ts',
+      ],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_TRIP_GZIP_KILOBYTES,
+      name: 'engine-trip',
     },
     {
       baseline: 'engine',
@@ -491,6 +523,13 @@ const ENGINE_WORKER_BUDGET = {
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_PAYMENTS_GZIP_KILOBYTES,
       name: 'engine-payments',
+    },
+    {
+      baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/modules/payments/exchangePayment.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_EXCHANGE_PAYMENTS_GZIP_KILOBYTES,
+      name: 'engine-exchange-payments',
     },
     {
       baseline: 'engine-import',

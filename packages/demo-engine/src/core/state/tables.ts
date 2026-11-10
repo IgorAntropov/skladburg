@@ -31,6 +31,7 @@ import type {
   TransportOffer,
   TransportRequestRecord,
 } from '@skladburg/contracts/logistics/v1/logistics_records';
+import type { TripRecord } from '@skladburg/contracts/logistics/v1/trip_records';
 import type {
   City,
   MapNode,
@@ -87,6 +88,7 @@ import {
   TransportOfferSchema,
   TransportRequestRecordSchema,
 } from '@skladburg/contracts/logistics/v1/logistics_records';
+import { TripRecordSchema } from '@skladburg/contracts/logistics/v1/trip_records';
 import {
   CitySchema,
   MapNodeSchema,
@@ -199,6 +201,7 @@ export interface TableIndexesValue {
   supportTickets: 'authorUserId';
   transportOffers: 'transportRequestId';
   transportRequests: 'dealId';
+  trips: 'dealId' | 'driverId' | 'vehicleId';
   users: never;
   vehicles: 'tenantId';
   warehouses: 'tenantId';
@@ -241,6 +244,7 @@ export interface TableRecordsValue {
   supportTickets: SupportTicket;
   transportOffers: TransportOffer;
   transportRequests: TransportRequestRecord;
+  trips: TripRecord;
   users: User;
   vehicles: Vehicle;
   warehouses: Warehouse;
@@ -345,6 +349,11 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
     transportRequestId: offer => offer.transportRequestId,
   }),
   transportRequests: defineMessageTable(TransportRequestRecordSchema, request => request.id, { dealId: request => request.dealId }),
+  trips: defineMessageTable(TripRecordSchema, trip => trip.id, {
+    dealId: trip => trip.dealId,
+    driverId: trip => trip.assignment?.driverId ?? '',
+    vehicleId: trip => trip.assignment?.vehicleId ?? '',
+  }),
   users: defineMessageTable(UserSchema, user => user.id, {}),
   vehicles: defineMessageTable(VehicleSchema, vehicle => vehicle.id, { tenantId: vehicle => vehicle.tenantId }),
   warehouses: defineMessageTable(WarehouseSchema, warehouse => warehouse.id, { tenantId: warehouse => warehouse.tenantId }),

@@ -31,7 +31,12 @@ interface TimeRangeValue {
   start: bigint;
 }
 
-const readNanoseconds = (timestamp: Timestamp | undefined): bigint | undefined => {
+interface VehicleDepartureValue {
+  departureAt: Timestamp;
+  vehicleId: string;
+}
+
+export const readNanoseconds = (timestamp: Timestamp | undefined): bigint | undefined => {
   if (timestamp === undefined || timestamp.seconds < MIN_TIMESTAMP_SECONDS || timestamp.seconds > MAX_TIMESTAMP_SECONDS
     || !Number.isInteger(timestamp.nanos) || timestamp.nanos < 0 || timestamp.nanos >= 1_000_000_000) {
     return undefined;
@@ -106,11 +111,12 @@ const fitsCargo = (vehicle: VehicleDetails, cargo: TransportCargo): boolean =>
 export const isTransportDealParty = (request: TransportRequestRecord, organizationId: string): boolean =>
   organizationId === request.customerOrganizationId || organizationId === request.supplierOrganizationId;
 
-export const canCarryTransportRequest = (
+const hasCompatibleVehicle = (
   read: IStateReader,
   request: TransportRequestRecord,
   organizationId: string,
   nowMs: number,
+  departure: undefined | VehicleDepartureValue,
 ): boolean => {
   const organization = read.get('organizations', organizationId);
   const origin = read.get('cities', request.fromCityId);
@@ -121,6 +127,11 @@ export const canCarryTransportRequest = (
     return false;
   }
 
+  const departureAt = departure === undefined ? undefined : readNanoseconds(departure.departureAt);
+  if (departure !== undefined && (departureAt === undefined || departureAt < range.start || departureAt >= range.end)) {
+    return false;
+  }
+
   const lane = read.listBy('carrierLanes', 'tenantId', organizationId)
     .find(current => current.isActive && current.fromCityId === request.fromCityId && current.toCityId === request.toCityId);
   if (lane === undefined) {
@@ -128,16 +139,34 @@ export const canCarryTransportRequest = (
   }
 
   const driveTime = BigInt(request.driveMinutes) * NANOSECONDS_PER_MINUTE;
-  return read.listBy('vehicles', 'tenantId', organizationId).some(({ details }) => details !== undefined && fitsCargo(details, cargo)
+  return read.listBy('vehicles', 'tenantId', organizationId).some(({ details, id }) =>
+    (departure === undefined || id === departure.vehicleId) && details !== undefined && fitsCargo(details, cargo)
     && details.availability.some((window) => {
       const availability = readTransportWindow(window);
       if (window.cityId !== request.fromCityId || availability === undefined) {
         return false;
       }
 
-      const start = later(range.start, availability.start);
-      const end = earlier(range.end, availability.end - driveTime + 1n);
+      const slotStart = departureAt ?? range.start;
+      const slotEnd = departureAt === undefined ? range.end : departureAt + 1n;
+      const start = later(slotStart, availability.start);
+      const end = earlier(slotEnd, availability.end - driveTime + 1n);
 
       return start < end && isWeekdayAvailable({ end, start }, lane.departureWeekdays, origin.timeZone);
     }));
 };
+
+export const canCarryTransportRequest = (
+  read: IStateReader,
+  request: TransportRequestRecord,
+  organizationId: string,
+  nowMs: number,
+): boolean => hasCompatibleVehicle(read, request, organizationId, nowMs, undefined);
+
+export const canUseVehicleForTransportRequest = (
+  read: IStateReader,
+  request: TransportRequestRecord,
+  organizationId: string,
+  nowMs: number,
+  departure: VehicleDepartureValue,
+): boolean => hasCompatibleVehicle(read, request, organizationId, nowMs, departure);

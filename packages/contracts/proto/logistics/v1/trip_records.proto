@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package logistics.v1;
+
+import "common/v1/money.proto";
+import "google/protobuf/timestamp.proto";
+import "logistics/v1/logistics_records.proto";
+
+enum TripStatus {
+  TRIP_STATUS_UNSPECIFIED = 0;
+  TRIP_STATUS_AWAITING_CONFIRMATION = 1;
+  TRIP_STATUS_CONFIRMED = 2;
+  TRIP_STATUS_ASSIGNED = 3;
+  TRIP_STATUS_LOADED = 4;
+  TRIP_STATUS_IN_TRANSIT = 5;
+  TRIP_STATUS_ARRIVED = 6;
+  TRIP_STATUS_DELIVERED = 7;
+  TRIP_STATUS_CLOSED = 8;
+  TRIP_STATUS_CANCELLED = 9;
+}
+
+message TripPoint {
+  string warehouse_id = 1;
+  string organization_id = 2;
+  string organization_name = 3;
+  string city_id = 4;
+  string address = 5;
+  string map_node_id = 6;
+}
+
+message TransportOrder {
+  string offer_id = 1;
+  string shipper_organization_id = 2;
+  string carrier_organization_id = 3;
+  TripPoint pickup = 4;
+  TripPoint delivery = 5;
+  TransportCargo cargo = 6;
+  TransportWindow pickup_window = 7;
+  TransportWindow delivery_window = 8;
+  common.v1.Money amount = 9;
+  google.protobuf.Timestamp confirmed_at = 10;
+  string confirmed_by_user_id = 11;
+}
+
+message TripAssignment {
+  string vehicle_id = 1;
+  string driver_id = 2;
+  string registration_number = 3;
+  google.protobuf.Timestamp departure_at = 4;
+  google.protobuf.Timestamp arrival_at = 5;
+}
+
+message TripTransition {
+  TripStatus from = 1;
+  TripStatus to = 2;
+  google.protobuf.Timestamp at = 3;
+  string actor_user_id = 4;
+}
+
+message TripRecord {
+  string id = 1;
+  string deal_id = 2;
+  string customer_organization_id = 3;
+  string supplier_organization_id = 4;
+  TransportOrder transport_order = 5;
+  int32 drive_minutes = 6;
+  TripStatus status = 7;
+  int32 version = 8;
+  TripAssignment assignment = 9;
+  google.protobuf.Timestamp departed_at = 10;
+  google.protobuf.Timestamp arrived_at = 11;
+  repeated TripTransition transitions = 12;
+}

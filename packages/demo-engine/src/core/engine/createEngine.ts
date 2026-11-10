@@ -6,7 +6,7 @@ import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
 import { SafeDealPaymentStatus } from '@skladburg/contracts/payment/v1/payment';
 import {
   COMPRESSED_VALIDATION_IMAGE_BASE64,
-  createContractRegistry,
+  createValidationContractRegistry,
 } from '@skladburg/contracts/registry';
 
 import type { EngineSubscriptionValue } from '../events/index';
@@ -54,6 +54,7 @@ import {
   createUserProfileService,
 } from '../modules/index';
 import { createDemoPaymentProvider } from '../modules/payments/demoPaymentProvider';
+import { loadExchangePayments } from '../modules/payments/loadExchangePayments';
 import {
   createDeferredPaymentService,
   createDeferredPaymentTask,
@@ -105,7 +106,7 @@ const getEngineContractRegistry = async (): Promise<FileRegistry> => {
     });
     const stream = compressed.pipeThrough(new DecompressionStream('deflate'));
     const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
-    contractRegistry = createContractRegistry(bytes);
+    contractRegistry = createValidationContractRegistry(bytes);
   }
   return contractRegistry;
 };
@@ -159,23 +160,31 @@ const PRE_FLEET_SCHEMA_VERSION = 15;
 
 const PRE_MARKETPLACE_SCHEMA_VERSION = 16;
 
+const PRE_TRIPS_SCHEMA_VERSION = 17;
+
 const loadOrSeedSnapshot = async (
   options: CreateEngineOptionsValue,
   loadSeed: typeof loadSeedSnapshot,
 ): Promise<EngineSnapshotValue> => {
   const stored = await options.storage.load();
 
-  if (stored?.meta.seedVersion === SEED_VERSION
-    && (stored.schemaVersion === PRE_FLEET_SCHEMA_VERSION || stored.schemaVersion === PRE_MARKETPLACE_SCHEMA_VERSION)) {
+  if (stored?.meta.seedVersion === SEED_VERSION && (stored.schemaVersion === PRE_FLEET_SCHEMA_VERSION
+    || stored.schemaVersion === PRE_MARKETPLACE_SCHEMA_VERSION || stored.schemaVersion === PRE_TRIPS_SCHEMA_VERSION)) {
     try {
-      const upgraded = {
+      const collections = stored.schemaVersion === PRE_TRIPS_SCHEMA_VERSION
+        ? stored.collections
+        : { ...stored.collections, transportOffers: new Map(), transportRequests: new Map() };
+      let migrated: EngineSnapshotValue = {
         ...stored,
-        collections: { ...stored.collections, transportOffers: new Map(), transportRequests: new Map() },
+        collections: { ...collections, trips: new Map() },
         schemaVersion: ENGINE_SCHEMA_VERSION,
       };
-      const migrated = stored.schemaVersion === PRE_FLEET_SCHEMA_VERSION
-        ? (await import('../seed/seedFleet')).addSeedFleet(upgraded)
-        : upgraded;
+      if (stored.schemaVersion === PRE_FLEET_SCHEMA_VERSION) {
+        migrated = (await import('../seed/seedFleet')).addSeedFleet(migrated);
+      }
+      if (collections.transportRequests.size > 0) {
+        migrated = (await import('./migrateTripRecords')).addTripRecords(migrated);
+      }
       await options.storage.replaceAll(migrated);
 
       return migrated;
@@ -305,9 +314,17 @@ export const createEngineWithTasks = async (
     });
   }
 
-  if (state.read.list('payments').some(record => record.bankDueAt !== undefined
-    || record.payment?.status === SafeDealPaymentStatus.HELD)) {
-    await loadPayments();
+  const activePayments = state.read.list('payments').filter(record => record.bankDueAt !== undefined
+    || record.payment?.status === SafeDealPaymentStatus.HELD
+    || (record.transportSettlement !== undefined && record.payment?.status === SafeDealPaymentStatus.BLOCKED));
+  if (activePayments.length > 0) {
+    const hasActiveExchangePayment = activePayments.some(record => record.transportSettlement !== undefined);
+    try {
+      await Promise.all([loadPayments(), hasActiveExchangePayment ? loadExchangePayments() : undefined]);
+    }
+    catch (error) {
+      throw new SeedLoadError(error, 'The saved payment could not be resumed');
+    }
   }
 
   const logisticsHandler = loadLogisticsHandler(runtime, supportAudit);

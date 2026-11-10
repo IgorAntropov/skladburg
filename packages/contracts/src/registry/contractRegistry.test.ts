@@ -56,6 +56,7 @@ import {
   file_organization_v1_organization,
 } from '../gen/organization/v1/organization_pb';
 import {
+  createValidationContractRegistry,
   getContractRegistry,
   getRuleSchema,
 } from './contractRegistry';
@@ -277,5 +278,10 @@ it('preserves every descriptor used in validation while omitting RPC descriptors
   const compressedValidation = base64Decode(COMPRESSED_VALIDATION_IMAGE_BASE64);
   const validationImage = fromBinary(FileDescriptorSetSchema, new Uint8Array(inflateSync(compressedValidation)));
 
-  expect(validationImage.file).toEqual(fullImage.file.map(file => ({ ...file, service: [] })));
+  const field = validationImage.file.find(file => file.package === 'organization.v1')
+    ?.messageType.find(message => message.name === 'CreateWarehouseRequest')
+    ?.field.find(field => field.name === 'time_zone');
+  expect(field?.jsonName).toBe('');
+  const restored = createValidationContractRegistry(new Uint8Array(inflateSync(compressedValidation)));
+  expect(fullImage.file.map(file => restored.getFile(file.name)?.proto)).toEqual(fullImage.file.map(file => ({ ...file, service: [] })));
 });

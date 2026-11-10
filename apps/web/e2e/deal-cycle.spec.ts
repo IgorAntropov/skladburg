@@ -111,7 +111,7 @@ test('signs documents and settles a pickup deal across two tabs', async ({ brows
   await customerFolder.expectPayment(SafeDealPaymentStatus.BLOCKED);
   await supplier.expectStatus(DealStatus.PAID);
   await supplierFolder.markShipped();
-  await customer.expectStatus(DealStatus.SHIPPED);
+  await customer.expectStatus(DealStatus.SHIPPED, DealStatus.IN_TRANSIT);
   await customerFolder.expectPayment(SafeDealPaymentStatus.HELD);
 
   await advanceClock(MINUTE_MS);

@@ -484,15 +484,25 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     { databaseVersion: 11, schemaVersion: 13 },
     { databaseVersion: 12, schemaVersion: 14 },
     { databaseVersion: 13, schemaVersion: 15 },
-  ])('adds fleet storage to v$databaseVersion and preserves prior records', async ({ databaseVersion, schemaVersion }) => {
+    { databaseVersion: 14, schemaVersion: 16 },
+    { databaseVersion: 15, schemaVersion: 17 },
+  ])('adds missing collections to v$databaseVersion and preserves prior records', async ({ databaseVersion, schemaVersion }) => {
     const factory = new IDBFactory();
     const seed = createSeedSnapshot();
     const bytes = Uint8Array.of(10, 1, 97);
     const isBeforeDocuments = databaseVersion === 11;
     const hasPayments = databaseVersion >= 13;
+    const hasFleet = databaseVersion >= 14;
+    const hasMarketplace = databaseVersion >= 15;
     const request = factory.open(DATABASE_NAME, databaseVersion);
     request.addEventListener('upgradeneeded', () => {
-      const missingStores = ['carrierLanes', 'drivers', 'vehicles', 'transportOffers', 'transportRequests'];
+      const missingStores = ['trips'];
+      if (!hasFleet) {
+        missingStores.push('carrierLanes', 'drivers', 'vehicles');
+      }
+      if (!hasMarketplace) {
+        missingStores.push('transportOffers', 'transportRequests');
+      }
       if (isBeforeDocuments) {
         missingStores.push('documentNumbers', 'documents');
       }
@@ -513,6 +523,13 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
       if (hasPayments) {
         request.transaction?.objectStore('payments').put(bytes, 'a');
       }
+      if (hasFleet) {
+        request.transaction?.objectStore('drivers').put(bytes, 'a');
+      }
+      if (hasMarketplace) {
+        request.transaction?.objectStore('transportOffers').put(bytes, 'a');
+        request.transaction?.objectStore('transportRequests').put(bytes, 'a');
+      }
     });
     const old = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => {
@@ -526,14 +543,17 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
 
     const storage = await openStorage(factory);
     const loaded = await storage.load();
-    expect(loaded?.schemaVersion).toBe(15);
+    expect(loaded?.schemaVersion).toBe(databaseVersion < 13 ? 15 : schemaVersion);
     expect(loaded?.meta).toEqual(seed.meta);
     expect(loaded?.collections.deals.get('a')).toEqual(bytes);
     expect(loaded?.collections.documents.get('a')).toEqual(isBeforeDocuments ? undefined : bytes);
     expect(loaded?.collections.documentNumbers.get('a')).toEqual(isBeforeDocuments ? undefined : bytes);
     expect(loaded?.collections.payments.get('a')).toEqual(hasPayments ? bytes : undefined);
     expect(loaded?.collections.carrierLanes).toEqual(new Map());
-    expect(loaded?.collections.drivers).toEqual(new Map());
+    expect(loaded?.collections.drivers.get('a')).toEqual(hasFleet ? bytes : undefined);
+    expect(loaded?.collections.transportOffers.get('a')).toEqual(hasMarketplace ? bytes : undefined);
+    expect(loaded?.collections.transportRequests.get('a')).toEqual(hasMarketplace ? bytes : undefined);
+    expect(loaded?.collections.trips).toEqual(new Map());
     expect(loaded?.collections.vehicles).toEqual(new Map());
   });
 

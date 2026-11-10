@@ -26,7 +26,7 @@ interface DealRobotValue {
   expectGoodsTotal: (amount: string) => Promise<void>;
   expectInMyQueue: (address: string) => Promise<void>;
   expectNoViolationsOfAccessibility: () => Promise<void>;
-  expectStatus: (status: DealStatus) => Promise<void>;
+  expectStatus: (status: DealStatus, ...otherStatuses: DealStatus[]) => Promise<void>;
   expectSubmissionOverLimit: () => Promise<void>;
   expectUnavailable: () => Promise<void>;
   openFromSearch: (address: string, query: string) => Promise<void>;
@@ -109,8 +109,9 @@ export const createDealRobot = (page: Page): DealRobotValue => {
       await expect(inspector).toBeVisible();
       await expectNoAxeViolations(page);
     },
-    async expectStatus(status: DealStatus): Promise<void> {
-      await expect(inspector.getByTestId('deal-status')).toHaveAttribute('data-status', String(status));
+    async expectStatus(status, ...otherStatuses): Promise<void> {
+      const pattern = new RegExp(`^(?:${[status, ...otherStatuses].join('|')})$`, 'u');
+      await expect(inspector.getByTestId('deal-status')).toHaveAttribute('data-status', pattern);
     },
     async expectSubmissionOverLimit(): Promise<void> {
       await expect(submit).toBeVisible();

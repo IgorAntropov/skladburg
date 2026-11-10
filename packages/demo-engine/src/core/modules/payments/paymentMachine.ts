@@ -1,8 +1,11 @@
+import type { Money } from '@skladburg/contracts/common/v1/money';
+
 import { create } from '@bufbuild/protobuf';
 import { timestampFromMs } from '@bufbuild/protobuf/wkt';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import {
   type SafeDealPayment,
+  SafeDealPaymentSchema,
   SafeDealPaymentStatus,
   SafeDealPaymentTransitionSchema,
 } from '@skladburg/contracts/payment/v1/payment';
@@ -10,6 +13,11 @@ import {
 import type { IDomainErrors } from '../../errors/index';
 
 import { createStateMachine } from '../../machine/index';
+import { rub } from '../deals/dealRules';
+import {
+  calculateCommissionMinor,
+  COMMISSION_RATE_BASIS_POINTS,
+} from './paymentRules';
 
 const target = (status: SafeDealPaymentStatus): { status: SafeDealPaymentStatus } => ({ status });
 
@@ -42,6 +50,18 @@ const paymentMachine = createStateMachine<PaymentCommand, SafeDealPaymentStatus,
   statusName: status => SafeDealPaymentStatus[status],
   transitions,
 });
+
+export const createInvoicedPayment = (dealId: string, goodsAmount: Money, deliveryAmount: Money): SafeDealPayment =>
+  create(SafeDealPaymentSchema, {
+    commissionAmount: rub(calculateCommissionMinor(goodsAmount.amountMinor)),
+    commissionRateBasisPoints: COMMISSION_RATE_BASIS_POINTS,
+    dealId,
+    deliveryAmount,
+    goodsAmount,
+    id: dealId,
+    status: SafeDealPaymentStatus.INVOICED,
+    version: 1,
+  });
 
 export const advancePayment = (
   errors: IDomainErrors,

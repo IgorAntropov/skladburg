@@ -10,6 +10,7 @@ import {
 import { join } from 'node:path';
 import { deflateSync } from 'node:zlib';
 
+import { compactValidationImage } from '../src/registry/validationImage.ts';
 import { renderContractImageModule } from './renderContractImageModule.ts';
 
 const generatedDirectory = join(import.meta.dirname, '..', 'src', 'gen');
@@ -20,9 +21,7 @@ writeFileSync(join(generatedDirectory, 'contract_image.ts'), renderContractImage
 writeFileSync(join(generatedDirectory, 'contract_image_deflate.ts'), renderContractImageModule(deflateSync(image, { level: 9 })));
 
 const validationImage = fromBinary(FileDescriptorSetSchema, image);
-for (const file of validationImage.file) {
-  file.service = [];
-}
+compactValidationImage(validationImage);
 const validationBytes = toBinary(FileDescriptorSetSchema, validationImage);
 writeFileSync(
   join(generatedDirectory, 'contract_validation_image_deflate.ts'),

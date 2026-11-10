@@ -1,13 +1,15 @@
 import type { Deal } from '@skladburg/contracts/deal/v1/deal';
 
 import { create } from '@bufbuild/protobuf';
+import { timestampFromMs } from '@bufbuild/protobuf/wkt';
 import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import {
   ObjectKind,
   ObjectLinkSchema,
 } from '@skladburg/contracts/common/v1/object_link';
+import { DealTransitionSchema } from '@skladburg/contracts/deal/v1/deal';
 import {
-  type DealChange,
+  DealChange,
   DealChangedSchema,
 } from '@skladburg/contracts/deal/v1/deal_events';
 import {
@@ -30,6 +32,10 @@ import type { IModuleRuntime } from '../moduleRuntime';
 
 import { resolveEffectivePermissions } from '../../access/index';
 import { compareIds } from '../../state/index';
+import {
+  type DealCommand,
+  dealMachine,
+} from './dealMachine';
 
 const DEAL_VIEW_PERMISSION = getPermissionName(PermissionCode.DEAL_VIEW);
 
@@ -111,4 +117,25 @@ export const publishDealEffects = (
 
     postDealNotice(runtime, transaction, deal, notice, recipientOrganizationId);
   }
+};
+
+export const advanceSystemDeal = (
+  runtime: IModuleRuntime,
+  transaction: IStateTransaction,
+  deal: Deal,
+  command: DealCommand,
+  notice?: DealNotice,
+  actingOrganizationId: string = deal.customerOrganizationId,
+): void => {
+  const transition = dealMachine.requireTransition(runtime.errors, command, deal, undefined);
+  if (transition.side !== 'system' || deal.version >= 2_147_483_647) {
+    throw runtime.errors.unavailable();
+  }
+  const at = timestampFromMs(transaction.worldTimeMs);
+  deal.transitions.push(create(DealTransitionSchema, { at, from: deal.status, to: transition.status }));
+  deal.status = transition.status;
+  deal.updatedAt = at;
+  deal.version++;
+  transaction.put('deals', deal);
+  publishDealEffects(runtime, transaction, deal, notice, DealChange.STATUS, actingOrganizationId);
 };

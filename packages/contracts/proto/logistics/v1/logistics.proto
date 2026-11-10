@@ -8,6 +8,8 @@ import "common/v1/money.proto";
 import "common/v1/page.proto";
 import "google/protobuf/timestamp.proto";
 import "logistics/v1/logistics_records.proto";
+import "logistics/v1/trip_records.proto";
+import "payment/v1/payment.proto";
 
 message TransportRequestSummary {
   string id = 1;
@@ -107,6 +109,62 @@ message SelectTransportOfferResponse {
   TransportRequest transport_request = 1;
 }
 
+message Trip {
+  string id = 1;
+  string deal_id = 2;
+  TripStatus status = 3;
+  int32 version = 4;
+  TripPoint pickup = 5;
+  TripPoint delivery = 6;
+  google.protobuf.Timestamp planned_departure_at = 7;
+  google.protobuf.Timestamp planned_arrival_at = 8;
+  google.protobuf.Timestamp departed_at = 9;
+  google.protobuf.Timestamp arrived_at = 10;
+  TransportOrder transport_order = 11;
+  TripAssignment own_assignment = 12;
+  payment.v1.TransportPaymentBreakdown carrier_payment = 13;
+}
+
+message GetTripRequest {
+  string trip_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetTripResponse {
+  Trip trip = 1;
+}
+
+message ListTripsRequest {
+  common.v1.PageRequest page = 1;
+}
+
+message ListTripsResponse {
+  repeated Trip trips = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message ConfirmTransportOrderRequest {
+  string trip_id = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gt = 0];
+  string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
+}
+
+message ConfirmTransportOrderResponse {
+  Trip trip = 1;
+}
+
+message AssignTripRequest {
+  string trip_id = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gt = 0];
+  string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
+  string vehicle_id = 4 [(buf.validate.field).string.uuid = true];
+  string driver_id = 5 [(buf.validate.field).string.uuid = true];
+  google.protobuf.Timestamp departure_at = 6 [(buf.validate.field).required = true];
+}
+
+message AssignTripResponse {
+  Trip trip = 1;
+}
+
 service LogisticsService {
   rpc PublishTransportRequest(PublishTransportRequestRequest) returns (PublishTransportRequestResponse) {
     option (common.v1.access).permission.name = "transport_request_create";
@@ -129,5 +187,19 @@ service LogisticsService {
   rpc SelectTransportOffer(SelectTransportOfferRequest) returns (SelectTransportOfferResponse) {
     option (common.v1.access).permission.name = "transport_offer_approve";
     option (common.v1.access).permission.limit_field = "confirmed_amount";
+  }
+  rpc GetTrip(GetTripRequest) returns (GetTripResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "trip_view";
+  }
+  rpc ListTrips(ListTripsRequest) returns (ListTripsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "trip_view";
+  }
+  rpc ConfirmTransportOrder(ConfirmTransportOrderRequest) returns (ConfirmTransportOrderResponse) {
+    option (common.v1.access).permission.name = "trip_edit";
+  }
+  rpc AssignTrip(AssignTripRequest) returns (AssignTripResponse) {
+    option (common.v1.access).permission.name = "trip_edit";
   }
 }

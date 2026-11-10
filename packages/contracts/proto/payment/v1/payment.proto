@@ -39,6 +39,24 @@ message SafeDealPaymentTransition {
   google.protobuf.Timestamp at = 3;
 }
 
+message TransportPaymentBreakdown {
+  common.v1.Money shipping_amount = 1;
+  common.v1.Money commission_amount = 2;
+  int32 commission_rate_basis_points = 3;
+  SafeDealPayout carrier_payout = 4;
+}
+
+message TransportSettlement {
+  string trip_id = 1;
+  string payer_organization_id = 2;
+  string carrier_organization_id = 3;
+  common.v1.Money shipping_amount = 4;
+  common.v1.Money carrier_commission = 5;
+  common.v1.Money supplier_payout = 6;
+  common.v1.Money carrier_payout = 7;
+  common.v1.Money funded_amount = 8;
+}
+
 message SafeDealPayment {
   string id = 1;
   string deal_id = 2;
@@ -51,6 +69,8 @@ message SafeDealPayment {
   string bank_reference = 9;
   repeated SafeDealPaymentTransition transitions = 10;
   int32 version = 11;
+  common.v1.Money funded_amount = 12;
+  TransportPaymentBreakdown transport = 13;
 }
 
 message SafeDealPaymentRecord {
@@ -58,6 +78,7 @@ message SafeDealPaymentRecord {
   SafeDealPayment payment = 2;
   google.protobuf.Timestamp bank_due_at = 3;
   bool acceptance_notice_sent = 4;
+  TransportSettlement transport_settlement = 5;
 }
 
 message GetDealPaymentRequest {

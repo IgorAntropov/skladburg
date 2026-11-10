@@ -66,7 +66,7 @@ const createLegacyDatabase = (factory: IDBFactory, snapshot: EngineSnapshotValue
   request.addEventListener('upgradeneeded', () => {
     const database = request.result;
     for (const name of ENGINE_COLLECTION_NAMES) {
-      if (name === 'transportOffers' || name === 'transportRequests') {
+      if (name === 'transportOffers' || name === 'transportRequests' || name === 'trips') {
         continue;
       }
 

@@ -391,6 +391,8 @@ const MAX_ENGINE_LOGISTICS_PUBLISH_GZIP_KILOBYTES = 6.7;
 
 const MAX_ENGINE_TRANSPORT_OFFER_GZIP_KILOBYTES = 5.9;
 
+const MAX_ENGINE_CARRIER_BOTS_GZIP_KILOBYTES = 6.1;
+
 const MAX_ENGINE_TRIP_GZIP_KILOBYTES = 10.75;
 
 const MAX_ENGINE_TRIP_ASSIGNMENT_GZIP_KILOBYTES = 2.1;
@@ -559,6 +561,13 @@ const ENGINE_WORKER_BUDGET = {
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_TRANSPORT_OFFER_GZIP_KILOBYTES,
       name: 'engine-transport-offer',
+    },
+    {
+      baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/modules/carrier-bots/index.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_CARRIER_BOTS_GZIP_KILOBYTES,
+      name: 'engine-carrier-bots',
     },
     {
       baseline: 'engine',

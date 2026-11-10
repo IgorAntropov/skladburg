@@ -1069,6 +1069,7 @@ describe('checkpoint', () => {
     expect(storage.commits).toHaveLength(1);
     expect(storage.commits[0]?.puts).toEqual({});
     expect(storage.commits[0]?.meta.schedulerDueAtMs).toEqual({
+      'carrier-bots': DEFAULT_ENGINE_SEED.worldStartMs + 60_000,
       'deal-deadline-reminders': DEFAULT_ENGINE_SEED.worldStartMs + 60_000,
       'safe-deal-payments': DEFAULT_ENGINE_SEED.worldStartMs + 60_000,
       'supplier-bots': DEFAULT_ENGINE_SEED.worldStartMs + 60_000,

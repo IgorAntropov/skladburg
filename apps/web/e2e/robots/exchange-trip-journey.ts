@@ -12,6 +12,8 @@ import {
 import { TripStatus } from '@skladburg/contracts/logistics/v1/trip_records';
 import { SafeDealPaymentStatus } from '@skladburg/contracts/payment/v1/payment';
 
+import type { PersonaValue } from '../fixtures/demoData.ts';
+
 import {
   FOREIGN_NETWORK_SITE,
   GOLDEN_APPLES,
@@ -41,11 +43,35 @@ import {
 
 export const MINUTE_MS = 60_000;
 
+export const TRANSPORT_BOT_WAIT_MS = 2 * MINUTE_MS;
 export const TRIP_ARRIVAL_ADVANCE_MS = 971 * MINUTE_MS;
 export const TRIP_DEPARTURE_ADVANCE_MS = 71 * MINUTE_MS;
 
 const DOCUMENT_TYPES = [DocumentType.SUPPLY_CONTRACT, DocumentType.SPECIFICATION, DocumentType.INVOICE] as const;
 const DAY_MINUTES = 24 * 60;
+
+interface AgreedExchangeDealValue {
+  advanceClock: (elapsedMs: number) => Promise<void>;
+  carrierPage: Page;
+  supplierPage: Page;
+}
+
+interface AgreeExchangeDealOptionsValue {
+  context: BrowserContext;
+  page: Page;
+  scenario?: ExchangeDealScenarioValue | undefined;
+}
+
+interface ExchangeDealScenarioValue {
+  carrier: PersonaValue;
+  customer: PersonaValue;
+  date: string;
+  destinationWarehouseId: string;
+  listing: { id: string; name: string };
+  originWarehouseId: string;
+  quantity: string;
+  supplier: PersonaValue;
+}
 
 interface FundedExchangeTripValue {
   advanceClock: (elapsedMs: number) => Promise<void>;
@@ -55,19 +81,28 @@ interface FundedExchangeTripValue {
   tripAddress: string;
 }
 
-interface FundExchangeTripOptionsValue {
-  context: BrowserContext;
+interface FundExchangeTripOptionsValue extends Pick<AgreeExchangeDealOptionsValue, 'context' | 'page'> {
+  automaticOfferAmount?: RegExp | undefined;
   kind: VehicleCargoKind;
-  page: Page;
   shipperSide: 'customer' | 'supplier';
 }
 
-export const fundExchangeTrip = async ({
+const APPLE_EXCHANGE_DEAL: ExchangeDealScenarioValue = {
+  carrier: PERSONAS.freshCarrier,
+  customer: PERSONAS.freshCustomer,
+  date: TRANSPORT_DATE,
+  destinationWarehouseId: OWN_NETWORK_SITES[0].id,
+  listing: GOLDEN_APPLES,
+  originWarehouseId: FOREIGN_NETWORK_SITE.id,
+  quantity: '480',
+  supplier: PERSONAS.freshSupplier,
+};
+
+export const agreeExchangeDeal = async ({
   context,
-  kind,
   page,
-  shipperSide,
-}: FundExchangeTripOptionsValue): Promise<FundedExchangeTripValue> => {
+  scenario = APPLE_EXCHANGE_DEAL,
+}: AgreeExchangeDealOptionsValue): Promise<AgreedExchangeDealValue> => {
   const supplierPage = await context.newPage();
   const carrierPage = await context.newPage();
   const graphicsPreference = createStoreGraphicsPreferenceIfAbsentScript('off');
@@ -78,37 +113,57 @@ export const fundExchangeTrip = async ({
   await carrierPage.emulateMedia({ colorScheme: 'dark' });
   const customer = createDealRobot(page);
   const supplier = createDealRobot(supplierPage);
-  const customerFolder = createDealFolderRobot(page);
-  const supplierFolder = createDealFolderRobot(supplierPage);
   const customerPersona = createPersonaRobot(page);
   const supplierPersona = createPersonaRobot(supplierPage);
   const carrierPersona = createPersonaRobot(carrierPage);
-  const carrierTransport = createTransportRobot(carrierPage);
-  const shipperPage = shipperSide === 'customer' ? page : supplierPage;
-  const shipperTransport = createTransportRobot(shipperPage);
 
-  await customerPersona.openAsPersona(toObjectHash(toListingRoute(GOLDEN_APPLES.id)), PERSONAS.freshCustomer.id);
-  await createCatalogRobot(page).expectInspectorOpen(GOLDEN_APPLES.name);
-  await supplierPersona.openAsPersona(toSectionHash('deals'), PERSONAS.freshSupplier.id);
-  await supplierPersona.expectCurrentPersona(PERSONAS.freshSupplier);
-  await carrierPersona.openAsPersona(toSectionHash('transport'), PERSONAS.freshCarrier.id);
+  await customerPersona.openAsPersona(toObjectHash(toListingRoute(scenario.listing.id)), scenario.customer.id);
+  await createCatalogRobot(page).expectInspectorOpen(scenario.listing.name);
+  await supplierPersona.openAsPersona(toSectionHash('deals'), scenario.supplier.id);
+  await supplierPersona.expectCurrentPersona(scenario.supplier);
+  await carrierPersona.openAsPersona(toSectionHash('transport'), scenario.carrier.id);
   await expect(carrierPage.getByTestId('page-transport')).toBeVisible();
   await expect(carrierPage.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(carrierPage.locator('canvas')).toHaveCount(0);
   const advanceClock = await freezeEngineClock(page, supplierPage, carrierPage);
 
-  const dealAddress = await customer.createDraft(OWN_NETWORK_SITES[0].id, '480', TRANSPORT_DATE);
+  const dealAddress = await customer.createDraft(scenario.destinationWarehouseId, scenario.quantity, scenario.date);
   await customer.submitDraft();
   await supplier.openReceivedNotification(dealAddress);
-  await supplier.confirm(FOREIGN_NETWORK_SITE.id);
+  await supplier.confirm(scenario.originWarehouseId);
   await customer.expectStatus(DealStatus.AGREED);
+
+  return { advanceClock, carrierPage, supplierPage };
+};
+
+export const fundExchangeTrip = async ({
+  automaticOfferAmount,
+  context,
+  kind,
+  page,
+  shipperSide,
+}: FundExchangeTripOptionsValue): Promise<FundedExchangeTripValue> => {
+  const { advanceClock, carrierPage, supplierPage } = await agreeExchangeDeal({ context, page });
+  const customer = createDealRobot(page);
+  const supplier = createDealRobot(supplierPage);
+  const customerFolder = createDealFolderRobot(page);
+  const supplierFolder = createDealFolderRobot(supplierPage);
+  const carrierTransport = createTransportRobot(carrierPage);
+  const shipperPage = shipperSide === 'customer' ? page : supplierPage;
+  const shipperTransport = createTransportRobot(shipperPage);
 
   const requestAddress = await shipperTransport.publishRequest(kind);
   await carrierTransport.openListedRequest(requestAddress);
   const carrierRequest = carrierPage.getByTestId('transport-request-inspector');
   await expect(carrierRequest).not.toContainText(PERSONAS.freshCustomer.organizationName);
   await expect(carrierRequest).not.toContainText(PERSONAS.freshSupplier.organizationName);
-  await carrierTransport.submitOffer();
+  if (automaticOfferAmount === undefined) {
+    await carrierTransport.submitOffer();
+  }
+  else {
+    await advanceClock(TRANSPORT_BOT_WAIT_MS);
+    await shipperTransport.expectOfferAmount(automaticOfferAmount);
+  }
   await shipperTransport.selectOffer();
   const tripAddress = await carrierTransport.openSelectedTrip();
   await carrierTransport.expectTripStatus(TripStatus.AWAITING_CONFIRMATION);
@@ -137,7 +192,9 @@ export const fundExchangeTrip = async ({
   await supplier.expectStatus(DealStatus.PAID);
 
   const shipTrip = async (): Promise<void> => {
-    await advanceClock(DAY_MINUTES * MINUTE_MS);
+    const elapsedWaitingForOffer = automaticOfferAmount === undefined ? 0 : TRANSPORT_BOT_WAIT_MS;
+
+    await advanceClock(DAY_MINUTES * MINUTE_MS - elapsedWaitingForOffer);
     await supplierFolder.markShipped();
     await carrierTransport.expectTripStatus(TripStatus.LOADED);
   };

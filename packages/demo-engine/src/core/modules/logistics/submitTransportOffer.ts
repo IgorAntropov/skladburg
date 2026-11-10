@@ -18,6 +18,7 @@ import {
 } from '@skladburg/contracts/logistics/v1/logistics_records';
 
 import type { IDomainErrors } from '../../errors/index';
+import type { IStateTransaction } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
 import { SUPPORTED_CURRENCY_CODE } from '../catalog/catalogRules';
@@ -38,19 +39,20 @@ const requirePositiveAmount = (errors: IDomainErrors, amount: Money | undefined)
   return amount;
 };
 
-export const submitTransportOffer = (
+export const submitTransportOfferInTransaction = (
   runtime: IModuleRuntime,
+  transaction: IStateTransaction,
   request: SubmitTransportOfferRequest,
-  context: HandlerContext,
-): Promise<SubmitTransportOfferResponse> => runtime.command((transaction) => {
-  const { errors, getWorldTimeMs, guard, idempotency } = runtime;
+  headers: Headers,
+): SubmitTransportOfferResponse => {
+  const { errors, guard, idempotency } = runtime;
   const method = LogisticsService.method.submitTransportOffer;
-  const { organizationId } = guard.guardPermissionCall(transaction, method, request, context.requestHeader);
+  const { organizationId } = guard.guardPermissionCall(transaction, method, request, headers);
 
   return idempotency.run(transaction, {
     handler: () => {
       const record = transaction.get('transportRequests', request.transportRequestId);
-      const now = getWorldTimeMs();
+      const now = transaction.worldTimeMs;
       if (record?.status !== TransportRequestStatus.OPEN || !canCarryTransportRequest(transaction, record, organizationId, now)) {
         throw errors.notFound(EntityKind.TRANSPORT_REQUEST);
       }
@@ -75,4 +77,11 @@ export const submitTransportOffer = (
     request,
     scope: organizationId,
   });
-});
+};
+
+export const submitTransportOffer = (
+  runtime: IModuleRuntime,
+  request: SubmitTransportOfferRequest,
+  context: HandlerContext,
+): Promise<SubmitTransportOfferResponse> => runtime.command(transaction =>
+  submitTransportOfferInTransaction(runtime, transaction, request, context.requestHeader));

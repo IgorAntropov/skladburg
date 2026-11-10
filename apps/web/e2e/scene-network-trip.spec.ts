@@ -74,6 +74,7 @@ test('draws a trip on the network map between departure and arrival and returns 
 
   await createPersonaRobot(page).selectPersona(PERSONAS.constructionCarrier);
   await networkTrips.expectNoTrips();
+  await scene.expectSceneState('ready');
   await scene.waitForIdle();
   await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
 

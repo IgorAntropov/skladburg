@@ -7,6 +7,7 @@ import {
   createSupportBotTask,
 } from '../modules/index';
 import { createDeferredPaymentTask } from '../modules/payments/loadPayments';
+import { createDeferredCarrierBotTask } from './carrierBotTask';
 import { createDeferredSupplierBotTask } from './supplierBotTask';
 
 export const createEngineTasks = (runtime: IModuleRuntime): readonly SchedulerTaskValue[] => [
@@ -15,4 +16,5 @@ export const createEngineTasks = (runtime: IModuleRuntime): readonly SchedulerTa
   createDealDeadlineTask(runtime),
   createDeferredPaymentTask(runtime),
   createDeferredSupplierBotTask(runtime),
+  createDeferredCarrierBotTask(runtime),
 ];

@@ -21,6 +21,7 @@ import {
   TOP_BAR_ROW_CLASS_NAME,
 } from './topBarStyles';
 import { WorldClock } from './WorldClock';
+import './topBarGlass.css';
 
 const TRAILING_GROUP_CLASS_NAME = 'flex shrink-0 items-center gap-2 sm:ml-auto sm:gap-3';
 
@@ -56,7 +57,7 @@ export const TopBar = ({
   );
 
   return (
-    <Panel as="header" className={TOP_BAR_PANEL_CLASS_NAME}>
+    <Panel as="header" className={cn(TOP_BAR_PANEL_CLASS_NAME, 'top-bar-glass')}>
       <div className={cn(TOP_BAR_ROW_CLASS_NAME, isNavigationCompact && 'sm:max-md:gap-x-2 sm:max-md:px-3')}>
         <div className={cn(TOP_BAR_PRODUCT_CLASS_NAME, isPhoneSearchOpen && HIDDEN_ON_PHONE_CLASS_NAME)}>
           <ProductMark />

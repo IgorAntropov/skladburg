@@ -1,0 +1,20 @@
+.top-bar-glass {
+  background-color: var(--color-panel-solid);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  @media not (prefers-reduced-transparency: reduce) {
+    .top-bar-glass {
+      background-color: color-mix(in srgb, var(--color-panel-solid) 88%, transparent);
+      background-image: linear-gradient(
+        color-mix(in srgb, var(--color-on-panel) 16%, transparent) 0 1px,
+        color-mix(in srgb, var(--color-panel-solid) 44%, transparent) 1px,
+        transparent 65%
+      );
+      -webkit-backdrop-filter: blur(var(--blur-panel));
+      backdrop-filter: blur(var(--blur-panel));
+    }
+  }
+}

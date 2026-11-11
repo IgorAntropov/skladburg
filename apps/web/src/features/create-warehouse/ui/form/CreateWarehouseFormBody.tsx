@@ -22,6 +22,7 @@ import {
 import type { WarehousePlacesValue } from '../../model/warehousePlacesTypes';
 
 import { useCreateWarehouseForm } from '../../api/form/useCreateWarehouseForm';
+import './warehouseOutlinedFields.css';
 
 const FIRST_FIELD_NAME = 'name';
 
@@ -67,7 +68,7 @@ export const CreateWarehouseFormBody = ({ onCancel, onCreated, places }: CreateW
 
   return (
     <form
-      className="flex w-full max-w-md flex-col gap-4"
+      className="warehouse-outlined-form flex w-full max-w-md flex-col gap-4"
       noValidate
       onKeyDown={handleKeyDown}
       onSubmit={form.handleSubmit}

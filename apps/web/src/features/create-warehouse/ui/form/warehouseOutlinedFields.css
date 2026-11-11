@@ -1,0 +1,59 @@
+.warehouse-outlined-form > div:has(> div > :is(input, select)) {
+  display: grid;
+  grid-template-rows: auto minmax(1.25rem, auto);
+
+  &:has(select) {
+    grid-template-rows: auto minmax(2.5rem, auto);
+  }
+
+  & > div {
+    --warehouse-field-surface: var(--color-panel-solid);
+    --warehouse-field-focus: var(--color-focus);
+
+    &:has(> :is(input, select):is(:disabled, [readonly], [aria-readonly='true'])) {
+      --warehouse-field-surface: color-mix(in srgb, var(--color-panel-solid) 92%, var(--color-on-panel-muted));
+    }
+
+    &:has(> [aria-invalid='true']) {
+      --warehouse-field-focus: var(--color-status-alarm);
+    }
+
+    & > :is(input, select) {
+      padding-block: 0;
+      background-color: var(--warehouse-field-surface);
+
+      &:focus {
+        border-color: var(--warehouse-field-focus);
+        outline: 2px solid var(--warehouse-field-focus);
+        outline-offset: -2px;
+      }
+    }
+
+    & > label {
+      inset-inline-start: 0.5rem;
+      max-inline-size: calc(100% - 1.5rem);
+      padding-inline: 0.25rem;
+      scale: 1;
+      translate: 0 calc(1.75rem - 50%);
+      transition: none;
+    }
+
+    &:has(> select) > label {
+      max-inline-size: calc(100% - 3rem);
+    }
+
+    &:has(> input:is(:focus, :autofill, :not(:placeholder-shown)), > select:focus, > select > option:checked:not([value=''])) > label {
+      background-image: linear-gradient(transparent 50%, var(--warehouse-field-surface) 50%);
+      font-size: 0.75rem;
+      line-height: 1rem;
+      translate: 0 -50%;
+
+      &::before {
+        position: absolute;
+        inset: 0 0 50%;
+        pointer-events: auto;
+        content: '';
+      }
+    }
+  }
+}

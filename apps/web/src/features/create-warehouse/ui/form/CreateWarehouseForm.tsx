@@ -16,9 +16,9 @@ import { CreateWarehouseRecoveryNotice } from '../CreateWarehouseRecoveryNotice'
 import { CreateWarehouseFormBody } from './CreateWarehouseFormBody';
 
 const SKELETON_FIELD_CLASS_NAMES = [
-  { className: 'h-14 w-full', id: 'name' },
-  { className: 'mb-6 h-14 w-full', id: 'city' },
-  { className: 'h-14 w-full', id: 'address' },
+  { className: 'mb-6 h-14 w-full', id: 'name' },
+  { className: 'mb-11 h-14 w-full', id: 'city' },
+  { className: 'mb-6 h-14 w-full', id: 'address' },
 ] as const;
 
 const CANCEL_CLASS_NAME = 'mt-2 self-start';

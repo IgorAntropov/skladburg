@@ -98,6 +98,7 @@ const createTables = (): TablesValue => ({
   users: createTable(TABLE_DEFINITIONS.users),
   vehicles: createTable(TABLE_DEFINITIONS.vehicles),
   warehouses: createTable(TABLE_DEFINITIONS.warehouses),
+  warehouseTopologies: createTable(TABLE_DEFINITIONS.warehouseTopologies),
 });
 
 const createOverlays = (tables: TablesValue): OverlaysValue => ({
@@ -139,6 +140,7 @@ const createOverlays = (tables: TablesValue): OverlaysValue => ({
   users: tables.users.createOverlay(),
   vehicles: tables.vehicles.createOverlay(),
   warehouses: tables.warehouses.createOverlay(),
+  warehouseTopologies: tables.warehouseTopologies.createOverlay(),
 });
 
 export const createEngineState = (initial: EngineSnapshotValue): IEngineState => {

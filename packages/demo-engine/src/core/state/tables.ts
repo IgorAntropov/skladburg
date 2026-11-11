@@ -124,6 +124,7 @@ import type {
   IdempotencyRecordValue,
   NotificationRecordValue,
   SupportBotQueueRecordValue,
+  WarehouseTopologyRecordValue,
 } from './records';
 
 import {
@@ -143,10 +144,12 @@ import {
   parseIdempotencyRecord,
   parseNotificationRecord,
   parseSupportBotQueueRecord,
+  parseWarehouseTopologyRecord,
   serializeDemoPersona,
   serializeIdempotencyRecord,
   serializeNotificationRecord,
   serializeSupportBotQueueRecord,
+  serializeWarehouseTopologyRecord,
 } from './records';
 
 export const ListingPublication = {
@@ -205,6 +208,7 @@ export interface TableIndexesValue {
   users: never;
   vehicles: 'tenantId';
   warehouses: 'tenantId';
+  warehouseTopologies: never;
 }
 
 export type TableName = EngineCollectionName;
@@ -248,6 +252,7 @@ export interface TableRecordsValue {
   users: User;
   vehicles: Vehicle;
   warehouses: Warehouse;
+  warehouseTopologies: WarehouseTopologyRecordValue;
 }
 
 const defineMessageTable = <TDesc extends DescMessage, TIndex extends string>(
@@ -357,4 +362,5 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   users: defineMessageTable(UserSchema, user => user.id, {}),
   vehicles: defineMessageTable(VehicleSchema, vehicle => vehicle.id, { tenantId: vehicle => vehicle.tenantId }),
   warehouses: defineMessageTable(WarehouseSchema, warehouse => warehouse.id, { tenantId: warehouse => warehouse.tenantId }),
+  warehouseTopologies: defineRecordTable(parseWarehouseTopologyRecord, serializeWarehouseTopologyRecord),
 };

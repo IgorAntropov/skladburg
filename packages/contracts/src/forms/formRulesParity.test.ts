@@ -598,6 +598,25 @@ const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
   'support.v1.GetSupportTicketResponse.ticket.context',
   'support.v1.GetSupportTicketResponse.ticket.context.device',
   'support.v1.GetSupportTicketResponse.ticket.context.errors',
+  'wms.v1.WarehouseFloorRect.origin',
+  'wms.v1.WarehouseRack.footprint',
+  'wms.v1.WarehouseRack.footprint.origin',
+  'wms.v1.WarehouseUnloadingPoint.position',
+  'wms.v1.WarehouseReceivingArea.footprint',
+  'wms.v1.WarehouseReceivingArea.footprint.origin',
+  'wms.v1.WarehouseReceivingArea.unloadingPoint',
+  'wms.v1.WarehouseReceivingArea.unloadingPoint.position',
+  'wms.v1.WarehouseTopology.receivingArea',
+  'wms.v1.WarehouseTopology.receivingArea.footprint',
+  'wms.v1.WarehouseTopology.receivingArea.footprint.origin',
+  'wms.v1.WarehouseTopology.receivingArea.unloadingPoint',
+  'wms.v1.WarehouseTopology.receivingArea.unloadingPoint.position',
+  'wms.v1.GetWarehouseTopologyResponse.topology',
+  'wms.v1.GetWarehouseTopologyResponse.topology.receivingArea',
+  'wms.v1.GetWarehouseTopologyResponse.topology.receivingArea.footprint',
+  'wms.v1.GetWarehouseTopologyResponse.topology.receivingArea.footprint.origin',
+  'wms.v1.GetWarehouseTopologyResponse.topology.receivingArea.unloadingPoint',
+  'wms.v1.GetWarehouseTopologyResponse.topology.receivingArea.unloadingPoint.position',
 ];
 const EXPECTED_SERVER_ONLY_MESSAGES: readonly string[] = ['common.v1.MethodAccess'];
 
@@ -777,6 +796,10 @@ const PATTERN_SAMPLES: Readonly<Record<string, PatternSamplesValue>> = {
       '40702810 300000000001',
       '٤٠٧٠٢٨١٠٣٠٠٠٠٠٠٠٠٠٠١',
     ],
+  },
+  '^[A-Z0-9]+(-[A-Z0-9]+)*$': {
+    matching: ['A1', 'Z01-R01-S01-Y01-C01', '9-X'],
+    nonMatching: ['', 'c01', 'Я01', '-A1', 'A1-', 'A--B', 'A B', 'A_1', 'A1\n'],
   },
   '^[a-z][a-z0-9]*(_[a-z0-9]+)*_(view|create|edit|delete|approve|sign|fund|release|export|manage)$': {
     matching: [

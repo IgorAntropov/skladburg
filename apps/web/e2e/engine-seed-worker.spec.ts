@@ -23,6 +23,10 @@ import {
   PreviewImportRequestSchema,
   PreviewImportResponseSchema,
 } from '@skladburg/contracts/import/v1/import';
+import {
+  GetWarehouseTopologyRequestSchema,
+  GetWarehouseTopologyResponseSchema,
+} from '@skladburg/contracts/wms/v1/topology';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
@@ -31,6 +35,7 @@ import type {
   WorkerActingContextValue,
 } from './robots/engine-worker-robot.ts';
 
+import { FOREIGN_NETWORK_SITE } from './fixtures/demoData.ts';
 import {
   expect,
   test,
@@ -108,7 +113,7 @@ test('migrates a saved world to fleet storage and restores an edited driver afte
     await expect.poll(migrated.readStartup).toMatchObject({ kind: 'ready', storage: 'indexed-db' });
     expect(await readStoredEngineSnapshot(page, PRESERVED_STORES)).toBe(savedRecords);
     const metadata: unknown = JSON.parse(await readStoredEngineSnapshot(page, ['meta']));
-    expect(metadata).toEqual([['meta', ['engineMeta', 'schemaVersion'], [expect.any(Object), 18]]]);
+    expect(metadata).toEqual([['meta', ['engineMeta', 'schemaVersion'], [expect.any(Object), 19]]]);
     expect(migrated.hasRequestedChunk('fleet')).toBe(false);
 
     const { vehicles } = fromBinary(ListVehiclesResponseSchema, await migrated.call('fleet.v1.FleetService/ListVehicles',
@@ -175,6 +180,14 @@ test('loads the seed for a fresh world and restores saved changes without the se
     await expectStoredImport(restored, jobId);
     expect(restored.hasRequestedChunk('seedSnapshot')).toBe(false);
     expect(restored.hasRequestedChunk('seedDealHistory')).toBe(false);
+    expect(restored.hasRequestedChunk('warehouseTopologyService')).toBe(false);
+    const warehouseId = FOREIGN_NETWORK_SITE.id;
+    const { topology } = fromBinary(GetWarehouseTopologyResponseSchema, await restored.call(
+      'wms.v1.WarehouseTopologyService/GetWarehouseTopology',
+      toBinary(GetWarehouseTopologyRequestSchema, create(GetWarehouseTopologyRequestSchema, { warehouseId })),
+    ));
+    expect(topology).toMatchObject({ revision: 1, warehouseId });
+    expect(restored.hasRequestedChunk('warehouseTopologyService')).toBe(true);
   }
   finally {
     await restored.stop();

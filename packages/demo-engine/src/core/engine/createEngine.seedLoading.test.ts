@@ -42,7 +42,11 @@ import {
   SeedWarehouseId,
 } from '../seed/seedIds';
 import { createSeedSnapshot } from '../seed/seedSnapshot';
-import { TABLE_DEFINITIONS } from '../state/index';
+import {
+  ENGINE_SCHEMA_VERSION,
+  TABLE_DEFINITIONS,
+} from '../state/index';
+import { addWarehouseTopologies } from './migrateWarehouseTopologies';
 import { createEngineTransport } from './testing/engineHarness';
 
 const TRIP_DEAL_ID = '00000000-0000-4000-8000-000000000111';
@@ -101,6 +105,7 @@ const withSelectedOffer = (snapshot: EngineSnapshotValue): EngineSnapshotValue =
       deals: new Map([...snapshot.collections.deals, [deal.id, TABLE_DEFINITIONS.deals.encode(deal)]]),
       transportOffers: new Map([[offer.id, TABLE_DEFINITIONS.transportOffers.encode(offer)]]),
       transportRequests: new Map([[request.id, TABLE_DEFINITIONS.transportRequests.encode(request)]]),
+      warehouseTopologies: new Map(),
     },
     schemaVersion: 17,
   };
@@ -157,6 +162,36 @@ describe('engine seed loading', () => {
     expect(replaceAll).toHaveBeenCalledTimes(2);
   });
 
+  it('preserves every prior collection and retries a schema 18 topology migration after a failed write', async () => {
+    const { createEngine } = await import('./createEngine');
+    const source = createMemoryStorage();
+    await createEngine({ epoch: 'source', realTime: { now: () => 0 }, storage: source });
+    const snapshot = await source.load();
+
+    if (snapshot === undefined) {
+      throw new Error('Missing seed snapshot');
+    }
+
+    const { warehouseTopologies, ...priorCollections } = snapshot.collections;
+    const stored = { ...snapshot, collections: { ...priorCollections, warehouseTopologies: new Map() }, schemaVersion: 18 };
+    const storage = createMemoryStorage(stored);
+    const realTime = { now: (): number => 0 };
+    const writeFailure = new Error('Topology migration write failed');
+    const replaceAll = vi.spyOn(storage, 'replaceAll').mockRejectedValueOnce(writeFailure);
+
+    await expect(createEngine({ epoch: 'failed', realTime, storage })).rejects.toMatchObject({
+      cause: writeFailure,
+      name: 'SeedLoadError',
+    });
+    expect(await storage.load()).toEqual(stored);
+
+    await createEngine({ epoch: 'migrated', realTime, storage });
+    expect(warehouseTopologies.size).toBe(2);
+    expect(await storage.load()).toEqual({ ...snapshot, collections: { ...priorCollections, warehouseTopologies }, schemaVersion: 19 });
+    await createEngine({ epoch: 'reopened', realTime, storage });
+    expect(replaceAll).toHaveBeenCalledTimes(2);
+  });
+
   it('restores a selected offer as a draft trip once and preserves the old snapshot if migration cannot write', async () => {
     const { createEngine } = await import('./createEngine');
     const realTime = { now: (): number => 0 };
@@ -179,8 +214,12 @@ describe('engine seed loading', () => {
     }
     expect(migrated).toEqual({
       ...stored,
-      collections: { ...stored.collections, trips: migrated.collections.trips },
-      schemaVersion: 18,
+      collections: {
+        ...stored.collections,
+        trips: migrated.collections.trips,
+        warehouseTopologies: addWarehouseTopologies(createSeedSnapshot()).collections.warehouseTopologies,
+      },
+      schemaVersion: ENGINE_SCHEMA_VERSION,
     });
     expect(migrated.collections.trips.size).toBe(1);
     const trip = TABLE_DEFINITIONS.trips.decode(storedTrip);
@@ -372,7 +411,7 @@ describe('engine seed loading', () => {
     await engine.reset('retry');
 
     expect(engine.epoch()).toBe('retry');
-    expect(await storage.load()).toEqual(createSeedSnapshot(seed));
+    expect(await storage.load()).toEqual(addWarehouseTopologies(createSeedSnapshot(seed)));
   });
 
   it('does not classify a storage failure as a seed import failure', async () => {

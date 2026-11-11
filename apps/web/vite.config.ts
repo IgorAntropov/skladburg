@@ -381,6 +381,8 @@ const MAX_ENGINE_GZIP_KILOBYTES = 180.3;
 
 const MAX_ENGINE_SEED_GZIP_KILOBYTES = 14.53;
 
+const MAX_ENGINE_SEED_WITH_TOPOLOGY_GZIP_KILOBYTES = 17;
+
 const MAX_ENGINE_FLEET_MIGRATION_GZIP_KILOBYTES = 2.05;
 
 const MAX_ENGINE_FLEET_GZIP_KILOBYTES = 2.21;
@@ -512,6 +514,17 @@ const ENGINE_WORKER_BUDGET = {
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_SEED_GZIP_KILOBYTES,
       name: 'engine-seed',
+    },
+    {
+      baseline: 'engine',
+      entries: [
+        'packages/demo-engine/src/core/engine/migrateWarehouseTopologies.ts',
+        'packages/demo-engine/src/core/seed/seedSnapshot.ts',
+        'packages/demo-engine/src/core/seed/seedSnapshotWithTopology.ts',
+      ],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_SEED_WITH_TOPOLOGY_GZIP_KILOBYTES,
+      name: 'engine-seed-with-topology',
     },
     {
       baseline: 'engine',

@@ -13,6 +13,7 @@ export const ENGINE_COLLECTION_NAMES = [
   'mapNodes',
   'routeLegs',
   'warehouses',
+  'warehouseTopologies',
   'notifications',
   'supportAccessSessions',
   'supportAuditEntries',
@@ -121,4 +122,5 @@ export const createEmptyCollections = (): Record<EngineCollectionName, EngineCol
   users: new Map(),
   vehicles: new Map(),
   warehouses: new Map(),
+  warehouseTopologies: new Map(),
 });

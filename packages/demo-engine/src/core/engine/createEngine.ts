@@ -64,12 +64,12 @@ import {
   createRandom,
   createScaledClock,
 } from '../ports/index';
+import { deferEngineHandler } from '../router/deferEngineHandler';
 import {
   createEngineHandler,
   createSupportAuditInterceptor,
 } from '../router/index';
 import { createDeferredFleetService } from '../router/loadFleetService';
-import { loadLogisticsHandler } from '../router/loadLogisticsHandler';
 import {
   createEngineTasks,
   createScheduler,
@@ -80,7 +80,6 @@ import {
 } from '../seed/seedConfig';
 import {
   createEngineState,
-  ENGINE_SCHEMA_VERSION,
   isCurrentSnapshot,
   type IStateReader,
   type LiveMetaValue,
@@ -100,7 +99,7 @@ const getEngineContractRegistry = async (): Promise<FileRegistry> => {
   if (contractRegistry === undefined) {
     const compressed = new ReadableStream<Uint8Array<ArrayBuffer>>({
       start: (controller) => {
-        controller.enqueue(Uint8Array.from(base64Decode(COMPRESSED_VALIDATION_IMAGE_BASE64)));
+        controller.enqueue(base64Decode(COMPRESSED_VALIDATION_IMAGE_BASE64));
         controller.close();
       },
     });
@@ -144,23 +143,14 @@ const readRoleName = (reader: IStateReader, organizationId: string, userId: stri
 };
 
 const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<EngineSnapshotValue> => {
-  let module: typeof import('../seed/seedSnapshot');
-
-  try {
-    module = await import('../seed/seedSnapshot');
-  }
-  catch (error) {
+  const { createSeedSnapshotWithTopology } = await import('../seed/seedSnapshotWithTopology').catch((error: unknown) => {
     throw new SeedLoadError(error);
-  }
+  });
 
-  return module.createSeedSnapshot(seed);
+  return createSeedSnapshotWithTopology(seed);
 };
 
-const PRE_FLEET_SCHEMA_VERSION = 15;
-
-const PRE_MARKETPLACE_SCHEMA_VERSION = 16;
-
-const PRE_TRIPS_SCHEMA_VERSION = 17;
+const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18];
 
 const loadOrSeedSnapshot = async (
   options: CreateEngineOptionsValue,
@@ -168,26 +158,13 @@ const loadOrSeedSnapshot = async (
 ): Promise<EngineSnapshotValue> => {
   const stored = await options.storage.load();
 
-  if (stored?.meta.seedVersion === SEED_VERSION && (stored.schemaVersion === PRE_FLEET_SCHEMA_VERSION
-    || stored.schemaVersion === PRE_MARKETPLACE_SCHEMA_VERSION || stored.schemaVersion === PRE_TRIPS_SCHEMA_VERSION)) {
+  if (stored?.meta.seedVersion === SEED_VERSION && MIGRATABLE_SCHEMA_VERSIONS.includes(stored.schemaVersion)) {
     try {
-      const collections = stored.schemaVersion === PRE_TRIPS_SCHEMA_VERSION
-        ? stored.collections
-        : { ...stored.collections, transportOffers: new Map(), transportRequests: new Map() };
-      let migrated: EngineSnapshotValue = {
-        ...stored,
-        collections: { ...collections, trips: new Map() },
-        schemaVersion: ENGINE_SCHEMA_VERSION,
-      };
-      if (stored.schemaVersion === PRE_FLEET_SCHEMA_VERSION) {
-        migrated = (await import('../seed/seedFleet')).addSeedFleet(migrated);
-      }
-      if (collections.transportRequests.size > 0) {
-        migrated = (await import('./migrateTripRecords')).addTripRecords(migrated);
-      }
-      await options.storage.replaceAll(migrated);
+      const { migrateStoredSnapshot } = await import('./migrateStoredSnapshot');
+      const snapshot = await migrateStoredSnapshot(stored);
+      await options.storage.replaceAll(snapshot);
 
-      return migrated;
+      return snapshot;
     }
     catch (error) {
       throw new SeedLoadError(error, 'The saved world migration failed');
@@ -327,9 +304,19 @@ export const createEngineWithTasks = async (
     }
   }
 
-  const logisticsHandler = loadLogisticsHandler(runtime, supportAudit);
-  const handle = (request: Request): Promise<Response> => queue.enqueue(() =>
-    new URL(request.url).pathname.startsWith('/logistics.v1.LogisticsService/') ? logisticsHandler(request) : handler(request));
+  const logisticsHandler = deferEngineHandler(async () =>
+    (await import('../modules/logistics/index')).createLogisticsHandler(runtime, supportAudit));
+  const warehouseTopologyHandler = deferEngineHandler(async () =>
+    (await import('../modules/wms/warehouseTopologyService')).createWarehouseTopologyHandler(runtime, supportAudit));
+  const handle = (request: Request): Promise<Response> => queue.enqueue(() => {
+    const { pathname } = new URL(request.url);
+
+    if (pathname.startsWith('/wms.v1.')) {
+      return warehouseTopologyHandler(request);
+    }
+
+    return pathname.startsWith('/logistics.v1.LogisticsService/') ? logisticsHandler(request) : handler(request);
+  });
 
   const tick = (): Promise<void> => queue.enqueue(() => scheduler.tick());
 

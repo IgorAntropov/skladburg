@@ -91,6 +91,7 @@ import {
   createEngine,
   createEngineWithTasks,
 } from './createEngine';
+import { addWarehouseTopologies } from './migrateWarehouseTopologies';
 import {
   createEngineCaller,
   createFakeRealTime,
@@ -148,7 +149,7 @@ describe('createEngine startup', () => {
 
     expect(engine.epoch()).toBe(TEST_ENGINE_EPOCH);
     expect(storage.replaceAllCount()).toBe(1);
-    expect(await storage.load()).toEqual(createSeedSnapshot());
+    expect(await storage.load()).toEqual(addWarehouseTopologies(createSeedSnapshot()));
   });
 
   it('lists the personas of the seed', async () => {
@@ -337,7 +338,7 @@ describe('createEngine startup', () => {
     const { engine } = await createTestEngine({ storage });
 
     expect(storage.replaceAllCount()).toBe(1);
-    expect(await storage.load()).toEqual(createSeedSnapshot());
+    expect(await storage.load()).toEqual(addWarehouseTopologies(createSeedSnapshot()));
     const caller = createEngineCaller(engine);
     const response = await caller.organization.listWarehouses({}, customerOptions(caller));
     expect(response.warehouses).toHaveLength(3);
@@ -350,7 +351,7 @@ describe('createEngine startup', () => {
     const { engine } = await createTestEngine({ storage });
 
     expect(storage.replaceAllCount()).toBe(1);
-    expect(await storage.load()).toEqual(createSeedSnapshot());
+    expect(await storage.load()).toEqual(addWarehouseTopologies(createSeedSnapshot()));
     expect(engine.getClockSnapshot().worldTimeMs).toBe(DEFAULT_ENGINE_SEED.worldStartMs);
   });
 
@@ -370,7 +371,7 @@ describe('createEngine startup', () => {
     const { engine } = await createTestEngine({ storage });
 
     expect(storage.replaceAllCount()).toBe(1);
-    expect(await storage.load()).toEqual(seeded);
+    expect(await storage.load()).toEqual(addWarehouseTopologies(seeded));
     const caller = createEngineCaller(engine);
     const response = await caller.organization.listWarehouses({}, customerOptions(caller));
     expect(response.warehouses).toHaveLength(3);
@@ -409,7 +410,7 @@ describe('createEngine startup', () => {
     const { engine } = await createTestEngine({ storage });
 
     expect(storage.replaceAllCount()).toBe(1);
-    expect(await storage.load()).toEqual(seeded);
+    expect(await storage.load()).toEqual(addWarehouseTopologies(seeded));
     const customerPersona = engine.listPersonas().find(persona => persona.id === SeedPersonaId.FRESH_CUSTOMER);
     expect(customerPersona?.kind).toBe(DemoPersonaKind.CUSTOMER);
     expect(customerPersona?.organizationName).toBe('Тёплый угол');
@@ -453,7 +454,7 @@ describe('createEngine startup', () => {
     const { engine } = await createTestEngine({ storage });
 
     expect(storage.replaceAllCount()).toBe(1);
-    expect(await storage.load()).toEqual(seeded);
+    expect(await storage.load()).toEqual(addWarehouseTopologies(seeded));
     const [first] = engine.listPersonas();
     expect(first?.id).toBe(SeedPersonaId.FRESH_CUSTOMER);
     expect(first?.userDisplayName).toBe('Анна Смирнова');
@@ -1481,7 +1482,7 @@ describe('reset', () => {
     await engine.reset('epoch-2');
 
     expect(engine.epoch()).toBe('epoch-2');
-    expect(await storage.load()).toEqual(createSeedSnapshot());
+    expect(await storage.load()).toEqual(addWarehouseTopologies(createSeedSnapshot()));
     expect(engine.getClockSnapshot().worldTimeMs).toBe(DEFAULT_ENGINE_SEED.worldStartMs);
     const list = await caller.organization.listWarehouses({}, customerOptions(caller));
     expect(list.warehouses).toHaveLength(3);

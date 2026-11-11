@@ -486,6 +486,7 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     { databaseVersion: 13, schemaVersion: 15 },
     { databaseVersion: 14, schemaVersion: 16 },
     { databaseVersion: 15, schemaVersion: 17 },
+    { databaseVersion: 16, schemaVersion: 18 },
   ])('adds missing collections to v$databaseVersion and preserves prior records', async ({ databaseVersion, schemaVersion }) => {
     const factory = new IDBFactory();
     const seed = createSeedSnapshot();
@@ -496,7 +497,10 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     const hasMarketplace = databaseVersion >= 15;
     const request = factory.open(DATABASE_NAME, databaseVersion);
     request.addEventListener('upgradeneeded', () => {
-      const missingStores = ['trips'];
+      const missingStores = ['warehouseTopologies'];
+      if (databaseVersion < 16) {
+        missingStores.push('trips');
+      }
       if (!hasFleet) {
         missingStores.push('carrierLanes', 'drivers', 'vehicles');
       }
@@ -545,6 +549,7 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     const loaded = await storage.load();
     expect(loaded?.schemaVersion).toBe(databaseVersion < 13 ? 15 : schemaVersion);
     expect(loaded?.meta).toEqual(seed.meta);
+    expect(loaded?.collections.warehouseTopologies).toEqual(new Map());
     expect(loaded?.collections.deals.get('a')).toEqual(bytes);
     expect(loaded?.collections.documents.get('a')).toEqual(isBeforeDocuments ? undefined : bytes);
     expect(loaded?.collections.documentNumbers.get('a')).toEqual(isBeforeDocuments ? undefined : bytes);

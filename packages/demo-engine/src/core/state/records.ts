@@ -46,6 +46,11 @@ export interface SupportBotQueueRecordValue {
   id: string;
 }
 
+export interface WarehouseTopologyRecordValue {
+  id: string;
+  topologyBytes: Uint8Array;
+}
+
 const isDemoPersonaGroup = (value: unknown): value is DemoPersonaGroup => Object.values<unknown>(DemoPersonaGroup).includes(value);
 
 const isDemoPersonaKind = (value: unknown): value is DemoPersonaKind => Object.values<unknown>(DemoPersonaKind).includes(value);
@@ -114,6 +119,19 @@ export const parseSupportBotQueueRecord = (stored: StoredRecordValue): SupportBo
 
   return { dueAtMs, id };
 };
+
+export const parseWarehouseTopologyRecord = (stored: StoredRecordValue): WarehouseTopologyRecordValue => {
+  if (stored instanceof Uint8Array || typeof stored.id !== 'string' || !(stored.topologyBytes instanceof Uint8Array)) {
+    throw new TypeError('Invalid warehouse topology record');
+  }
+
+  return { id: stored.id, topologyBytes: stored.topologyBytes };
+};
+
+export const serializeWarehouseTopologyRecord = (record: WarehouseTopologyRecordValue): StoredObjectValue => ({
+  id: record.id,
+  topologyBytes: record.topologyBytes.slice(),
+});
 
 export const serializeDemoPersona = (persona: DemoPersonaValue): StoredObjectValue => ({
   group: persona.group,

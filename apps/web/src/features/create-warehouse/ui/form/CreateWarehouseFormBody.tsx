@@ -67,13 +67,14 @@ export const CreateWarehouseFormBody = ({ onCancel, onCreated, places }: CreateW
 
   return (
     <form
+      autoComplete="off"
       className="flex w-full max-w-md flex-col gap-4"
       noValidate
       onKeyDown={handleKeyDown}
       onSubmit={form.handleSubmit}
       ref={formRef}
     >
-      <TextField autoComplete="off" label={t('warehouse.create.name')} {...form.getFieldProps('name')} />
+      <TextField label={t('warehouse.create.name')} {...form.getFieldProps('name')} />
       <SelectField
         hint={t('warehouse.create.city_hint')}
         label={t('warehouse.create.city')}
@@ -83,7 +84,7 @@ export const CreateWarehouseFormBody = ({ onCancel, onCreated, places }: CreateW
         <option value="" />
         {places.cities.map(city => <option key={city.id} value={city.id}>{city.name}</option>)}
       </SelectField>
-      <TextField autoComplete="street-address" label={t('warehouse.create.address')} {...form.getFieldProps('address')} />
+      <TextField label={t('warehouse.create.address')} {...form.getFieldProps('address')} />
       <div className={ACTIONS_CLASS_NAME}>
         <ActionButton
           access={access}

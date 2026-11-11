@@ -187,7 +187,7 @@ export const ListingPriceForm = ({
   }, [form.isDirty, onDirtyChange]);
 
   return (
-    <form className="flex flex-col gap-4" data-testid="listing-price-form" noValidate onSubmit={handleSubmit}>
+    <form autoComplete="off" className="flex flex-col gap-4" data-testid="listing-price-form" noValidate onSubmit={handleSubmit}>
       <section aria-labelledby={titleId} className={EDITOR_GROUP_CLASS_NAME} ref={containerRef}>
         <h4 className={EDITOR_GROUP_HEADING_CLASS_NAME} id={titleId}>{t('catalogEditor.price.title')}</h4>
         <p className={EDITOR_NOTE_CLASS_NAME}>{t('catalogEditor.price.hint', { unit: unitName })}</p>

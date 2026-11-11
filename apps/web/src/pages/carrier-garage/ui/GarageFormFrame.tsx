@@ -109,6 +109,7 @@ export const GarageFormFrame = ({
   return (
     <form
       aria-labelledby={titleId}
+      autoComplete="off"
       className="flex min-w-0 flex-col gap-4"
       data-testid={testId}
       noValidate

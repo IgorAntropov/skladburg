@@ -91,7 +91,7 @@ export const RequisitesForm = ({
   }, [isDirty, onDirtyChange]);
 
   return (
-    <form className="flex flex-col gap-4" data-testid="requisites-form" noValidate onSubmit={handleSubmit}>
+    <form autoComplete="off" className="flex flex-col gap-4" data-testid="requisites-form" noValidate onSubmit={handleSubmit}>
       <RequisitesCompanyBlock t={t} timeZone={requisites.timeZone} />
       <section aria-labelledby={legalHeadingId} className={REQUISITES_GROUP_CLASS_NAME} data-testid="requisites-legal">
         <h3 className={REQUISITES_GROUP_HEADING_CLASS_NAME} id={legalHeadingId}>{t('requisites.legal.title')}</h3>

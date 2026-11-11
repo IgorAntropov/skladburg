@@ -2,7 +2,10 @@ import {
   DEFAULT_PERSONA,
   PERSONAS,
 } from './fixtures/demoData.ts';
-import { test } from './fixtures/test.ts';
+import {
+  expect,
+  test,
+} from './fixtures/test.ts';
 import { DESKTOP_VIEWPORT } from './fixtures/viewports.ts';
 import { createCreateWarehouseRobot } from './robots/create-warehouse-robot.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';
@@ -29,6 +32,14 @@ test.describe('creating a warehouse', () => {
     await createWarehouse.expectPanelOpen();
     await createWarehouse.expectButtonExpanded();
     await createWarehouse.expectNameFocused();
+
+    const autocomplete = await page.getByTestId('create-warehouse-panel').evaluate((panel) => {
+      const address = panel.querySelector('form')?.elements.namedItem('address');
+
+      return address instanceof HTMLInputElement ? address.getAttribute('autocomplete') ?? address.form?.autocomplete : undefined;
+    });
+
+    expect(autocomplete).toBe('off');
 
     await createWarehouse.fillName();
     await createWarehouse.selectCity();

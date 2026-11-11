@@ -227,6 +227,7 @@ export const OrderForm = ({
   return (
     <form
       aria-labelledby={titleId}
+      autoComplete="off"
       className="flex min-w-0 flex-col gap-4 border-t border-line pt-4"
       data-testid="order-form"
       noValidate

@@ -149,7 +149,7 @@ export const ListingPositionForm = ({
   }, [form.isDirty, onDirtyChange]);
 
   return (
-    <form className="flex flex-col gap-4" data-testid="listing-position-form" noValidate onSubmit={handleSubmit}>
+    <form autoComplete="off" className="flex flex-col gap-4" data-testid="listing-position-form" noValidate onSubmit={handleSubmit}>
       <section aria-labelledby={positionTitleId} className={EDITOR_GROUP_CLASS_NAME}>
         <h4 className={EDITOR_GROUP_HEADING_CLASS_NAME} id={positionTitleId}>{editorT('catalogEditor.position.title')}</h4>
         <div data-testid="listing-unit-name">

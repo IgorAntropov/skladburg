@@ -150,6 +150,7 @@ export const SignatoryEditor = ({
   return (
     <form
       aria-labelledby={headingId}
+      autoComplete="off"
       className={EDITOR_CLASS_NAME}
       data-testid="signatory-editor"
       noValidate

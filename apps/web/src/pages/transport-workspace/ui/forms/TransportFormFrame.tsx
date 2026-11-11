@@ -129,6 +129,7 @@ export const TransportFormFrame = ({
   return (
     <form
       aria-labelledby={titleId}
+      autoComplete="off"
       className="flex min-w-0 flex-col gap-3 rounded-control border border-line p-3"
       data-testid={formTestId}
       noValidate

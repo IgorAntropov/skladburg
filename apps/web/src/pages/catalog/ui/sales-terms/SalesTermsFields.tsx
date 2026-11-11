@@ -151,6 +151,7 @@ export const SalesTermsFields = ({
   return (
     <form
       aria-labelledby={titleId}
+      autoComplete="off"
       className="flex max-w-md flex-col gap-4"
       data-testid="sales-terms-form"
       noValidate

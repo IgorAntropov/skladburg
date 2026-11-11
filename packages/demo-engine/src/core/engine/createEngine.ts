@@ -150,7 +150,7 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
   return createSeedSnapshotWithTopology(seed);
 };
 
-const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19];
+const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20];
 
 const loadOrSeedSnapshot = async (
   options: CreateEngineOptionsValue,

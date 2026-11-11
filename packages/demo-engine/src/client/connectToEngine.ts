@@ -6,8 +6,10 @@ import {
 import type {
   DemoPersonaListItemValue,
   EngineClientMessageValue,
+  EngineControlMessageValue,
   EngineControlResultMessageValue,
   EngineHostMessageValue,
+  EngineRequestMessageValue,
   EngineResponseMessageValue,
   IEnginePort,
 } from '../protocol/index';
@@ -35,12 +37,8 @@ interface PendingReplyValue {
   succeed: (reply: EngineReplyMessageValue) => void;
 }
 
-type ReplyOutcomeValue
-  = | { kind: 'failed'; reason: unknown }
-    | { kind: 'replied'; reply: EngineReplyMessageValue };
-
 const createUnavailableError = (reason: string): ConnectError =>
-  new ConnectError(`The demo engine is unavailable: ${reason}`, Code.Unavailable);
+  new ConnectError(reason, Code.Unavailable);
 
 const invokeHandler = (handlerName: string, call: () => void): void => {
   try {
@@ -91,11 +89,12 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
   };
 
   const awaitReply = async (
-    requestId: string,
-    send: () => void,
+    message: EngineControlMessageValue | EngineRequestMessageValue,
     signal: AbortSignal | undefined,
+    transfer: Transferable[] | undefined,
   ): Promise<EngineReplyMessageValue> => {
-    const outcome = await new Promise<ReplyOutcomeValue>((resolve) => {
+    const { requestId } = message;
+    const outcome = await new Promise<EngineReplyMessageValue | { reason: unknown }>((resolve) => {
       const finish = (): void => {
         clearTimeout(timerId);
         signal?.removeEventListener('abort', handleAbort);
@@ -104,7 +103,7 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
 
       const fail = (reason: unknown): void => {
         finish();
-        resolve({ kind: 'failed', reason });
+        resolve({ reason });
       };
 
       const handleAbort = (): void => {
@@ -123,13 +122,13 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
         fail,
         succeed: (reply) => {
           finish();
-          resolve({ kind: 'replied', reply });
+          resolve(reply);
         },
       });
       signal?.addEventListener('abort', handleAbort, { once: true });
 
       try {
-        send();
+        postToEngine(message, transfer);
       }
       catch (error) {
         console.log('> EngineConnection -> awaitReply:', { error, requestId });
@@ -137,11 +136,11 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
       }
     });
 
-    if (outcome.kind === 'failed') {
+    if ('reason' in outcome) {
       throw outcome.reason;
     }
 
-    return outcome.reply;
+    return outcome;
   };
 
   const fetchFromEngine: typeof globalThis.fetch = async (input, init) => {
@@ -155,9 +154,7 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
     signal.throwIfAborted();
     assertAvailable();
 
-    const reply = await awaitReply(requestId, () => {
-      postToEngine(message, transfer);
-    }, signal);
+    const reply = await awaitReply(message, signal, transfer);
 
     if (reply.type !== 'response') {
       throw createUnavailableError('the reply does not match the request');
@@ -177,9 +174,7 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
     assertAvailable();
 
     const requestId = nextId('control');
-    const reply = await awaitReply(requestId, () => {
-      postToEngine({ command, requestId, type: 'control' });
-    }, undefined);
+    const reply = await awaitReply({ command, requestId, type: 'control' }, undefined, undefined);
 
     if (reply.type !== 'control_result') {
       throw createUnavailableError('the reply does not match the request');
@@ -251,10 +246,12 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
     }
   };
 
-  const rejectPendingReplies = (reason: string): void => {
+  const rejectPendingReplies = (reason: string, isAbortRequested: boolean): void => {
     for (const [requestId, pending] of [...pendingReplies]) {
       pending.fail(createUnavailableError(reason));
-      sendAbort(requestId);
+      if (isAbortRequested) {
+        sendAbort(requestId);
+      }
     }
   };
 
@@ -266,7 +263,7 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
         break;
       case 'engine_unavailable':
         publishStatus({ reason: message.reason, state: 'unavailable' });
-        rejectPendingReplies('the engine is not running');
+        rejectPendingReplies('the engine is not running', true);
         break;
       case 'events': {
         const handlers = subscriptions.get(message.subscriptionId);
@@ -337,9 +334,7 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
     isClosed = true;
     port.removeEventListener('message', handleMessage);
 
-    for (const pending of [...pendingReplies.values()]) {
-      pending.fail(createUnavailableError('the connection is closed'));
-    }
+    rejectPendingReplies('the connection is closed', false);
 
     for (const subscriptionId of [...subscriptions.keys()]) {
       postToEngine({ subscriptionId, type: 'unsubscribe' });

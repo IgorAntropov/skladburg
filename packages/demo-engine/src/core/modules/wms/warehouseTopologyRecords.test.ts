@@ -45,6 +45,19 @@ const createFixture = (): TopologyFixtureValue => {
 };
 
 describe('createWarehouseTopologyRecord', () => {
+  it('validates every shipped topology before it can be used as a fixture', () => {
+    const tenantsByWarehouse = new Map<string, string>([
+      [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1, SeedOrganizationId.CUSTOMER_1],
+      [SeedWarehouseId.SUPPLIER_1_WAREHOUSE_1, SeedOrganizationId.SUPPLIER_1],
+    ]);
+    const records = createSeedWarehouseTopologies((id) => {
+      const tenantId = tenantsByWarehouse.get(id);
+      return tenantId === undefined ? undefined : { tenantId };
+    });
+    expect(records).toHaveLength(2);
+    expect(records.map(record => createWarehouseTopologyRecord(readWarehouseTopology(record)))).toEqual(records);
+  });
+
   it.each(['code', 'id'] as const)('rejects duplicate cell %s', (key) => {
     const { first, second, topology } = createFixture();
     second[key] = first[key];

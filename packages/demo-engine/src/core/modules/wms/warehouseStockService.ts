@@ -21,7 +21,6 @@ import {
 import { compareIds } from '../../state/index';
 import { paginate } from '../pagination';
 import { moveHandlingUnit } from './moveHandlingUnit';
-import { postOpeningStock } from './postOpeningStock';
 import {
   readStockBalance,
   readStockMovement,
@@ -61,17 +60,20 @@ export const createWarehouseStockService = (runtime: IModuleRuntime): ServiceImp
         scope: caller.organizationId,
       });
     }),
-    postOpeningStock: (request, context) => command((transaction) => {
-      const caller = guard.guardPermissionCall(transaction, method.postOpeningStock, request, context.requestHeader);
+    postOpeningStock: async (request, context) => {
+      const { postOpeningStock } = await import('./postOpeningStock');
+      return command((transaction) => {
+        const caller = guard.guardPermissionCall(transaction, method.postOpeningStock, request, context.requestHeader);
 
-      return idempotency.run(transaction, {
-        handler: () => postOpeningStock(transaction, runtime, caller, request),
-        idempotencyKey: request.idempotencyKey,
-        method: method.postOpeningStock,
-        request,
-        scope: caller.organizationId,
+        return idempotency.run(transaction, {
+          handler: () => postOpeningStock(transaction, runtime, caller, request),
+          idempotencyKey: request.idempotencyKey,
+          method: method.postOpeningStock,
+          request,
+          scope: caller.organizationId,
+        });
       });
-    }),
+    },
   };
 };
 

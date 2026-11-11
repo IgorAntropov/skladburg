@@ -7,6 +7,7 @@ const PRE_FLEET_SCHEMA_VERSION = 15;
 const PRE_TRIPS_SCHEMA_VERSION = 17;
 const PRE_TOPOLOGY_SCHEMA_VERSION = 18;
 const PRE_STOCK_SCHEMA_VERSION = 19;
+const PRE_WAREHOUSE_IMPORT_SCHEMA_VERSION = 20;
 
 const addStockCollections = (snapshot: EngineSnapshotValue): EngineSnapshotValue => ({
   ...snapshot,
@@ -20,6 +21,10 @@ const addStockCollections = (snapshot: EngineSnapshotValue): EngineSnapshotValue
 });
 
 export const migrateStoredSnapshot = async (stored: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
+  if (stored.schemaVersion === PRE_WAREHOUSE_IMPORT_SCHEMA_VERSION) {
+    return { ...stored, schemaVersion: ENGINE_SCHEMA_VERSION };
+  }
+
   if (stored.schemaVersion === PRE_STOCK_SCHEMA_VERSION) {
     return addStockCollections(stored);
   }

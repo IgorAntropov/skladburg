@@ -3,21 +3,26 @@ import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import type { IDomainErrors } from '../../errors/index';
 import type { IStateReader } from '../../state/index';
 
-import { readWarehouseTopology } from './warehouseTopologyRecords';
+import { readWarehouseTopology } from './warehouseTopologyCodec';
 
 const MAX_STOCK_REFERENCE_LENGTH = 64;
 
-export const requireStockCells = (
+export const findMissingStockCellIds = (
   reader: IStateReader,
   errors: IDomainErrors,
   warehouseId: string,
   tenantId: string,
-  ...cellIds: string[]
-): void => {
+  cellIds: readonly string[],
+): ReadonlySet<string> => {
+  const missing = new Set(cellIds);
+  if (missing.size === 0) {
+    return missing;
+  }
+
   const record = reader.get('warehouseTopologies', warehouseId);
 
   if (record === undefined) {
-    throw errors.notFound(EntityKind.WAREHOUSE_CELL);
+    return missing;
   }
 
   const topology = readWarehouseTopology(record);
@@ -26,25 +31,58 @@ export const requireStockCells = (
     throw errors.internal();
   }
 
-  const hasCells = cellIds.every(cellId => topology.storageZones.some(zone => zone.rows.some(row => row.racks.some(
-    rack => rack.tiers.some(tier => tier.cells.some(cell => cell.id === cellId)),
-  ))));
+  for (const zone of topology.storageZones) {
+    for (const row of zone.rows) {
+      for (const rack of row.racks) {
+        for (const tier of rack.tiers) {
+          for (const cell of tier.cells) {
+            if (missing.delete(cell.id) && missing.size === 0) {
+              return missing;
+            }
+          }
+        }
+      }
+    }
+  }
 
-  if (!hasCells) {
+  return missing;
+};
+
+export const requireStockCells = (
+  reader: IStateReader,
+  errors: IDomainErrors,
+  warehouseId: string,
+  tenantId: string,
+  cellId: string,
+  ...otherCellIds: string[]
+): void => {
+  if (findMissingStockCellIds(reader, errors, warehouseId, tenantId, [cellId, ...otherCellIds]).size > 0) {
     throw errors.notFound(EntityKind.WAREHOUSE_CELL);
   }
 };
 
-export const normalizeStockReference = (value: string, fieldPath: string, errors: IDomainErrors): string => {
+type StockReferenceValue = { ruleId: string } | { value: string };
+
+export const prepareStockReference = (value: string): StockReferenceValue => {
   const normalized = value.normalize('NFC').trim();
 
   if (normalized === '') {
-    throw errors.validationFailed([{ fieldPath, ruleId: 'string.min_len' }]);
+    return { ruleId: 'string.min_len' };
   }
 
   if (Array.from(normalized).length > MAX_STOCK_REFERENCE_LENGTH) {
-    throw errors.validationFailed([{ fieldPath, ruleId: 'string.max_len' }]);
+    return { ruleId: 'string.max_len' };
   }
 
-  return normalized;
+  return { value: normalized };
+};
+
+export const normalizeStockReference = (value: string, fieldPath: string, errors: IDomainErrors): string => {
+  const prepared = prepareStockReference(value);
+
+  if ('ruleId' in prepared) {
+    throw errors.validationFailed([{ fieldPath, ruleId: prepared.ruleId }]);
+  }
+
+  return prepared.value;
 };

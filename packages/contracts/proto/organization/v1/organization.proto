@@ -110,6 +110,7 @@ message WarehouseCreated {
 enum WarehouseChange {
   WAREHOUSE_CHANGE_UNSPECIFIED = 0;
   WAREHOUSE_CHANGE_CREATED = 1;
+  WAREHOUSE_CHANGE_TOPOLOGY_UPDATED = 2;
 }
 
 message WarehouseChanged {

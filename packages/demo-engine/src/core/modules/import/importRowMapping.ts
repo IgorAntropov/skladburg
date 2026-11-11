@@ -1,4 +1,7 @@
-import type { ImportRow } from '@skladburg/contracts/import/v1/import';
+import type {
+  ImportRow,
+  ImportTemplate,
+} from '@skladburg/contracts/import/v1/import';
 
 import { create } from '@bufbuild/protobuf';
 import {
@@ -35,11 +38,14 @@ export const parseImportMoney = (value: string): bigint => {
   return amount;
 };
 
-export const readImportColumns = (headers: readonly string[]): string[] => {
+export const readImportColumns = (
+  headers: readonly string[],
+  template: ImportTemplate = CATALOG_IMPORT_TEMPLATE,
+): string[] => {
   const seen = new Set<string>();
   const keys = headers.map((header, index) => {
     const normalized = header.trim().toLowerCase();
-    const column = CATALOG_IMPORT_TEMPLATE.columns.find(candidate => candidate.key === normalized
+    const column = template.columns.find(candidate => candidate.key === normalized
       || candidate.aliases.some(alias => alias.toLowerCase() === normalized));
     if (column === undefined || seen.has(column.key)) {
       throw new ImportFileError(ImportFileInvalidReason.HEADERS, 1, index + 1, header);
@@ -48,7 +54,7 @@ export const readImportColumns = (headers: readonly string[]): string[] => {
 
     return column.key;
   });
-  const missing = CATALOG_IMPORT_TEMPLATE.columns.find(column => column.isRequired && !seen.has(column.key));
+  const missing = template.columns.find(column => column.isRequired && !seen.has(column.key));
   if (missing !== undefined) {
     throw new ImportFileError(ImportFileInvalidReason.HEADERS, 1, 0, missing.key);
   }

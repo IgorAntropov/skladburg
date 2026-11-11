@@ -25,6 +25,11 @@ describe('readImportFile', () => {
 
     await expect(readImportFile(new File(['a'], 'products.xls'))).resolves.toBe('format');
   });
+
+  it('accepts only XLSX for a warehouse import', async () => {
+    await expect(readImportFile(new File(['a'], 'cells.csv'), 'warehouse')).resolves.toBe('format');
+    await expect(readImportFile(new File(['a'], 'cells.XLSX'), 'warehouse')).resolves.toEqual(new Uint8Array([97]));
+  });
 });
 
 describe('readImportViolation', () => {

@@ -6,7 +6,7 @@ import { WarehouseTopologySchema } from '@skladburg/contracts/wms/v1/topology';
 
 import type { WarehouseTopologyRecordValue } from '../state/records';
 
-import { createWarehouseTopologyRecord } from '../modules/wms/warehouseTopologyRecords';
+import { encodeWarehouseTopology } from '../modules/wms/warehouseTopologyCodec';
 import {
   SeedOrganizationId,
   SeedWarehouseId,
@@ -70,6 +70,6 @@ export const createSeedWarehouseTopologies = (
   findWarehouse: (id: string) => Pick<Warehouse, 'tenantId'> | undefined,
 ): WarehouseTopologyRecordValue[] => SEED_TOPOLOGY_SITES.flatMap(site => (
   findWarehouse(site.warehouseId)?.tenantId === site.tenantId
-    ? [createWarehouseTopologyRecord(createTopology(site))]
+    ? [encodeWarehouseTopology(createTopology(site))]
     : []
 ));

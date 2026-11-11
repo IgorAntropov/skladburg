@@ -1,6 +1,7 @@
 import type { ImportJob } from '@skladburg/contracts/import/v1/import';
 import type { ReactElement } from 'react';
 
+import { EntityKindSchema } from '@skladburg/contracts/common/v1/entity';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import { ImportStatus } from '@skladburg/contracts/import/v1/import';
 import {
@@ -18,38 +19,45 @@ import {
   CommandErrorNotice,
 } from '@/shared/ui';
 
-import type { ImportTranslate } from '../../i18n/import/importSection';
+import type { ImportOptionsValue } from '../model/importOptions';
 
-import { readImportViolation } from '../../api/import/importFile';
-import { useImportJobCommand } from '../../api/import/useImportJobCommand';
+import { readImportViolation } from '../api/importFile';
+import { useImportJobCommand } from '../api/useImportJobCommand';
 import { formatImportIssue } from './importPresentation';
 
 interface ImportJobActionProps {
   isDisabled?: boolean | undefined;
   job: ImportJob;
+  onChooseFile?: (() => void) | undefined;
   onSuccess: (job: ImportJob) => void;
-  t: ImportTranslate;
+  options: ImportOptionsValue;
   template: Parameters<typeof formatImportIssue>[2];
 }
+
+const warehouseEntity = EntityKindSchema.values.find(kind => kind.localName === 'WAREHOUSE')?.number;
 
 const handleConfirmationFocus = (button: HTMLButtonElement | null): void => {
   button?.focus();
 };
 
-export const ImportJobAction = ({ isDisabled, job, onSuccess, t, template }: ImportJobActionProps): ReactElement => {
+export const ImportJobAction = ({ isDisabled, job, onChooseFile, onSuccess, options, template }: ImportJobActionProps): ReactElement => {
   const { t: mainT } = useI18n();
-  const { access, command, reload } = useImportJobCommand(job, onSuccess);
+  const { access, command, reload } = useImportJobCommand(options, job, onSuccess);
   const titleId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [isConfirming, setIsConfirming] = useState(false);
 
+  const { apiError } = command;
+  const { t, target } = options;
   const isCommit = job.status === ImportStatus.PREVIEW;
-  const isConflicted = command.apiError?.code === ErrorCode.VERSION_CONFLICT;
-  const isBlocked = command.apiError?.code === ErrorCode.IMPORT_ROLLBACK_BLOCKED;
+  const isConflicted = apiError?.code === ErrorCode.VERSION_CONFLICT;
+  const hasStaleTopology = isCommit && target.kind === 'warehouse' && isConflicted
+    && apiError.params.case === 'versionConflict' && apiError.params.value.entity === warehouseEntity;
+  const isBlocked = apiError?.code === ErrorCode.IMPORT_ROLLBACK_BLOCKED;
   const isActionDisabled = isDisabled === true || isConflicted || isBlocked;
-  const fieldErrors = command.apiError === undefined
+  const fieldErrors = apiError === undefined
     ? []
-    : getFieldViolations(command.apiError).flatMap((violation) => {
+    : getFieldViolations(apiError).flatMap((violation) => {
         const location = readImportViolation(violation.fieldPath);
         return location === undefined ? [] : [{ ...location, columnNumber: 0, ruleId: violation.ruleId }];
       });
@@ -71,31 +79,31 @@ export const ImportJobAction = ({ isDisabled, job, onSuccess, t, template }: Imp
             <ActionButton
               access={access}
               command={command}
-              data-testid="catalog-import-commit"
+              data-testid={`${target.kind}-import-commit`}
               errorPlacement="external"
               isDisabled={isActionDisabled}
               variant="primary"
             >
-              {t('catalogImport.commit')}
+              {t('dataImport.commit')}
             </ActionButton>
           )
         : (
             <AccessButton
               access={access}
               aria-expanded={isConfirming}
-              data-testid="catalog-import-rollback"
+              data-testid={`${target.kind}-import-rollback`}
               isDisabled={isDisabled}
               onClick={handleShowConfirmation}
               ref={triggerRef}
               variant="secondary"
             >
-              {t('catalogImport.rollback')}
+              {t('dataImport.rollback')}
             </AccessButton>
           )}
       {isConfirming && (
         <div aria-labelledby={titleId} className="flex flex-col gap-2 rounded-control border border-line p-3" role="group">
-          <p className="font-semibold" id={titleId}>{t('catalogImport.confirm')}</p>
-          <p>{t('catalogImport.confirmHint')}</p>
+          <p className="font-semibold" id={titleId}>{t('dataImport.confirm')}</p>
+          <p>{t('dataImport.confirmHint')}</p>
           <div className="flex flex-wrap gap-2">
             <Button
               disabled={command.isPending}
@@ -103,29 +111,36 @@ export const ImportJobAction = ({ isDisabled, job, onSuccess, t, template }: Imp
               ref={handleConfirmationFocus}
               variant="secondary"
             >
-              {t('catalogImport.cancel')}
+              {t('dataImport.cancel')}
             </Button>
             <ActionButton
               access={access}
               command={command}
-              data-testid="catalog-import-confirm-rollback"
+              data-testid={`${target.kind}-import-confirm-rollback`}
               errorPlacement="external"
               isDisabled={isActionDisabled}
               variant="primary"
             >
-              {t('catalogImport.rollback')}
+              {t('dataImport.rollback')}
             </ActionButton>
           </div>
         </div>
       )}
-      <CommandErrorNotice command={command} />
-      {isConflicted && (
-        <Button onClick={reload} variant="secondary">{t('catalogImport.refresh')}</Button>
+      {hasStaleTopology
+        ? <p className="text-base leading-6" role="alert">{t('dataImport.topologyChanged')}</p>
+        : <CommandErrorNotice command={command} />}
+      {hasStaleTopology && onChooseFile !== undefined && (
+        <Button data-testid="warehouse-import-back-to-file" onClick={onChooseFile} variant="secondary">
+          {t('dataImport.backToFile')}
+        </Button>
+      )}
+      {isConflicted && !hasStaleTopology && (
+        <Button onClick={reload} variant="secondary">{t('dataImport.refresh')}</Button>
       )}
       {fieldErrors.length > 0 && (
         <ul className="space-y-1 text-sm" role="alert">
           {fieldErrors.map((error, index) => (
-            <li key={`${String(index)}:${error.fieldPath}`}>{formatImportIssue(t, mainT, template, error)}</li>
+            <li key={`${String(index)}:${error.fieldPath}`}>{formatImportIssue(options, mainT, template, error)}</li>
           ))}
         </ul>
       )}

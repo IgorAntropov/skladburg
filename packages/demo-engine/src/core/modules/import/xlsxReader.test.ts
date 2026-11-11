@@ -12,8 +12,15 @@ import {
 } from 'vitest';
 
 import { buildImportXlsx } from './testing/buildImportXlsx';
+import {
+  CELLS_IMPORT_TEMPLATE,
+  STOCK_IMPORT_TEMPLATE,
+} from './warehouseImportTemplates';
 import { preflightXlsx } from './xlsxPreflight';
-import { readXlsx } from './xlsxReader';
+import {
+  readWarehouseXlsx,
+  readXlsx,
+} from './xlsxReader';
 
 const archive = (xml: string): Uint8Array => zipSync({ 'xl/worksheets/sheet1.xml': strToU8(xml) });
 
@@ -133,5 +140,63 @@ describe('XLSX bounded preflight', () => {
     const table = await readXlsx(bytes);
     expect(table).toHaveLength(1001);
     expect(table[1]?.includes('88259496234518.57')).toBe(true);
+  });
+});
+
+describe('warehouse spreadsheets', () => {
+  it.each([
+    { filename: 'warehouse-cells-template.xlsx', template: CELLS_IMPORT_TEMPLATE },
+    { filename: 'opening-stock-template.xlsx', template: STOCK_IMPORT_TEMPLATE },
+  ])('reads the shipped template $filename without sample transactions', async ({ filename, template }) => {
+    const url = new URL(`../../../../../../apps/web/public/templates/${filename}`, import.meta.url);
+    const rows = await readWarehouseXlsx(new Uint8Array(readFileSync(url)));
+    expect(rows[0]?.map(cell => cell.text)).toEqual(template.columns.map(column => column.key));
+    expect(rows.slice(1).flat().every(cell => cell.text === '')).toBe(true);
+  });
+
+  it('keeps Excel cell types while normalizing calendar dates', async () => {
+    const archive = unzipSync(buildImportXlsx(['sscc', 'quantity_base', 'expires_on', 'kind'], [
+      ['000000000000000017', '1', '2028-02-29', 'false'],
+    ]));
+    const path = 'xl/worksheets/sheet1.xml';
+    const source = archive[path];
+    if (source === undefined) {
+      throw new Error('Missing sheet fixture');
+    }
+    archive[path] = strToU8(strFromU8(source)
+      .replace('<c r="B2" t="inlineStr"><is><t>1</t></is></c>', '<c r="B2" t="n"><v>9007199254740993</v></c>')
+      .replace('<c r="C2" t="inlineStr"><is><t>2028-02-29</t></is></c>', '<c r="C2" t="d"><v>2028-02-29T00:00:00Z</v></c>')
+      .replace('<c r="D2" t="inlineStr"><is><t>false</t></is></c>', '<c r="D2" t="b"><v>0</v></c>'));
+    const rows = await readWarehouseXlsx(zipSync(archive));
+    expect(rows[1]).toEqual([
+      { kind: 'text', text: '000000000000000017' },
+      { kind: 'number', text: '9007199254740993' },
+      { kind: 'date', text: '2028-02-29' },
+      { kind: 'boolean', text: 'false' },
+    ]);
+  });
+
+  it('checks formula results on the first workbook sheet, even when its archive path is not sheet1', async () => {
+    const archive = unzipSync(buildImportXlsx(['expires_on'], [['2028-02-29']]));
+    const sheet = archive['xl/worksheets/sheet1.xml'];
+    const relations = archive['xl/_rels/workbook.xml.rels'];
+    const workbook = archive['xl/workbook.xml'];
+    if (sheet === undefined || relations === undefined || workbook === undefined) {
+      throw new Error('Missing workbook fixture');
+    }
+    archive['xl/workbook.xml'] = strToU8(strFromU8(workbook)
+      .replace('</sheets>', '<sheet name="Второй" sheetId="2" r:id="rId2"/></sheets>'));
+    archive['xl/_rels/workbook.xml.rels'] = strToU8(strFromU8(relations)
+      .replace('Target="worksheets/sheet1.xml"', 'Target="/xl/worksheets/first.xml"')
+      .replace('</Relationships>', '<Relationship Id="rId2" Target="worksheets/sheet1.xml" '
+      + 'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"/></Relationships>'));
+    const brokenSheet = strToU8(strFromU8(sheet)
+      .replace('<c r="A2" t="inlineStr"><is><t>2028-02-29</t></is></c>', '<c r="A2" t="e"><f>1/0</f><v>#DIV/0!</v></c>'));
+    archive['xl/worksheets/first.xml'] = sheet;
+    archive['xl/worksheets/sheet1.xml'] = brokenSheet;
+    expect((await readWarehouseXlsx(zipSync(archive)))[1]).toEqual([{ kind: 'text', text: '2028-02-29' }]);
+    archive['xl/worksheets/first.xml'] = brokenSheet;
+    expect((await readWarehouseXlsx(zipSync(archive)))[1]).toEqual([{ kind: 'error', text: '' }]);
+    expect(await readXlsx(zipSync(archive))).toEqual([['expires_on']]);
   });
 });

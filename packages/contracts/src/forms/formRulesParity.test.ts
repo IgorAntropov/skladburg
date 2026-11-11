@@ -355,11 +355,24 @@ const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
   'import.v1.ImportRow.product',
   'import.v1.ImportRow.product.minPrice',
   'import.v1.ImportRow.product.storageTemperature',
+  'import.v1.WarehouseImportScope.templateId',
   'import.v1.GetImportTemplateRequest.templateId',
+  'import.v1.GetImportTemplateRequest.warehouseScope',
+  'import.v1.GetImportTemplateRequest.warehouseScope.templateId',
   'import.v1.PreviewImportRequest.fileBytes',
   'import.v1.PreviewImportRequest.templateId',
+  'import.v1.PreviewImportRequest.warehouseScope',
+  'import.v1.PreviewImportRequest.warehouseScope.templateId',
   'import.v1.GetImportJobRequest.page',
+  'import.v1.GetImportJobRequest.warehouseScope',
+  'import.v1.GetImportJobRequest.warehouseScope.templateId',
+  'import.v1.CommitImportRequest.warehouseScope',
+  'import.v1.CommitImportRequest.warehouseScope.templateId',
+  'import.v1.RollbackImportRequest.warehouseScope',
+  'import.v1.RollbackImportRequest.warehouseScope.templateId',
   'import.v1.ListImportJobsRequest.page',
+  'import.v1.ListImportJobsRequest.warehouseScope',
+  'import.v1.ListImportJobsRequest.warehouseScope.templateId',
   'logistics.v1.TransportCargo.temperature',
   'logistics.v1.TransportWindow.endsAt',
   'logistics.v1.TransportWindow.startsAt',
@@ -624,8 +637,15 @@ const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
   'wms.v1.GetWarehouseTopologyResponse.topology.receivingArea.footprint.origin',
   'wms.v1.GetWarehouseTopologyResponse.topology.receivingArea.unloadingPoint',
   'wms.v1.GetWarehouseTopologyResponse.topology.receivingArea.unloadingPoint.position',
+  'wms.v1.WarehouseCellInput.rackFootprint',
+  'wms.v1.WarehouseCellInput.rackFootprint.origin',
+  'wms.v1.AddWarehouseCellsRequest.cells',
 ];
-const EXPECTED_SERVER_ONLY_MESSAGES: readonly string[] = ['common.v1.MethodAccess'];
+const EXPECTED_SERVER_ONLY_MESSAGES: readonly string[] = [
+  'common.v1.MethodAccess',
+  'import.v1.GetImportTemplateRequest',
+  'import.v1.PreviewImportRequest',
+];
 
 const VALID_UUID = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
 const OTHER_UUID = '8d14e6a2-0b3c-4f57-9a68-12cd45ef7890';

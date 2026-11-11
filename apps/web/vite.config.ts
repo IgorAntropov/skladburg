@@ -385,6 +385,8 @@ const MAX_ENGINE_SEED_WITH_TOPOLOGY_GZIP_KILOBYTES = 17;
 
 const MAX_ENGINE_STOCK_GZIP_KILOBYTES = 6;
 
+const MAX_ENGINE_STOCK_OPENING_GZIP_KILOBYTES = 9;
+
 const MAX_ENGINE_FLEET_MIGRATION_GZIP_KILOBYTES = 2.05;
 
 const MAX_ENGINE_FLEET_GZIP_KILOBYTES = 2.21;
@@ -405,6 +407,8 @@ const MAX_ENGINE_TRIP_MIGRATION_GZIP_KILOBYTES = 1;
 
 const MAX_ENGINE_IMPORT_GZIP_KILOBYTES = 184.37;
 
+const MAX_ENGINE_WAREHOUSE_IMPORT_GZIP_KILOBYTES = 16;
+
 const MAX_ENGINE_SEED_HISTORY_GZIP_KILOBYTES = 3.55;
 
 const MAX_ENGINE_SUPPLIER_BOTS_GZIP_KILOBYTES = 7.14;
@@ -423,7 +427,12 @@ const MAX_ENGINE_EXCHANGE_PAYMENTS_GZIP_KILOBYTES = 6.1;
 
 const MAX_PRECACHED_FILE_BYTES = 2 * 1024 * 1024;
 
-const PRECACHE_GLOB_PATTERNS = ['**/*.{js,css,html,woff2,svg,png,bin}', 'templates/catalog-template.xlsx'];
+const PRECACHE_GLOB_PATTERNS = [
+  '**/*.{js,css,html,woff2,svg,png,bin}',
+  'templates/catalog-template.xlsx',
+  'templates/opening-stock-template.xlsx',
+  'templates/warehouse-cells-template.xlsx',
+];
 
 const NAVIGATE_FALLBACK_DENYLIST = [/^[^?]*\/[^/?]*\.(?!html(?:\?|$))[^/.?]+(?:\?|$)/];
 
@@ -537,6 +546,16 @@ const ENGINE_WORKER_BUDGET = {
     },
     {
       baseline: 'engine',
+      entries: [
+        'packages/demo-engine/src/core/modules/wms/warehouseStockService.ts',
+        'packages/demo-engine/src/core/modules/wms/postOpeningStock.ts',
+      ],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_STOCK_OPENING_GZIP_KILOBYTES,
+      name: 'engine-stock-opening',
+    },
+    {
+      baseline: 'engine',
       entries: ['packages/demo-engine/src/core/seed/seedDealHistory.ts'],
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_SEED_HISTORY_GZIP_KILOBYTES,
@@ -621,6 +640,14 @@ const ENGINE_WORKER_BUDGET = {
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_IMPORT_GZIP_KILOBYTES,
       name: 'engine-import',
+    },
+    {
+      baseline: 'engine-import',
+      entries: ['packages/demo-engine/src/core/modules/import/warehouseImport.ts'],
+      forbiddenPackages: XLSX_READER_PACKAGES,
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_WAREHOUSE_IMPORT_GZIP_KILOBYTES,
+      name: 'engine-warehouse-import',
     },
     {
       baseline: 'engine-import',
@@ -1235,6 +1262,12 @@ export default defineConfig({
               includeDependenciesRecursively: false,
               name: 'catalog-edit-shared',
               test: (moduleId: string): boolean => CATALOG_EDIT_SHARED_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'create-warehouse-recovery',
+              test: (moduleId: string): boolean =>
+                hasEntryModule([moduleId], 'src/features/create-warehouse/ui/CreateWarehouseRecoveryNotice.tsx'),
             },
             {
               includeDependenciesRecursively: false,

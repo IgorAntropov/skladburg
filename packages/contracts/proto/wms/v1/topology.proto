@@ -99,7 +99,54 @@ message GetWarehouseTopologyResponse {
   WarehouseTopology topology = 1;
 }
 
+message WarehouseCellInput {
+  string zone_code = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 32
+  }];
+  string row_code = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 32
+  }];
+  string rack_code = 3 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 32
+  }];
+  string tier_code = 4 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 32
+  }];
+  WarehouseFloorRect rack_footprint = 5;
+  optional uint32 tier_elevation_mm = 6;
+  string cell_code = 7 [
+    (buf.validate.field).string.max_len = 64,
+    (buf.validate.field).string.pattern = "^[A-Z0-9]+(-[A-Z0-9]+)*$"
+  ];
+  uint32 x_offset_mm = 8;
+  uint32 width_mm = 9 [(buf.validate.field).uint32.gt = 0];
+}
+
+message AddWarehouseCellsRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 2 [(buf.validate.field).string.uuid = true];
+  optional uint32 expected_revision = 3 [(buf.validate.field).required = true];
+  repeated WarehouseCellInput cells = 4 [(buf.validate.field).repeated = {
+    min_items: 1
+    max_items: 10000
+  }];
+}
+
+message AddWarehouseCellsResponse {
+  uint32 revision = 1;
+}
+
 service WarehouseTopologyService {
+  rpc AddWarehouseCells(AddWarehouseCellsRequest) returns (AddWarehouseCellsResponse) {
+    option (common.v1.access).permission = {
+      name: "layout_edit"
+      scope_field: "warehouse_id"
+    };
+  }
   rpc GetWarehouseTopology(GetWarehouseTopologyRequest) returns (GetWarehouseTopologyResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (common.v1.access).permission = {

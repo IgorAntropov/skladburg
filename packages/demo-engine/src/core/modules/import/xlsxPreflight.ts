@@ -16,6 +16,22 @@ interface ArchiveEntryValue {
   size: number;
 }
 
+interface CellPositionValue {
+  columnNumber: number;
+  rowNumber: number;
+}
+
+interface WorkbookInspectionValue {
+  cellErrors: Map<string, CellPositionValue[]>;
+  firstSheetId: string | undefined;
+  sheetPaths: Map<string, string>;
+}
+
+const WORKSHEET_TYPES = new Set([
+  'http://purl.oclc.org/ooxml/officeDocument/relationships/worksheet',
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet',
+]);
+
 const invalidArchive = (): never => {
   throw new ImportFileError(ImportFileInvalidReason.ARCHIVE_LIMIT, 0, 0, '', IMPORT_LIMITS.archiveBytes);
 };
@@ -87,7 +103,7 @@ const readDirectory = (bytes: Uint8Array): Map<string, ArchiveEntryValue> => {
   return entries;
 };
 
-const checkReference = (reference: string): void => {
+const checkReference = (reference: string): CellPositionValue => {
   const match = /^\$?([A-Z]{1,3})\$?([1-9][0-9]{0,6})$/.exec(reference);
   const letters = match?.[1];
   const digits = match?.[2];
@@ -102,9 +118,11 @@ const checkReference = (reference: string): void => {
   if (column > IMPORT_LIMITS.columns) {
     throw new ImportFileError(ImportFileInvalidReason.COLUMN_LIMIT, 0, column, '', IMPORT_LIMITS.columns);
   }
-  if (Number(digits) > IMPORT_LIMITS.rows + 1) {
-    throw new ImportFileError(ImportFileInvalidReason.ROW_LIMIT, Number(digits), 0, '', IMPORT_LIMITS.rows);
+  const rowNumber = Number(digits);
+  if (rowNumber > IMPORT_LIMITS.rows + 1) {
+    throw new ImportFileError(ImportFileInvalidReason.ROW_LIMIT, rowNumber, 0, '', IMPORT_LIMITS.rows);
   }
+  return { columnNumber: column, rowNumber };
 };
 
 const normalizeXmlName = (name: string, isAttribute: boolean): string => {
@@ -112,7 +130,7 @@ const normalizeXmlName = (name: string, isAttribute: boolean): string => {
   return separatorIndex === -1 ? name : name.slice(separatorIndex + 1);
 };
 
-const checkXml = (bytes: Uint8Array): void => {
+const checkXml = (bytes: Uint8Array, path: string, workbook: undefined | WorkbookInspectionValue): void => {
   const xml = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   const fail = (): never => {
     throw new ImportFileError(ImportFileInvalidReason.XML);
@@ -128,6 +146,11 @@ const checkXml = (bytes: Uint8Array): void => {
   let sharedCharacters = 0;
   let hasCell = false;
   let hasShared = false;
+  let currentCell: CellPositionValue | undefined;
+  let hasCellError = false;
+  let hasFormula = false;
+  let hasStoredValue = false;
+  let isStringResult = false;
 
   parser.on('error', fail);
   parser.on('warn', fail);
@@ -147,7 +170,27 @@ const checkXml = (bytes: Uint8Array): void => {
       }
       attributes.set(normalized, decodeEntities(value));
     }
+    const parent = stack.at(-1);
     stack.push(name);
+
+    if (workbook !== undefined) {
+      if (path === 'xl/workbook.xml' && name === 'sheet' && (attributes.get('name') ?? '') !== '') {
+        workbook.firstSheetId ??= attributes.get('id');
+      }
+      if (path === 'xl/_rels/workbook.xml.rels' && name === 'Relationship' && WORKSHEET_TYPES.has(attributes.get('Type') ?? '')) {
+        const id = attributes.get('Id');
+        const target = attributes.get('Target');
+        if (id !== undefined && target !== undefined) {
+          workbook.sheetPaths.set(id, target.startsWith('/') ? target.slice(1) : `xl/${target}`);
+        }
+      }
+      if (currentCell !== undefined && parent === 'c' && name === 'f') {
+        hasFormula = true;
+      }
+      if (currentCell !== undefined && parent === 'c' && name === 'v' && isStringResult) {
+        hasStoredValue = true;
+      }
+    }
 
     if (name === 'row') {
       rowCount += 1;
@@ -167,7 +210,14 @@ const checkXml = (bytes: Uint8Array): void => {
       }
       const reference = attributes.get('r');
       if (reference !== undefined) {
-        checkReference(reference);
+        const position = checkReference(reference);
+        if (workbook !== undefined && stack[0] === 'worksheet' && parent === 'row') {
+          currentCell = position;
+          hasCellError = attributes.get('t') === 'e';
+          hasFormula = false;
+          hasStoredValue = false;
+          isStringResult = attributes.get('t') === 'str';
+        }
       }
     }
     const dimension = attributes.get('ref');
@@ -188,12 +238,21 @@ const checkXml = (bytes: Uint8Array): void => {
     }
     if (name === 'c') {
       hasCell = false;
+      if (workbook !== undefined && currentCell !== undefined && (hasCellError || (hasFormula && !hasStoredValue))) {
+        const cellErrors = workbook.cellErrors.get(path) ?? [];
+        cellErrors.push(currentCell);
+        workbook.cellErrors.set(path, cellErrors);
+      }
+      currentCell = undefined;
     }
     if (name === 'si') {
       hasShared = false;
     }
   });
   const checkText = (text: string): void => {
+    if (currentCell !== undefined && stack.at(-1) === 'v' && stack.at(-2) === 'c' && text.trim() !== '') {
+      hasStoredValue = true;
+    }
     if (hasCell) {
       cellCharacters += text.length;
     }
@@ -212,11 +271,14 @@ const checkXml = (bytes: Uint8Array): void => {
   }
 };
 
-export const preflightXlsx = (bytes: Uint8Array): void => {
+export const preflightXlsx = (bytes: Uint8Array, isWarehouse = false): readonly CellPositionValue[] => {
   if (bytes.length > IMPORT_LIMITS.fileBytes) {
     throw new ImportFileError(ImportFileInvalidReason.FILE_SIZE, 0, 0, '', IMPORT_LIMITS.fileBytes);
   }
   const streams: UnzipFile[] = [];
+  const workbook: undefined | WorkbookInspectionValue = isWarehouse
+    ? { cellErrors: new Map(), firstSheetId: undefined, sheetPaths: new Map() }
+    : undefined;
 
   try {
     const directory = readDirectory(bytes);
@@ -257,7 +319,7 @@ export const preflightXlsx = (bytes: Uint8Array): void => {
               content.set(part, offset);
               offset += part.length;
             }
-            checkXml(content);
+            checkXml(content, file.name, workbook);
           }
         }
       };
@@ -280,4 +342,6 @@ export const preflightXlsx = (bytes: Uint8Array): void => {
     }
     throw new ImportFileError(ImportFileInvalidReason.FORMAT);
   }
+  const path = workbook?.sheetPaths.get(workbook.firstSheetId ?? '');
+  return path === undefined ? [] : workbook?.cellErrors.get(path) ?? [];
 };

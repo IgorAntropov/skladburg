@@ -52,6 +52,16 @@ message ImportRow {
   repeated ImportRowError errors = 6;
 }
 
+message WarehouseImportScope {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  string template_id = 2 [(buf.validate.field).string = {
+    in: [
+      "warehouse_cells",
+      "opening_stock"
+    ]
+  }];
+}
+
 message ImportJob {
   string id = 1;
   string tenant_id = 2;
@@ -64,17 +74,37 @@ message ImportJob {
   int64 version = 9;
   google.protobuf.Timestamp created_at = 10;
   google.protobuf.Timestamp updated_at = 11;
+  optional string warehouse_id = 12;
 }
 
 message GetImportTemplateRequest {
-  string template_id = 1 [(buf.validate.field).string.const = "catalog"];
+  option (buf.validate.message).cel = {
+    id: "import.template_scope"
+    message: "select either the catalog or a warehouse template"
+    expression: "has(this.warehouse_scope) ? this.template_id == '' : this.template_id == 'catalog'"
+  };
+
+  string template_id = 1 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.const = "catalog"
+  ];
+  WarehouseImportScope warehouse_scope = 2;
 }
 message GetImportTemplateResponse {
   ImportTemplate template = 1;
 }
 message PreviewImportRequest {
+  option (buf.validate.message).cel = {
+    id: "import.template_scope"
+    message: "select either the catalog or a warehouse template"
+    expression: "has(this.warehouse_scope) ? this.template_id == '' : this.template_id == 'catalog'"
+  };
+
   string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
-  string template_id = 2 [(buf.validate.field).string.const = "catalog"];
+  string template_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.const = "catalog"
+  ];
   string file_name = 3 [
     (buf.validate.field).string.min_len = 1,
     (buf.validate.field).string.max_len = 200
@@ -83,6 +113,7 @@ message PreviewImportRequest {
     (buf.validate.field).bytes.min_len = 1,
     (buf.validate.field).bytes.max_len = 5242880
   ];
+  WarehouseImportScope warehouse_scope = 5;
 }
 message PreviewImportResponse {
   ImportJob job = 1;
@@ -91,6 +122,7 @@ message GetImportJobRequest {
   string job_id = 1 [(buf.validate.field).string.uuid = true];
   common.v1.PageRequest page = 2;
   bool has_errors_only = 3;
+  WarehouseImportScope warehouse_scope = 4;
 }
 message GetImportJobResponse {
   ImportJob job = 1;
@@ -101,6 +133,7 @@ message CommitImportRequest {
   string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
   string job_id = 2 [(buf.validate.field).string.uuid = true];
   int64 expected_version = 3 [(buf.validate.field).int64.gt = 0];
+  WarehouseImportScope warehouse_scope = 4;
 }
 message CommitImportResponse {
   ImportJob job = 1;
@@ -109,12 +142,14 @@ message RollbackImportRequest {
   string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
   string job_id = 2 [(buf.validate.field).string.uuid = true];
   int64 expected_version = 3 [(buf.validate.field).int64.gt = 0];
+  WarehouseImportScope warehouse_scope = 4;
 }
 message RollbackImportResponse {
   ImportJob job = 1;
 }
 message ListImportJobsRequest {
   common.v1.PageRequest page = 1;
+  WarehouseImportScope warehouse_scope = 2;
 }
 message ListImportJobsResponse {
   repeated ImportJob jobs = 1;

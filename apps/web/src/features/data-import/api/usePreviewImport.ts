@@ -17,14 +17,13 @@ import {
   useCommand,
 } from '@/shared/api';
 
+import type { ImportOptionsValue } from '../model/importOptions';
 import type { ImportFileErrorValue } from './importFile';
 
+import { getImportTemplateSelection } from '../model/importTarget';
 import { readImportFile } from './importFile';
-import {
-  IMPORT_TEMPLATE_ID,
-  useImportWriteAccess,
-  useRefreshImports,
-} from './useImportQueries';
+import { useImportAccess } from './useImportAccess';
+import { useRefreshImports } from './useImportQueries';
 
 interface PreparedImportValue {
   bytes: Uint8Array<ArrayBuffer>;
@@ -40,11 +39,15 @@ interface PreviewImportValue {
   selectFile: (file: File) => void;
 }
 
-export const usePreviewImport = (onPreview: (job: ImportJob) => void): PreviewImportValue => {
+export const usePreviewImport = (
+  { target, writeAccess }: Pick<ImportOptionsValue, 'target' | 'writeAccess'>,
+  onPreview: (job: ImportJob) => void,
+): PreviewImportValue => {
   const client = useApiClient();
-  const access = useImportWriteAccess(ImportService.method.previewImport);
-  const refresh = useRefreshImports();
+  const access = useImportAccess(ImportService.method.previewImport, writeAccess);
+  const refresh = useRefreshImports(target);
   const isMounted = useRef(false);
+  const readSequenceRef = useRef(0);
   const preparedFile = useRef<PreparedImportValue | undefined>(undefined);
   const [fileError, setFileError] = useState<ImportFileErrorValue | undefined>(undefined);
   const [fileName, setFileName] = useState<string | undefined>(undefined);
@@ -61,7 +64,7 @@ export const usePreviewImport = (onPreview: (job: ImportJob) => void): PreviewIm
         fileBytes: file.bytes,
         fileName: file.name,
         idempotencyKey,
-        templateId: IMPORT_TEMPLATE_ID,
+        ...getImportTemplateSelection(target),
       });
       if (response.job === undefined) {
         throw new Error('PreviewImport response has no job');
@@ -86,9 +89,11 @@ export const usePreviewImport = (onPreview: (job: ImportJob) => void): PreviewIm
     setFileError(undefined);
     setFileName(undefined);
     setIsReading(true);
+    const readSequence = readSequenceRef.current + 1;
+    readSequenceRef.current = readSequence;
 
-    void readImportFile(file).then((result) => {
-      if (!isMounted.current) {
+    void readImportFile(file, target.kind).then((result) => {
+      if (!isMounted.current || readSequenceRef.current !== readSequence) {
         return;
       }
 

@@ -3,13 +3,27 @@ import type {
   WarehouseTopology,
 } from '@skladburg/contracts/wms/v1/topology';
 
+import { create } from '@bufbuild/protobuf';
 import {
-  fromBinary,
-  toBinary,
-} from '@bufbuild/protobuf';
-import { WarehouseTopologySchema } from '@skladburg/contracts/wms/v1/topology';
+  WarehouseChange,
+  WarehouseChangedSchema,
+} from '@skladburg/contracts/organization/v1/organization';
+import { warehouseChannel } from '@skladburg/contracts/runtime';
 
+import type { IDomainErrors } from '../../errors/index';
+import type {
+  IStateReader,
+  IStateTransaction,
+} from '../../state/index';
 import type { WarehouseTopologyRecordValue } from '../../state/records';
+import type { IModuleRuntime } from '../moduleRuntime';
+
+import {
+  encodeWarehouseTopology,
+  readWarehouseTopology,
+} from './warehouseTopologyCodec';
+
+export { readWarehouseTopology } from './warehouseTopologyCodec';
 
 const addUnique = (seen: Set<string>, key: string): void => {
   if (seen.has(key)) {
@@ -75,8 +89,38 @@ const checkTopology = (topology: WarehouseTopology): void => {
 export const createWarehouseTopologyRecord = (topology: WarehouseTopology): WarehouseTopologyRecordValue => {
   checkTopology(topology);
 
-  return { id: topology.warehouseId, topologyBytes: toBinary(WarehouseTopologySchema, topology) };
+  return encodeWarehouseTopology(topology);
 };
 
-export const readWarehouseTopology = (record: WarehouseTopologyRecordValue): WarehouseTopology =>
-  fromBinary(WarehouseTopologySchema, record.topologyBytes);
+export const readOwnedWarehouseTopology = (
+  reader: IStateReader,
+  errors: IDomainErrors,
+  warehouseId: string,
+  tenantId: string,
+): undefined | WarehouseTopology => {
+  const record = reader.get('warehouseTopologies', warehouseId);
+
+  if (record === undefined) {
+    return undefined;
+  }
+
+  const topology = readWarehouseTopology(record);
+
+  if (topology.warehouseId !== warehouseId || topology.tenantId !== tenantId) {
+    throw errors.internal();
+  }
+
+  return topology;
+};
+
+export const saveWarehouseTopology = (
+  transaction: IStateTransaction,
+  runtime: IModuleRuntime,
+  topology: WarehouseTopology,
+): void => {
+  transaction.put('warehouseTopologies', createWarehouseTopologyRecord(topology));
+  runtime.outbox.add(transaction, warehouseChannel(topology.warehouseId), {
+    case: 'warehouseChanged',
+    value: create(WarehouseChangedSchema, { change: WarehouseChange.TOPOLOGY_UPDATED, warehouseId: topology.warehouseId }),
+  });
+};

@@ -1,5 +1,8 @@
 import type { PageRequest } from '@skladburg/contracts/common/v1/page';
-import type { ImportRow } from '@skladburg/contracts/import/v1/import';
+import type {
+  ImportRow,
+  WarehouseImportScope,
+} from '@skladburg/contracts/import/v1/import';
 
 import {
   create,
@@ -17,9 +20,20 @@ import type { ImportRecordValue } from './importRecords';
 
 import { paginate } from '../pagination';
 
-export const readImportRecord = (reader: IStateReader, errors: IDomainErrors, id: string, organizationId: string): ImportRecordValue => {
+export const isImportInScope = (
+  record: ImportRecordValue,
+  scope: undefined | WarehouseImportScope,
+): boolean => record.job.warehouseId === scope?.warehouseId && record.job.templateId === (scope?.templateId ?? 'catalog');
+
+export const readImportRecord = (
+  reader: IStateReader,
+  errors: IDomainErrors,
+  id: string,
+  organizationId: string,
+  scope: undefined | WarehouseImportScope,
+): ImportRecordValue => {
   const record = reader.get('importJobs', id);
-  if (record?.job.tenantId !== organizationId) {
+  if (record?.job.tenantId !== organizationId || !isImportInScope(record, scope)) {
     throw errors.notFound(EntityKind.IMPORT_JOB);
   }
   return record;

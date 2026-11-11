@@ -1,4 +1,3 @@
-import type { DescMethod } from '@bufbuild/protobuf';
 import type {
   GetImportJobResponse,
   ImportTemplate,
@@ -10,8 +9,11 @@ import type {
   UseQueryResult,
 } from '@tanstack/react-query';
 
-import { CatalogService } from '@skladburg/contracts/catalog/v1/catalog';
 import { ImportService } from '@skladburg/contracts/import/v1/import';
+import {
+  inventoryChannel,
+  warehouseChannel,
+} from '@skladburg/contracts/runtime';
 import {
   skipToken,
   useInfiniteQuery,
@@ -19,53 +21,53 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 
-import type { PermissionScopeValue } from '@/entities/session';
-import type { CommandAccessValue } from '@/shared/api';
+import type { ApiQueryMetaValue } from '@/shared/api';
 
-import { useCommandAccess } from '@/entities/session';
 import {
   createOrganizationQueryMeta,
   useActingContext,
   useApiClient,
 } from '@/shared/api';
 
-export const IMPORT_TEMPLATE_ID = 'catalog';
+import type { ImportTargetValue } from '../model/importTarget';
 
-export const IMPORT_SCOPE = { kind: 'organization' } satisfies PermissionScopeValue;
+import {
+  getImportTemplateSelection,
+  getImportWarehouseScope,
+} from '../model/importTarget';
 
 const getNextPage = (response: GetImportJobResponse | ListImportJobsResponse): string | undefined => {
   const token = response.page?.nextPageToken;
   return token === '' ? undefined : token;
 };
 
-const useImportScope = (): readonly ['catalog-import', string | undefined, string | undefined] => {
+export const useImportScope = (target: ImportTargetValue): readonly [
+  'data-import', string | undefined, string | undefined, string | undefined, string,
+] => {
   const { organizationId, userId } = useActingContext();
-  return ['catalog-import', organizationId, userId];
+
+  return target.kind === 'warehouse'
+    ? ['data-import', organizationId, userId, target.warehouseId, target.templateId]
+    : ['data-import', organizationId, userId, undefined, 'catalog'];
 };
 
-export const useImportReadAccess = (): CommandAccessValue => {
-  const access = useCommandAccess(ImportService.method.listImportJobs, IMPORT_SCOPE);
-  const catalog = useCommandAccess(CatalogService.method.listProducts, IMPORT_SCOPE);
-  const price = useCommandAccess(CatalogService.method.listListingPrices, IMPORT_SCOPE);
+const getImportQueryMeta = (target: ImportTargetValue, organizationId: string | undefined): ApiQueryMetaValue => {
+  if (target.kind === 'catalog') {
+    return createOrganizationQueryMeta(organizationId, ['listingsChanged']);
+  }
 
-  return [access, catalog, price].find(value => value.status !== 'allowed') ?? access;
+  return target.templateId === 'warehouse_cells'
+    ? { channels: [warehouseChannel(target.warehouseId)], eventCases: ['warehouseChanged'] }
+    : { channels: [inventoryChannel(target.warehouseId)], eventCases: ['stockChanged'] };
 };
 
-export const useImportWriteAccess = (method: DescMethod): CommandAccessValue => {
-  const access = useCommandAccess(method, IMPORT_SCOPE);
-  const catalog = useCommandAccess(CatalogService.method.saveProduct, IMPORT_SCOPE);
-  const price = useCommandAccess(CatalogService.method.saveListingPrice, IMPORT_SCOPE);
-
-  return [access, catalog, price].find(value => value.status !== 'allowed') ?? access;
-};
-
-export const useImportTemplate = (): UseQueryResult<ImportTemplate> => {
+export const useImportTemplate = (target: ImportTargetValue): UseQueryResult<ImportTemplate> => {
   const client = useApiClient();
-  const scope = useImportScope();
+  const scope = useImportScope(target);
 
   return useQuery({
     queryFn: async ({ signal }) => {
-      const response = await client.service(ImportService).getImportTemplate({ templateId: IMPORT_TEMPLATE_ID }, { signal });
+      const response = await client.service(ImportService).getImportTemplate(getImportTemplateSelection(target), { signal });
       if (response.template === undefined) {
         throw new Error('GetImportTemplate response has no template');
       }
@@ -77,47 +79,50 @@ export const useImportTemplate = (): UseQueryResult<ImportTemplate> => {
   });
 };
 
-export const useImportHistory = (): UseInfiniteQueryResult<InfiniteData<ListImportJobsResponse, string>> => {
+export const useImportHistory = (target: ImportTargetValue): UseInfiniteQueryResult<InfiniteData<ListImportJobsResponse, string>> => {
   const client = useApiClient();
-  const scope = useImportScope();
+  const scope = useImportScope(target);
   const organizationId = scope[1];
 
   return useInfiniteQuery({
     getNextPageParam: getNextPage,
     initialPageParam: '',
-    meta: createOrganizationQueryMeta(organizationId, ['listingsChanged']),
+    meta: getImportQueryMeta(target, organizationId),
     queryFn: ({ pageParam, signal }) => client.service(ImportService).listImportJobs({
       page: { pageSize: 12, pageToken: pageParam },
+      warehouseScope: getImportWarehouseScope(target),
     }, { signal }),
     queryKey: [...scope, 'jobs'],
   });
 };
 
 export const useImportRows = (
-  jobId: string | undefined,
+  target: ImportTargetValue,
+  jobId: string,
   hasErrorsOnly: boolean,
 ): UseInfiniteQueryResult<InfiniteData<GetImportJobResponse, string>> => {
   const client = useApiClient();
-  const scope = useImportScope();
+  const scope = useImportScope(target);
   const organizationId = scope[1];
 
   return useInfiniteQuery({
     getNextPageParam: getNextPage,
     initialPageParam: '',
-    meta: createOrganizationQueryMeta(organizationId, ['listingsChanged']),
-    queryFn: jobId === undefined
+    meta: getImportQueryMeta(target, organizationId),
+    queryFn: jobId === ''
       ? skipToken
       : ({ pageParam, signal }) => client.service(ImportService).getImportJob({
           hasErrorsOnly,
           jobId,
           page: { pageSize: 12, pageToken: pageParam },
+          warehouseScope: getImportWarehouseScope(target),
         }, { signal }),
     queryKey: [...scope, 'rows', jobId, hasErrorsOnly],
   });
 };
 
-export const useRefreshImports = (): (() => void) => {
-  const scope = useImportScope();
+export const useRefreshImports = (target: ImportTargetValue): (() => void) => {
+  const scope = useImportScope(target);
   const queryClient = useQueryClient();
 
   return (): void => {

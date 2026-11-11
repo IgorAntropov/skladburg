@@ -51,26 +51,7 @@ const isArrayBufferList = (value: unknown): value is ArrayBuffer[] =>
 const isHttpStatus = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= MIN_HTTP_STATUS && value <= MAX_HTTP_STATUS;
 
-const isControlCommand = (value: unknown): value is EngineControlCommand =>
-  Object.values<unknown>(EngineControlCommand).includes(value);
-
-const isCoordination = (value: unknown): value is typeof ENGINE_COORDINATIONS[number] =>
-  ENGINE_COORDINATIONS.some(coordination => coordination === value);
-
-const isEngineRole = (value: unknown): value is typeof ENGINE_ROLES[number] => ENGINE_ROLES.some(role => role === value);
-
-const isStorageKind = (value: unknown): value is typeof ENGINE_STORAGE_KINDS[number] =>
-  ENGINE_STORAGE_KINDS.some(kind => kind === value);
-
-const isStorageHealth = (value: unknown): value is typeof ENGINE_STORAGE_HEALTHS[number] =>
-  ENGINE_STORAGE_HEALTHS.some(health => health === value);
-
-const isUnavailableReason = (value: unknown): value is typeof ENGINE_UNAVAILABLE_REASONS[number] =>
-  ENGINE_UNAVAILABLE_REASONS.some(reason => reason === value);
-
-const isPersonaKind = (value: unknown): value is DemoPersonaKind => Object.values<unknown>(DemoPersonaKind).includes(value);
-
-const isPersonaGroup = (value: unknown): value is DemoPersonaGroup => Object.values<unknown>(DemoPersonaGroup).includes(value);
+const hasValue = <T>(values: readonly T[], value: unknown): value is T => values.some(candidate => candidate === value);
 
 const readPersona = (value: unknown): DemoPersonaListItemValue | undefined => {
   if (!isRecord(value)) {
@@ -81,9 +62,9 @@ const readPersona = (value: unknown): DemoPersonaListItemValue | undefined => {
   const isAvatarValid = userAvatarUrl === undefined || isString(userAvatarUrl);
 
   return isAvatarValid
-    && isPersonaGroup(group)
+    && hasValue(Object.values(DemoPersonaGroup), group)
     && isString(id)
-    && isPersonaKind(kind)
+    && hasValue(Object.values(DemoPersonaKind), kind)
     && isString(organizationId)
     && isString(organizationName)
     && isString(roleName)
@@ -146,7 +127,9 @@ const readClientMessage = (data: Record<string, unknown>): EngineClientMessageVa
     case 'abort':
       return isString(requestId) ? { requestId, type: 'abort' } : undefined;
     case 'control':
-      return isString(requestId) && isControlCommand(command) ? { command, requestId, type: 'control' } : undefined;
+      return isString(requestId) && hasValue(Object.values(EngineControlCommand), command)
+        ? { command, requestId, type: 'control' }
+        : undefined;
     case 'request':
       return isString(requestId) && isString(url) && isString(method) && isHeaderPairList(headers) && isArrayBuffer(body)
         ? { body, headers, method, requestId, type: 'request', url }
@@ -178,39 +161,40 @@ const readHostMessage = (data: Record<string, unknown>): EngineHostMessageValue 
     storage,
     storageHealth,
     subscriptionId,
+    type,
   } = data;
 
-  switch (data.type) {
+  switch (type) {
     case 'control_result':
       return readControlResult(data);
     case 'engine_unavailable':
-      return isUnavailableReason(reason) ? { reason, type: 'engine_unavailable' } : undefined;
+      return hasValue(ENGINE_UNAVAILABLE_REASONS, reason) ? { reason, type } : undefined;
     case 'events':
-      return isString(subscriptionId) && isArrayBufferList(events) ? { events, subscriptionId, type: 'events' } : undefined;
+      return isString(subscriptionId) && isArrayBufferList(events) ? { events, subscriptionId, type } : undefined;
     case 'reset_done':
-      return isString(epoch) ? { epoch, type: 'reset_done' } : undefined;
+      return isString(epoch) ? { epoch, type } : undefined;
     case 'response':
       return isString(requestId) && isHttpStatus(status) && isHeaderPairList(headers) && isArrayBuffer(body)
-        ? { body, headers, requestId, status, type: 'response' }
+        ? { body, headers, requestId, status, type }
         : undefined;
     case 'status':
-      return isCoordination(coordination)
+      return hasValue(ENGINE_COORDINATIONS, coordination)
         && isString(epoch)
-        && isEngineRole(role)
-        && isStorageKind(storage)
-        && isStorageHealth(storageHealth)
-        ? { coordination, epoch, role, storage, storageHealth, type: 'status' }
+        && hasValue(ENGINE_ROLES, role)
+        && hasValue(ENGINE_STORAGE_KINDS, storage)
+        && hasValue(ENGINE_STORAGE_HEALTHS, storageHealth)
+        ? { coordination, epoch, role, storage, storageHealth, type }
         : undefined;
     case 'subscribed':
       return isString(subscriptionId) && isString(epoch) && typeof seq === 'bigint'
-        ? { epoch, seq, subscriptionId, type: 'subscribed' }
+        ? { epoch, seq, subscriptionId, type }
         : undefined;
     case 'subscription_denied':
       return isString(subscriptionId) && isArrayBuffer(detail)
-        ? { detail, subscriptionId, type: 'subscription_denied' }
+        ? { detail, subscriptionId, type }
         : undefined;
     case 'transport_error':
-      return isString(requestId) ? { requestId, type: 'transport_error' } : undefined;
+      return isString(requestId) ? { requestId, type } : undefined;
     default:
       return undefined;
   }

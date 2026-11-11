@@ -21,7 +21,10 @@ import type { PermissionCallerValue } from '../../access/index';
 import type { IDomainErrors } from '../../errors/index';
 import type { IStateTransaction } from '../../state/index';
 import type { WarehouseStockRecordValue } from '../../state/records';
-import type { IModuleRuntime } from '../moduleRuntime';
+import type {
+  IEventOutbox,
+  IModuleRuntime,
+} from '../moduleRuntime';
 
 export const buildSsccKey = (tenantId: string, sscc: string): string => JSON.stringify([tenantId, sscc]);
 
@@ -58,9 +61,17 @@ export const readStockMovement = (
 
 interface MovementBasisValue {
   fromCellId: string | undefined;
+  isEventDeferred?: boolean | undefined;
   kind: StockMovementKind;
   sourceDocumentNumber: string;
 }
+
+export const publishStockChanged = (transaction: IStateTransaction, outbox: IEventOutbox, warehouseId: string): void => {
+  outbox.add(transaction, inventoryChannel(warehouseId), {
+    case: 'stockChanged',
+    value: create(StockChangedSchema, { warehouseId }),
+  });
+};
 
 export const recordStockMovement = (
   transaction: IStateTransaction,
@@ -78,9 +89,10 @@ export const recordStockMovement = (
   }
 
   const { warehouseId } = handlingUnit;
+  const { isEventDeferred, ...movementBasis } = basis;
   const occurredAt = timestampFromMs(transaction.worldTimeMs);
   const movement = create(StockMovementSchema, {
-    ...basis,
+    ...movementBasis,
     actorUserId: caller.user.id,
     handlingUnit,
     id,
@@ -103,10 +115,9 @@ export const recordStockMovement = (
     lookupKey: String(timestampMs(occurredAt)),
     scopeId: warehouseId,
   });
-  outbox.add(transaction, inventoryChannel(warehouseId), {
-    case: 'stockChanged',
-    value: create(StockChangedSchema, { warehouseId }),
-  });
+  if (isEventDeferred !== true) {
+    publishStockChanged(transaction, outbox, warehouseId);
+  }
 
   return movement;
 };

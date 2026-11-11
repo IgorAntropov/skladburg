@@ -1351,7 +1351,7 @@ export default defineConfig(
     rules: createLazyModuleRules([], [...catalogApiImportRestrictions, importDescriptorImportRestriction]),
   },
   {
-    files: ['apps/web/src/pages/catalog/api/import/**/*.{ts,tsx}'],
+    files: ['apps/web/src/features/data-import/api/**/*.{ts,tsx}'],
     ignores: [...webTestFiles, ...sceneSegmentFiles],
     rules: createLazyModuleRules([], catalogApiImportRestrictions),
   },

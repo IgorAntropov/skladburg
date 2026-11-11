@@ -22,16 +22,14 @@ import {
   it,
 } from 'vitest';
 
+import { useImportAccess } from '@/features/data-import';
 import {
   ApiRuntimeProvider,
   createQueryClient,
 } from '@/shared/api';
 import { createTestRuntime } from '@/shared/api/index.testing';
 
-import {
-  useImportReadAccess,
-  useImportWriteAccess,
-} from './useImportQueries';
+import { useCatalogImportAccess } from './useCatalogImportAccess';
 
 describe('catalog import access', () => {
   afterEach(cleanup);
@@ -53,12 +51,16 @@ describe('catalog import access', () => {
       </ApiRuntimeProvider>
     );
 
-    const { result } = renderHook(() => ({
-      commit: useImportWriteAccess(ImportService.method.commitImport),
-      preview: useImportWriteAccess(ImportService.method.previewImport),
-      read: useImportReadAccess(),
-      rollback: useImportWriteAccess(ImportService.method.rollbackImport),
-    }), { wrapper: Wrapper });
+    const { result } = renderHook(() => {
+      const { readAccess, writeAccess } = useCatalogImportAccess();
+
+      return {
+        commit: useImportAccess(ImportService.method.commitImport, writeAccess),
+        preview: useImportAccess(ImportService.method.previewImport, writeAccess),
+        read: useImportAccess(ImportService.method.listImportJobs, readAccess),
+        rollback: useImportAccess(ImportService.method.rollbackImport, writeAccess),
+      };
+    }, { wrapper: Wrapper });
 
     const denied = { permission: 'price_list_edit', status: 'denied' };
     await waitFor(() => {

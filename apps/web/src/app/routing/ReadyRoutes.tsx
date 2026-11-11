@@ -48,7 +48,7 @@ export const ReadyRoutes = ({
 
   return (
     <>
-      <RouteFrame errorResetKey={section ?? route.kind} path={path}>
+      <RouteFrame errorResetKey={section ?? route.kind} path={path} shouldPreserveScroll={section === 'deals'}>
         {screen}
       </RouteFrame>
       <SectionPreloader loaders={cachedLoaders} section={section} sections={sections} />

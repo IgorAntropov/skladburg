@@ -26,12 +26,13 @@ interface RouteFrameProps {
   children: ReactNode;
   errorResetKey: string;
   path: string;
+  shouldPreserveScroll?: boolean | undefined;
 }
 
-export const RouteFrame = ({ children, errorResetKey, path }: RouteFrameProps): ReactElement => {
+export const RouteFrame = ({ children, errorResetKey, path, shouldPreserveScroll }: RouteFrameProps): ReactElement => {
   const { t } = useI18n();
   const mainRef = useRef<HTMLElement>(null);
-  const previousPathRef = useRef(path);
+  const previousRouteRef = useRef({ errorResetKey, path });
   const [isPending, setIsPending] = useState(false);
 
   const sectionLoadingLabel = t('routing.section.loading');
@@ -45,13 +46,15 @@ export const RouteFrame = ({ children, errorResetKey, path }: RouteFrameProps): 
   );
 
   useEffect(() => {
-    if (previousPathRef.current === path) {
+    const prev = previousRouteRef.current;
+    previousRouteRef.current = { errorResetKey, path };
+
+    if (prev.path === path) {
       return;
     }
 
-    previousPathRef.current = path;
-    mainRef.current?.focus();
-  }, [path]);
+    mainRef.current?.focus({ preventScroll: shouldPreserveScroll === true && prev.errorResetKey === errorResetKey });
+  }, [errorResetKey, path, shouldPreserveScroll]);
 
   return (
     <main aria-busy={busyAttribute} className="flex flex-1 flex-col focus-visible:outline-none" ref={mainRef} tabIndex={-1}>

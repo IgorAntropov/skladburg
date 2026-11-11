@@ -15,8 +15,6 @@ import type {
   DealsTranslate,
 } from '../i18n/dealsSection';
 
-import { DealStatusBadge } from './DealStatusBadge';
-
 interface DealTrackerProps {
   deal: Deal;
   t: DealsTranslate;
@@ -63,27 +61,24 @@ export const DealTracker = ({ deal, t }: DealTrackerProps): ReactElement => {
   const currentStep = STATUS_STEPS[currentStatus];
 
   return (
-    <div className="flex flex-col gap-3" data-testid="deal-tracker">
-      <DealStatusBadge status={status} />
-      <ol className="flex flex-wrap gap-x-4 gap-y-2">
-        {TRACKER_STEPS.map((step, index) => {
-          const isDone = index < currentStep;
-          const isCurrent = !isStopped && index === currentStep;
-          const Icon = isDone ? Check : isCurrent ? CircleDot : Circle;
+    <ol className="flex flex-wrap gap-x-4 gap-y-2" data-testid="deal-tracker">
+      {TRACKER_STEPS.map((step, index) => {
+        const isDone = index < currentStep;
+        const isCurrent = !isStopped && index === currentStep;
+        const Icon = isDone ? Check : isCurrent ? CircleDot : Circle;
 
-          return (
-            <li
-              aria-current={isCurrent ? 'step' : undefined}
-              className={cn('inline-flex items-center gap-1.5 text-sm', isCurrent ? 'font-semibold' : 'text-on-panel-muted')}
-              key={step}
-            >
-              <Icon aria-hidden className="size-4 shrink-0" />
-              {isDone && <span className="sr-only">{t('deals.tracker.done')}</span>}
-              {t(step)}
-            </li>
-          );
-        })}
-      </ol>
-    </div>
+        return (
+          <li
+            aria-current={isCurrent ? 'step' : undefined}
+            className={cn('inline-flex items-center gap-1.5 text-sm', isCurrent ? 'font-semibold' : 'text-on-panel-muted')}
+            key={step}
+          >
+            <Icon aria-hidden className="size-4 shrink-0" />
+            {isDone && <span className="sr-only">{t('deals.tracker.done')}</span>}
+            {t(step)}
+          </li>
+        );
+      })}
+    </ol>
   );
 };

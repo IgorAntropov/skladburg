@@ -30,6 +30,7 @@ import type { DealEditorValue } from './dealInspectorTypes';
 
 import { dealInspectorSection } from '../../i18n/inspectorSection';
 import { DealStatusBadge } from '../DealStatusBadge';
+import { DealTrackerSlot } from '../DealTrackerSlot';
 import { DealFolderSlot } from '../folder/DealFolderSlot';
 import { DealTransportSlot } from '../transport/DealTransportSlot';
 import { ApproveDealButton } from './ApproveDealButton';
@@ -132,6 +133,7 @@ const DealInspectorBody = ({
       <div className="self-start" data-status={deal.status} data-testid="deal-status" ref={statusRef} tabIndex={-1}>
         <DealStatusBadge status={deal.status} />
       </div>
+      <DealTrackerSlot deal={deal} />
       <dl className="flex flex-col gap-1 text-sm">
         <div className="flex flex-wrap justify-between gap-x-2 wrap-break-word">
           <dt className="text-on-panel-muted">{t('dealInspector.customer')}</dt>

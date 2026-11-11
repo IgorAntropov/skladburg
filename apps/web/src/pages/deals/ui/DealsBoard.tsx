@@ -2,6 +2,10 @@ import type { Deal } from '@skladburg/contracts/deal/v1/deal';
 import type { ReactElement } from 'react';
 
 import { useQuery } from '@tanstack/react-query';
+import {
+  useEffect,
+  useRef,
+} from 'react';
 
 import { AssistantPortrait } from '@/entities/assistant';
 import { useApiClient } from '@/shared/api';
@@ -28,6 +32,7 @@ interface DealsBoardProps {
 }
 
 const TAB_IDS = ['mine', 'active', 'closed'] as const;
+const FOCUS_OPTIONS = { preventScroll: true };
 
 export const DealsBoardSkeleton = (): ReactElement => (
   <div aria-hidden className="flex flex-col gap-2">
@@ -45,11 +50,41 @@ const DealsTabs = ({
   selectedId,
   t,
 }: Omit<DealsBoardProps, 'userId'> & { deals: readonly Deal[] }): ReactElement => {
+  const boardRef = useRef<HTMLDivElement>(null);
   const grouped = groupDeals(deals, organizationId);
   const selectedGroup = TAB_IDS.find(id => grouped[id].some(deal => deal.id === selectedId));
   const defaultTabId = selectedGroup ?? (grouped.mine.length > 0 ? 'mine' : 'active');
+  const previousSelectionRef = useRef(selectedId);
 
-  return (
+  useEffect(() => {
+    const prev = previousSelectionRef.current;
+    previousSelectionRef.current = selectedId;
+    const board = boardRef.current;
+    if (board === null || prev === selectedId) {
+      return;
+    }
+
+    if (selectedGroup !== undefined) {
+      const tab = board.querySelector<HTMLButtonElement>(`[aria-selected=false][id$="-${selectedGroup}"]`);
+
+      if (tab !== null) {
+        const activeElement = document.activeElement;
+        tab.focus(FOCUS_OPTIONS);
+        if (activeElement instanceof HTMLElement && !board.contains(activeElement)) {
+          activeElement.focus(FOCUS_OPTIONS);
+        }
+      }
+    }
+    else if (selectedId === undefined && prev !== undefined) {
+      queueMicrotask(() => {
+        if (document.activeElement?.matches('body, main') === true) {
+          board.querySelector<HTMLAnchorElement>(`[data-deal-id="${CSS.escape(prev)}"]`)?.focus(FOCUS_OPTIONS);
+        }
+      });
+    }
+  }, [selectedGroup, selectedId]);
+
+  const tabs = (
     <Tabs
       defaultTabId={defaultTabId}
       items={TAB_IDS.map(id => ({
@@ -87,6 +122,8 @@ const DealsTabs = ({
       label={t('deals.board.label')}
     />
   );
+
+  return <div className="contents" ref={boardRef}>{tabs}</div>;
 };
 
 export const DealsBoard = ({ names, organizationId, selectedId, t, userId }: DealsBoardProps): ReactElement => {

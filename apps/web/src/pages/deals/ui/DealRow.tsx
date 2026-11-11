@@ -55,6 +55,7 @@ export const DealRow = ({ counterpartyName, deal, isSelected, organizationId, t 
       <AddressLink
         aria-current={isSelected ? 'page' : undefined}
         className={cn(ROW_CLASS_NAME, isSelected && 'ring-2 ring-inset ring-focus')}
+        data-deal-id={id}
         data-testid="deal-row"
         to={{ kind: 'object', object: { id, type: 'deal' } }}
       >

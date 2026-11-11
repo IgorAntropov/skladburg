@@ -28,7 +28,7 @@ export const DealWarehouseField = ({ field, label, query, t, testId }: DealWareh
         isRetrying={query.isFetching}
         loadingLabel={t('dealInspector.loading')}
         onRetry={query.retry}
-        skeleton={<Skeleton shape="block" />}
+        skeleton={<Skeleton className="mb-6 h-14 w-full" />}
       >
         {warehouses => (
           <>

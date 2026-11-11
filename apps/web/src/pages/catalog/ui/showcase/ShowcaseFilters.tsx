@@ -127,6 +127,7 @@ export const ShowcaseFilters = ({
           <div data-testid="catalog-sphere-filter">
             <SelectField
               label={t('catalog.filter.sphere')}
+              messageLines={0}
               name="catalog-sphere"
               onChange={handleSphereChange}
               value={sphereId}
@@ -140,6 +141,7 @@ export const ShowcaseFilters = ({
           <div data-testid="catalog-destination-select">
             <SelectField
               label={t('catalog.filter.destination')}
+              messageLines={0}
               name="catalog-destination"
               onChange={handleDestinationChange}
               value={destination.id}

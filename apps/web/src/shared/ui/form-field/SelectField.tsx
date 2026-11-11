@@ -18,28 +18,21 @@ import {
 
 import { cn } from '@/shared/lib/cn';
 
+import type { FieldMessageLinesValue } from './FieldFrame';
+
 import { FieldFrame } from './FieldFrame';
 import {
-  FIELD_AUTOFILL_CLASS_NAME,
-  FIELD_CONTROL_SIZE_CLASS_NAME,
   getFieldBorderClassName,
+  OUTLINED_FIELD_CONTROL_SIZE_CLASS_NAME,
 } from './fieldStyles';
 import { FIELD_SURFACE_CLASS_NAME } from './fieldSurfaceStyles';
 
 const CONTROL_CLASS_NAME = [
   FIELD_SURFACE_CLASS_NAME,
-  FIELD_CONTROL_SIZE_CLASS_NAME,
-  FIELD_AUTOFILL_CLASS_NAME,
+  OUTLINED_FIELD_CONTROL_SIZE_CLASS_NAME,
   'ps-3 pe-10 [&_option]:text-on-panel',
   'text-transparent focus:text-on-panel group-has-[option:checked:not([value=""])]/field:text-on-panel',
   '[&:disabled:not(:has(option:checked:not([value=""])))]:text-transparent',
-].join(' ');
-
-const LABEL_RAISED_CLASS_NAME = [
-  'max-w-[calc(100%-3.25rem)]',
-  'peer-focus:max-w-[calc((100%-3.25rem)/0.75)] peer-focus:translate-y-1.5 peer-focus:scale-75',
-  'group-has-[option:checked:not([value=""])]/field:max-w-[calc((100%-3.25rem)/0.75)]',
-  'group-has-[option:checked:not([value=""])]/field:translate-y-1.5 group-has-[option:checked:not([value=""])]/field:scale-75',
 ].join(' ');
 
 const CHEVRON_CLASS_NAME = 'pointer-events-none absolute top-1/2 right-3 size-5 -translate-y-1/2 text-on-panel-muted';
@@ -52,6 +45,7 @@ export interface SelectFieldProps {
   isOptional?: boolean | undefined;
   isReadOnly?: boolean | undefined;
   label: string;
+  messageLines?: FieldMessageLinesValue | undefined;
   name: string;
   onBlur?: FocusEventHandler<HTMLSelectElement> | undefined;
   onChange?: ChangeEventHandler<HTMLSelectElement> | undefined;
@@ -67,6 +61,7 @@ export const SelectField = ({
   isOptional = false,
   isReadOnly = false,
   label,
+  messageLines = 1,
   name,
   onBlur,
   onChange,
@@ -128,14 +123,14 @@ export const SelectField = ({
       hint={hint}
       isOptional={isOptional}
       label={label}
-      labelRaisedClassName={LABEL_RAISED_CLASS_NAME}
       messageId={messageId}
+      messageLines={messageLines}
     >
       <select
         aria-describedby={isMessageShown ? messageId : undefined}
         aria-invalid={isInvalid ? true : undefined}
         aria-readonly={isReadOnly ? true : undefined}
-        className={cn('peer', CONTROL_CLASS_NAME, borderClassName)}
+        className={cn(CONTROL_CLASS_NAME, borderClassName)}
         defaultValue={value === undefined ? defaultValue : undefined}
         id={controlId}
         name={name}

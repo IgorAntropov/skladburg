@@ -25,6 +25,7 @@ export const CatalogSearchField = ({ className, name, onChange, ref }: CatalogSe
         enterKeyHint="search"
         inputMode="search"
         label={t('catalog.filter.search')}
+        messageLines={0}
         name={name}
         onChange={onChange}
         ref={ref}

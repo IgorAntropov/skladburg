@@ -18,10 +18,7 @@ export const getFieldBorderClassName = ({ isInvalid, isReadOnly }: FieldBorderSt
 
 export const FIELD_CONTROL_SIZE_CLASS_NAME = 'min-h-14 pt-5.5 pb-1.5 leading-6';
 
-export const FIELD_AUTOFILL_CLASS_NAME = [
-  'autofill:[-webkit-text-fill-color:var(--color-on-panel)]',
-  'autofill:[box-shadow:inset_0_0_0_1000px_var(--color-panel-solid)]',
-].join(' ');
+export const OUTLINED_FIELD_CONTROL_SIZE_CLASS_NAME = 'min-h-14 leading-6';
 
 export const FIELD_LABEL_CLASS_NAME = [
   'pointer-events-none absolute top-0 left-3 flex origin-top-left translate-y-4',

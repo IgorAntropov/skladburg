@@ -161,10 +161,10 @@ export const VehicleEditor = (props: VehicleEditorProps): ReactElement => {
   return (
     <SkeletonGroup isFilled={isSkeletonFilled} label={mainT('routing.section.loading')}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Skeleton className="h-14" />
-        <Skeleton className="h-14" />
-        <Skeleton className="h-14" />
-        <Skeleton className="h-14" />
+        <Skeleton className="mb-6 h-14" />
+        <Skeleton className="mb-6 h-14" />
+        <Skeleton className="mb-6 h-14" />
+        <Skeleton className="mb-6 h-14" />
       </div>
     </SkeletonGroup>
   );

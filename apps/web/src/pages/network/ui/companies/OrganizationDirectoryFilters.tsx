@@ -80,6 +80,7 @@ export const OrganizationDirectoryFilters = ({
       <div className="grid grid-cols-1 gap-3 @lg:grid-cols-[1fr_1.4fr_1fr]">
         <SelectField
           label={t('organization.directory.filter.side')}
+          messageLines={0}
           name="organization-side"
           onChange={handleSideChange}
           value={String(filter.profileKind || '')}
@@ -89,6 +90,7 @@ export const OrganizationDirectoryFilters = ({
         </SelectField>
         <SelectField
           label={t('organization.directory.filter.sphere')}
+          messageLines={0}
           name="organization-sphere"
           onChange={handleSphereChange}
           value={filter.sphereId}
@@ -100,6 +102,7 @@ export const OrganizationDirectoryFilters = ({
         </SelectField>
         <SelectField
           label={t('organization.directory.filter.verification')}
+          messageLines={0}
           name="organization-verification"
           onChange={handleVerificationChange}
           value={String(filter.minVerificationLevel || '')}

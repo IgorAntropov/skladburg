@@ -17,11 +17,12 @@ import type { InputMaskValue } from '@/shared/lib/mask';
 
 import { cn } from '@/shared/lib/cn';
 
+import type { FieldMessageLinesValue } from './FieldFrame';
+
 import { FieldFrame } from './FieldFrame';
 import {
-  FIELD_AUTOFILL_CLASS_NAME,
-  FIELD_CONTROL_SIZE_CLASS_NAME,
   getFieldBorderClassName,
+  OUTLINED_FIELD_CONTROL_SIZE_CLASS_NAME,
 } from './fieldStyles';
 import {
   FIELD_SURFACE_CLASS_NAME,
@@ -33,18 +34,9 @@ const EMPTY_PLACEHOLDER = ' ';
 const CONTROL_CLASS_NAME = [
   FIELD_SURFACE_CLASS_NAME,
   FIELD_TEXT_CLASS_NAME,
-  FIELD_CONTROL_SIZE_CLASS_NAME,
-  FIELD_AUTOFILL_CLASS_NAME,
-  'peer px-3',
+  OUTLINED_FIELD_CONTROL_SIZE_CLASS_NAME,
+  'px-3',
   'placeholder:text-transparent focus:placeholder:text-on-panel-muted',
-].join(' ');
-
-const LABEL_RAISED_CLASS_NAME = [
-  'max-w-[calc(100%-1.5rem)]',
-  'peer-focus:max-w-[calc((100%-1.5rem)/0.75)] peer-focus:translate-y-1.5 peer-focus:scale-75',
-  'peer-not-placeholder-shown:max-w-[calc((100%-1.5rem)/0.75)]',
-  'peer-not-placeholder-shown:translate-y-1.5 peer-not-placeholder-shown:scale-75',
-  'peer-autofill:max-w-[calc((100%-1.5rem)/0.75)] peer-autofill:translate-y-1.5 peer-autofill:scale-75',
 ].join(' ');
 
 export interface TextFieldProps {
@@ -58,6 +50,7 @@ export interface TextFieldProps {
   isReadOnly?: boolean | undefined;
   label: string;
   mask?: InputMaskValue | undefined;
+  messageLines?: FieldMessageLinesValue | undefined;
   name: string;
   onBlur?: FocusEventHandler<HTMLInputElement> | undefined;
   onChange?: ChangeEventHandler<HTMLInputElement> | undefined;
@@ -79,6 +72,7 @@ export const TextField = ({
   isReadOnly = false,
   label,
   mask,
+  messageLines = 1,
   name,
   onBlur,
   onChange,
@@ -132,8 +126,8 @@ export const TextField = ({
       hint={hint}
       isOptional={isOptional}
       label={label}
-      labelRaisedClassName={LABEL_RAISED_CLASS_NAME}
       messageId={messageId}
+      messageLines={messageLines}
     >
       <input
         aria-describedby={isMessageShown ? messageId : undefined}

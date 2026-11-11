@@ -13,6 +13,6 @@ const PANEL_FIELD_IDS = [
 
 export const RequisitesFieldsSkeleton = (): ReactElement => (
   <div className="flex flex-col gap-4">
-    {PANEL_FIELD_IDS.map(fieldId => <Skeleton className="h-14 w-full" key={fieldId} />)}
+    {PANEL_FIELD_IDS.map(fieldId => <Skeleton className="mb-6 h-14 w-full" key={fieldId} />)}
   </div>
 );

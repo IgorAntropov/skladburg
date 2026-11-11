@@ -22,7 +22,6 @@ import {
 import type { WarehousePlacesValue } from '../../model/warehousePlacesTypes';
 
 import { useCreateWarehouseForm } from '../../api/form/useCreateWarehouseForm';
-import './warehouseOutlinedFields.css';
 
 const FIRST_FIELD_NAME = 'name';
 
@@ -68,14 +67,19 @@ export const CreateWarehouseFormBody = ({ onCancel, onCreated, places }: CreateW
 
   return (
     <form
-      className="warehouse-outlined-form flex w-full max-w-md flex-col gap-4"
+      className="flex w-full max-w-md flex-col gap-4"
       noValidate
       onKeyDown={handleKeyDown}
       onSubmit={form.handleSubmit}
       ref={formRef}
     >
       <TextField autoComplete="off" label={t('warehouse.create.name')} {...form.getFieldProps('name')} />
-      <SelectField hint={t('warehouse.create.city_hint')} label={t('warehouse.create.city')} {...form.getFieldProps('cityId')}>
+      <SelectField
+        hint={t('warehouse.create.city_hint')}
+        label={t('warehouse.create.city')}
+        messageLines={2}
+        {...form.getFieldProps('cityId')}
+      >
         <option value="" />
         {places.cities.map(city => <option key={city.id} value={city.id}>{city.name}</option>)}
       </SelectField>

@@ -689,6 +689,60 @@ const SHAPE_FINGERPRINTS: Readonly<Record<number, readonly string[]>> = {
     'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
     'meta.worldTimeMs:number',
   ],
+  20: [
+    'collection.carrierLanes:bytes',
+    'collection.cities:bytes',
+    'collection.dealReminderMarks:{confirmationDueAtMs:number,counterOfferDueAtMs:number,id:string}',
+    'collection.deals:bytes',
+    'collection.documentNumbers:bytes',
+    'collection.documents:bytes',
+    'collection.drivers:bytes',
+    'collection.idempotency:{id:string,method:string,requestBytes:bytes,responseBytes:bytes}',
+    'collection.importJobs:{columns:{0:string},createdPriceListId:string,createdPriceListVersion:bigint,id:string,'
+    + 'jobBytes:bytes,provenance:{0:{listingId:string,listingVersion:bigint,priceVersion:bigint,productId:string,'
+    + 'productVersion:bigint}},rowBytes:{0:bytes},usedListingIds:{0:string}}',
+    'collection.listingPrices:bytes',
+    'collection.listings:bytes',
+    'collection.mapNodes:bytes',
+    'collection.memberships:bytes',
+    'collection.notifications:{id:string,notificationBytes:bytes,userId:string}',
+    'collection.organizationRequisites:bytes',
+    'collection.organizationSettings:bytes',
+    'collection.organizations:bytes',
+    'collection.payments:bytes',
+    'collection.personas:{group:string,id:string,kind:string,organizationId:string,userId:string}',
+    'collection.priceLists:bytes',
+    'collection.productLinks:{customerOrganizationId:string,customerProductId:string,id:string,isCreatedFromDeal:boolean,'
+    + 'supplierOrganizationId:string,supplierProductId:string}',
+    'collection.products:bytes',
+    'collection.roles:bytes',
+    'collection.routeLegs:bytes',
+    'collection.salesTerms:bytes',
+    'collection.spheres:bytes',
+    'collection.stockBalances:{bytes:bytes,id:string,lookupKey:string,scopeId:string}',
+    'collection.stockBatches:{bytes:bytes,id:string,lookupKey:string,scopeId:string}',
+    'collection.stockMovements:{bytes:bytes,id:string,lookupKey:string,scopeId:string}',
+    'collection.supplyContracts:bytes',
+    'collection.supportAccessSessions:bytes',
+    'collection.supportAuditEntries:bytes',
+    'collection.supportBotQueue:{dueAtMs:number,id:string}',
+    'collection.supportTicketMessages:bytes',
+    'collection.supportTickets:bytes',
+    'collection.transportOffers:bytes',
+    'collection.transportRequests:bytes',
+    'collection.trips:bytes',
+    'collection.users:bytes',
+    'collection.vehicles:bytes',
+    'collection.warehouseTopologies:{id:string,topologyBytes:bytes}',
+    'collection.warehouses:bytes',
+    'meta.channelSeq:record<bigint>',
+    'meta.randomState:{a:number,b:number,c:number,d:number}',
+    'meta.schedulerDueAtMs:record<number>',
+    'meta.seedVersion:number',
+    'meta.timeScale:number',
+    'meta.traceRandomState:{a:number,b:number,c:number,d:number}',
+    'meta.worldTimeMs:number',
+  ],
 };
 
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -789,6 +843,10 @@ const populatedTask: SchedulerTaskValue = {
     }));
     transaction.put('transportRequests', create(TransportRequestRecordSchema, { dealId: 'fingerprint-deal', id: 'fingerprint-request' }));
     transaction.put('trips', create(TripRecordSchema, { dealId: 'fingerprint-deal', id: 'fingerprint-request' }));
+    const stockRecord = { bytes: Uint8Array.of(), id: 'fingerprint-stock', lookupKey: 'lookup', scopeId: 'scope' };
+    transaction.put('stockBalances', stockRecord);
+    transaction.put('stockBatches', stockRecord);
+    transaction.put('stockMovements', stockRecord);
   },
 };
 
@@ -853,8 +911,8 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 19 since warehouse topologies joined', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(19);
+  it('is version 20 since warehouse stock records joined', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(20);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
   });
 });

@@ -383,6 +383,8 @@ const MAX_ENGINE_SEED_GZIP_KILOBYTES = 14.53;
 
 const MAX_ENGINE_SEED_WITH_TOPOLOGY_GZIP_KILOBYTES = 17;
 
+const MAX_ENGINE_STOCK_GZIP_KILOBYTES = 6;
+
 const MAX_ENGINE_FLEET_MIGRATION_GZIP_KILOBYTES = 2.05;
 
 const MAX_ENGINE_FLEET_GZIP_KILOBYTES = 2.21;
@@ -525,6 +527,13 @@ const ENGINE_WORKER_BUDGET = {
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_SEED_WITH_TOPOLOGY_GZIP_KILOBYTES,
       name: 'engine-seed-with-topology',
+    },
+    {
+      baseline: 'engine',
+      entries: ['packages/demo-engine/src/core/modules/wms/warehouseStockService.ts'],
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_STOCK_GZIP_KILOBYTES,
+      name: 'engine-stock',
     },
     {
       baseline: 'engine',

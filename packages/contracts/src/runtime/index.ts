@@ -5,6 +5,7 @@ export {
 export {
   type ChannelValue,
   dealChannel,
+  inventoryChannel,
   marketChannel,
   organizationChannel,
   parseChannel,

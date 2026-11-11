@@ -1,5 +1,6 @@
 export { toFieldCheckKind } from './checks/fieldCheckKinds';
 export { getFieldCheckRuleId } from './checks/getFieldCheckRuleId';
+export { hasGs1CheckDigit } from './checks/hasGs1CheckDigit';
 export {
   isCorrespondentAccountValid,
   isSettlementAccountValid,

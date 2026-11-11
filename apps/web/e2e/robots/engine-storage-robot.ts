@@ -4,6 +4,9 @@ const DATABASE_NAME = 'skladburg-demo-engine';
 const STORES_ADDED_AFTER_V13 = [
   'carrierLanes',
   'drivers',
+  'stockBalances',
+  'stockBatches',
+  'stockMovements',
   'transportOffers',
   'transportRequests',
   'trips',

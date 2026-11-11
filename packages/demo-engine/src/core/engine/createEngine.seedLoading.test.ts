@@ -187,7 +187,11 @@ describe('engine seed loading', () => {
 
     await createEngine({ epoch: 'migrated', realTime, storage });
     expect(warehouseTopologies.size).toBe(2);
-    expect(await storage.load()).toEqual({ ...snapshot, collections: { ...priorCollections, warehouseTopologies }, schemaVersion: 19 });
+    expect(await storage.load()).toEqual({
+      ...snapshot,
+      collections: { ...priorCollections, warehouseTopologies },
+      schemaVersion: ENGINE_SCHEMA_VERSION,
+    });
     await createEngine({ epoch: 'reopened', realTime, storage });
     expect(replaceAll).toHaveBeenCalledTimes(2);
   });

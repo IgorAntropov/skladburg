@@ -6,6 +6,7 @@ import {
 
 import {
   dealChannel,
+  inventoryChannel,
   marketChannel,
   organizationChannel,
   parseChannel,
@@ -21,6 +22,11 @@ describe('channel names', () => {
   it('builds and parses a deal channel', () => {
     expect(dealChannel(organizationId)).toBe(`deal:${organizationId}`);
     expect(parseChannel(dealChannel(organizationId))).toEqual({ dealId: organizationId, kind: 'deal' });
+  });
+
+  it('builds and parses a warehouse inventory channel', () => {
+    expect(inventoryChannel(warehouseId)).toBe(`inventory:${warehouseId}`);
+    expect(parseChannel(inventoryChannel(warehouseId))).toEqual({ kind: 'inventory', warehouseId });
   });
 
   it('builds the market channel without an identifier', () => {

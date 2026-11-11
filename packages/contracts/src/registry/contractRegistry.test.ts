@@ -273,8 +273,7 @@ it('embeds the same descriptor bytes in the compressed image', () => {
   expect(new Uint8Array(inflateSync(compressed))).toEqual(bytes);
 });
 
-it('preserves every descriptor used in validation while omitting RPC descriptors from the engine image', () => {
-  const fullImage = fromBinary(FileDescriptorSetSchema, base64Decode(CONTRACT_IMAGE_BASE64));
+it('preserves every request descriptor and its dependencies while removing response-only messages from the engine image', () => {
   const compressedValidation = base64Decode(COMPRESSED_VALIDATION_IMAGE_BASE64);
   const validationImage = fromBinary(FileDescriptorSetSchema, new Uint8Array(inflateSync(compressedValidation)));
 
@@ -283,5 +282,24 @@ it('preserves every descriptor used in validation while omitting RPC descriptors
     ?.field.find(field => field.name === 'time_zone');
   expect(field?.jsonName).toBe('');
   const restored = createValidationContractRegistry(new Uint8Array(inflateSync(compressedValidation)));
-  expect(fullImage.file.map(file => restored.getFile(file.name)?.proto)).toEqual(fullImage.file.map(file => ({ ...file, service: [] })));
+  expect(restored.getMessage('wms.v1.ListStockBalancesResponse')).toBeUndefined();
+  expect(registry.getMessage('wms.v1.ListStockBalancesResponse')).toBeDefined();
+
+  for (const file of registry.files) {
+    if (!isExternalFile(file)) {
+      expect(restored.getFile(file.name)?.services ?? []).toEqual([]);
+
+      for (const service of file.services) {
+        for (const method of service.methods) {
+          expect(restored.getMessage(method.input.typeName)?.proto).toEqual(method.input.proto);
+        }
+      }
+    }
+  }
+
+  for (const descriptor of restored) {
+    if (descriptor.kind === 'message') {
+      expect(descriptor.proto).toEqual(registry.getMessage(descriptor.typeName)?.proto);
+    }
+  }
 });

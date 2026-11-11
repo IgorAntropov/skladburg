@@ -24,6 +24,7 @@ import { isDealVisibleToOrganization } from '../modules/deals/index';
 import { isProfileVerified } from '../visibility/index';
 
 export const WAREHOUSE_CHANNEL_PERMISSION = getPermissionName(PermissionCode.WAREHOUSE_VIEW);
+const INVENTORY_CHANNEL_PERMISSION = getPermissionName(PermissionCode.INVENTORY_VIEW);
 export const MARKET_CHANNEL_PERMISSION = getPermissionName(PermissionCode.MARKETPLACE_VIEW);
 export const DEAL_CHANNEL_PERMISSION = getPermissionName(PermissionCode.DEAL_VIEW);
 
@@ -51,9 +52,15 @@ export const createSubscriptionAccess = (errors: IDomainErrors): ISubscriptionAc
     return detail;
   };
 
-  const evaluateWarehouse = (reader: IStateReader, warehouseId: string, userId: string): void => {
+  const evaluateWarehouse = (
+    reader: IStateReader,
+    warehouseId: string,
+    userId: string,
+    permission: string,
+    actingOrganizationId: string | undefined,
+  ): void => {
     const warehouse = reader.get('warehouses', warehouseId);
-    const membership = warehouse === undefined
+    const membership = warehouse === undefined || (actingOrganizationId !== undefined && warehouse.tenantId !== actingOrganizationId)
       ? undefined
       : reader.listBy('memberships', 'userId', userId).find(candidate => candidate.organizationId === warehouse.tenantId);
 
@@ -62,15 +69,15 @@ export const createSubscriptionAccess = (errors: IDomainErrors): ISubscriptionAc
     }
 
     const effective = resolveEffectivePermissions(reader, membership).find(
-      candidate => candidate.permission === WAREHOUSE_CHANNEL_PERMISSION,
+      candidate => candidate.permission === permission,
     );
 
     if (effective === undefined) {
-      throw errors.permissionDenied(WAREHOUSE_CHANNEL_PERMISSION);
+      throw errors.permissionDenied(permission);
     }
 
     if (!isWarehouseInScope(effective, warehouseId)) {
-      throw errors.permissionDenied(WAREHOUSE_CHANNEL_PERMISSION, warehouseId);
+      throw errors.permissionDenied(permission, warehouseId);
     }
   };
 
@@ -125,7 +132,7 @@ export const createSubscriptionAccess = (errors: IDomainErrors): ISubscriptionAc
   };
 
   const evaluate = (reader: IStateReader, channel: string, headers: Headers): void => {
-    const { userId } = readActingContext(headers);
+    const { organizationId, supportSessionId, userId } = readActingContext(headers);
 
     if (userId === undefined || reader.get('users', userId) === undefined) {
       throw errors.sessionRequired();
@@ -152,7 +159,17 @@ export const createSubscriptionAccess = (errors: IDomainErrors): ISubscriptionAc
     }
 
     if (parsed.kind === 'warehouse') {
-      evaluateWarehouse(reader, parsed.warehouseId, userId);
+      evaluateWarehouse(reader, parsed.warehouseId, userId, WAREHOUSE_CHANNEL_PERMISSION, undefined);
+
+      return;
+    }
+
+    if (parsed.kind === 'inventory') {
+      if (organizationId === undefined || supportSessionId !== undefined) {
+        throw errors.membershipRequired();
+      }
+
+      evaluateWarehouse(reader, parsed.warehouseId, userId, INVENTORY_CHANNEL_PERMISSION, organizationId);
 
       return;
     }

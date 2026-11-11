@@ -1,25 +1,23 @@
 const CHANNEL_SEPARATOR = ':';
 const MARKET_CHANNEL = 'market';
 const DEAL_CHANNEL_PREFIX = 'deal';
+const INVENTORY_CHANNEL_PREFIX = 'inventory';
 const ORGANIZATION_CHANNEL_PREFIX = 'org';
 const USER_CHANNEL_PREFIX = 'user';
 const WAREHOUSE_CHANNEL_PREFIX = 'warehouse';
-const CHANNEL_PREFIXES = [
-  DEAL_CHANNEL_PREFIX,
-  ORGANIZATION_CHANNEL_PREFIX,
-  USER_CHANNEL_PREFIX,
-  WAREHOUSE_CHANNEL_PREFIX,
-];
-const CHANNEL_PATTERN = new RegExp(`^(${CHANNEL_PREFIXES.join('|')})${CHANNEL_SEPARATOR}([A-Za-z0-9_-]+)$`);
+const CHANNEL_PATTERN = /^([a-z]+):([A-Za-z0-9_-]+)$/u;
 
 export type ChannelValue
   = | { dealId: string; kind: 'deal' }
+    | { kind: 'inventory'; warehouseId: string }
     | { kind: 'market' }
     | { kind: 'organization'; organizationId: string }
     | { kind: 'user'; userId: string }
     | { kind: 'warehouse'; warehouseId: string };
 
 export const dealChannel = (dealId: string): string => `${DEAL_CHANNEL_PREFIX}${CHANNEL_SEPARATOR}${dealId}`;
+
+export const inventoryChannel = (warehouseId: string): string => `${INVENTORY_CHANNEL_PREFIX}${CHANNEL_SEPARATOR}${warehouseId}`;
 
 export const marketChannel = (): string => MARKET_CHANNEL;
 
@@ -56,5 +54,9 @@ export const parseChannel = (channel: string): ChannelValue | undefined => {
     return { kind: 'user', userId: id };
   }
 
-  return { kind: 'warehouse', warehouseId: id };
+  if (prefix === INVENTORY_CHANNEL_PREFIX || prefix === WAREHOUSE_CHANNEL_PREFIX) {
+    return { kind: prefix, warehouseId: id };
+  }
+
+  return undefined;
 };

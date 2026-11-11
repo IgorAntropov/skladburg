@@ -1,4 +1,8 @@
 import 'fake-indexeddb/auto';
+import {
+  fromBinary,
+  toBinary,
+} from '@bufbuild/protobuf';
 import { timestampFromMs } from '@bufbuild/protobuf/wkt';
 import { createClient } from '@connectrpc/connect';
 import {
@@ -16,8 +20,11 @@ import {
   type SelectTransportOfferRequest,
 } from '@skladburg/contracts/logistics/v1/logistics';
 import { TransportRequestStatus } from '@skladburg/contracts/logistics/v1/logistics_records';
+import { WarehouseTopologySchema } from '@skladburg/contracts/wms/v1/topology';
 import { IDBFactory } from 'fake-indexeddb';
 import {
+  beforeAll,
+  describe,
   expect,
   it,
   vi,
@@ -51,7 +58,10 @@ import {
   SeedOrganizationId,
   SeedWarehouseId,
 } from '../../core/seed/index';
-import { ENGINE_SCHEMA_VERSION } from '../../core/state/index';
+import {
+  ENGINE_SCHEMA_VERSION,
+  TABLE_DEFINITIONS,
+} from '../../core/state/index';
 import { createIndexedDbStorage } from './indexedDbStorage';
 
 const DATABASE_NAME = 'transport-marketplace';
@@ -70,9 +80,13 @@ const createLegacyDatabase = (
   const request = factory.open(DATABASE_NAME, databaseVersion);
 
   request.addEventListener('upgradeneeded', () => {
-    const laterCollections = databaseVersion === LEGACY_DATABASE_VERSION
-      ? ['transportOffers', 'transportRequests', 'trips', 'warehouseTopologies']
-      : ['warehouseTopologies'];
+    const laterCollections = ['stockBalances', 'stockBatches', 'stockMovements'];
+    if (databaseVersion < 17) {
+      laterCollections.push('warehouseTopologies');
+    }
+    if (databaseVersion === LEGACY_DATABASE_VERSION) {
+      laterCollections.push('transportOffers', 'transportRequests', 'trips');
+    }
     const database = request.result;
 
     for (const name of ENGINE_COLLECTION_NAMES) {
@@ -241,54 +255,87 @@ it('preserves the pre-marketplace database and reloads a selected offer after re
   }
 });
 
-it('rolls back a failed topology write in a version 16 database and keeps the existing trip after retry', async () => {
-  const factory = new IDBFactory();
+describe('saved world migration with an active trip', () => {
   const realTime = createFakeRealTime();
-  const sourceStorage = createMemoryStorage();
-  const source = await createEngine({ epoch: 'source', realTime, storage: sourceStorage });
-  const deal = await prepareDeal(source);
-  const selection = await selectCarrier(source, deal);
-  const original = await sourceStorage.load();
+  let original: EngineSnapshotValue;
 
-  if (original === undefined) {
-    throw new Error('Expected the source snapshot');
-  }
+  beforeAll(async () => {
+    const sourceStorage = createMemoryStorage();
+    const source = await createEngine({ epoch: 'source', realTime, storage: sourceStorage });
+    const deal = await prepareDeal(source);
+    const selection = await selectCarrier(source, deal);
+    const stored = await sourceStorage.load();
 
-  expect(original.collections.trips.has(selection.transportRequestId)).toBe(true);
-  expect(original.collections.idempotency.size).toBeGreaterThan(0);
-  await createLegacyDatabase(factory, original, 16, 18);
+    if (stored === undefined) {
+      throw new Error('Expected the source snapshot');
+    }
 
-  const old = { ...original, collections: { ...original.collections, warehouseTopologies: new Map() }, schemaVersion: 18 };
-  const storage = await createIndexedDbStorage({ databaseName: DATABASE_NAME, factory });
+    expect(stored.collections.trips.has(selection.transportRequestId)).toBe(true);
+    expect(stored.collections.idempotency.size).toBeGreaterThan(0);
+    original = stored;
+  });
 
-  try {
-    expect(await storage.load()).toEqual(old);
-    const replaceAll = storage.replaceAll;
-    vi.spyOn(storage, 'replaceAll').mockImplementationOnce(next => replaceAll({
-      ...next,
-      collections: {
-        ...next.collections,
-        warehouseTopologies: new Map([...next.collections.warehouseTopologies, ['unclonable', new Proxy({}, {})]]),
-      },
-    }));
+  it.each([
+    { databaseVersion: 16, schemaVersion: 18 },
+    { databaseVersion: 17, schemaVersion: 19 },
+  ])('rolls back a failed migration from schema $schemaVersion and keeps the trip after retry', async ({
+    databaseVersion,
+    schemaVersion,
+  }) => {
+    const factory = new IDBFactory();
+    const warehouseTopologies = new Map(original.collections.warehouseTopologies);
+    if (databaseVersion === 17) {
+      const warehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1;
+      const raw = warehouseTopologies.get(warehouseId);
 
-    await expect(createEngine({ epoch: 'failed', realTime, storage })).rejects.toMatchObject({ name: 'SeedLoadError' });
-    expect(await storage.load()).toEqual(old);
+      if (raw === undefined) {
+        throw new Error('Expected the topology to be stored');
+      }
 
-    await createEngine({ epoch: 'migrated', realTime, storage });
-    expect(await storage.load()).toEqual(original);
-  }
-  finally {
-    storage.close();
-  }
+      const table = TABLE_DEFINITIONS.warehouseTopologies;
+      const record = table.decode(raw);
+      const topology = fromBinary(WarehouseTopologySchema, record.topologyBytes);
+      topology.revision = 7;
+      warehouseTopologies.set(warehouseId, table.encode({ ...record, topologyBytes: toBinary(WarehouseTopologySchema, topology) }));
+    }
+    const expected = { ...original, collections: { ...original.collections, warehouseTopologies } };
+    const old = {
+      ...expected,
+      collections: { ...expected.collections, warehouseTopologies: databaseVersion === 17 ? warehouseTopologies : new Map() },
+      schemaVersion,
+    };
+    await createLegacyDatabase(factory, old, databaseVersion, schemaVersion);
+    const storage = await createIndexedDbStorage({ databaseName: DATABASE_NAME, factory });
 
-  const reopened = await createIndexedDbStorage({ databaseName: DATABASE_NAME, factory });
+    try {
+      expect(await storage.load()).toEqual(old);
+      const replaceAll = storage.replaceAll;
+      vi.spyOn(storage, 'replaceAll').mockImplementationOnce(next => replaceAll({
+        ...next,
+        collections: {
+          ...next.collections,
+          stockBalances: new Map([['unclonable', new Proxy({}, {})]]),
+        },
+      }));
 
-  try {
-    await createEngine({ epoch: 'reopened', realTime, storage: reopened });
-    expect(await reopened.load()).toEqual(original);
-  }
-  finally {
-    reopened.close();
-  }
+      await expect(createEngine({ epoch: 'failed', realTime, storage })).rejects.toMatchObject({ name: 'SeedLoadError' });
+      expect(await storage.load()).toEqual(old);
+
+      await createEngine({ epoch: 'migrated', realTime, storage });
+      expect(await storage.load()).toEqual(expected);
+    }
+    finally {
+      storage.close();
+    }
+
+    const reopened = await createIndexedDbStorage({ databaseName: DATABASE_NAME, factory });
+
+    try {
+      await createEngine({ epoch: 'reopened', realTime, storage: reopened });
+      expect(await reopened.load()).toEqual(expected);
+    }
+    finally {
+      reopened.close();
+    }
+  });
 });

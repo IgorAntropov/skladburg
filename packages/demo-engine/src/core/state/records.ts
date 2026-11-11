@@ -46,6 +46,13 @@ export interface SupportBotQueueRecordValue {
   id: string;
 }
 
+export interface WarehouseStockRecordValue {
+  bytes: Uint8Array;
+  id: string;
+  lookupKey: string;
+  scopeId: string;
+}
+
 export interface WarehouseTopologyRecordValue {
   id: string;
   topologyBytes: Uint8Array;
@@ -119,6 +126,21 @@ export const parseSupportBotQueueRecord = (stored: StoredRecordValue): SupportBo
 
   return { dueAtMs, id };
 };
+
+export const parseWarehouseStockRecord = (stored: StoredRecordValue): WarehouseStockRecordValue => {
+  const { bytes, id, lookupKey, scopeId } = readPlainObject(stored, 'warehouse stock record');
+
+  if (!(bytes instanceof Uint8Array) || typeof id !== 'string' || typeof lookupKey !== 'string' || typeof scopeId !== 'string') {
+    throw new TypeError('Invalid warehouse stock record');
+  }
+
+  return { bytes, id, lookupKey, scopeId };
+};
+
+export const serializeWarehouseStockRecord = (record: WarehouseStockRecordValue): StoredObjectValue => ({
+  ...record,
+  bytes: record.bytes.slice(),
+});
 
 export const parseWarehouseTopologyRecord = (stored: StoredRecordValue): WarehouseTopologyRecordValue => {
   if (stored instanceof Uint8Array || typeof stored.id !== 'string' || !(stored.topologyBytes instanceof Uint8Array)) {

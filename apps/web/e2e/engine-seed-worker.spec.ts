@@ -113,7 +113,7 @@ test('migrates a saved world to fleet storage and restores an edited driver afte
     await expect.poll(migrated.readStartup).toMatchObject({ kind: 'ready', storage: 'indexed-db' });
     expect(await readStoredEngineSnapshot(page, PRESERVED_STORES)).toBe(savedRecords);
     const metadata: unknown = JSON.parse(await readStoredEngineSnapshot(page, ['meta']));
-    expect(metadata).toEqual([['meta', ['engineMeta', 'schemaVersion'], [expect.any(Object), 19]]]);
+    expect(metadata).toEqual([['meta', ['engineMeta', 'schemaVersion'], [expect.any(Object), 20]]]);
     expect(migrated.hasRequestedChunk('fleet')).toBe(false);
 
     const { vehicles } = fromBinary(ListVehiclesResponseSchema, await migrated.call('fleet.v1.FleetService/ListVehicles',

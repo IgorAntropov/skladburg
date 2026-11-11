@@ -13,9 +13,11 @@ import {
 import {
   ACTING_ORGANIZATION_HEADER,
   getPermissionName,
+  inventoryChannel,
   listPermissionCodes,
   marketChannel,
   organizationChannel,
+  SUPPORT_SESSION_HEADER,
   userChannel,
   warehouseChannel,
 } from '@skladburg/contracts/runtime';
@@ -345,5 +347,40 @@ describe('subscription access to a channel that cannot be reached', () => {
 
     expect(detail?.code).toBe(ErrorCode.NOT_FOUND);
     expect(readEntity(detail)).toBe(EntityKind.CHANNEL);
+  });
+});
+
+describe('subscription access to warehouse inventory', () => {
+  const warehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1;
+  const channel = inventoryChannel(warehouseId);
+
+  it('checks the inventory right and warehouse scope separately from access to the warehouse card', async () => {
+    const fixture = createFixture();
+    const warehouseOnly = await addTestMember(fixture, {
+      organizationId: SeedOrganizationId.CUSTOMER_1,
+      permissions: ['warehouse_view'],
+      warehouseIds: [warehouseId],
+    });
+    expect(fixture.check(warehouseChannel(warehouseId), warehouseOnly)).toBeUndefined();
+    expect(readPermission(fixture.check(channel, warehouseOnly, SeedOrganizationId.CUSTOMER_1))).toEqual({
+      permission: 'inventory_view',
+      warehouseId: '',
+    });
+    expect(fixture.check(channel, SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1)).toBeUndefined();
+    const otherWarehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2;
+    const denied = fixture.check(inventoryChannel(otherWarehouseId), SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1);
+    expect(readPermission(denied)).toEqual({ permission: 'inventory_view', warehouseId: otherWarehouseId });
+  });
+
+  it('denies subscriptions outside the acting organization and under a support session', () => {
+    const { check, runtime, state } = createFixture();
+    expect(check(channel, SeedUserId.ADMIN_1, SeedOrganizationId.SUPPLIER_1)?.code).toBe(ErrorCode.NOT_FOUND);
+    expect(check(channel, SeedUserId.ADMIN_2, SeedOrganizationId.CUSTOMER_1)?.code).toBe(ErrorCode.NOT_FOUND);
+    expect(check(channel, SeedUserId.ADMIN_1)?.code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
+
+    const headers = createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
+    headers.set(SUPPORT_SESSION_HEADER, UNKNOWN_ID);
+    const access = createSubscriptionAccess(runtime.errors);
+    expect(access.check(state.read, channel, headers)?.code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
   });
 });

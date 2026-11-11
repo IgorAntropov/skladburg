@@ -124,6 +124,7 @@ import type {
   IdempotencyRecordValue,
   NotificationRecordValue,
   SupportBotQueueRecordValue,
+  WarehouseStockRecordValue,
   WarehouseTopologyRecordValue,
 } from './records';
 
@@ -144,11 +145,13 @@ import {
   parseIdempotencyRecord,
   parseNotificationRecord,
   parseSupportBotQueueRecord,
+  parseWarehouseStockRecord,
   parseWarehouseTopologyRecord,
   serializeDemoPersona,
   serializeIdempotencyRecord,
   serializeNotificationRecord,
   serializeSupportBotQueueRecord,
+  serializeWarehouseStockRecord,
   serializeWarehouseTopologyRecord,
 } from './records';
 
@@ -196,6 +199,9 @@ export interface TableIndexesValue {
   routeLegs: never;
   salesTerms: never;
   spheres: never;
+  stockBalances: 'lookupKey' | 'scopeId';
+  stockBatches: 'lookupKey' | 'productId';
+  stockMovements: 'scopeId';
   supplyContracts: 'customerOrganizationId';
   supportAccessSessions: 'organizationId' | 'staffUserId';
   supportAuditEntries: 'organizationId';
@@ -240,6 +246,9 @@ export interface TableRecordsValue {
   routeLegs: RouteLeg;
   salesTerms: SalesTerms;
   spheres: Sphere;
+  stockBalances: WarehouseStockRecordValue;
+  stockBatches: WarehouseStockRecordValue;
+  stockMovements: WarehouseStockRecordValue;
   supplyContracts: SupplyContract;
   supportAccessSessions: SupportAccessSession;
   supportAuditEntries: SupportAuditEntry;
@@ -292,6 +301,10 @@ const NOTIFICATION_TABLE: TableDefinition<NotificationRecordValue, 'userId'> = {
   indexKeys: { userId: record => record.userId },
 };
 
+const stockRecordTable = defineRecordTable(parseWarehouseStockRecord, serializeWarehouseStockRecord);
+const stockLookupKey = (record: WarehouseStockRecordValue): string => record.lookupKey;
+const stockScopeId = (record: WarehouseStockRecordValue): string => record.scopeId;
+
 export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   carrierLanes: defineMessageTable(CarrierLaneSchema, lane => lane.id, { tenantId: lane => lane.tenantId }),
   cities: defineMessageTable(CitySchema, city => city.id, {}),
@@ -333,6 +346,9 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   routeLegs: defineMessageTable(RouteLegSchema, leg => leg.id, {}),
   salesTerms: defineMessageTable(SalesTermsSchema, terms => terms.organizationId, {}),
   spheres: defineMessageTable(SphereSchema, sphere => sphere.id, {}),
+  stockBalances: { ...stockRecordTable, indexKeys: { lookupKey: stockLookupKey, scopeId: stockScopeId } },
+  stockBatches: { ...stockRecordTable, indexKeys: { lookupKey: stockLookupKey, productId: stockScopeId } },
+  stockMovements: { ...stockRecordTable, indexKeys: { scopeId: stockScopeId } },
   supplyContracts: defineMessageTable(SupplyContractSchema,
     contract => contract.id,
     { customerOrganizationId: contract => contract.customerOrganizationId }),

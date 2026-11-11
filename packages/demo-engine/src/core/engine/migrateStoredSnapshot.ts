@@ -1,14 +1,31 @@
 import type { EngineSnapshotValue } from '../ports/index';
 
+import { ENGINE_SCHEMA_VERSION } from '../state/schemaVersion';
 import { addWarehouseTopologies } from './migrateWarehouseTopologies';
 
 const PRE_FLEET_SCHEMA_VERSION = 15;
 const PRE_TRIPS_SCHEMA_VERSION = 17;
 const PRE_TOPOLOGY_SCHEMA_VERSION = 18;
+const PRE_STOCK_SCHEMA_VERSION = 19;
+
+const addStockCollections = (snapshot: EngineSnapshotValue): EngineSnapshotValue => ({
+  ...snapshot,
+  collections: {
+    ...snapshot.collections,
+    stockBalances: new Map(),
+    stockBatches: new Map(),
+    stockMovements: new Map(),
+  },
+  schemaVersion: ENGINE_SCHEMA_VERSION,
+});
 
 export const migrateStoredSnapshot = async (stored: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
+  if (stored.schemaVersion === PRE_STOCK_SCHEMA_VERSION) {
+    return addStockCollections(stored);
+  }
+
   if (stored.schemaVersion === PRE_TOPOLOGY_SCHEMA_VERSION) {
-    return addWarehouseTopologies(stored);
+    return addStockCollections(addWarehouseTopologies(stored));
   }
 
   const collections = stored.schemaVersion === PRE_TRIPS_SCHEMA_VERSION
@@ -27,5 +44,5 @@ export const migrateStoredSnapshot = async (stored: EngineSnapshotValue): Promis
     migrated = (await import('./migrateTripRecords')).addTripRecords(migrated);
   }
 
-  return addWarehouseTopologies(migrated);
+  return addStockCollections(addWarehouseTopologies(migrated));
 };

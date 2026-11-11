@@ -1,5 +1,3 @@
-import type { Event } from '@skladburg/contracts/event/v1/event';
-
 import {
   Code,
   ConnectError,
@@ -260,17 +258,6 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
     }
   };
 
-  const decodeEvents = (buffers: readonly ArrayBuffer[]): Event[] | undefined => {
-    try {
-      return buffers.map(decodeEvent);
-    }
-    catch (error) {
-      console.log('> EngineConnection -> decodeEvents:', { error });
-
-      return undefined;
-    }
-  };
-
   const handleHostMessage = (message: EngineHostMessageValue): void => {
     switch (message.type) {
       case 'control_result':
@@ -283,11 +270,10 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
         break;
       case 'events': {
         const handlers = subscriptions.get(message.subscriptionId);
-        const events = handlers === undefined ? undefined : decodeEvents(message.events);
 
-        if (handlers !== undefined && events !== undefined) {
+        if (handlers !== undefined) {
           invokeHandler('onEvents', () => {
-            handlers.onEvents(events);
+            handlers.onEvents(message.events.map(decodeEvent));
           });
         }
 

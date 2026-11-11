@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package wms.v1;
+
+message StockChanged {
+  string warehouse_id = 1;
+}

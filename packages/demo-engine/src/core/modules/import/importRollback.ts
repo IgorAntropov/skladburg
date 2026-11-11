@@ -23,7 +23,8 @@ export const rollbackImport = (transaction: IStateTransaction, runtime: IModuleR
       || product.version !== entry.productVersion || listing.version !== entry.listingVersion || price.version !== entry.priceVersion;
   });
   const hasExternalProductReference = transaction.list('listings')
-    .some(listing => productIds.has(listing.productId) && !listingIds.has(listing.id));
+    .some(listing => productIds.has(listing.productId) && !listingIds.has(listing.id))
+    || [...productIds].some(productId => transaction.listBy('stockBatches', 'productId', productId).length > 0);
   const createdPriceList = record.createdPriceListId === '' ? undefined : transaction.get('priceLists', record.createdPriceListId);
   const hasChangedPriceList = record.createdPriceListId !== ''
     && (createdPriceList?.version !== record.createdPriceListVersion || createdPriceList.tenantId !== organizationId);

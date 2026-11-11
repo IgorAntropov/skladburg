@@ -150,7 +150,7 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
   return createSeedSnapshotWithTopology(seed);
 };
 
-const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18];
+const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19];
 
 const loadOrSeedSnapshot = async (
   options: CreateEngineOptionsValue,
@@ -306,10 +306,16 @@ export const createEngineWithTasks = async (
 
   const logisticsHandler = deferEngineHandler(async () =>
     (await import('../modules/logistics/index')).createLogisticsHandler(runtime, supportAudit));
+  const warehouseStockHandler = deferEngineHandler(async () =>
+    (await import('../modules/wms/warehouseStockService')).createWarehouseStockHandler(runtime, supportAudit));
   const warehouseTopologyHandler = deferEngineHandler(async () =>
     (await import('../modules/wms/warehouseTopologyService')).createWarehouseTopologyHandler(runtime, supportAudit));
   const handle = (request: Request): Promise<Response> => queue.enqueue(() => {
     const { pathname } = new URL(request.url);
+
+    if (pathname.startsWith('/wms.v1.WarehouseStockService/')) {
+      return warehouseStockHandler(request);
+    }
 
     if (pathname.startsWith('/wms.v1.')) {
       return warehouseTopologyHandler(request);

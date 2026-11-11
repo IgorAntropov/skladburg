@@ -67,7 +67,7 @@ export const catalog = {
   'catalogEditor.validation.calendar_date.exists': 'Такой даты нет в календаре',
   'catalogEditor.validation.catalog.amount_above_limit': 'Слишком большая сумма',
   'catalogEditor.validation.catalog.availability_quantity_required': 'Для этого статуса нужен остаток больше нуля',
-  'catalogEditor.validation.catalog.base_unit_locked': 'Базовую единицу товара менять нельзя: у него уже есть позиция',
+  'catalogEditor.validation.catalog.base_unit_locked': 'Базовую единицу нельзя изменить: товар уже используется',
   'catalogEditor.validation.catalog.gtin_taken': 'Такой штрихкод уже есть в вашем каталоге',
   'catalogEditor.validation.catalog.listing_price_required': 'Чтобы опубликовать позицию, сохраните цену',
   'catalogEditor.validation.catalog.listing_product_locked': 'Товар позиции менять нельзя: по ней уже есть цена',

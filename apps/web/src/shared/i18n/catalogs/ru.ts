@@ -3,6 +3,7 @@ import type { CatalogShapeValue } from '../localizer/messageShape';
 export const catalog = {
   'action.pending': 'Отправляем…',
   'app.documentTitle': '{section} · {brand}',
+  'app.documentTitleWithUnread': '({count}) {title}',
   'app.nav.label': 'Разделы',
   'app.productName': 'Тридок',
   'app.startError.message': 'Приложение не загрузилось. Проверьте соединение',

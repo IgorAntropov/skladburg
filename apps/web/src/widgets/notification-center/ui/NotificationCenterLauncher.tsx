@@ -35,6 +35,7 @@ import { NotificationButton } from './NotificationButton';
 export interface NotificationCenterLauncherProps {
   renderHelpTab?: RenderNotificationHelpTab | undefined;
   renderReplica?: ((slot: NotificationReplicaSlotValue) => ReactNode) | undefined;
+  renderUnreadCount?: ((count: number) => ReactNode) | undefined;
   unreadCountReporter?: ReactNode | undefined;
 }
 
@@ -65,6 +66,7 @@ const LOAD_ERROR_BADGE_CLASS_NAME = 'flex size-6 shrink-0 items-center justify-c
 export const NotificationCenterLauncher = ({
   renderHelpTab,
   renderReplica,
+  renderUnreadCount,
   unreadCountReporter,
 }: NotificationCenterLauncherProps): ReactElement => {
   const { locale, t } = useI18n();
@@ -188,6 +190,7 @@ export const NotificationCenterLauncher = ({
         unreadCount={unreadCount}
       />
       <UnreadCountSinkContext value={setUnreadCount}>{unreadCountReporter}</UnreadCountSinkContext>
+      {renderUnreadCount?.(unreadCount)}
       {isPanelShown && (
         <launchState.Panel
           anchorRef={rootRef}

@@ -27,8 +27,11 @@ import { TopBar } from '@/widgets/top-bar';
 
 import { useAvailableSections } from '../access';
 import { scheduleWhenIdle } from '../lib/scheduleWhenIdle';
+import { DocumentSync } from './DocumentSync';
 
 const NO_SECTIONS: readonly never[] = [];
+
+const renderUnreadCount = (unreadCount: number): ReactElement => <DocumentSync unreadCount={unreadCount} />;
 
 export const AppTopBar = (): ReactElement => {
   const { address } = useAddress();
@@ -64,6 +67,7 @@ export const AppTopBar = (): ReactElement => {
         <NotificationCenterLauncher
           renderHelpTab={helpTabRenderer}
           renderReplica={renderReplica}
+          renderUnreadCount={renderUnreadCount}
           unreadCountReporter={unreadCountReporter}
         />
       )}

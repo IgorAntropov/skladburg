@@ -1,6 +1,7 @@
 export interface AppIconValue {
   fileName: string;
   hasBackground: boolean;
+  hasUnreadBadge?: boolean | undefined;
   purpose: 'any' | 'maskable';
   size: number;
   source: 'app-icon' | 'app-icon-maskable' | 'favicon';
@@ -13,6 +14,8 @@ export const ICON_OUTPUT_DIRECTORY = 'public';
 export const APP_ICONS: readonly AppIconValue[] = [
   { fileName: 'favicon.svg', hasBackground: false, purpose: 'any', size: 32, source: 'favicon' },
   { fileName: 'favicon-32.png', hasBackground: false, purpose: 'any', size: 32, source: 'favicon' },
+  { fileName: 'favicon-unread.svg', hasBackground: false, hasUnreadBadge: true, purpose: 'any', size: 32, source: 'favicon' },
+  { fileName: 'favicon-unread-32.png', hasBackground: false, hasUnreadBadge: true, purpose: 'any', size: 32, source: 'favicon' },
   { fileName: 'apple-touch-icon.png', hasBackground: true, purpose: 'any', size: 180, source: 'app-icon' },
   { fileName: 'pwa-192.png', hasBackground: true, purpose: 'any', size: 192, source: 'app-icon' },
   { fileName: 'pwa-512.png', hasBackground: true, purpose: 'any', size: 512, source: 'app-icon' },

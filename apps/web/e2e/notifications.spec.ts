@@ -1,3 +1,5 @@
+import type { Page } from '@playwright/test';
+
 import type { NetworkSiteValue } from './fixtures/demoData.ts';
 
 import {
@@ -32,6 +34,16 @@ const NEW_WAREHOUSE_SITE: NetworkSiteValue = {
   label: NEW_WAREHOUSE.name,
 };
 
+const expectTabIndicators = async (page: Page, baseTitle: string, count: number): Promise<void> => {
+  const hasUnread = count > 0;
+  const prefix = hasUnread ? `(${String(count)}) ` : '';
+  const icons = hasUnread ? ['favicon-unread.svg', 'favicon-unread-32.png'] : ['favicon.svg', 'favicon-32.png'];
+
+  await expect(page).toHaveTitle(`${prefix}${baseTitle}`);
+  await expect.poll(() => page.locator('head link[rel="icon"]').evaluateAll(links => links.map(link => link.getAttribute('href'))))
+    .toEqual(icons.map(icon => new URL(icon, page.url()).pathname));
+};
+
 test.describe('notification center', () => {
   test.use({ viewport: DESKTOP_VIEWPORT });
 
@@ -44,6 +56,7 @@ test.describe('notification center', () => {
     await navigation.expectSection('warehouse');
     await persona.expectCurrentPersona(DEFAULT_PERSONA);
     await notifications.expectUnreadCount(1);
+    await expectTabIndicators(page, `Склад · ${DEFAULT_PERSONA.organizationName}`, 1);
 
     await notifications.open();
     await notifications.expectOpen();
@@ -55,6 +68,11 @@ test.describe('notification center', () => {
     await notifications.expectClosed();
     await notifications.expectButtonFocused();
     await notifications.expectUnreadCount(1);
+
+    await persona.selectPersona(PERSONAS.constructionCustomer);
+    await expectTabIndicators(page, `Склад · ${PERSONAS.constructionCustomer.organizationName}`, 2);
+    await persona.selectPersona(DEFAULT_PERSONA);
+    await expectTabIndicators(page, `Склад · ${DEFAULT_PERSONA.organizationName}`, 1);
   });
 
   test('a new warehouse arrives, "show on map" opens its card and reads the row, "read all" clears the badge', async ({ page }) => {
@@ -78,6 +96,7 @@ test.describe('notification center', () => {
     await createWarehouse.expectNewWarehouseCount(1);
 
     await notifications.expectUnreadCount(2);
+    await expectTabIndicators(page, `Склад · ${DEFAULT_PERSONA.organizationName}`, 2);
 
     await notifications.open();
     await notifications.expectRowCount(3);
@@ -90,6 +109,7 @@ test.describe('notification center', () => {
     await expect.poll(() => new URL(page.url()).hash).toMatch(NEW_SITE_HASH_PATTERN);
     await network.expectSiteInspector(NEW_WAREHOUSE_SITE);
     await notifications.expectUnreadCount(1);
+    await expectTabIndicators(page, `Сеть · ${DEFAULT_PERSONA.organizationName}`, 1);
 
     await notifications.open();
     await notifications.expectRead(newWarehouseRow);
@@ -98,6 +118,7 @@ test.describe('notification center', () => {
     await notifications.markAllRead();
     await notifications.close();
     await notifications.expectUnreadCount(0);
+    await expectTabIndicators(page, `Сеть · ${DEFAULT_PERSONA.organizationName}`, 0);
   });
 });
 

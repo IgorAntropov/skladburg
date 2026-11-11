@@ -14,6 +14,13 @@ export interface TerrainDecorValue {
   tints: Float32Array;
 }
 
+export interface TerrainGroundMeshValue {
+  groundGroups: readonly TerrainSurfaceGroupValue[];
+  groundIndex: Uint16Array | Uint32Array;
+  groundPositions: Float32Array;
+  groundWeights: Uint8Array;
+}
+
 export interface TerrainPointValue {
   x: number;
   z: number;
@@ -44,10 +51,8 @@ export interface WorldTerrainParamsValue {
   world: SceneWorldValue;
 }
 
-export interface WorldTerrainValue {
+export interface WorldTerrainValue extends TerrainGroundMeshValue {
   decor: readonly TerrainDecorValue[];
   forestShare: number;
-  groundGroups: readonly TerrainSurfaceGroupValue[];
-  groundPositions: Float32Array;
   triangleCount: number;
 }

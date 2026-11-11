@@ -83,17 +83,19 @@ const collectTriangles = (terrain: WorldTerrainValue): TriangleValue[] => {
 
   for (const group of terrain.groundGroups) {
     for (let vertex = group.start; vertex < group.start + group.count; vertex += 3) {
-      const offset = vertex * 3;
+      const a = (terrain.groundIndex[vertex] ?? 0) * 3;
+      const b = (terrain.groundIndex[vertex + 1] ?? 0) * 3;
+      const c = (terrain.groundIndex[vertex + 2] ?? 0) * 3;
       triangles.push({
-        ax: positions[offset] ?? 0,
-        ay: positions[offset + 1] ?? 0,
-        az: positions[offset + 2] ?? 0,
-        bx: positions[offset + 3] ?? 0,
-        by: positions[offset + 4] ?? 0,
-        bz: positions[offset + 5] ?? 0,
-        cx: positions[offset + 6] ?? 0,
-        cy: positions[offset + 7] ?? 0,
-        cz: positions[offset + 8] ?? 0,
+        ax: positions[a] ?? 0,
+        ay: positions[a + 1] ?? 0,
+        az: positions[a + 2] ?? 0,
+        bx: positions[b] ?? 0,
+        by: positions[b + 1] ?? 0,
+        bz: positions[b + 2] ?? 0,
+        cx: positions[c] ?? 0,
+        cy: positions[c + 1] ?? 0,
+        cz: positions[c + 2] ?? 0,
         key: group.key,
       });
     }
@@ -163,6 +165,8 @@ describe('generateWorldTerrain determinism', () => {
 
     expect(toBytes(second.groundPositions)).toEqual(toBytes(first.groundPositions));
     expect(second.groundGroups).toEqual(first.groundGroups);
+    expect(second.groundIndex).toEqual(first.groundIndex);
+    expect(second.groundWeights).toEqual(first.groundWeights);
     expect(second.forestShare).toBe(first.forestShare);
     expect(second.decor.map(decor => decor.kind)).toEqual(first.decor.map(decor => decor.kind));
 
@@ -582,7 +586,8 @@ describe.each(SEEDS)('generateWorldTerrain budgets, seed %i', (seed) => {
     const groupedVertices = terrain.groundGroups.reduce((total, group) => total + group.count, 0);
 
     expect(terrain.triangleCount).toBeLessThanOrEqual(50000);
-    expect(terrain.groundPositions.length).toBe(terrain.triangleCount * 9);
+    expect(terrain.groundIndex.length).toBe(terrain.triangleCount * 3);
+    expect(terrain.groundPositions.length).toBeLessThan(terrain.triangleCount * 9);
     expect(terrain.groundGroups.length).toBeLessThanOrEqual(7);
     expect(groupedVertices).toBe(terrain.triangleCount * 3);
     expect(trees).toBeLessThanOrEqual(4000);

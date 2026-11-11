@@ -10,7 +10,7 @@ export interface TerrainReplyValue {
   transfer: ArrayBuffer[];
 }
 
-const collectBuffers = (arrays: readonly Float32Array[]): ArrayBuffer[] => {
+const collectBuffers = (arrays: readonly (Float32Array | Uint8Array | Uint16Array | Uint32Array)[]): ArrayBuffer[] => {
   const buffers = new Set<ArrayBuffer>();
 
   for (const array of arrays) {
@@ -30,7 +30,9 @@ export const handleTerrainRequest = (request: TerrainWorkerRequestValue): Terrai
   return {
     response: { generationMs, terrain },
     transfer: collectBuffers([
+      terrain.groundIndex,
       terrain.groundPositions,
+      terrain.groundWeights,
       ...terrain.decor.flatMap(decor => [decor.matrices, decor.ranks, decor.tints]),
     ]),
   };

@@ -40,17 +40,28 @@ const getCorridorDistance = (corridor: TerrainCorridorValue, x: number, z: numbe
   return distance;
 };
 
-export const getReserveDistance = (reserved: TerrainReservedValue, x: number, z: number): number => {
+export const getReservedCorridorsDistance = (corridors: readonly TerrainCorridorValue[], x: number, z: number): number => {
   let distance = Number.POSITIVE_INFINITY;
+
+  for (const corridor of corridors) {
+    distance = Math.min(distance, getCorridorDistance(corridor, x, z));
+  }
+
+  return distance;
+};
+
+export const getReserveDistance = (
+  reserved: TerrainReservedValue,
+  x: number,
+  z: number,
+  corridorDistance = getReservedCorridorsDistance(reserved.corridors, x, z),
+): number => {
+  let distance = corridorDistance;
 
   for (const area of reserved.areas) {
     const offsetX = x - area.x;
     const offsetZ = z - area.z;
     distance = Math.min(distance, Math.sqrt(offsetX * offsetX + offsetZ * offsetZ) - area.radius);
-  }
-
-  for (const corridor of reserved.corridors) {
-    distance = Math.min(distance, getCorridorDistance(corridor, x, z));
   }
 
   return distance;

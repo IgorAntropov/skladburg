@@ -41,7 +41,13 @@ export const createWorldTerrainLoader = (
     const { generationMs, source, terrain } = await generate(params);
     const finishedAt = performance.now();
 
-    performance.measure(MEASURE_NAME, { detail: { generationMs: roundMs(generationMs), source }, end: finishedAt, start: startedAt });
+    const groundBufferBytes = terrain.groundIndex.byteLength + terrain.groundPositions.byteLength + terrain.groundWeights.byteLength;
+
+    performance.measure(MEASURE_NAME, {
+      detail: { generationMs: roundMs(generationMs), groundBufferBytes, source },
+      end: finishedAt,
+      start: startedAt,
+    });
     console.log('> WorldTerrain -> generate:', {
       generationMs: roundMs(generationMs),
       seed: params.seed,

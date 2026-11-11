@@ -36,13 +36,12 @@ export const generateWorldTerrain = (params: WorldTerrainParamsValue): WorldTerr
 
   const heights = buildTerrainHeights(context, openSurface, vertexWater);
   const { decor, forestShare } = placeDecor(context, openSurface, cellState, heights, warp);
-  const { groundGroups, groundPositions } = buildGroundMesh(context, triangleSurface, heights, warp);
+  const ground = buildGroundMesh(context, triangleSurface, heights, warp);
 
   return {
     decor,
     forestShare,
-    groundGroups,
-    groundPositions,
+    ...ground,
     triangleCount: context.grid.triangleCount,
   };
 };

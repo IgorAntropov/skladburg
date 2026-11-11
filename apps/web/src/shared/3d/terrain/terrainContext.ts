@@ -8,7 +8,10 @@ import {
   createTerrainGrid,
   getEdgeDistance,
 } from './terrainGrid';
-import { getReserveDistance } from './terrainReserve';
+import {
+  getReservedCorridorsDistance,
+  getReserveDistance,
+} from './terrainReserve';
 
 export interface TerrainContextValue {
   cellCenterX: Float32Array;
@@ -19,6 +22,7 @@ export interface TerrainContextValue {
   reserved: TerrainReservedValue;
   seed: number;
   triangleVertices: Uint32Array;
+  vertexCorridorDistance: Float32Array;
   vertexEdgeDistance: Float32Array;
   vertexReserveDistance: Float32Array;
   vertexX: Float32Array;
@@ -32,6 +36,7 @@ export const createTerrainContext = (params: WorldTerrainParamsValue): TerrainCo
   const cellCount = cellsX * cellsZ;
   const vertexX = new Float32Array(grid.vertexCount);
   const vertexZ = new Float32Array(grid.vertexCount);
+  const vertexCorridorDistance = new Float32Array(grid.vertexCount);
   const vertexEdgeDistance = new Float32Array(grid.vertexCount);
   const vertexReserveDistance = new Float32Array(grid.vertexCount);
   const cellCenterX = new Float32Array(cellCount);
@@ -39,6 +44,8 @@ export const createTerrainContext = (params: WorldTerrainParamsValue): TerrainCo
   const cellEdgeDistance = new Float32Array(cellCount);
   const cellReserveDistance = new Float32Array(cellCount);
   const triangleVertices = new Uint32Array(grid.triangleCount * 3);
+
+  vertexCorridorDistance.fill(Number.POSITIVE_INFINITY);
 
   if (!hasReserve) {
     vertexReserveDistance.fill(Number.POSITIVE_INFINITY);
@@ -56,7 +63,9 @@ export const createTerrainContext = (params: WorldTerrainParamsValue): TerrainCo
       vertexEdgeDistance[vertex] = getEdgeDistance(grid, x, z);
 
       if (hasReserve) {
-        vertexReserveDistance[vertex] = getReserveDistance(params.reserved, x, z);
+        const corridorDistance = getReservedCorridorsDistance(params.reserved.corridors, x, z);
+        vertexCorridorDistance[vertex] = corridorDistance;
+        vertexReserveDistance[vertex] = getReserveDistance(params.reserved, x, z, corridorDistance);
       }
     }
   }
@@ -107,6 +116,7 @@ export const createTerrainContext = (params: WorldTerrainParamsValue): TerrainCo
     reserved: params.reserved,
     seed: params.seed | 0,
     triangleVertices,
+    vertexCorridorDistance,
     vertexEdgeDistance,
     vertexReserveDistance,
     vertexX,

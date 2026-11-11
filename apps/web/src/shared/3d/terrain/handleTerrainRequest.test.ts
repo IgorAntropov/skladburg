@@ -21,12 +21,16 @@ describe('handleTerrainRequest', () => {
     expect(response.generationMs).toBeGreaterThanOrEqual(0);
     expect(response.terrain.triangleCount).toBe(expected.triangleCount);
     expect(response.terrain.groundGroups).toEqual(expected.groundGroups);
-    expect(Array.from(response.terrain.groundPositions)).toEqual(Array.from(expected.groundPositions));
+    expect(response.terrain.groundPositions).toEqual(expected.groundPositions);
+    expect(response.terrain.groundIndex).toEqual(expected.groundIndex);
+    expect(response.terrain.groundWeights).toEqual(expected.groundWeights);
   });
 
   it('lists every array buffer of the world exactly once for the transfer', () => {
     const arrays = [
+      response.terrain.groundIndex,
       response.terrain.groundPositions,
+      response.terrain.groundWeights,
       ...response.terrain.decor.flatMap(decor => [decor.matrices, decor.ranks, decor.tints]),
     ];
 

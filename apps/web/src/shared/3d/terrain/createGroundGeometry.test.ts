@@ -16,16 +16,15 @@ describe('createGroundGeometry', () => {
   const terrain = generateWorldTerrain({ reserved: EMPTY_TERRAIN_RESERVED, seed: 7, world: WORLD });
   const geometry = createGroundGeometry(terrain);
 
-  it('uses the generated positions as they are, without an index', () => {
-    expect(geometry.getAttribute('position').array).toBe(terrain.groundPositions);
-    expect(geometry.getAttribute('position').count).toBe(terrain.triangleCount * 3);
-    expect(geometry.index).toBeNull();
-  });
+  it('uses the transferred buffers and draws only land and water', () => {
+    const water = terrain.groundGroups.find(group => group.key === 'water');
 
-  it('adds one group per surface, numbered like the material list, covering all vertices once', () => {
-    expect(geometry.groups).toEqual(
-      terrain.groundGroups.map((group, materialIndex) => ({ count: group.count, materialIndex, start: group.start })),
-    );
+    expect(geometry.getAttribute('position').array).toBe(terrain.groundPositions);
+    expect(geometry.index?.array).toBe(terrain.groundIndex);
+    expect(geometry.groups).toEqual([
+      { count: water?.start, materialIndex: 0, start: 0 },
+      { count: water?.count, materialIndex: 1, start: water?.start },
+    ]);
     expect(geometry.groups.reduce((total, group) => total + group.count, 0)).toBe(terrain.triangleCount * 3);
   });
 

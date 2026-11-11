@@ -41,17 +41,22 @@ describe('createWorldGeometryRegistry', () => {
     }
   });
 
-  it('centers the broad crown at its height and spans the cone between its base and its tip', () => {
+  it('centers the broad crown at its height and keeps the tiered conifers within the same height', () => {
     const registry = createWorldGeometryRegistry();
     const { conifer, deciduous } = TERRAIN_DECOR_SHAPES;
     const broad = measure(registry.get('deciduousCrown'));
-    const cone = measure(registry.get('coniferCrown'));
 
     expect((broad.min.y + broad.max.y) / 2).toBeCloseTo(deciduous.crownCenterHeight, 6);
     expect(broad.max.y - broad.min.y).toBeLessThanOrEqual(deciduous.crownRadius * 2 + 1e-6);
-    expect(cone.min.y).toBeCloseTo(conifer.crownBaseHeight, 6);
-    expect(cone.max.y).toBeCloseTo(conifer.crownBaseHeight + conifer.crownHeight, 6);
-    expect(cone.max.x).toBeLessThanOrEqual(conifer.crownRadius + 1e-6);
+    for (const [key, triangles] of [['coniferCrown', 15], ['detailedConiferCrown', 25]] as const) {
+      const geometry = registry.get(key);
+      const crown = measure(geometry);
+
+      expect(crown.min.y).toBeCloseTo(conifer.crownBaseHeight, 6);
+      expect(crown.max.y).toBeCloseTo(conifer.crownBaseHeight + conifer.crownHeight, 6);
+      expect(crown.max.x).toBeLessThanOrEqual(conifer.crownRadius + 1e-6);
+      expect(geometry.index?.count).toBe(triangles * 3);
+    }
   });
 
   it('centers the rock on the origin within its radius', () => {

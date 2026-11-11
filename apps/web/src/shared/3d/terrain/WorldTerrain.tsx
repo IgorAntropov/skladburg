@@ -2,15 +2,19 @@ import type { ReactElement } from 'react';
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
 } from 'react';
+import { MeshStandardMaterial } from 'three';
 
 import type { QualityLevelValue } from '../quality/qualityLevel';
 import type { WorldTerrainValue } from './terrainTypes';
 
-import { useWorldMaterialsContext } from '../materials/useWorldMaterialsContext';
-import { QUALITY_LEVEL_SETTINGS } from '../quality/qualityLevel';
+import { useWorldMaterial } from '../materials/useWorldMaterial';
+import { useWorldPalette } from '../materials/useWorldPalette';
 import { createGroundGeometry } from './createGroundGeometry';
+import { createGroundGrain } from './createGroundGrain';
+import { paintGroundGeometry } from './paintGroundGeometry';
 import { skipRaycast } from './skipRaycast';
 import { TerrainDecorLayer } from './TerrainDecorLayer';
 
@@ -20,27 +24,36 @@ interface WorldTerrainProps {
 }
 
 export const WorldTerrain = ({ level, terrain }: WorldTerrainProps): ReactElement => {
-  const { registry } = useWorldMaterialsContext();
+  const palette = useWorldPalette();
+  const water = useWorldMaterial('water');
 
   const groundGeometry = useMemo(() => createGroundGeometry(terrain), [terrain]);
-  const groundMaterials = useMemo(
-    () => terrain.groundGroups.map(group => registry.get(group.key)),
-    [registry, terrain.groundGroups],
+  const grain = useMemo(() => createGroundGrain(groundGeometry.boundingBox), [groundGeometry]);
+  const land = useMemo(
+    () => new MeshStandardMaterial({ flatShading: true, map: grain, roughness: 1, vertexColors: true }),
+    [grain],
   );
+  const groundMaterials = useMemo(() => [land, water], [land, water]);
 
-  const { decorDensity } = QUALITY_LEVEL_SETTINGS[level];
+  useLayoutEffect(() => {
+    const startedAt = performance.now();
+    paintGroundGeometry(groundGeometry, terrain.groundWeights, palette);
+    performance.measure('WorldTerrain.paint', { end: performance.now(), start: startedAt });
+  }, [groundGeometry, palette, terrain.groundWeights]);
 
   useEffect(() => {
     return () => {
       groundGeometry.dispose();
+      land.dispose();
+      grain.dispose();
     };
-  }, [groundGeometry]);
+  }, [grain, groundGeometry, land]);
 
   return (
     <>
       <mesh frustumCulled={false} geometry={groundGeometry} material={groundMaterials} raycast={skipRaycast} receiveShadow />
       {terrain.decor.map(decor => (
-        <TerrainDecorLayer decor={decor} density={decorDensity} key={decor.kind} />
+        <TerrainDecorLayer decor={decor} key={decor.kind} level={level} />
       ))}
     </>
   );

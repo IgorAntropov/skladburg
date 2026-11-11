@@ -5,6 +5,7 @@ import {
   createConiferTrunk,
   createDeciduousCrown,
   createDeciduousTrunk,
+  createDetailedConiferCrown,
   createRock,
 } from './createDecorGeometries';
 
@@ -13,13 +14,14 @@ export interface IWorldGeometryRegistry {
   get: (key: WorldGeometryKeyValue) => BufferGeometry;
 }
 
-export type WorldGeometryKeyValue = 'coniferCrown' | 'coniferTrunk' | 'deciduousCrown' | 'deciduousTrunk' | 'rock';
+export type WorldGeometryKeyValue = 'coniferCrown' | 'coniferTrunk' | 'deciduousCrown' | 'deciduousTrunk' | 'detailedConiferCrown' | 'rock';
 
 const GEOMETRY_FACTORIES: Readonly<Record<WorldGeometryKeyValue, () => BufferGeometry>> = {
   coniferCrown: createConiferCrown,
   coniferTrunk: createConiferTrunk,
   deciduousCrown: createDeciduousCrown,
   deciduousTrunk: createDeciduousTrunk,
+  detailedConiferCrown: createDetailedConiferCrown,
   rock: createRock,
 };
 

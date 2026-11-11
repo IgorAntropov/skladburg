@@ -55,7 +55,15 @@ describe('runTerrainInWorker', () => {
 
   it('sends the parameters once and resolves with the answer, ending the worker', async () => {
     const fake = createFakeWorker();
-    const terrain = { decor: [], forestShare: 0, groundGroups: [], groundPositions: new Float32Array(), triangleCount: 0 };
+    const terrain = {
+      decor: [],
+      forestShare: 0,
+      groundGroups: [],
+      groundIndex: new Uint16Array(),
+      groundPositions: new Float32Array(),
+      groundWeights: new Uint8Array(),
+      triangleCount: 0,
+    };
     const running = runTerrainInWorker(PARAMS, () => fake.worker);
 
     expect(fake.postMessage).toHaveBeenCalledExactlyOnceWith({ params: PARAMS });
@@ -111,7 +119,15 @@ describe('runTerrainInWorker', () => {
   it('does not end the worker again by the timer once it has answered', async () => {
     vi.useFakeTimers();
     const fake = createFakeWorker();
-    const terrain = { decor: [], forestShare: 0, groundGroups: [], groundPositions: new Float32Array(), triangleCount: 0 };
+    const terrain = {
+      decor: [],
+      forestShare: 0,
+      groundGroups: [],
+      groundIndex: new Uint16Array(),
+      groundPositions: new Float32Array(),
+      groundWeights: new Uint8Array(),
+      triangleCount: 0,
+    };
     const running = runTerrainInWorker(PARAMS, () => fake.worker, 5000);
 
     fake.emit('message', new MessageEvent('message', { data: { generationMs: 1, terrain } }));

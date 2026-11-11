@@ -33,7 +33,15 @@ const PARAMS: WorldTerrainParamsValue = {
 const createMainResult = (): TerrainGenerationValue => ({
   generationMs: 5,
   source: 'main',
-  terrain: { decor: [], forestShare: 0, groundGroups: [], groundPositions: new Float32Array(), triangleCount: 0 },
+  terrain: {
+    decor: [],
+    forestShare: 0,
+    groundGroups: [],
+    groundIndex: new Uint16Array(),
+    groundPositions: new Float32Array(),
+    groundWeights: new Uint8Array(),
+    triangleCount: 0,
+  },
 });
 
 const createFailingWorker = (): ITerrainWorker => ({

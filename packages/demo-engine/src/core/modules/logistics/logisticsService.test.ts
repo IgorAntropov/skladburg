@@ -41,6 +41,12 @@ import {
   SafeDealPaymentStatus,
 } from '@skladburg/contracts/payment/v1/payment';
 import { organizationChannel } from '@skladburg/contracts/runtime';
+import { WarehousePickingService } from '@skladburg/contracts/wms/v1/picking';
+import {
+  HandlingUnitKind,
+  StockStatus,
+  WarehouseStockService,
+} from '@skladburg/contracts/wms/v1/stock';
 import {
   describe,
   expect,
@@ -61,6 +67,7 @@ import {
   SeedUserId,
   SeedWarehouseId,
 } from '../../seed/index';
+import { createSeedWarehouseTopologies } from '../../seed/seedWarehouseTopologies';
 import { CUSTOMER_CALL } from '../catalog/showcase/testing/showcaseFixtures';
 import {
   buildRub,
@@ -123,8 +130,32 @@ const agreeDeal = async (harness: ModuleHarnessValue, request: CreateDealDraftRe
   return deal;
 };
 
-const prepareDeal = async (): Promise<DealFixtureValue> => {
+const prepareDeal = async (isOutbound = false): Promise<DealFixtureValue> => {
   const { harness, request } = await createDealFixture();
+  if (isOutbound) {
+    const warehouseId = SeedWarehouseId.SUPPLIER_1_WAREHOUSE_1;
+    const line = request.lines[0];
+    const listing = line === undefined ? undefined : harness.state.read.get('listings', line.listingId);
+    if (line === undefined || listing === undefined) {
+      throw new Error('Missing listing for opening stock');
+    }
+    await harness.runtime.command((transaction) => {
+      for (const topology of createSeedWarehouseTopologies(id => transaction.get('warehouses', id))) {
+        transaction.put('warehouseTopologies', topology);
+      }
+    });
+    harness.runtime.wmsOutboundWarehouseIds = new Set([warehouseId]);
+    const stock = createClient(WarehouseStockService, harness.transport);
+    await stock.postOpeningStock({
+      cellId: '8f000001-0000-4000-8000-000000000006',
+      idempotencyKey: nextUuid(),
+      kind: HandlingUnitKind.PALLET,
+      lines: [{ batchNumber: 'LOAD-1', productId: listing.productId, quantityBase: line.quantity, status: StockStatus.AVAILABLE }],
+      sourceDocumentNumber: 'OPENING-1',
+      sscc: '000000000000000017',
+      warehouseId,
+    }, SUPPLIER_1_CALL);
+  }
   const deal = await agreeDeal(harness, request);
   const publish = create(PublishTransportRequestRequestSchema, {
     cargo: {
@@ -186,7 +217,8 @@ const tickAt = async (testEngine: TestEngineValue, worldTimeMs: number): Promise
   await testEngine.engine.tick();
 };
 
-const prepareFundedTrip = async (): Promise<{
+const prepareFundedTrip = async (isOutbound = false): Promise<{
+  assign: () => Promise<unknown>;
   dealId: string;
   deals: Client<typeof DealService>;
   fundedAmount: typeof AMOUNT;
@@ -195,7 +227,7 @@ const prepareFundedTrip = async (): Promise<{
   testEngine: TestEngineValue;
   tripId: string;
 }> => {
-  const fixture = await prepareDeal();
+  const fixture = await prepareDeal(isOutbound);
   const { deal, harness } = fixture;
   const testEngine = await createTestEngine({ storage: createSpyStorage(await harness.storage.load()) });
   const transport = createEngineTransport(testEngine.engine, true);
@@ -214,7 +246,7 @@ const prepareFundedTrip = async (): Promise<{
   if (vehicle === undefined || driver === undefined || deal.goodsTotal === undefined) {
     throw new Error('Expected goods total and fleet resources for the intercity trip');
   }
-  await logistics.assignTrip({
+  const assign = (): ReturnType<typeof logistics.assignTrip> => logistics.assignTrip({
     departureAt: timestampFromMs(PICKUP_START),
     driverId: driver.id,
     expectedVersion: 2,
@@ -222,6 +254,9 @@ const prepareFundedTrip = async (): Promise<{
     tripId,
     vehicleId: vehicle.id,
   }, CARRIER_ONE);
+  if (!isOutbound) {
+    await assign();
+  }
   for (const document of (await documents.listDealDocuments({ dealId }, SUPPLIER_1_CALL)).documents) {
     const sign = document.type === DocumentType.SUPPLY_CONTRACT ? documents.signSupplyContract : documents.signDocument;
     await sign({ dealId, documentId: document.id, expectedVersion: 1, idempotencyKey: nextUuid() }, SUPPLIER_1_CALL);
@@ -231,7 +266,7 @@ const prepareFundedTrip = async (): Promise<{
   await payments.fundDeal({ amount: fundedAmount, dealId, expectedVersion: 1, idempotencyKey: nextUuid() }, CUSTOMER_CALL);
   await tickAt(testEngine, testEngine.engine.getClockSnapshot().worldTimeMs + 5 * MINUTE_MS);
 
-  return { dealId, deals, fundedAmount, logistics, payments, testEngine, tripId };
+  return { assign, dealId, deals, fundedAmount, logistics, payments, testEngine, tripId };
 };
 
 describe('LogisticsService', () => {
@@ -599,6 +634,37 @@ describe('LogisticsService', () => {
 });
 
 describe('exchange trip through Connect', () => {
+  it('loads an outbound warehouse shipment only once the carrier has assigned the trip', async () => {
+    const { assign, dealId, deals, logistics, payments, testEngine, tripId } = await prepareFundedTrip(true);
+    const transport = createEngineTransport(testEngine.engine, true);
+    const picking = createClient(WarehousePickingService, transport);
+    const stock = createClient(WarehouseStockService, transport);
+    const warehouseId = SeedWarehouseId.SUPPLIER_1_WAREHOUSE_1;
+    const [task] = (await picking.listPickingTasks({ warehouseId }, SUPPLIER_1_CALL)).tasks;
+    const unitId = task?.units[0]?.handlingUnit?.id;
+    if (task === undefined || unitId === undefined) {
+      throw new Error('Missing picking task');
+    }
+    const request = { taskId: task.id, warehouseId };
+    await picking.claimPickingTask({ ...request, expectedVersion: 1, idempotencyKey: nextUuid() }, SUPPLIER_1_CALL);
+    await picking.confirmPicking({
+      ...request, expectedVersion: 2, handlingUnitIds: [unitId], idempotencyKey: nextUuid(),
+    }, SUPPLIER_1_CALL);
+    const ship = { ...request, expectedVersion: 3, idempotencyKey: nextUuid() };
+    const rejected = await captureError(picking.confirmWarehouseShipment(ship, SUPPLIER_1_CALL));
+    expect(readErrorDetail(rejected).code).toBe(ErrorCode.INVALID_TRANSITION);
+    expect((await logistics.getTrip({ tripId }, CARRIER_ONE)).trip?.status).toBe(TripStatus.CONFIRMED);
+    expect((await deals.getDeal({ dealId }, CUSTOMER_CALL)).deal?.status).toBe(DealStatus.PICKING);
+    expect((await payments.getDealPayment({ dealId }, CUSTOMER_CALL)).payment?.status).toBe(SafeDealPaymentStatus.BLOCKED);
+    expect((await stock.listStockBalances({ warehouseId }, SUPPLIER_1_CALL)).balances[0]?.lines[0]?.status).toBe(StockStatus.RESERVED);
+
+    await assign();
+    await picking.confirmWarehouseShipment(ship, SUPPLIER_1_CALL);
+    expect((await logistics.getTrip({ tripId }, CARRIER_ONE)).trip?.status).toBe(TripStatus.LOADED);
+    expect((await deals.getDeal({ dealId }, CUSTOMER_CALL)).deal?.status).toBe(DealStatus.SHIPPED);
+    expect((await stock.listStockBalances({ warehouseId }, SUPPLIER_1_CALL)).balances).toEqual([]);
+  });
+
   it('moves the intercity deal from shipment to arrival at the scheduled world times', async () => {
     const { dealId, deals, logistics, testEngine, tripId } = await prepareFundedTrip();
     const readDeal = async (): Promise<Deal | undefined> => (await deals.getDeal({ dealId }, CUSTOMER_CALL)).deal;

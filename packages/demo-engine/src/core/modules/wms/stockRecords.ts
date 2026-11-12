@@ -11,13 +11,13 @@ import { inventoryChannel } from '@skladburg/contracts/runtime';
 import {
   type StockBalance,
   StockBalanceSchema,
+  type StockLine,
   type StockMovement,
   type StockMovementKind,
   StockMovementSchema,
 } from '@skladburg/contracts/wms/v1/stock';
 import { StockChangedSchema } from '@skladburg/contracts/wms/v1/stock_events';
 
-import type { PermissionCallerValue } from '../../access/index';
 import type { IDomainErrors } from '../../errors/index';
 import type { IStateTransaction } from '../../state/index';
 import type { WarehouseStockRecordValue } from '../../state/records';
@@ -25,6 +25,8 @@ import type {
   IEventOutbox,
   IModuleRuntime,
 } from '../moduleRuntime';
+
+import { createCatalogChangePublisher } from '../catalog/catalogEvents';
 
 export const buildSsccKey = (tenantId: string, sscc: string): string => JSON.stringify([tenantId, sscc]);
 
@@ -60,9 +62,11 @@ export const readStockMovement = (
 };
 
 interface MovementBasisValue {
+  dealId?: string | undefined;
   fromCellId: string | undefined;
   isEventDeferred?: boolean | undefined;
   kind: StockMovementKind;
+  lines?: StockLine[] | undefined;
   sourceDocumentNumber: string;
 }
 
@@ -76,7 +80,7 @@ export const publishStockChanged = (transaction: IStateTransaction, outbox: IEve
 export const recordStockMovement = (
   transaction: IStateTransaction,
   runtime: IModuleRuntime,
-  caller: PermissionCallerValue,
+  actorUserId: string,
   balance: StockBalance,
   basis: MovementBasisValue,
 ): StockMovement => {
@@ -89,16 +93,16 @@ export const recordStockMovement = (
   }
 
   const { warehouseId } = handlingUnit;
-  const { isEventDeferred, ...movementBasis } = basis;
+  const { isEventDeferred, lines, ...movementBasis } = basis;
   const occurredAt = timestampFromMs(transaction.worldTimeMs);
   const movement = create(StockMovementSchema, {
     ...movementBasis,
-    actorUserId: caller.user.id,
+    actorUserId,
     handlingUnit,
     id,
-    lines: balance.lines,
+    lines: lines ?? balance.lines,
     occurredAt,
-    tenantId: caller.organizationId,
+    tenantId: handlingUnit.tenantId,
     toCellId: balance.cellId,
     warehouseId,
   });
@@ -106,7 +110,7 @@ export const recordStockMovement = (
   transaction.put('stockBalances', {
     bytes: toBinary(StockBalanceSchema, balance),
     id: handlingUnit.id,
-    lookupKey: buildSsccKey(caller.organizationId, handlingUnit.sscc),
+    lookupKey: buildSsccKey(handlingUnit.tenantId, handlingUnit.sscc),
     scopeId: warehouseId,
   });
   transaction.put('stockMovements', {
@@ -120,4 +124,16 @@ export const recordStockMovement = (
   }
 
   return movement;
+};
+
+export const publishStockAvailabilityChanged = (
+  transaction: IStateTransaction,
+  runtime: IModuleRuntime,
+  warehouseId: string,
+  tenantId: string,
+): void => {
+  publishStockChanged(transaction, runtime.outbox, warehouseId);
+  if (runtime.wmsOutboundWarehouseIds?.has(warehouseId) === true) {
+    createCatalogChangePublisher(runtime.outbox)(transaction, tenantId, true);
+  }
 };

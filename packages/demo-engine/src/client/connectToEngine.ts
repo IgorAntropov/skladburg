@@ -22,7 +22,6 @@ import type {
 
 import {
   decodeErrorDetail,
-  decodeEvent,
   ENGINE_REQUEST_TIMEOUT_MS,
   EngineControlCommand,
   parseEngineHostMessage,
@@ -55,6 +54,8 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
   const subscriptions = new Map<string, EngineSubscriptionHandlersValue>();
   const resetListeners = new Set<(epoch: string) => void>();
   const statusListeners = new Set<(status: EngineConnectionStatusValue) => void>();
+  let decodeEvent: typeof import('../protocol/decodeEvent').decodeEvent | undefined;
+  let waitingForEventCodec: EngineHostMessageValue[] | undefined;
   let lastStatus: EngineConnectionStatusValue | undefined;
   let isClosed = false;
   let idCounter = 0;
@@ -268,9 +269,10 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
       case 'events': {
         const handlers = subscriptions.get(message.subscriptionId);
 
-        if (handlers !== undefined) {
+        const decode = decodeEvent;
+        if (handlers !== undefined && decode !== undefined) {
           invokeHandler('onEvents', () => {
-            handlers.onEvents(message.events.map(decodeEvent));
+            handlers.onEvents(message.events.map(decode));
           });
         }
 
@@ -318,10 +320,49 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
     }
   };
 
+  const drainHostMessages = (): void => {
+    const messages = waitingForEventCodec;
+    waitingForEventCodec = undefined;
+    for (const message of messages ?? []) {
+      if (isClosed) {
+        return;
+      }
+      handleHostMessage(message);
+    }
+  };
+
   const handleMessage = (event: MessageEvent): void => {
     const message = parseEngineHostMessage(event.data);
+    if (message === undefined) {
+      return;
+    }
 
-    if (message !== undefined) {
+    const isRealtimeMessage = message.type === 'events' || message.type === 'subscribed'
+      || message.type === 'subscription_denied' || message.type === 'reset_done';
+    if (!isRealtimeMessage) {
+      if (message.type === 'engine_unavailable' && waitingForEventCodec !== undefined) {
+        waitingForEventCodec.length = 0;
+      }
+      handleHostMessage(message);
+    }
+    else if (waitingForEventCodec !== undefined) {
+      waitingForEventCodec.push(message);
+    }
+    else if (message.type === 'events' && decodeEvent === undefined && subscriptions.has(message.subscriptionId)) {
+      waitingForEventCodec = [message];
+      void import('../protocol/decodeEvent').then((codec) => {
+        decodeEvent = codec.decodeEvent;
+        drainHostMessages();
+      }, (error: unknown) => {
+        console.log('> EngineConnection -> loadEventCodec:', { error });
+        drainHostMessages();
+        if (!isClosed) {
+          publishStatus({ reason: 'start_failed', state: 'unavailable' });
+          rejectPendingReplies('the realtime decoder could not be loaded', true);
+        }
+      });
+    }
+    else {
       handleHostMessage(message);
     }
   };
@@ -332,6 +373,7 @@ export const connectToEngine = (port: IEnginePort, options: EngineConnectionOpti
     }
 
     isClosed = true;
+    waitingForEventCodec = undefined;
     port.removeEventListener('message', handleMessage);
 
     rejectPendingReplies('the connection is closed', false);

@@ -96,6 +96,7 @@ type UnseededTableName
     | 'transportOffers'
     | 'transportRequests'
     | 'trips'
+    | 'warehouseOutbound'
     | 'warehouseTopologies';
 
 export const createSeedRecords = (worldStartMs = SEED_WORLD_START_MS): SeedRecordsValue => ({

@@ -27,6 +27,9 @@ enum StockMovementKind {
   STOCK_MOVEMENT_KIND_UNSPECIFIED = 0;
   STOCK_MOVEMENT_KIND_OPENING_BALANCE = 1;
   STOCK_MOVEMENT_KIND_TRANSFER = 2;
+  STOCK_MOVEMENT_KIND_RESERVE = 3;
+  STOCK_MOVEMENT_KIND_RELEASE_RESERVATION = 4;
+  STOCK_MOVEMENT_KIND_SHIPMENT = 5;
 }
 
 message Batch {
@@ -71,6 +74,7 @@ message StockMovement {
   string source_document_number = 9;
   string actor_user_id = 10;
   google.protobuf.Timestamp occurred_at = 11;
+  optional string deal_id = 12;
 }
 
 message OpeningStockLine {

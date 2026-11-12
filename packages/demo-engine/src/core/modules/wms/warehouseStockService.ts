@@ -20,7 +20,6 @@ import {
 } from '../../router/engineRouter';
 import { compareIds } from '../../state/index';
 import { paginate } from '../pagination';
-import { moveHandlingUnit } from './moveHandlingUnit';
 import {
   readStockBalance,
   readStockMovement,
@@ -33,11 +32,12 @@ export const createWarehouseStockService = (runtime: IModuleRuntime): ServiceImp
   return {
     listStockBalances: (request, context) => {
       const caller = guard.guardPermissionCall(read, method.listStockBalances, request, context.requestHeader);
-      const records = read.listBy('stockBalances', 'scopeId', request.warehouseId);
-      const { items, page } = paginate(records, record => record.id, request.page, errors);
-      const balances = items.map(record => readStockBalance(record, caller.organizationId, errors));
+      const active = read.listBy('stockBalances', 'scopeId', request.warehouseId)
+        .map(record => ({ balance: readStockBalance(record, caller.organizationId, errors), id: record.id }))
+        .filter(({ balance }) => balance.lines.length > 0);
+      const { items, page } = paginate(active, record => record.id, request.page, errors);
 
-      return create(ListStockBalancesResponseSchema, { balances, page });
+      return create(ListStockBalancesResponseSchema, { balances: items.map(({ balance }) => balance), page });
     },
     listStockMovements: (request, context) => {
       const caller = guard.guardPermissionCall(read, method.listStockMovements, request, context.requestHeader);
@@ -49,17 +49,20 @@ export const createWarehouseStockService = (runtime: IModuleRuntime): ServiceImp
 
       return create(ListStockMovementsResponseSchema, { movements, page });
     },
-    moveHandlingUnit: (request, context) => command((transaction) => {
-      const caller = guard.guardPermissionCall(transaction, method.moveHandlingUnit, request, context.requestHeader);
+    moveHandlingUnit: async (request, context) => {
+      const { moveHandlingUnit } = await import('./moveHandlingUnit');
+      return command((transaction) => {
+        const caller = guard.guardPermissionCall(transaction, method.moveHandlingUnit, request, context.requestHeader);
 
-      return idempotency.run(transaction, {
-        handler: () => moveHandlingUnit(transaction, runtime, caller, request),
-        idempotencyKey: request.idempotencyKey,
-        method: method.moveHandlingUnit,
-        request,
-        scope: caller.organizationId,
+        return idempotency.run(transaction, {
+          handler: () => moveHandlingUnit(transaction, runtime, caller, request),
+          idempotencyKey: request.idempotencyKey,
+          method: method.moveHandlingUnit,
+          request,
+          scope: caller.organizationId,
+        });
       });
-    }),
+    },
     postOpeningStock: async (request, context) => {
       const { postOpeningStock } = await import('./postOpeningStock');
       return command((transaction) => {

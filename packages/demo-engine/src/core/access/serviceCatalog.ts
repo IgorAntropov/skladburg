@@ -18,6 +18,7 @@ import { OrganizationShowcaseService } from '@skladburg/contracts/organization/v
 import { PaymentService } from '@skladburg/contracts/payment/v1/payment';
 import { SupportAccessService } from '@skladburg/contracts/support/v1/support_access';
 import { SupportTicketService } from '@skladburg/contracts/support/v1/support_ticket';
+import { WarehousePickingService } from '@skladburg/contracts/wms/v1/picking';
 import { WarehouseStockService } from '@skladburg/contracts/wms/v1/stock';
 import { WarehouseTopologyService } from '@skladburg/contracts/wms/v1/topology';
 
@@ -40,6 +41,7 @@ export const ENGINE_SERVICES: readonly DescService[] = [
   SupportAccessService,
   SupportTicketService,
   UserProfileService,
+  WarehousePickingService,
   WarehouseStockService,
   WarehouseTopologyService,
 ];

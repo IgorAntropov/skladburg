@@ -1,8 +1,6 @@
 export {
   decodeErrorDetail,
-  decodeEvent,
   encodeErrorDetail,
-  encodeEvent,
 } from './codecs';
 export {
   DEMO_USER_HEADER,
@@ -12,6 +10,7 @@ export {
   ENGINE_PROTOCOL_VERSION,
   ENGINE_REQUEST_TIMEOUT_MS,
 } from './constants';
+export { encodeEvent } from './eventCodec';
 export {
   restoreRequest,
   restoreResponse,

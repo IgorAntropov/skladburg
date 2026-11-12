@@ -100,6 +100,7 @@ const createTables = (): TablesValue => ({
   trips: createTable(TABLE_DEFINITIONS.trips),
   users: createTable(TABLE_DEFINITIONS.users),
   vehicles: createTable(TABLE_DEFINITIONS.vehicles),
+  warehouseOutbound: createTable(TABLE_DEFINITIONS.warehouseOutbound),
   warehouses: createTable(TABLE_DEFINITIONS.warehouses),
   warehouseTopologies: createTable(TABLE_DEFINITIONS.warehouseTopologies),
 });
@@ -145,6 +146,7 @@ const createOverlays = (tables: TablesValue): OverlaysValue => ({
   trips: tables.trips.createOverlay(),
   users: tables.users.createOverlay(),
   vehicles: tables.vehicles.createOverlay(),
+  warehouseOutbound: tables.warehouseOutbound.createOverlay(),
   warehouses: tables.warehouses.createOverlay(),
   warehouseTopologies: tables.warehouseTopologies.createOverlay(),
 });

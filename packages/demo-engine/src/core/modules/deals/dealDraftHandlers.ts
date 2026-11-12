@@ -17,6 +17,7 @@ import {
 import { DealChange } from '@skladburg/contracts/deal/v1/deal_events';
 
 import type { IModuleRuntime } from '../moduleRuntime';
+import type { DealAvailabilityValue } from './dealCatalog';
 
 import { markImportedListingsUsed } from '../import/index';
 import { requireDealPartyProfiles } from './dealAccess';
@@ -33,8 +34,10 @@ import {
 } from './dealProducts';
 import { sumDealLines } from './dealRules';
 
-export const createDealDraftHandlers = (runtime: IModuleRuntime): Pick<ServiceImpl<typeof DealService>,
-  'createDealDraft' | 'updateDealDraft'> => ({
+export const createDealDraftHandlers = (
+  runtime: IModuleRuntime,
+  availabilityFor: DealAvailabilityValue | undefined,
+): Pick<ServiceImpl<typeof DealService>, 'createDealDraft' | 'updateDealDraft'> => ({
   createDealDraft: (request, context) => runtime.command((transaction) => {
     const caller = runtime.guard.guardPermissionCall(transaction, DealService.method.createDealDraft, request, context.requestHeader);
     if (caller.admission.kind !== 'membership') {
@@ -55,8 +58,8 @@ export const createDealDraftHandlers = (runtime: IModuleRuntime): Pick<ServiceIm
         requireDealPartyProfiles(transaction, runtime.errors, request.supplierOrganizationId, caller.organizationId);
         const dealContext = { ...request, customerOrganizationId: caller.organizationId };
         checkDealDate(runtime, transaction, dealContext, request.desiredDate);
-        const lines = buildDraftLines(runtime, transaction, dealContext, request.lines, []);
-        const deliveryTotal = quoteDealDelivery(runtime, transaction, dealContext, lines);
+        const lines = buildDraftLines(runtime, transaction, dealContext, request.lines, [], availabilityFor);
+        const deliveryTotal = quoteDealDelivery(runtime, transaction, dealContext, lines, availabilityFor);
         const goodsTotal = sumDealLines(runtime.errors, lines, deliveryTotal);
         linkDealProducts(runtime, transaction, caller.organizationId, request.supplierOrganizationId, lines);
         markImportedListingsUsed(transaction, request.supplierOrganizationId, lines.map(line => line.listingId));
@@ -102,8 +105,8 @@ export const createDealDraftHandlers = (runtime: IModuleRuntime): Pick<ServiceIm
       next.shipToWarehouseId = request.shipToWarehouseId;
       next.desiredDate = request.desiredDate;
       checkDealDate(runtime, transaction, next, next.desiredDate);
-      next.lines = buildDraftLines(runtime, transaction, next, request.lines, deal.lines);
-      next.deliveryTotal = quoteDealDelivery(runtime, transaction, next, next.lines);
+      next.lines = buildDraftLines(runtime, transaction, next, request.lines, deal.lines, availabilityFor);
+      next.deliveryTotal = quoteDealDelivery(runtime, transaction, next, next.lines, availabilityFor);
       next.goodsTotal = sumDealLines(runtime.errors, next.lines, next.deliveryTotal);
       linkDealProducts(runtime, transaction, caller.organizationId, deal.supplierOrganizationId, next.lines);
       markImportedListingsUsed(transaction, deal.supplierOrganizationId, next.lines.map(line => line.listingId));

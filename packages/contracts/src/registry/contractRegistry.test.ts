@@ -284,6 +284,8 @@ it('preserves every request descriptor and its dependencies while removing respo
   const restored = createValidationContractRegistry(new Uint8Array(inflateSync(compressedValidation)));
   expect(restored.getMessage('wms.v1.ListStockBalancesResponse')).toBeUndefined();
   expect(registry.getMessage('wms.v1.ListStockBalancesResponse')).toBeDefined();
+  expect(restored.getMessage('wms.v1.ListPickingTasksResponse')).toBeUndefined();
+  expect(registry.getMessage('wms.v1.ListPickingTasksResponse')).toBeDefined();
 
   for (const file of registry.files) {
     if (!isExternalFile(file)) {

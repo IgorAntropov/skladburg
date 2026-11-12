@@ -3,6 +3,7 @@ import type {
   Listing,
   ListingPrice,
   Product,
+  WarehouseAvailability,
 } from '@skladburg/contracts/catalog/v1/catalog';
 import type { ShowcaseListing } from '@skladburg/contracts/catalog/v1/showcase';
 import type { Organization } from '@skladburg/contracts/organization/v1/organization';
@@ -105,8 +106,10 @@ export const createCatalogShowcaseService = (runtime: IModuleRuntime): ServiceIm
     quantity: bigint,
     destination: ShowcaseDestinationValue,
     records: ISupplierRecords,
+    availability: readonly WarehouseAvailability[] | undefined,
   ): ShowcaseListing => projectShowcaseListing({
     ...pair,
+    availability,
     destination,
     quantity,
     terms: records.getSalesTerms(pair.listing.tenantId),
@@ -114,8 +117,13 @@ export const createCatalogShowcaseService = (runtime: IModuleRuntime): ServiceIm
     worldTimeMs: getWorldTimeMs(),
   });
 
+  const loadAvailability = async (): Promise<((listing: Listing) => readonly WarehouseAvailability[]) | undefined> =>
+    runtime.wmsOutboundWarehouseIds === undefined
+      ? undefined
+      : (await import('../../wms/outboundAvailability')).createOutboundAvailability(runtime, read);
+
   return {
-    getShowcaseListing: (request, context) => {
+    getShowcaseListing: async (request, context) => {
       const caller = guard.guardPermissionCall(read, ShowcaseService.method.getShowcaseListing, request, context.requestHeader);
       const destination = resolveShowcaseDestination(runtime, caller.organizationId, request.toWarehouseId);
       const records = createSupplierRecords(read);
@@ -134,11 +142,13 @@ export const createCatalogShowcaseService = (runtime: IModuleRuntime): ServiceIm
         throw errors.validationFailed(violations);
       }
 
+      const availabilityFor = await loadAvailability();
+      const quantity = isMinimumRequested ? minOrderQuantity : request.quantity;
       return create(GetShowcaseListingResponseSchema, {
-        listing: project(pair, isMinimumRequested ? minOrderQuantity : request.quantity, destination, records),
+        listing: project(pair, quantity, destination, records, availabilityFor?.(pair.listing)),
       });
     },
-    listShowcaseListings: (request, context) => {
+    listShowcaseListings: async (request, context) => {
       const caller = guard.guardPermissionCall(read, ShowcaseService.method.listShowcaseListings, request, context.requestHeader);
       const destination = resolveShowcaseDestination(runtime, caller.organizationId, request.toWarehouseId);
       const viewer = readViewer(caller.organizationId);
@@ -157,8 +167,9 @@ export const createCatalogShowcaseService = (runtime: IModuleRuntime): ServiceIm
         .sort((current, prev) => compareProductsByName(current.product, prev.product));
       const { items, page } = paginate(pairs, pair => pair.listing.id, request.page, errors);
 
+      const availabilityFor = await loadAvailability();
       return create(ListShowcaseListingsResponseSchema, {
-        listings: items.map(pair => project(pair, pair.listing.minOrderQuantity, destination, records)),
+        listings: items.map(pair => project(pair, pair.listing.minOrderQuantity, destination, records, availabilityFor?.(pair.listing))),
         page,
       });
     },

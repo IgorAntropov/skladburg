@@ -488,6 +488,7 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     { databaseVersion: 15, schemaVersion: 17 },
     { databaseVersion: 16, schemaVersion: 18 },
     { databaseVersion: 17, schemaVersion: 19 },
+    { databaseVersion: 18, schemaVersion: 21 },
   ])('adds missing collections to v$databaseVersion and preserves prior records', async ({ databaseVersion, schemaVersion }) => {
     const factory = new IDBFactory();
     const seed = createSeedSnapshot();
@@ -498,7 +499,10 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     const hasMarketplace = databaseVersion >= 15;
     const request = factory.open(DATABASE_NAME, databaseVersion);
     request.addEventListener('upgradeneeded', () => {
-      const missingStores = ['stockBalances', 'stockBatches', 'stockMovements'];
+      const missingStores = ['warehouseOutbound'];
+      if (databaseVersion < 18) {
+        missingStores.push('stockBalances', 'stockBatches', 'stockMovements');
+      }
       if (databaseVersion < 17) {
         missingStores.push('warehouseTopologies');
       }
@@ -524,6 +528,9 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
       meta.put(schemaVersion, 'schemaVersion');
       meta.put(seed.meta, 'engineMeta');
       request.transaction?.objectStore('deals').put(bytes, 'a');
+      if (databaseVersion === 18) {
+        request.transaction?.objectStore('stockBalances').put(bytes, 'a');
+      }
       if (!isBeforeDocuments) {
         request.transaction?.objectStore('documents').put(bytes, 'a');
         request.transaction?.objectStore('documentNumbers').put(bytes, 'a');
@@ -554,7 +561,8 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     expect(loaded?.schemaVersion).toBe(databaseVersion < 13 ? 15 : schemaVersion);
     expect(loaded?.meta).toEqual(seed.meta);
     expect(loaded?.collections.warehouseTopologies).toEqual(new Map());
-    expect(loaded?.collections.stockBalances).toEqual(new Map());
+    expect(loaded?.collections.stockBalances.get('a')).toEqual(databaseVersion === 18 ? bytes : undefined);
+    expect(loaded?.collections.warehouseOutbound).toEqual(new Map());
     expect(loaded?.collections.stockBatches).toEqual(new Map());
     expect(loaded?.collections.stockMovements).toEqual(new Map());
     expect(loaded?.collections.deals.get('a')).toEqual(bytes);

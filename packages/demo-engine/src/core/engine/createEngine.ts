@@ -150,7 +150,7 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
   return createSeedSnapshotWithTopology(seed);
 };
 
-const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20];
+const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21];
 
 const loadOrSeedSnapshot = async (
   options: CreateEngineOptionsValue,
@@ -218,6 +218,9 @@ export const createEngineWithTasks = async (
     storage,
   });
   const validator = createRequestValidator(errors, await getEngineContractRegistry());
+  const outbound = options.wmsOutboundWarehouseIds !== undefined || snapshot.collections.warehouseOutbound.size > 0
+    ? await import('../modules/wms/outboundRecords')
+    : undefined;
   const runtime: IModuleRuntime = {
     command,
     errors,
@@ -229,10 +232,12 @@ export const createEngineWithTasks = async (
     }),
     idempotency: createIdempotencyGuard(errors),
     notifier: createNotifier({ outbox: bus.outbox, random }),
+    openOutboundTask: outbound?.openOutboundTask,
     outbox: bus.outbox,
     paymentProvider: createDemoPaymentProvider(random),
     random,
     read: state.read,
+    wmsOutboundWarehouseIds: options.wmsOutboundWarehouseIds === undefined ? undefined : new Set(options.wmsOutboundWarehouseIds),
   };
   const supportAudit = createSupportAuditInterceptor(runtime);
   const handler = createEngineHandler({
@@ -306,12 +311,18 @@ export const createEngineWithTasks = async (
 
   const logisticsHandler = deferEngineHandler(async () =>
     (await import('../modules/logistics/index')).createLogisticsHandler(runtime, supportAudit));
+  const warehousePickingHandler = deferEngineHandler(async () =>
+    (await import('../modules/wms/warehousePickingService')).createWarehousePickingHandler(runtime, supportAudit));
   const warehouseStockHandler = deferEngineHandler(async () =>
     (await import('../modules/wms/warehouseStockService')).createWarehouseStockHandler(runtime, supportAudit));
   const warehouseTopologyHandler = deferEngineHandler(async () =>
     (await import('../modules/wms/warehouseTopologyService')).createWarehouseTopologyHandler(runtime, supportAudit));
   const handle = (request: Request): Promise<Response> => queue.enqueue(() => {
     const { pathname } = new URL(request.url);
+
+    if (pathname.startsWith('/wms.v1.WarehousePickingService/')) {
+      return warehousePickingHandler(request);
+    }
 
     if (pathname.startsWith('/wms.v1.WarehouseStockService/')) {
       return warehouseStockHandler(request);

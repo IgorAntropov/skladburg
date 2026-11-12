@@ -6,6 +6,7 @@ import {
   create,
 } from '@bufbuild/protobuf';
 import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
+import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import {
   AcceptDealResponseSchema,
   CancelDealResponseSchema,
@@ -67,18 +68,22 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
       });
     },
     cancelDeal: async (request, context) => {
-      const [{ annulDealDocuments }, { cancelTransportRequest }] = await Promise.all([
+      const [{ annulDealDocuments }, { cancelTransportRequest }, { refundDealPayment }, outbound] = await Promise.all([
         loadDocuments(),
         import('../logistics/transportLifecycle'),
+        loadPayments(),
+        runtime.openOutboundTask === undefined ? undefined : import('../wms/outboundReservation'),
       ]);
-      const payment = runtime.read.get('payments', request.dealId);
-      const payments = payment === undefined ? undefined : await loadPayments();
       return runDealCommand(runtime, {
         command: 'cancelDeal',
-        handle: (transaction, _caller, deal) => {
+        handle: (transaction, caller, deal) => {
+          if (outbound !== undefined) {
+            const actorUserId = caller.organizationId === deal.supplierOrganizationId ? caller.user.id : '';
+            outbound.cancelOutboundReservation(transaction, runtime, deal, actorUserId);
+          }
           annulDealDocuments(transaction, deal);
           cancelTransportRequest(runtime, transaction, deal.id);
-          payments?.refundDealPayment(runtime, transaction, deal);
+          refundDealPayment(runtime, transaction, deal);
           return endNegotiation(transaction, deal);
         },
         headers: context.requestHeader,
@@ -150,6 +155,9 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
         command: 'markDealShipped',
         handle: (transaction, _caller, deal) => {
           const next = clone(DealSchema, deal);
+          if (transaction.get('warehouseOutbound', deal.id) !== undefined) {
+            throw runtime.errors.invalidTransition(EntityKind.DEAL, DealStatus[deal.status], DealStatus[DealStatus.SHIPPED]);
+          }
           holdPaymentForShipment(runtime, transaction, next);
           return next;
         },

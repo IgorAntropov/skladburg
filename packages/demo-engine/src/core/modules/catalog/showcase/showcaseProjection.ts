@@ -3,6 +3,7 @@ import type {
   ListingPrice,
   Product,
   SalesTerms,
+  WarehouseAvailability,
 } from '@skladburg/contracts/catalog/v1/catalog';
 import type { Money } from '@skladburg/contracts/common/v1/money';
 import type {
@@ -49,6 +50,7 @@ import {
 } from '../quote/index';
 
 export interface ShowcaseProjectionInputValue {
+  availability?: readonly WarehouseAvailability[] | undefined;
   destination: ShowcaseDestinationValue;
   listing: Listing;
   listingPrice: ListingPrice;
@@ -108,7 +110,7 @@ const buildQuotes = (
 
 export const projectShowcaseListing = (input: ShowcaseProjectionInputValue): ShowcaseListing => {
   const { listing, listingPrice, product, supplier } = input;
-  const cities = projectCityAvailability(listing.availability, input.warehouses);
+  const cities = projectCityAvailability(input.availability ?? listing.availability, input.warehouses);
   const supplierProfile = supplier.profiles.find(profile => profile.kind === ProfileKind.SUPPLIER);
 
   return create(ShowcaseListingSchema, {

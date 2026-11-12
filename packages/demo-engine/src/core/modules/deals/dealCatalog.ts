@@ -1,6 +1,7 @@
 import type {
   Listing,
   Product,
+  WarehouseAvailability,
 } from '@skladburg/contracts/catalog/v1/catalog';
 import type { CalendarDate } from '@skladburg/contracts/common/v1/date';
 import type { Money } from '@skladburg/contracts/common/v1/money';
@@ -46,6 +47,8 @@ import {
   failDealValidation,
   rub,
 } from './dealRules';
+
+export type DealAvailabilityValue = (reader: IStateReader) => (listing: Listing) => readonly WarehouseAvailability[];
 
 interface DealCatalogContextValue {
   customerOrganizationId: string;
@@ -119,12 +122,12 @@ const checkAvailability = (
   runtime: IModuleRuntime,
   reader: IStateReader,
   context: DealCatalogContextValue,
-  listing: Listing,
+  availability: readonly WarehouseAvailability[],
   quantity: bigint,
   warehouseId: string | undefined,
   index: number,
 ): void => {
-  const available = listing.availability.filter((entry) => {
+  const available = availability.filter((entry) => {
     const warehouse = reader.get('warehouses', entry.warehouseId);
     return warehouse?.tenantId === context.supplierOrganizationId && warehouse.cityId === context.shipFromCityId
       && (warehouseId === undefined || warehouse.id === warehouseId);
@@ -142,7 +145,9 @@ export const buildDraftLines = (
   context: DealCatalogContextValue,
   requested: readonly DraftDealLine[],
   previous: readonly DealLine[],
+  availabilityFor: DealAvailabilityValue | undefined,
 ): DealLine[] => {
+  const project = availabilityFor?.(reader);
   const seen = new Set<string>();
   return requested.map((request, index) => {
     if (seen.has(request.listingId)) {
@@ -151,7 +156,7 @@ export const buildDraftLines = (
     seen.add(request.listingId);
     const { listing, product } = readDealPair(runtime, reader, context, request.listingId);
     checkQuantity(runtime, listing, request.quantity, index);
-    checkAvailability(runtime, reader, context, listing, request.quantity, undefined, index);
+    checkAvailability(runtime, reader, context, project?.(listing) ?? listing.availability, request.quantity, undefined, index);
     const price = resolveTier(reader.get('listingPrices', listing.id)?.tiers ?? [], request.quantity)?.price;
     const coefficient = listing.priceUnit?.baseQuantity;
     if (price === undefined || coefficient === undefined || coefficient <= 0n) {
@@ -177,6 +182,7 @@ export const checkCurrentDealLines = (
   deal: Deal,
   lines: readonly DealLine[],
   warehouseId: string | undefined,
+  availabilityFor: DealAvailabilityValue | undefined,
 ): void => {
   if (warehouseId !== undefined) {
     const warehouse = reader.get('warehouses', warehouseId);
@@ -184,10 +190,11 @@ export const checkCurrentDealLines = (
       failDealValidation(runtime.errors, 'ship_from_warehouse_id', 'deal.warehouse.unavailable');
     }
   }
+  const project = availabilityFor?.(reader);
   lines.forEach((line, index) => {
     const { listing, product } = readDealPair(runtime, reader, deal, line.listingId);
     checkQuantity(runtime, listing, line.quantity, index);
-    checkAvailability(runtime, reader, deal, listing, line.quantity, warehouseId, index);
+    checkAvailability(runtime, reader, deal, project?.(listing) ?? listing.availability, line.quantity, warehouseId, index);
     if (line.productSnapshot?.baseUnit !== product.baseUnit || line.priceUnitCoefficient !== listing.priceUnit?.baseQuantity) {
       failDealValidation(runtime.errors, 'lines', 'deal.product.unit_mismatch');
     }
@@ -234,6 +241,7 @@ export const quoteDealDelivery = (
   reader: IStateReader,
   context: DealCatalogContextValue,
   lines: readonly DealLine[],
+  availabilityFor: DealAvailabilityValue | undefined,
 ): Money | undefined => {
   const destination = readDestination(runtime, reader, context);
   const line = lines[0];
@@ -244,7 +252,7 @@ export const quoteDealDelivery = (
   const terms = readSalesTerms(reader, context.supplierOrganizationId);
   const quote = quoteListing({
     calendar: RU_BUSINESS_CALENDAR,
-    cities: projectCityAvailability(listing.availability,
+    cities: projectCityAvailability(availabilityFor?.(reader)(listing) ?? listing.availability,
       new Map(reader.listBy('warehouses', 'tenantId', context.supplierOrganizationId).map(warehouse => [warehouse.id, warehouse]))),
     ownDelivery: terms.ownDelivery,
     preparationWorkingDays: terms.preparationWorkingDays,

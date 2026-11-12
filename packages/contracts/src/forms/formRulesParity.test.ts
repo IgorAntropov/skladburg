@@ -618,6 +618,7 @@ const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
   'wms.v1.PostOpeningStockRequest.lines',
   'wms.v1.ListStockBalancesRequest.page',
   'wms.v1.ListStockMovementsRequest.page',
+  'wms.v1.ListPickingTasksRequest.page',
   'wms.v1.WarehouseFloorRect.origin',
   'wms.v1.WarehouseRack.footprint',
   'wms.v1.WarehouseRack.footprint.origin',

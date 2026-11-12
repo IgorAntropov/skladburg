@@ -24,6 +24,7 @@ import { isDealVisibleToOrganization } from '../modules/deals/index';
 import { isProfileVerified } from '../visibility/index';
 
 export const WAREHOUSE_CHANNEL_PERMISSION = getPermissionName(PermissionCode.WAREHOUSE_VIEW);
+const TASK_CHANNEL_PERMISSION = getPermissionName(PermissionCode.TASK_VIEW);
 const INVENTORY_CHANNEL_PERMISSION = getPermissionName(PermissionCode.INVENTORY_VIEW);
 export const MARKET_CHANNEL_PERMISSION = getPermissionName(PermissionCode.MARKETPLACE_VIEW);
 export const DEAL_CHANNEL_PERMISSION = getPermissionName(PermissionCode.DEAL_VIEW);
@@ -164,12 +165,13 @@ export const createSubscriptionAccess = (errors: IDomainErrors): ISubscriptionAc
       return;
     }
 
-    if (parsed.kind === 'inventory') {
+    if (parsed.kind === 'inventory' || parsed.kind === 'tasks') {
       if (organizationId === undefined || supportSessionId !== undefined) {
         throw errors.membershipRequired();
       }
 
-      evaluateWarehouse(reader, parsed.warehouseId, userId, INVENTORY_CHANNEL_PERMISSION, organizationId);
+      const permission = parsed.kind === 'inventory' ? INVENTORY_CHANNEL_PERMISSION : TASK_CHANNEL_PERMISSION;
+      evaluateWarehouse(reader, parsed.warehouseId, userId, permission, organizationId);
 
       return;
     }

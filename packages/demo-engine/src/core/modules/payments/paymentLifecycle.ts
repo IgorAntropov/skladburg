@@ -124,6 +124,7 @@ const processBankOperation = (runtime: IModuleRuntime, transaction: IStateTransa
   if (payment.status === SafeDealPaymentStatus.AWAITING_FUNDS && deal.status === DealStatus.AWAITING_PAYMENT) {
     advancePayment(runtime.errors, payment, 'block', transaction.worldTimeMs);
     advanceSystemDeal(runtime, transaction, deal, 'fund', DealNotice.FUNDS_BLOCKED);
+    runtime.openOutboundTask?.(transaction, runtime, deal.id);
   }
   else if (payment.status === SafeDealPaymentStatus.TO_PAYOUT && deal.status === DealStatus.SETTLEMENT) {
     advancePayment(runtime.errors, payment, 'payOut', transaction.worldTimeMs);

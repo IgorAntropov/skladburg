@@ -48,6 +48,14 @@ const customerOptions = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1
 
 const createCustomerHeaders = (): Headers => createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 
+const createDeferred = (): { promise: Promise<void>; resolve: () => void } => {
+  let resolve = (): void => undefined;
+  const promise = new Promise<void>((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+};
+
 interface RecordedHandlersValue {
   denied: ErrorDetail[];
   events: (readonly Event[])[];
@@ -88,6 +96,47 @@ afterEach(() => {
 });
 
 describe('connectToEngine subscriptions', () => {
+  it('keeps RPC responses available while loading the event decoder', async () => {
+    const started = createDeferred();
+    const release = createDeferred();
+    vi.doMock(import('../protocol/decodeEvent'), async (importOriginal) => {
+      const module = await importOriginal();
+      started.resolve();
+      await release.promise;
+      return module;
+    });
+
+    try {
+      const { connection, createOrganizationClient, stub } = await createClientHarness({ requestTimeoutMs: 1_000 });
+      const received: (bigint | string)[] = [];
+      const recorded = createRecordedHandlers();
+      connection.control.onReset(epoch => received.push(epoch));
+      connection.subscribe(CUSTOMER_CHANNEL, createCustomerHeaders(), {
+        ...recorded.handlers,
+        onEvents: (batch) => {
+          received.push(...batch.map(event => event.seq));
+        },
+      });
+      await vi.waitFor(() => {
+        expect(recorded.positions).toHaveLength(1);
+      });
+      const subscriptionId = stub.subscriptionIds()[0] ?? '';
+      stub.send({ events: [encodeEvent(create(EventSchema, { seq: 1n }))], subscriptionId, type: 'events' });
+      await started.promise;
+      stub.send({ epoch: 'epoch-2', type: 'reset_done' });
+      await expect(createOrganizationClient(true).listWarehouses({}, customerOptions)).resolves.toBeDefined();
+      expect(received).toEqual([]);
+      release.resolve();
+      await vi.waitFor(() => {
+        expect(received).toEqual([1n, 'epoch-2']);
+      });
+    }
+    finally {
+      release.resolve();
+      vi.doUnmock(import('../protocol/decodeEvent'));
+    }
+  });
+
   it('reports the epoch and the position of the channel, then delivers the event of a command as one batch with the next seq', async () => {
     const { connection, createOrganizationClient } = await createClientHarness();
     const recorded = createRecordedHandlers();

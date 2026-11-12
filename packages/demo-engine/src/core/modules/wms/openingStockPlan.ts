@@ -40,7 +40,7 @@ import {
 } from './stockLocations';
 import {
   buildSsccKey,
-  publishStockChanged,
+  publishStockAvailabilityChanged,
   recordStockMovement,
 } from './stockRecords';
 
@@ -262,7 +262,7 @@ export const applyOpeningStockPlan = (
   caller: PermissionCallerValue,
   plan: OpeningStockPlanValue,
 ): PostOpeningStockResponse[] => {
-  const { errors, outbox, random } = runtime;
+  const { errors, random } = runtime;
   const { tenantId, units, violations, warehouseId } = plan;
   if (caller.organizationId !== tenantId) {
     throw errors.internal();
@@ -295,7 +295,7 @@ export const applyOpeningStockPlan = (
       handlingUnit: { id, kind, sscc, tenantId, version: 1, warehouseId },
       lines: stockLines,
     });
-    const movement = recordStockMovement(transaction, runtime, caller, balance, {
+    const movement = recordStockMovement(transaction, runtime, caller.user.id, balance, {
       fromCellId: undefined,
       isEventDeferred: true,
       kind: StockMovementKind.OPENING_BALANCE,
@@ -306,7 +306,7 @@ export const applyOpeningStockPlan = (
   });
 
   if (responses.length > 0) {
-    publishStockChanged(transaction, outbox, warehouseId);
+    publishStockAvailabilityChanged(transaction, runtime, warehouseId, caller.organizationId);
   }
 
   return responses;

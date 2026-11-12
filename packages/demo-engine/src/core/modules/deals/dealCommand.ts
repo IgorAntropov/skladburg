@@ -3,7 +3,10 @@ import type {
   DescMethodUnary,
   MessageShape,
 } from '@bufbuild/protobuf';
-import type { Deal } from '@skladburg/contracts/deal/v1/deal';
+import type {
+  Deal,
+  DealStatus,
+} from '@skladburg/contracts/deal/v1/deal';
 import type { DealNotice } from '@skladburg/contracts/notification/v1/notification';
 
 import { create } from '@bufbuild/protobuf';
@@ -37,11 +40,45 @@ export interface DealCommandInputValue<TInput extends DescMessage, TOutput exten
   response: (deal: Deal, transaction: IStateTransaction) => MessageShape<TOutput>;
 }
 
+interface UserDealTransitionValue {
+  change: DealChange;
+  notice: DealNotice | undefined;
+  reason: string;
+  status: DealStatus;
+}
+
 interface VersionedDealRequestValue {
   dealId: string;
   expectedVersion: number;
   idempotencyKey: string;
 }
+
+export const writeUserDealTransition = (
+  runtime: IModuleRuntime,
+  transaction: IStateTransaction,
+  caller: PermissionCallerValue,
+  prev: Deal,
+  next: Deal,
+  transition: UserDealTransitionValue,
+): void => {
+  if (prev.version >= 2_147_483_647) {
+    throw runtime.errors.unavailable();
+  }
+  const at = timestampFromMs(runtime.getWorldTimeMs());
+  next.status = transition.status;
+  next.version = prev.version + 1;
+  next.updatedAt = at;
+  next.transitions.push(create(DealTransitionSchema, {
+    actorRoleName: dealActorRoleName(transaction, caller),
+    actorSide: prev.customerOrganizationId === caller.organizationId ? ProfileKind.CUSTOMER : ProfileKind.SUPPLIER,
+    at,
+    from: prev.status,
+    reason: transition.reason,
+    to: transition.status,
+  }));
+  transaction.put('deals', next);
+  publishDealEffects(runtime, transaction, next, transition.notice, transition.change, caller.organizationId);
+};
 
 export const runDealCommand = <TInput extends DescMessage, TOutput extends DescMessage>(
   runtime: IModuleRuntime,
@@ -60,24 +97,12 @@ export const runDealCommand = <TInput extends DescMessage, TOutput extends DescM
         requireDealPartyProfiles(transaction, runtime.errors, deal.supplierOrganizationId, deal.customerOrganizationId);
       }
       const next = input.handle(transaction, caller, deal);
-      if (deal.version >= 2_147_483_647) {
-        throw runtime.errors.unavailable();
-      }
-      const at = timestampFromMs(runtime.getWorldTimeMs());
-      next.status = transition.status;
-      next.version = deal.version + 1;
-      next.updatedAt = at;
-      next.transitions.push(create(DealTransitionSchema, {
-        actorRoleName: dealActorRoleName(transaction, caller),
-        actorSide: actorSide === 'customer' ? ProfileKind.CUSTOMER : ProfileKind.SUPPLIER,
-        at,
-        from: deal.status,
+      writeUserDealTransition(runtime, transaction, caller, deal, next, {
+        change: input.command === 'updateDealDraft' ? DealChange.LINES : DealChange.STATUS,
+        notice: input.notice,
         reason: input.reason ?? '',
-        to: transition.status,
-      }));
-      transaction.put('deals', next);
-      publishDealEffects(runtime, transaction, next, input.notice,
-        input.command === 'updateDealDraft' ? DealChange.LINES : DealChange.STATUS, caller.organizationId);
+        status: transition.status,
+      });
       return input.response(projectDeal(next, caller.organizationId), transaction);
     },
     idempotencyKey: input.request.idempotencyKey,

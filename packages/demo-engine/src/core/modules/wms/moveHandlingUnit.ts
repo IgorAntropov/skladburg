@@ -5,6 +5,7 @@ import {
   type MoveHandlingUnitResponse,
   MoveHandlingUnitResponseSchema,
   StockMovementKind,
+  StockStatus,
 } from '@skladburg/contracts/wms/v1/stock';
 
 import type { PermissionCallerValue } from '../../access/index';
@@ -37,6 +38,14 @@ export const moveHandlingUnit = (
   }
 
   const balance = readStockBalance(record, caller.organizationId, errors);
+  if (balance.lines.length === 0) {
+    throw errors.notFound(EntityKind.HANDLING_UNIT);
+  }
+
+  if (balance.lines.some(line => line.status === StockStatus.RESERVED)) {
+    throw errors.invalidTransition(EntityKind.HANDLING_UNIT, StockStatus[StockStatus.RESERVED], 'TRANSFER');
+  }
+
   const { handlingUnit } = balance;
 
   if (handlingUnit === undefined || handlingUnit.version >= MAX_HANDLING_UNIT_VERSION) {
@@ -57,7 +66,7 @@ export const moveHandlingUnit = (
 
   balance.cellId = toCellId;
   handlingUnit.version += 1;
-  const movement = recordStockMovement(transaction, runtime, caller, balance, {
+  const movement = recordStockMovement(transaction, runtime, caller.user.id, balance, {
     fromCellId,
     kind: StockMovementKind.TRANSFER,
     sourceDocumentNumber,

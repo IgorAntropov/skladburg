@@ -14,6 +14,7 @@ export interface CreateEngineOptionsValue {
   realTime: IRealTimeSource;
   seed?: EngineSeedValue;
   storage: IEngineStorage;
+  wmsOutboundWarehouseIds?: readonly string[] | undefined;
 }
 
 export interface IDemoEngine {

@@ -9,6 +9,7 @@ export {
   marketChannel,
   organizationChannel,
   parseChannel,
+  tasksChannel,
   userChannel,
   warehouseChannel,
 } from './channels';

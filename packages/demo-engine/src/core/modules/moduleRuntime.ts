@@ -10,6 +10,7 @@ import type {
   IStateTransaction,
 } from '../state/index';
 import type { INotifier } from './notifications/notifierTypes';
+import type { openOutboundTask } from './wms/outboundRecords';
 
 export interface IEventOutbox {
   add: (transaction: IStateTransaction, channel: string, payload: Event['payload']) => void;
@@ -22,8 +23,10 @@ export interface IModuleRuntime {
   guard: ICallGuard;
   idempotency: IIdempotencyGuard;
   notifier: INotifier;
+  openOutboundTask?: typeof openOutboundTask | undefined;
   outbox: IEventOutbox;
   paymentProvider: IPaymentProvider;
   random: IRandom;
   read: IStateReader;
+  wmsOutboundWarehouseIds?: ReadonlySet<string> | undefined;
 }

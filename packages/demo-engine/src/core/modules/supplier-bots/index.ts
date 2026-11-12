@@ -145,7 +145,20 @@ const respondToOrder = async (runtime: IModuleRuntime, deal: Deal): Promise<void
   if (deal.updatedAt === undefined || runtime.getWorldTimeMs() - timestampMs(deal.updatedAt) < RESPONSE_DELAY_MS) {
     return;
   }
-  const plan = planSupplierOrder(runtime.read, deal);
+  const warehouseIds = runtime.wmsOutboundWarehouseIds;
+  const outbound = warehouseIds === undefined
+    ? undefined
+    : await Promise.all([
+        import('../wms/outboundAvailability'),
+        import('../wms/outboundReservation'),
+      ]);
+  const availability = outbound?.[0].createOutboundAvailability(runtime, runtime.read);
+  const plan = planSupplierOrder(runtime.read, deal, availability, (warehouseId, lines) => {
+    if (warehouseIds?.has(warehouseId) !== true || outbound === undefined) {
+      return true;
+    }
+    return outbound[1].planOutboundStock(runtime.read, runtime, deal, warehouseId, lines, runtime.getWorldTimeMs()).kind === 'ready';
+  });
   if (plan === undefined) {
     return;
   }
@@ -211,7 +224,8 @@ const signDocuments = async (runtime: IModuleRuntime, deal: Deal, userId: string
 };
 
 const shipPaidOrder = async (runtime: IModuleRuntime, deal: Deal, userId: string): Promise<void> => {
-  if (runtime.read.get('payments', deal.id)?.payment?.status !== SafeDealPaymentStatus.BLOCKED) {
+  if (runtime.read.get('warehouseOutbound', deal.id) !== undefined
+    || runtime.read.get('payments', deal.id)?.payment?.status !== SafeDealPaymentStatus.BLOCKED) {
     return;
   }
   const service = createDealService(runtime);

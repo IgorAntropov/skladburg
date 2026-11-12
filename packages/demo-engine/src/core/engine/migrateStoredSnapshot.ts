@@ -8,6 +8,7 @@ const PRE_TRIPS_SCHEMA_VERSION = 17;
 const PRE_TOPOLOGY_SCHEMA_VERSION = 18;
 const PRE_STOCK_SCHEMA_VERSION = 19;
 const PRE_WAREHOUSE_IMPORT_SCHEMA_VERSION = 20;
+const PRE_WAREHOUSE_OUTBOUND_SCHEMA_VERSION = 21;
 
 const addStockCollections = (snapshot: EngineSnapshotValue): EngineSnapshotValue => ({
   ...snapshot,
@@ -16,13 +17,14 @@ const addStockCollections = (snapshot: EngineSnapshotValue): EngineSnapshotValue
     stockBalances: new Map(),
     stockBatches: new Map(),
     stockMovements: new Map(),
+    warehouseOutbound: new Map(),
   },
   schemaVersion: ENGINE_SCHEMA_VERSION,
 });
 
 export const migrateStoredSnapshot = async (stored: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
-  if (stored.schemaVersion === PRE_WAREHOUSE_IMPORT_SCHEMA_VERSION) {
-    return { ...stored, schemaVersion: ENGINE_SCHEMA_VERSION };
+  if (stored.schemaVersion === PRE_WAREHOUSE_IMPORT_SCHEMA_VERSION || stored.schemaVersion === PRE_WAREHOUSE_OUTBOUND_SCHEMA_VERSION) {
+    return { ...stored, collections: { ...stored.collections, warehouseOutbound: new Map() }, schemaVersion: ENGINE_SCHEMA_VERSION };
   }
 
   if (stored.schemaVersion === PRE_STOCK_SCHEMA_VERSION) {

@@ -46,6 +46,7 @@ import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
 import { SupportAccessService } from '@skladburg/contracts/support/v1/support_access';
 import { SupportTicketService } from '@skladburg/contracts/support/v1/support_ticket';
 import { WarehousePickingService } from '@skladburg/contracts/wms/v1/picking';
+import { WarehouseReceivingService } from '@skladburg/contracts/wms/v1/receiving';
 import { WarehouseStockService } from '@skladburg/contracts/wms/v1/stock';
 import { WarehouseTopologyService } from '@skladburg/contracts/wms/v1/topology';
 
@@ -78,6 +79,7 @@ import {
   createSupportTicketService,
 } from '../platform/index';
 import { createWarehousePickingService } from '../wms/warehousePickingService';
+import { createWarehouseReceivingService } from '../wms/warehouseReceivingService';
 import { createWarehouseStockService } from '../wms/warehouseStockService';
 import { createWarehouseTopologyService } from '../wms/warehouseTopologyService';
 import { createTestRuntime } from './testRuntime';
@@ -175,6 +177,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(SupportTicketService, createSupportTicketService(testRuntime.runtime));
     service(UserProfileService, createUserProfileService(testRuntime.runtime));
     service(WarehousePickingService, createWarehousePickingService(testRuntime.runtime));
+    service(WarehouseReceivingService, createWarehouseReceivingService(testRuntime.runtime));
     service(WarehouseStockService, createWarehouseStockService(testRuntime.runtime));
     service(WarehouseTopologyService, createWarehouseTopologyService(testRuntime.runtime));
   });

@@ -1,0 +1,166 @@
+syntax = "proto3";
+
+package wms.v1;
+
+import "buf/validate/validate.proto";
+import "catalog/v1/catalog.proto";
+import "common/v1/date.proto";
+import "common/v1/method_options.proto";
+import "common/v1/page.proto";
+import "google/protobuf/timestamp.proto";
+import "wms/v1/stock.proto";
+
+enum ReceivingTaskStatus {
+  RECEIVING_TASK_STATUS_UNSPECIFIED = 0;
+  RECEIVING_TASK_STATUS_OPEN = 1;
+  RECEIVING_TASK_STATUS_IN_PROGRESS = 2;
+  RECEIVING_TASK_STATUS_READY_FOR_RECONCILIATION = 3;
+}
+
+message ReceivingOrderLine {
+  string deal_line_id = 1;
+  string product_id = 2;
+  string product_name = 3;
+  string gtin = 4;
+  catalog.v1.BaseUnit base_unit = 5;
+  int64 quantity_base = 6;
+}
+
+message ExpectedReceivingBatch {
+  string deal_line_id = 1;
+  string batch_number = 2;
+  common.v1.CalendarDate expires_on = 3;
+  int64 quantity_base = 4;
+}
+
+message ExpectedReceivingUnit {
+  string id = 1;
+  optional string sscc = 2;
+  HandlingUnitKind kind = 3;
+  repeated ExpectedReceivingBatch batches = 4;
+}
+
+message ReceivedHandlingUnit {
+  string expected_unit_id = 1;
+  StockBalance balance_at_receipt = 2;
+  google.protobuf.Timestamp received_at = 3;
+  optional string put_away_cell_id = 4;
+  google.protobuf.Timestamp put_away_at = 5;
+}
+
+message ReceivingTask {
+  string id = 1;
+  string warehouse_id = 2;
+  string deal_id = 3;
+  ReceivingTaskStatus status = 4;
+  int32 version = 5;
+  optional string assignee_user_id = 6;
+  string receiving_area_id = 7;
+  string source_document_number = 8;
+  repeated ReceivingOrderLine order_lines = 9;
+  repeated ExpectedReceivingUnit expected_units = 10;
+  repeated ReceivedHandlingUnit received_units = 11;
+  google.protobuf.Timestamp finished_at = 12;
+}
+
+message ListReceivingTasksRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  common.v1.PageRequest page = 2;
+}
+
+message ListReceivingTasksResponse {
+  repeated ReceivingTask tasks = 1;
+  common.v1.PageResponse page = 2;
+}
+
+message ClaimReceivingTaskRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  string task_id = 2 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 4 [(buf.validate.field).int32.gt = 0];
+}
+
+message ClaimReceivingTaskResponse {
+  ReceivingTask task = 1;
+}
+
+message UnlabelledReceivingUnit {
+  string expected_unit_id = 1 [(buf.validate.field).string.uuid = true];
+  string gtin = 2 [(buf.validate.field).string.pattern = "^([0-9]{8}|[0-9]{12,14})$"];
+  int64 quantity_base = 3 [(buf.validate.field).int64.gt = 0];
+}
+
+message ReceiveHandlingUnitRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  string task_id = 2 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 4 [(buf.validate.field).int32.gt = 0];
+  oneof unit {
+    option (buf.validate.oneof).required = true;
+
+    string sscc = 5 [(buf.validate.field).string.pattern = "^[0-9]{18}$"];
+    UnlabelledReceivingUnit unlabelled_unit = 6;
+  }
+}
+
+message ReceiveHandlingUnitResponse {
+  ReceivingTask task = 1;
+}
+
+message FinishReceivingTaskRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  string task_id = 2 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 4 [(buf.validate.field).int32.gt = 0];
+}
+
+message FinishReceivingTaskResponse {
+  ReceivingTask task = 1;
+}
+
+message PutAwayHandlingUnitRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  string task_id = 2 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 4 [(buf.validate.field).int32.gt = 0];
+  string handling_unit_id = 5 [(buf.validate.field).string.uuid = true];
+  string to_cell_id = 6 [(buf.validate.field).string.uuid = true];
+}
+
+message PutAwayHandlingUnitResponse {
+  ReceivingTask task = 1;
+}
+
+service WarehouseReceivingService {
+  rpc ListReceivingTasks(ListReceivingTasksRequest) returns (ListReceivingTasksResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission = {
+      name: "task_view"
+      scope_field: "warehouse_id"
+    };
+  }
+  rpc ClaimReceivingTask(ClaimReceivingTaskRequest) returns (ClaimReceivingTaskResponse) {
+    option (common.v1.access).permission = {
+      name: "task_edit"
+      scope_field: "warehouse_id"
+    };
+  }
+  rpc ReceiveHandlingUnit(ReceiveHandlingUnitRequest) returns (ReceiveHandlingUnitResponse) {
+    option (common.v1.access).permission = {
+      name: "task_edit"
+      scope_field: "warehouse_id"
+    };
+  }
+  rpc FinishReceivingTask(FinishReceivingTaskRequest) returns (FinishReceivingTaskResponse) {
+    option (common.v1.access).permission = {
+      name: "task_edit"
+      scope_field: "warehouse_id"
+    };
+  }
+  rpc PutAwayHandlingUnit(PutAwayHandlingUnitRequest) returns (PutAwayHandlingUnitResponse) {
+    option (common.v1.access).permission = {
+      name: "task_edit"
+      scope_field: "warehouse_id"
+    };
+  }
+}

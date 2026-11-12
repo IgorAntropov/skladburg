@@ -26,7 +26,7 @@ interface AvailableUnitValue {
 
 export const describeAvailableUnit = (balance: StockBalance, date: CalendarDateValue): AvailableUnitValue | undefined => {
   const productId = balance.lines[0]?.batch?.productId;
-  if (productId === undefined) {
+  if (productId === undefined || balance.receivingAreaId !== undefined) {
     return undefined;
   }
 

@@ -43,6 +43,10 @@ import {
 import { organizationChannel } from '@skladburg/contracts/runtime';
 import { WarehousePickingService } from '@skladburg/contracts/wms/v1/picking';
 import {
+  ReceivingTaskStatus,
+  WarehouseReceivingService,
+} from '@skladburg/contracts/wms/v1/receiving';
+import {
   HandlingUnitKind,
   StockStatus,
   WarehouseStockService,
@@ -229,7 +233,10 @@ const prepareFundedTrip = async (isOutbound = false): Promise<{
 }> => {
   const fixture = await prepareDeal(isOutbound);
   const { deal, harness } = fixture;
-  const testEngine = await createTestEngine({ storage: createSpyStorage(await harness.storage.load()) });
+  const testEngine = await createTestEngine({
+    storage: createSpyStorage(await harness.storage.load()),
+    wmsInboundWarehouseIds: isOutbound ? [deal.shipToWarehouseId] : undefined,
+  });
   const transport = createEngineTransport(testEngine.engine, true);
   const deals = createClient(DealService, transport);
   const documents = createClient(DocumentService, transport);
@@ -634,10 +641,11 @@ describe('LogisticsService', () => {
 });
 
 describe('exchange trip through Connect', () => {
-  it('loads an outbound warehouse shipment only once the carrier has assigned the trip', async () => {
+  it('loads warehouse stock after carrier assignment and opens private receiving on arrival', async () => {
     const { assign, dealId, deals, logistics, payments, testEngine, tripId } = await prepareFundedTrip(true);
     const transport = createEngineTransport(testEngine.engine, true);
     const picking = createClient(WarehousePickingService, transport);
+    const receiving = createClient(WarehouseReceivingService, transport);
     const stock = createClient(WarehouseStockService, transport);
     const warehouseId = SeedWarehouseId.SUPPLIER_1_WAREHOUSE_1;
     const [task] = (await picking.listPickingTasks({ warehouseId }, SUPPLIER_1_CALL)).tasks;
@@ -663,10 +671,49 @@ describe('exchange trip through Connect', () => {
     expect((await logistics.getTrip({ tripId }, CARRIER_ONE)).trip?.status).toBe(TripStatus.LOADED);
     expect((await deals.getDeal({ dealId }, CUSTOMER_CALL)).deal?.status).toBe(DealStatus.SHIPPED);
     expect((await stock.listStockBalances({ warehouseId }, SUPPLIER_1_CALL)).balances).toEqual([]);
+
+    const destination = { warehouseId: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1 };
+    expect((await receiving.listReceivingTasks(destination, CUSTOMER_CALL)).tasks).toEqual([]);
+    await tickAt(testEngine, INTERCITY_ARRIVAL);
+    expect((await receiving.listReceivingTasks(destination, CUSTOMER_CALL)).tasks).toMatchObject([{
+      dealId,
+      expectedUnits: [{ batches: [{ batchNumber: 'LOAD-1', quantityBase: 10n }], sscc: '000000000000000017' }],
+      status: ReceivingTaskStatus.OPEN,
+    }]);
+    const denied = await captureError(receiving.listReceivingTasks(destination, CARRIER_ONE));
+    expect(readErrorDetail(denied).code).toBe(ErrorCode.PERMISSION_DENIED);
+    const receivingTask = { ...destination, taskId: dealId };
+    await receiving.claimReceivingTask({ ...receivingTask, expectedVersion: 1, idempotencyKey: nextUuid() }, CUSTOMER_CALL);
+    const { task: received } = await receiving.receiveHandlingUnit({
+      ...receivingTask,
+      expectedVersion: 2,
+      idempotencyKey: nextUuid(),
+      unit: { case: 'sscc', value: '000000000000000017' },
+    }, CUSTOMER_CALL);
+    expect(received?.receivedUnits[0]?.balanceAtReceipt).toMatchObject({
+      handlingUnit: { sscc: '000000000000000017', tenantId: SeedOrganizationId.CUSTOMER_1 },
+      lines: [{ batch: { tenantId: SeedOrganizationId.CUSTOMER_1 }, quantityBase: 10n, status: StockStatus.QUARANTINE }],
+    });
+    const putAway = await receiving.putAwayHandlingUnit({
+      ...receivingTask,
+      expectedVersion: 3,
+      handlingUnitId: received?.receivedUnits[0]?.balanceAtReceipt?.handlingUnit?.id ?? '',
+      idempotencyKey: nextUuid(),
+      toCellId: '8f000002-0000-4000-8000-000000000006',
+    }, CUSTOMER_CALL);
+    expect(putAway.task).toMatchObject({
+      receivedUnits: [{ putAwayCellId: '8f000002-0000-4000-8000-000000000006' }],
+      status: ReceivingTaskStatus.IN_PROGRESS,
+    });
+    await tickAt(testEngine, INTERCITY_ARRIVAL + 7 * 24 * 60 * MINUTE_MS);
+    expect((await logistics.getTrip({ tripId }, CARRIER_ONE)).trip?.status).toBe(TripStatus.ARRIVED);
+    expect((await payments.getDealPayment({ dealId }, CUSTOMER_CALL)).payment).toMatchObject({
+      payouts: [], status: SafeDealPaymentStatus.HELD,
+    });
   });
 
   it('moves the intercity deal from shipment to arrival at the scheduled world times', async () => {
-    const { dealId, deals, logistics, testEngine, tripId } = await prepareFundedTrip();
+    const { dealId, deals, logistics, payments, testEngine, tripId } = await prepareFundedTrip();
     const readDeal = async (): Promise<Deal | undefined> => (await deals.getDeal({ dealId }, CUSTOMER_CALL)).deal;
     const paid = await readDeal();
     expect(paid?.status).toBe(DealStatus.PAID);
@@ -719,7 +766,15 @@ describe('exchange trip through Connect', () => {
     });
     const arrived = await readDeal();
     expect(arrived).toMatchObject({ deadlines: { arrivalDueAt: arrivalAt }, status: DealStatus.ARRIVED });
-    expect(timestampMs(arrived?.deadlines?.acceptanceDueAt ?? arrivalAt)).toBeGreaterThan(INTERCITY_ARRIVAL);
+    const acceptanceDueAt = timestampMs(arrived?.deadlines?.acceptanceDueAt ?? arrivalAt);
+    expect(acceptanceDueAt).toBeGreaterThan(INTERCITY_ARRIVAL);
+    await tickAt(testEngine, acceptanceDueAt);
+    expect(await readDeal()).toMatchObject({ status: DealStatus.ACCEPTED });
+    const { payment } = await payments.getDealPayment({ dealId }, CUSTOMER_CALL);
+    expect(payment?.status).toBe(SafeDealPaymentStatus.TO_PAYOUT);
+    expect(payment?.payouts.map(payout => payout.organizationId)).toEqual([
+      SeedOrganizationId.SUPPLIER_1, SeedOrganizationId.CARRIER_1,
+    ]);
 
     const restored = await createTestEngine({ storage: testEngine.storage });
     await tickAt(restored, INTERCITY_ARRIVAL + 5 * MINUTE_MS);

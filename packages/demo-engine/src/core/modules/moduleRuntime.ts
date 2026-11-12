@@ -10,6 +10,14 @@ import type {
   IStateTransaction,
 } from '../state/index';
 import type { INotifier } from './notifications/notifierTypes';
+import type {
+  prepareInboundShipment,
+  ReceivingManifestValue,
+} from './wms/inboundPlan';
+import type {
+  hasInboundProduct,
+  openInboundTask,
+} from './wms/inboundRecords';
 import type { openOutboundTask } from './wms/outboundRecords';
 
 export interface IEventOutbox {
@@ -21,12 +29,17 @@ export interface IModuleRuntime {
   errors: IDomainErrors;
   getWorldTimeMs: () => number;
   guard: ICallGuard;
+  hasInboundProduct?: typeof hasInboundProduct | undefined;
   idempotency: IIdempotencyGuard;
   notifier: INotifier;
+  openInboundTask?: typeof openInboundTask | undefined;
   openOutboundTask?: typeof openOutboundTask | undefined;
   outbox: IEventOutbox;
   paymentProvider: IPaymentProvider;
+  prepareInboundShipment?: typeof prepareInboundShipment | undefined;
   random: IRandom;
   read: IStateReader;
+  wmsInboundManifests?: ReadonlyMap<string, ReceivingManifestValue> | undefined;
+  wmsInboundWarehouseIds?: ReadonlySet<string> | undefined;
   wmsOutboundWarehouseIds?: ReadonlySet<string> | undefined;
 }

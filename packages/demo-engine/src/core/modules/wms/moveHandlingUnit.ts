@@ -42,6 +42,9 @@ export const moveHandlingUnit = (
     throw errors.notFound(EntityKind.HANDLING_UNIT);
   }
 
+  if (balance.receivingAreaId !== undefined) {
+    throw errors.invalidTransition(EntityKind.HANDLING_UNIT, 'RECEIVING_AREA', 'TRANSFER');
+  }
   if (balance.lines.some(line => line.status === StockStatus.RESERVED)) {
     throw errors.invalidTransition(EntityKind.HANDLING_UNIT, StockStatus[StockStatus.RESERVED], 'TRANSFER');
   }

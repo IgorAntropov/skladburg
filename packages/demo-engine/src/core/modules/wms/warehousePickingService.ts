@@ -194,7 +194,7 @@ export const createWarehousePickingService = (runtime: IModuleRuntime): ServiceI
           }
 
           const next = clone(DealSchema, deal);
-          holdPaymentForShipment(runtime, transaction, next);
+          holdPaymentForShipment(runtime, transaction, next, units);
           for (const unit of units) {
             applyOutboundMovement(transaction, runtime, deal, caller.user.id, unit, StockMovementKind.SHIPMENT);
           }

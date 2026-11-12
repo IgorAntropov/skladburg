@@ -150,7 +150,7 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
   return createSeedSnapshotWithTopology(seed);
 };
 
-const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21];
+const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22];
 
 const loadOrSeedSnapshot = async (
   options: CreateEngineOptionsValue,
@@ -218,9 +218,14 @@ export const createEngineWithTasks = async (
     storage,
   });
   const validator = createRequestValidator(errors, await getEngineContractRegistry());
-  const outbound = options.wmsOutboundWarehouseIds !== undefined || snapshot.collections.warehouseOutbound.size > 0
-    ? await import('../modules/wms/outboundRecords')
-    : undefined;
+  const hasInboundConfiguration = options.wmsInboundWarehouseIds !== undefined;
+  const [outbound, inbound, inboundPlan] = await Promise.all([
+    options.wmsOutboundWarehouseIds !== undefined || snapshot.collections.warehouseOutbound.size > 0
+      ? import('../modules/wms/outboundRecords')
+      : undefined,
+    hasInboundConfiguration || snapshot.collections.warehouseInbound.size > 0 ? import('../modules/wms/inboundRecords') : undefined,
+    hasInboundConfiguration ? import('../modules/wms/inboundPlan') : undefined,
+  ]);
   const runtime: IModuleRuntime = {
     command,
     errors,
@@ -230,13 +235,18 @@ export const createEngineWithTasks = async (
       getWorldTimeMs: readWorldTimeMs,
       validator,
     }),
+    hasInboundProduct: inbound?.hasInboundProduct,
     idempotency: createIdempotencyGuard(errors),
     notifier: createNotifier({ outbox: bus.outbox, random }),
+    openInboundTask: inbound?.openInboundTask,
     openOutboundTask: outbound?.openOutboundTask,
     outbox: bus.outbox,
     paymentProvider: createDemoPaymentProvider(random),
+    prepareInboundShipment: inboundPlan?.prepareInboundShipment,
     random,
     read: state.read,
+    wmsInboundManifests: options.wmsInboundManifests,
+    wmsInboundWarehouseIds: options.wmsInboundWarehouseIds === undefined ? undefined : new Set(options.wmsInboundWarehouseIds),
     wmsOutboundWarehouseIds: options.wmsOutboundWarehouseIds === undefined ? undefined : new Set(options.wmsOutboundWarehouseIds),
   };
   const supportAudit = createSupportAuditInterceptor(runtime);
@@ -313,6 +323,8 @@ export const createEngineWithTasks = async (
     (await import('../modules/logistics/index')).createLogisticsHandler(runtime, supportAudit));
   const warehousePickingHandler = deferEngineHandler(async () =>
     (await import('../modules/wms/warehousePickingService')).createWarehousePickingHandler(runtime, supportAudit));
+  const warehouseReceivingHandler = deferEngineHandler(async () =>
+    (await import('../modules/wms/warehouseReceivingService')).createWarehouseReceivingHandler(runtime, supportAudit));
   const warehouseStockHandler = deferEngineHandler(async () =>
     (await import('../modules/wms/warehouseStockService')).createWarehouseStockHandler(runtime, supportAudit));
   const warehouseTopologyHandler = deferEngineHandler(async () =>
@@ -322,6 +334,10 @@ export const createEngineWithTasks = async (
 
     if (pathname.startsWith('/wms.v1.WarehousePickingService/')) {
       return warehousePickingHandler(request);
+    }
+
+    if (pathname.startsWith('/wms.v1.WarehouseReceivingService/')) {
+      return warehouseReceivingHandler(request);
     }
 
     if (pathname.startsWith('/wms.v1.WarehouseStockService/')) {

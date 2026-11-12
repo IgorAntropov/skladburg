@@ -57,6 +57,9 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
         command: 'acceptDeal',
         handle: (transaction, _caller, deal) => {
           const next = clone(DealSchema, deal);
+          if (transaction.get('warehouseInbound', deal.id) !== undefined) {
+            throw runtime.errors.invalidTransition(EntityKind.DEAL, DealStatus[deal.status], DealStatus[DealStatus.ACCEPTED]);
+          }
           scheduleAcceptedPayout(runtime, transaction, next);
           return next;
         },
@@ -158,7 +161,7 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
           if (transaction.get('warehouseOutbound', deal.id) !== undefined) {
             throw runtime.errors.invalidTransition(EntityKind.DEAL, DealStatus[deal.status], DealStatus[DealStatus.SHIPPED]);
           }
-          holdPaymentForShipment(runtime, transaction, next);
+          holdPaymentForShipment(runtime, transaction, next, undefined);
           return next;
         },
         headers: context.requestHeader,

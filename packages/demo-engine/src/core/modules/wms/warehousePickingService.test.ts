@@ -48,6 +48,7 @@ import {
   SeedUserId,
   SeedWarehouseId,
 } from '../../seed/seedIds';
+import { ENGINE_SCHEMA_VERSION } from '../../state/schemaVersion';
 import { CUSTOMER_CALL } from '../catalog/showcase/testing/showcaseFixtures';
 import {
   buildAvailability,
@@ -401,10 +402,35 @@ it('preserves version 21 stock, deals and command replies if migration must be r
   expect(await storage.load()).toEqual(old);
 
   const migrated = createOutboundClients((await createTestEngine({ storage })).engine);
-  expect(await storage.load()).toEqual({ ...old, schemaVersion: 22 });
+  expect(await storage.load()).toEqual({ ...old, schemaVersion: ENGINE_SCHEMA_VERSION });
   expect(await migrated.stock.postOpeningStock(opening, SUPPLIER)).toEqual(await clients.stock.postOpeningStock(opening, SUPPLIER));
   expect((await migrated.deals.getDeal({ dealId: request.dealId }, CUSTOMER_CALL)).deal?.status).toBe(DealStatus.SUBMITTED);
   expect((await migrated.picking.listPickingTasks({ warehouseId: WAREHOUSE }, SUPPLIER)).tasks).toEqual([]);
+});
+
+it('preserves an open picking task across migration from version 22', async () => {
+  const { clients, engine, request, unitId } = await prepareOutboundDeal();
+  const submitted = await submit(clients, request);
+  const { deal } = await clients.deals.confirmDeal(agreement(submitted), SUPPLIER);
+  if (deal === undefined) {
+    throw new Error('Missing agreement');
+  }
+  await fundForPickup(clients, deal);
+  engine.realTime.advance(5 * 60_000);
+  await engine.engine.tick();
+  const snapshot = await engine.storage.load();
+  if (snapshot === undefined) {
+    throw new Error('Missing previous world');
+  }
+  const storage = createSpyStorage({ ...snapshot, schemaVersion: 22 });
+
+  const migrated = createOutboundClients((await createTestEngine({ storage })).engine);
+  const { tasks } = await migrated.picking.listPickingTasks({ warehouseId: WAREHOUSE }, SUPPLIER);
+
+  expect(tasks).toMatchObject([
+    { dealId: deal.id, status: PickingTaskStatus.OPEN, units: [{ handlingUnit: { id: unitId, sscc: SSCC } }], version: 1 },
+  ]);
+  expect(await storage.load()).toEqual({ ...snapshot, schemaVersion: 23 });
 });
 
 it('uses another warehouse when the first cannot fill the order with whole handling units', async () => {

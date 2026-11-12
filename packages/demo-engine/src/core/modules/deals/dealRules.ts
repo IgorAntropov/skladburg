@@ -14,7 +14,7 @@ export const rub = (amountMinor: bigint): Money => create(MoneySchema, { amountM
 export const failDealValidation = (
   errors: IDomainErrors,
   fieldPath: string,
-  ruleId: 'catalog.amount_above_limit' | 'money.currency_unsupported' | DealRuleId,
+  ruleId: 'catalog.amount_above_limit' | 'int64.gt' | 'money.currency_unsupported' | DealRuleId,
 ): never => {
   throw errors.validationFailed([{ fieldPath, ruleId }]);
 };

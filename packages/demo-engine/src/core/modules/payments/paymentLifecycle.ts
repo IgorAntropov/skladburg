@@ -1,3 +1,5 @@
+import type { StockBalance } from '@skladburg/contracts/wms/v1/stock';
+
 import { create } from '@bufbuild/protobuf';
 import {
   timestampFromMs,
@@ -61,13 +63,22 @@ export const planDeliveryDeadlines = (runtime: IModuleRuntime, transaction: ISta
   return deadlines;
 };
 
-export const holdPaymentForShipment = (runtime: IModuleRuntime, transaction: IStateTransaction, deal: Deal): void => {
+export const holdPaymentForShipment = (
+  runtime: IModuleRuntime,
+  transaction: IStateTransaction,
+  deal: Deal,
+  shippedUnits: readonly StockBalance[] | undefined,
+): void => {
   const record = transaction.get('payments', deal.id);
   if (record?.payment === undefined) {
     throw runtime.errors.internal();
   }
   deal.deadlines = getExchangePayments(runtime.errors, deal)?.prepareExchangeShipment(runtime, transaction, deal, record)
     ?? planDeliveryDeadlines(runtime, transaction, deal);
+  runtime.prepareInboundShipment?.(transaction, runtime, deal, shippedUnits);
+  if (transaction.get('warehouseInbound', deal.id) !== undefined) {
+    deal.deadlines.acceptanceDueAt = undefined;
+  }
   advancePayment(runtime.errors, record.payment, 'hold', transaction.worldTimeMs);
   writePayment(runtime, transaction, deal, record);
 };
@@ -163,7 +174,8 @@ const processDelivery = (
     }
   }
   const acceptance = deal.deadlines?.acceptanceDueAt;
-  if ((deal.status !== DealStatus.ARRIVED && deal.status !== DealStatus.ACCEPTING) || acceptance === undefined) {
+  if ((deal.status !== DealStatus.ARRIVED && deal.status !== DealStatus.ACCEPTING) || acceptance === undefined
+    || transaction.get('warehouseInbound', deal.id) !== undefined) {
     return;
   }
   const remaining = timestampMs(acceptance) - transaction.worldTimeMs;

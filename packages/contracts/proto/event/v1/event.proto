@@ -11,6 +11,7 @@ import "notification/v1/notification_events.proto";
 import "organization/v1/organization.proto";
 import "support/v1/support_events.proto";
 import "wms/v1/picking_events.proto";
+import "wms/v1/receiving_events.proto";
 import "wms/v1/stock_events.proto";
 
 message Event {
@@ -30,5 +31,6 @@ message Event {
     logistics.v1.TransportRequestChanged transport_request_changed = 18;
     wms.v1.StockChanged stock_changed = 19;
     wms.v1.PickingTasksChanged picking_tasks_changed = 20;
+    wms.v1.ReceivingTasksChanged receiving_tasks_changed = 21;
   }
 }

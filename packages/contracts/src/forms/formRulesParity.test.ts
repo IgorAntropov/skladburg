@@ -5,6 +5,7 @@ import type {
 } from '@bufbuild/protobuf';
 
 import {
+  getOption,
   hasOption,
   ScalarType,
 } from '@bufbuild/protobuf';
@@ -619,6 +620,9 @@ const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
   'wms.v1.ListStockBalancesRequest.page',
   'wms.v1.ListStockMovementsRequest.page',
   'wms.v1.ListPickingTasksRequest.page',
+  'wms.v1.ExpectedReceivingBatch.expiresOn',
+  'wms.v1.ListReceivingTasksRequest.page',
+  'wms.v1.ReceiveHandlingUnitRequest.unlabelledUnit',
   'wms.v1.WarehouseFloorRect.origin',
   'wms.v1.WarehouseRack.footprint',
   'wms.v1.WarehouseRack.footprint.origin',
@@ -646,6 +650,7 @@ const EXPECTED_SERVER_ONLY_MESSAGES: readonly string[] = [
   'common.v1.MethodAccess',
   'import.v1.GetImportTemplateRequest',
   'import.v1.PreviewImportRequest',
+  'wms.v1.ReceiveHandlingUnitRequest',
 ];
 
 const VALID_UUID = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
@@ -1273,6 +1278,9 @@ const compareField = (
   corpus: readonly CaseValue[],
 ): ComparisonValue => {
   const result: ComparisonValue = { compared: 0, skipped: 0 };
+  const serverOnlyOneofPaths = new Set(item.message.oneofs
+    .filter(oneof => rules.hasServerOnlyMessageRules === true && getOption(oneof, oneofRulesExtension).required)
+    .map(oneof => oneof.name));
 
   for (const values of corpus) {
     const reflected = buildMessageWithValue(item.message, entry, values);
@@ -1286,6 +1294,7 @@ const compareField = (
     const unresolvedPaths = violations
       .filter(violation => violation.fieldPath !== '')
       .filter(violation => findFormField(rules, violation.fieldPath) === undefined)
+      .filter(violation => violation.ruleId !== 'required' || !serverOnlyOneofPaths.has(violation.fieldPath))
       .map(violation => violation.fieldPath);
     const expected = sortedUnique(
       violations

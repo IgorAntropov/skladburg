@@ -1,10 +1,6 @@
-import type { Product } from '@skladburg/contracts/catalog/v1/catalog';
-
 import {
   clone,
   create,
-  fromBinary,
-  toBinary,
 } from '@bufbuild/protobuf';
 import { CalendarDateSchema } from '@skladburg/contracts/common/v1/date';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
@@ -34,6 +30,12 @@ import type {
 } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
+import {
+  buildStockBatchKey,
+  hasSameStockExpiry,
+  readStockBatch,
+  writeStockBatch,
+} from './stockBatches';
 import {
   findMissingStockCellIds,
   prepareStockReference,
@@ -79,32 +81,6 @@ interface PlannedOpeningUnitValue {
   sscc: string;
 }
 
-const readOpeningBatch = (
-  reader: IStateReader,
-  errors: IDomainErrors,
-  lookupKey: string,
-  product: Product,
-  number: string,
-): Batch | undefined => {
-  const [record, duplicate] = reader.listBy('stockBatches', 'lookupKey', lookupKey);
-
-  if (duplicate !== undefined) {
-    throw errors.internal();
-  }
-
-  if (record === undefined) {
-    return undefined;
-  }
-
-  const batch = fromBinary(BatchSchema, record.bytes);
-  if (batch.id !== record.id || record.scopeId !== product.id || batch.tenantId !== product.tenantId
-    || batch.productId !== product.id || batch.number !== number) {
-    throw errors.internal();
-  }
-
-  return batch;
-};
-
 const prepareOpeningLine = (
   reader: IStateReader,
   errors: IDomainErrors,
@@ -124,12 +100,12 @@ const prepareOpeningLine = (
   }
 
   const number = reference.value;
-  const batchKey = JSON.stringify([tenantId, product.id, number]);
+  const batchKey = buildStockBatchKey(tenantId, product.id, number);
   const { expiresOn } = line;
   let planned = batches.get(batchKey);
 
   if (planned === undefined) {
-    const existing = readOpeningBatch(reader, errors, batchKey, product, number);
+    const existing = readStockBatch(reader, errors, batchKey, product, number);
     planned = existing === undefined
       ? {
           batch: create(BatchSchema, {
@@ -150,8 +126,7 @@ const prepareOpeningLine = (
     return { fieldPath: 'product_id', ruleId: 'stock.batch_unit_mismatch' };
   }
 
-  if (batch.expiresOn?.year !== expiresOn?.year || batch.expiresOn?.month !== expiresOn?.month
-    || batch.expiresOn?.day !== expiresOn?.day) {
+  if (!hasSameStockExpiry(batch.expiresOn, expiresOn)) {
     return { fieldPath: 'expires_on', ruleId: 'stock.batch_expiry_mismatch' };
   }
 
@@ -244,13 +219,7 @@ const applyOpeningBatch = (
     return planned.batch;
   }
 
-  const id = runtime.random.uuid();
-  if (transaction.get('stockBatches', id) !== undefined) {
-    throw runtime.errors.internal();
-  }
-
-  const batch = create(BatchSchema, { ...planned.batch, id });
-  transaction.put('stockBatches', { bytes: toBinary(BatchSchema, batch), id, lookupKey: batchKey, scopeId: batch.productId });
+  const batch = writeStockBatch(transaction, runtime, planned.batch);
   appliedBatches.set(batchKey, batch);
 
   return batch;

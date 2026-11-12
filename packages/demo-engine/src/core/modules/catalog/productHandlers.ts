@@ -64,8 +64,10 @@ export const createProductHandlers = (runtime: IModuleRuntime, publishChange: Pu
             .filter(listing => listing.productId === request.productId);
           const tierAmounts = productListings
             .flatMap(listing => collectTierAmounts(transaction.get('listingPrices', listing.id)?.tiers ?? []));
-          const isBaseUnitLocked = productListings.length > 0 || (current?.baseUnit !== request.baseUnit
-            && transaction.listBy('stockBatches', 'productId', request.productId).length > 0);
+          const isBaseUnitChanging = current !== undefined && current.baseUnit !== request.baseUnit;
+          const isBaseUnitLocked = productListings.length > 0 || (isBaseUnitChanging
+            && (transaction.listBy('stockBatches', 'productId', request.productId).length > 0
+              || runtime.hasInboundProduct?.(transaction, errors, organizationId, request.productId) === true));
           const violations = collectProductViolations({
             baseUnit: request.baseUnit,
             baseUnitLock: isBaseUnitLocked ? current?.baseUnit : undefined,

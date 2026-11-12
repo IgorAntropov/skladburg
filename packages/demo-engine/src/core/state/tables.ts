@@ -213,6 +213,7 @@ export interface TableIndexesValue {
   trips: 'dealId' | 'driverId' | 'vehicleId';
   users: never;
   vehicles: 'tenantId';
+  warehouseInbound: 'scopeId';
   warehouseOutbound: 'scopeId';
   warehouses: 'tenantId';
   warehouseTopologies: never;
@@ -261,6 +262,7 @@ export interface TableRecordsValue {
   trips: TripRecord;
   users: User;
   vehicles: Vehicle;
+  warehouseInbound: WarehouseStockRecordValue;
   warehouseOutbound: WarehouseStockRecordValue;
   warehouses: Warehouse;
   warehouseTopologies: WarehouseTopologyRecordValue;
@@ -379,6 +381,7 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   }),
   users: defineMessageTable(UserSchema, user => user.id, {}),
   vehicles: defineMessageTable(VehicleSchema, vehicle => vehicle.id, { tenantId: vehicle => vehicle.tenantId }),
+  warehouseInbound: { ...stockRecordTable, indexKeys: { scopeId: stockScopeId } },
   warehouseOutbound: { ...stockRecordTable, indexKeys: { scopeId: stockScopeId } },
   warehouses: defineMessageTable(WarehouseSchema, warehouse => warehouse.id, { tenantId: warehouse => warehouse.tenantId }),
   warehouseTopologies: defineRecordTable(parseWarehouseTopologyRecord, serializeWarehouseTopologyRecord),

@@ -30,6 +30,7 @@ enum StockMovementKind {
   STOCK_MOVEMENT_KIND_RESERVE = 3;
   STOCK_MOVEMENT_KIND_RELEASE_RESERVATION = 4;
   STOCK_MOVEMENT_KIND_SHIPMENT = 5;
+  STOCK_MOVEMENT_KIND_RECEIPT = 6;
 }
 
 message Batch {
@@ -60,6 +61,7 @@ message StockBalance {
   HandlingUnit handling_unit = 1;
   string cell_id = 2;
   repeated StockLine lines = 3;
+  optional string receiving_area_id = 4;
 }
 
 message StockMovement {
@@ -75,6 +77,8 @@ message StockMovement {
   string actor_user_id = 10;
   google.protobuf.Timestamp occurred_at = 11;
   optional string deal_id = 12;
+  optional string from_receiving_area_id = 13;
+  optional string to_receiving_area_id = 14;
 }
 
 message OpeningStockLine {

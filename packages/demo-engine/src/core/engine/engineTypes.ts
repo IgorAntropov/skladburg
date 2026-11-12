@@ -1,6 +1,7 @@
 import type { Event } from '@skladburg/contracts/event/v1/event';
 
 import type { EngineSubscriptionValue } from '../events/index';
+import type { ReceivingManifestValue } from '../modules/wms/inboundPlan';
 import type {
   ClockSnapshotValue,
   IEngineStorage,
@@ -14,6 +15,8 @@ export interface CreateEngineOptionsValue {
   realTime: IRealTimeSource;
   seed?: EngineSeedValue;
   storage: IEngineStorage;
+  wmsInboundManifests?: ReadonlyMap<string, ReceivingManifestValue> | undefined;
+  wmsInboundWarehouseIds?: readonly string[] | undefined;
   wmsOutboundWarehouseIds?: readonly string[] | undefined;
 }
 

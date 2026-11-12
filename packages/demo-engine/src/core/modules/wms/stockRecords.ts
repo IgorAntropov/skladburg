@@ -39,7 +39,8 @@ export const readStockBalance = (
   const { handlingUnit } = balance;
 
   if (handlingUnit?.id !== record.id || handlingUnit.tenantId !== tenantId
-    || handlingUnit.warehouseId !== record.scopeId || record.lookupKey !== buildSsccKey(tenantId, handlingUnit.sscc)) {
+    || handlingUnit.warehouseId !== record.scopeId || record.lookupKey !== buildSsccKey(tenantId, handlingUnit.sscc)
+    || (balance.receivingAreaId !== undefined && balance.cellId !== '')) {
     throw errors.internal();
   }
 
@@ -64,6 +65,7 @@ export const readStockMovement = (
 interface MovementBasisValue {
   dealId?: string | undefined;
   fromCellId: string | undefined;
+  fromReceivingAreaId?: string | undefined;
   isEventDeferred?: boolean | undefined;
   kind: StockMovementKind;
   lines?: StockLine[] | undefined;
@@ -104,6 +106,7 @@ export const recordStockMovement = (
     occurredAt,
     tenantId: handlingUnit.tenantId,
     toCellId: balance.cellId,
+    toReceivingAreaId: balance.receivingAreaId,
     warehouseId,
   });
 

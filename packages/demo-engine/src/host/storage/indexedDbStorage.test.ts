@@ -489,18 +489,25 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     { databaseVersion: 16, schemaVersion: 18 },
     { databaseVersion: 17, schemaVersion: 19 },
     { databaseVersion: 18, schemaVersion: 21 },
+    { databaseVersion: 19, schemaVersion: 22 },
   ])('adds missing collections to v$databaseVersion and preserves prior records', async ({ databaseVersion, schemaVersion }) => {
     const factory = new IDBFactory();
     const seed = createSeedSnapshot();
     const bytes = Uint8Array.of(10, 1, 97);
+    const outbound = { bytes, id: 'a', lookupKey: 'lookup', scopeId: 'scope' };
     const isBeforeDocuments = databaseVersion === 11;
     const hasPayments = databaseVersion >= 13;
     const hasFleet = databaseVersion >= 14;
     const hasMarketplace = databaseVersion >= 15;
+    const hasStock = databaseVersion >= 18;
+    const hasOutbound = databaseVersion >= 19;
     const request = factory.open(DATABASE_NAME, databaseVersion);
     request.addEventListener('upgradeneeded', () => {
-      const missingStores = ['warehouseOutbound'];
-      if (databaseVersion < 18) {
+      const missingStores = ['warehouseInbound'];
+      if (!hasOutbound) {
+        missingStores.push('warehouseOutbound');
+      }
+      if (!hasStock) {
         missingStores.push('stockBalances', 'stockBatches', 'stockMovements');
       }
       if (databaseVersion < 17) {
@@ -528,8 +535,11 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
       meta.put(schemaVersion, 'schemaVersion');
       meta.put(seed.meta, 'engineMeta');
       request.transaction?.objectStore('deals').put(bytes, 'a');
-      if (databaseVersion === 18) {
+      if (hasStock) {
         request.transaction?.objectStore('stockBalances').put(bytes, 'a');
+      }
+      if (hasOutbound) {
+        request.transaction?.objectStore('warehouseOutbound').put(outbound, 'a');
       }
       if (!isBeforeDocuments) {
         request.transaction?.objectStore('documents').put(bytes, 'a');
@@ -561,8 +571,9 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     expect(loaded?.schemaVersion).toBe(databaseVersion < 13 ? 15 : schemaVersion);
     expect(loaded?.meta).toEqual(seed.meta);
     expect(loaded?.collections.warehouseTopologies).toEqual(new Map());
-    expect(loaded?.collections.stockBalances.get('a')).toEqual(databaseVersion === 18 ? bytes : undefined);
-    expect(loaded?.collections.warehouseOutbound).toEqual(new Map());
+    expect(loaded?.collections.stockBalances.get('a')).toEqual(hasStock ? bytes : undefined);
+    expect(loaded?.collections.warehouseInbound).toEqual(new Map());
+    expect(loaded?.collections.warehouseOutbound.get('a')).toEqual(hasOutbound ? outbound : undefined);
     expect(loaded?.collections.stockBatches).toEqual(new Map());
     expect(loaded?.collections.stockMovements).toEqual(new Map());
     expect(loaded?.collections.deals.get('a')).toEqual(bytes);

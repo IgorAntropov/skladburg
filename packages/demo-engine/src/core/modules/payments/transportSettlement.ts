@@ -43,7 +43,7 @@ export const buildTransportSettlement = (errors: IDomainErrors, deal: Deal, trip
     failDealValidation(errors, 'confirmed_amount.currency_code', 'money.currency_unsupported');
   }
   if (rate.amountMinor <= 0n) {
-    throw errors.validationFailed([{ fieldPath: 'confirmed_amount.amount_minor', ruleId: 'int64.gt' }]);
+    failDealValidation(errors, 'confirmed_amount.amount_minor', 'int64.gt');
   }
 
   const goods = checkDealInteger(errors, goodsTotal.amountMinor, 'goods_total.amount_minor');

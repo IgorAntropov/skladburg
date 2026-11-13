@@ -245,7 +245,7 @@ const DealDocumentsBody = ({ deal, documentTypeT, initialDocumentId, onRefresh, 
                     <span className="text-sm font-normal text-on-panel-muted">
                       {formatDocumentNumberAndDate(item.displayNumber, item.date, formatCalendarDate, t)}
                     </span>
-                    <DealDocumentStatus status={item.status} t={t} />
+                    <DealDocumentStatus status={item.status} t={t} type={item.type} />
                   </span>
                   <ArrowRight aria-hidden className="size-4 shrink-0 text-on-panel-muted" />
                 </Button>

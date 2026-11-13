@@ -47,11 +47,11 @@ export const DealDocumentView = ({
       <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-panel-solid p-3">
         <div className="flex flex-col gap-1 border-b border-line pb-3">
           <p className="text-sm wrap-anywhere">{formatDocumentNumberAndDate(displayNumber, date, formatCalendarDate, t)}</p>
-          <DealDocumentStatus status={status} t={t} />
+          <DealDocumentStatus status={status} t={t} type={document.type} />
         </div>
         {content !== undefined && (
           <>
-            <DocumentTerms t={t} terms={content.terms} />
+            <DocumentTerms deal={deal} t={t} terms={content.terms} />
             <DocumentParties content={content} t={t} />
           </>
         )}

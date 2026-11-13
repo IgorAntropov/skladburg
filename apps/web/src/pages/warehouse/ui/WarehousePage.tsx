@@ -12,7 +12,10 @@ import {
   useCreateWarehouseLauncher,
 } from '@/features/create-warehouse';
 import { useI18n } from '@/shared/i18n';
-import { useChunkLoader } from '@/shared/lib/module-loader';
+import {
+  createLazyComponent,
+  useChunkLoader,
+} from '@/shared/lib/module-loader';
 import {
   Button,
   ChunkLoadNotice,
@@ -29,6 +32,9 @@ import { warehouseImportLauncherMessages } from '../i18n/warehouseImportLauncher
 import { loadWarehouseImportPanel } from './loadWarehouseImportPanel';
 import { OrganizationCard } from './OrganizationCard';
 import { WarehouseList } from './WarehouseList';
+import { loadWarehouseWorkspace } from './workspace/loadWarehouseWorkspace';
+
+const WarehouseWorkspaceRoute = createLazyComponent(loadWarehouseWorkspace);
 
 interface WarehousePageProps {
   focus: ObjectRefValue | undefined;
@@ -46,9 +52,9 @@ export const WarehousePage = ({ focus }: WarehousePageProps): ReactElement => {
   const ImportPanel = isImportRequested && state.kind === 'loaded' ? state.module.WarehouseImportPanel : undefined;
   const isImportLoading = isImportRequested && (state.kind === 'loading' || state.kind === 'idle');
   const importRecovery = isImportRequested && state.kind === 'failed' ? state.recovery : undefined;
-  const focusedWarehouseId = focus?.type === 'warehouse' ? focus.id : undefined;
-  const canShowImport = ImportPanel === undefined && !launcher.isOpen && !launcher.isLoading;
-  const canShowCreate = ImportPanel === undefined && !isImportLoading;
+  const isWarehouseFocus = focus?.type === 'warehouse' || focus?.type === 'cell' || focus?.type === 'handling_unit';
+  const canShowImport = !isWarehouseFocus && ImportPanel === undefined && !launcher.isOpen && !launcher.isLoading;
+  const canShowCreate = !isWarehouseFocus && ImportPanel === undefined && !isImportLoading;
   const importLabel = createSectionTranslator(warehouseImportLauncherMessages)('warehouseImport.open');
 
   const handleImportOpen = (): void => {
@@ -62,11 +68,11 @@ export const WarehousePage = ({ focus }: WarehousePageProps): ReactElement => {
     setIsImportRequested(false);
   };
 
-  const panel = launcher.isOpen
-    ? <CreateWarehousePanel launcher={launcher} />
-    : ImportPanel === undefined
-      ? undefined
-      : <ImportPanel focusedWarehouseId={focusedWarehouseId} onClose={handleImportClose} />;
+  const panel = isWarehouseFocus
+    ? <WarehouseWorkspaceRoute focus={focus} />
+    : launcher.isOpen
+      ? <CreateWarehousePanel launcher={launcher} />
+      : ImportPanel === undefined ? undefined : <ImportPanel focusedWarehouseId={undefined} onClose={handleImportClose} />;
 
   const listTabs: readonly TabsItemValue[] = [
     {
@@ -110,7 +116,7 @@ export const WarehousePage = ({ focus }: WarehousePageProps): ReactElement => {
       <h1 className="sr-only">{t('section.warehouse.title')}</h1>
       <HudLayout
         {...inspectorFocus}
-        inspector={<ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
+        inspector={isWarehouseFocus ? undefined : <ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
         listsHeader={<OrganizationCard />}
         listTabs={listTabs}
         panel={panel}

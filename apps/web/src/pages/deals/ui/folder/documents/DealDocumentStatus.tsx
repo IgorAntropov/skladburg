@@ -1,6 +1,9 @@
 import type { ReactElement } from 'react';
 
-import { DocumentStatus } from '@skladburg/contracts/document/v1/document';
+import {
+  DocumentStatus,
+  DocumentType,
+} from '@skladburg/contracts/document/v1/document';
 import {
   CircleCheck,
   CircleHelp,
@@ -24,15 +27,22 @@ const STATUS_ICONS = {
 interface DealDocumentStatusProps {
   status: DocumentStatus;
   t: DealDocumentTranslate;
+  type: DocumentType;
 }
 
-export const DealDocumentStatus = ({ status, t }: DealDocumentStatusProps): ReactElement => {
-  const Icon = STATUS_ICONS[status];
+export const DealDocumentStatus = ({ status, t, type }: DealDocumentStatusProps): ReactElement => {
+  const isWarehouseDocument = type >= DocumentType.UPD;
+  const isIssued = isWarehouseDocument && status === DocumentStatus.APPROVED;
+  const isWarehouseSigned = isWarehouseDocument && status === DocumentStatus.SIGNED;
+  const Icon = isIssued ? CircleCheck : STATUS_ICONS[status];
+  const statusKey = isIssued
+    ? 'dealDocument.status.issued'
+    : isWarehouseSigned ? 'dealDocument.status.warehouseSigned' : DOCUMENT_STATUS_KEYS[status];
 
   return (
     <span className="inline-flex items-start gap-1.5 text-sm text-on-panel-muted">
       <Icon aria-hidden className="mt-0.5 size-4 shrink-0" />
-      {t(DOCUMENT_STATUS_KEYS[status])}
+      {t(statusKey)}
     </span>
   );
 };

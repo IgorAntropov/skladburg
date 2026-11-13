@@ -200,7 +200,7 @@ export const planOpeningStock = (
 
 const applyOpeningBatch = (
   transaction: IStateTransaction,
-  runtime: IModuleRuntime,
+  runtime: Pick<IModuleRuntime, 'errors' | 'random'>,
   plan: OpeningStockPlanValue,
   appliedBatches: Map<string, Batch>,
   batchKey: string,
@@ -227,8 +227,8 @@ const applyOpeningBatch = (
 
 export const applyOpeningStockPlan = (
   transaction: IStateTransaction,
-  runtime: IModuleRuntime,
-  caller: PermissionCallerValue,
+  runtime: Pick<IModuleRuntime, 'errors' | 'outbox' | 'random' | 'wmsOutboundWarehouseIds'>,
+  caller: Pick<PermissionCallerValue, 'organizationId'> & { user: Pick<PermissionCallerValue['user'], 'id'> },
   plan: OpeningStockPlanValue,
 ): PostOpeningStockResponse[] => {
   const { errors, random } = runtime;

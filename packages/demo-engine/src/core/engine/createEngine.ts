@@ -79,6 +79,10 @@ import {
   SEED_VERSION,
 } from '../seed/seedConfig';
 import {
+  SEED_WMS_INBOUND_WAREHOUSE_ID,
+  SEED_WMS_OUTBOUND_WAREHOUSE_ID,
+} from '../seed/seedWarehouseWorkspaceConfig';
+import {
   createEngineState,
   isCurrentSnapshot,
   type IStateReader,
@@ -152,6 +156,33 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
 
 const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23];
 
+const prepareDemoWarehouse = async (options: CreateEngineOptionsValue, snapshot: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
+  if (options.isDemoWarehouseEnabled !== true || snapshot.collections.warehouseTopologies.has(SEED_WMS_OUTBOUND_WAREHOUSE_ID)) {
+    return snapshot;
+  }
+
+  const { seedWarehouseWorkspace } = await import('../seed/seedWarehouseWorkspace');
+  return seedWarehouseWorkspace(snapshot);
+};
+
+const selectOutboundWarehouses = async (
+  options: CreateEngineOptionsValue,
+  snapshot: EngineSnapshotValue,
+): Promise<ReadonlySet<string> | undefined> => {
+  if (options.wmsOutboundWarehouseIds !== undefined) {
+    return new Set(options.wmsOutboundWarehouseIds);
+  }
+  if (options.isDemoWarehouseEnabled === true && snapshot.collections.stockMovements.size > 0
+    && snapshot.collections.warehouseTopologies.has(SEED_WMS_OUTBOUND_WAREHOUSE_ID)) {
+    const { hasSeedWarehouseStock } = await import('../seed/readSeedWarehouseStock');
+    if (hasSeedWarehouseStock(snapshot)) {
+      return new Set([SEED_WMS_OUTBOUND_WAREHOUSE_ID]);
+    }
+  }
+
+  return undefined;
+};
+
 const loadOrSeedSnapshot = async (
   options: CreateEngineOptionsValue,
   loadSeed: typeof loadSeedSnapshot,
@@ -161,7 +192,7 @@ const loadOrSeedSnapshot = async (
   if (stored?.meta.seedVersion === SEED_VERSION && MIGRATABLE_SCHEMA_VERSIONS.includes(stored.schemaVersion)) {
     try {
       const { migrateStoredSnapshot } = await import('./migrateStoredSnapshot');
-      const snapshot = await migrateStoredSnapshot(stored);
+      const snapshot = await prepareDemoWarehouse(options, await migrateStoredSnapshot(stored));
       await options.storage.replaceAll(snapshot);
 
       return snapshot;
@@ -172,10 +203,19 @@ const loadOrSeedSnapshot = async (
   }
 
   if (isCurrentSnapshot(stored, SEED_VERSION)) {
-    return stored;
+    try {
+      const prepared = await prepareDemoWarehouse(options, stored);
+      if (prepared !== stored) {
+        await options.storage.replaceAll(prepared);
+      }
+      return prepared;
+    }
+    catch (error) {
+      throw new SeedLoadError(error, 'The demo warehouse could not be prepared');
+    }
   }
 
-  const seeded = await loadSeed(options.seed);
+  const seeded = await prepareDemoWarehouse(options, await loadSeed(options.seed));
   await options.storage.replaceAll(seeded);
 
   return seeded;
@@ -218,20 +258,22 @@ export const createEngineWithTasks = async (
     storage,
   });
   const validator = createRequestValidator(errors, await getEngineContractRegistry());
-  const hasInboundConfiguration = options.wmsInboundWarehouseIds !== undefined;
-  const [outbound, inbound, inboundPlan, receipt, receiptDocuments] = await Promise.all([
-    options.wmsOutboundWarehouseIds !== undefined || snapshot.collections.warehouseOutbound.size > 0
+  const wmsInboundWarehouseIds = options.wmsInboundWarehouseIds
+    ?? (options.isDemoWarehouseEnabled === true ? [SEED_WMS_INBOUND_WAREHOUSE_ID] : undefined);
+  const wmsOutboundWarehouseIds = await selectOutboundWarehouses(options, snapshot).catch((error: unknown) => {
+    throw new SeedLoadError(error, 'The demo warehouse could not be checked');
+  });
+  const [outbound, inbound] = await Promise.all([
+    options.isDemoWarehouseEnabled === true || wmsOutboundWarehouseIds !== undefined || snapshot.collections.warehouseOutbound.size > 0
       ? import('../modules/wms/outboundRecords')
       : undefined,
-    hasInboundConfiguration || snapshot.collections.warehouseInbound.size > 0 ? import('../modules/wms/inboundRecords') : undefined,
-    hasInboundConfiguration ? import('../modules/wms/inboundPlan') : undefined,
-    hasInboundConfiguration || snapshot.collections.warehouseInbound.size > 0 ? import('../modules/deals/dealReceipt') : undefined,
-    hasInboundConfiguration ? import('../modules/documents/receiptDocuments') : undefined,
+    wmsInboundWarehouseIds !== undefined || snapshot.collections.warehouseInbound.size > 0
+      ? import('../modules/wms/inboundRecords')
+      : undefined,
   ]);
   const runtime: IModuleRuntime = {
     command,
     errors,
-    finishInboundReceipt: receipt?.finishInboundReceipt,
     getWorldTimeMs: readWorldTimeMs,
     guard: createCallGuard({
       errors,
@@ -240,18 +282,17 @@ export const createEngineWithTasks = async (
     }),
     hasInboundProduct: inbound?.hasInboundProduct,
     idempotency: createIdempotencyGuard(errors),
-    issueInboundDocuments: receiptDocuments?.issueInboundDocuments,
     notifier: createNotifier({ outbox: bus.outbox, random }),
     openInboundTask: inbound?.openInboundTask,
     openOutboundTask: outbound?.openOutboundTask,
     outbox: bus.outbox,
     paymentProvider: createDemoPaymentProvider(random),
-    prepareInboundShipment: inboundPlan?.prepareInboundShipment,
     random,
     read: state.read,
     wmsInboundManifests: options.wmsInboundManifests,
-    wmsInboundWarehouseIds: options.wmsInboundWarehouseIds === undefined ? undefined : new Set(options.wmsInboundWarehouseIds),
-    wmsOutboundWarehouseIds: options.wmsOutboundWarehouseIds === undefined ? undefined : new Set(options.wmsOutboundWarehouseIds),
+    wmsInboundWarehouseIds: wmsInboundWarehouseIds === undefined ? undefined : new Set(wmsInboundWarehouseIds),
+    wmsManualInboundWarehouseIds: options.wmsInboundWarehouseIds === undefined ? undefined : new Set(options.wmsInboundWarehouseIds),
+    wmsOutboundWarehouseIds,
   };
   const supportAudit = createSupportAuditInterceptor(runtime);
   const handler = createEngineHandler({
@@ -360,9 +401,11 @@ export const createEngineWithTasks = async (
   const checkpoint = (): Promise<void> => queue.enqueue(runCheckpoint);
 
   const reset = (nextEpoch: string): Promise<void> => queue.enqueue(async () => {
-    const seeded = await loadSeed(options.seed);
+    const seeded = await prepareDemoWarehouse(options, await loadSeed(options.seed));
+    const outboundWarehouseIds = await selectOutboundWarehouses(options, seeded);
     await storage.replaceAll(seeded);
     state.replaceAll(seeded);
+    runtime.wmsOutboundWarehouseIds = outboundWarehouseIds;
     clock = createClockFromMeta(seeded.meta, realTime);
     random.replace(createRandom(seeded.meta.randomState));
     traceRandom.replace(createRandom(seeded.meta.traceRandomState));

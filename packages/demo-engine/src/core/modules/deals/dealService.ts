@@ -158,7 +158,13 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
       return create(ListDealsResponseSchema, { deals: items.map(deal => projectDeal(deal, caller.organizationId)), page });
     },
     markDealShipped: async (request, context) => {
-      const { holdPaymentForShipment } = await loadShipmentPayments(runtime.read, request.dealId);
+      const current = runtime.read.get('deals', request.dealId);
+      const [payments, inbound] = await Promise.all([
+        loadShipmentPayments(runtime.read, request.dealId),
+        current !== undefined && runtime.wmsManualInboundWarehouseIds?.has(current.shipToWarehouseId) === true
+          ? import('../wms/inboundPlan')
+          : undefined,
+      ]);
       return runDealCommand(runtime, {
         command: 'markDealShipped',
         handle: (transaction, _caller, deal) => {
@@ -166,7 +172,8 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
           if (transaction.get('warehouseOutbound', deal.id) !== undefined) {
             throw runtime.errors.invalidTransition(EntityKind.DEAL, DealStatus[deal.status], DealStatus[DealStatus.SHIPPED]);
           }
-          holdPaymentForShipment(runtime, transaction, next, undefined);
+          inbound?.prepareInboundShipment(transaction, runtime, next, undefined);
+          payments.holdPaymentForShipment(runtime, transaction, next);
           return next;
         },
         headers: context.requestHeader,

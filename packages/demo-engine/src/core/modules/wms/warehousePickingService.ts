@@ -174,7 +174,11 @@ export const createWarehousePickingService = (runtime: IModuleRuntime): ServiceI
       request,
     }),
     confirmWarehouseShipment: async (request, context) => {
-      const { holdPaymentForShipment } = await loadShipmentPayments(runtime.read, request.taskId);
+      const deal = read.get('deals', request.taskId);
+      const [payments, inbound] = await Promise.all([
+        loadShipmentPayments(read, request.taskId),
+        deal !== undefined && runtime.wmsInboundWarehouseIds?.has(deal.shipToWarehouseId) === true ? import('./inboundPlan') : undefined,
+      ]);
       return runPickingCommand(runtime, {
         handle: (transaction, caller, task) => {
           const deal = readTaskDeal(transaction, runtime, caller, task);
@@ -194,7 +198,8 @@ export const createWarehousePickingService = (runtime: IModuleRuntime): ServiceI
           }
 
           const next = clone(DealSchema, deal);
-          holdPaymentForShipment(runtime, transaction, next, units);
+          inbound?.prepareInboundShipment(transaction, runtime, next, units);
+          payments.holdPaymentForShipment(runtime, transaction, next);
           for (const unit of units) {
             applyOutboundMovement(transaction, runtime, deal, caller.user.id, unit, StockMovementKind.SHIPMENT);
           }

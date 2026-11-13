@@ -66,6 +66,11 @@ const lazyCreateWarehouseFormTestFiles: string[] = [
   'apps/web/src/features/create-warehouse/api/form/**/*.test.{ts,tsx}',
   'apps/web/src/features/create-warehouse/ui/form/**/*.test.{ts,tsx}',
 ];
+const lazyWarehouseReceiveFormFiles = [
+  'apps/web/src/pages/warehouse/api/useReceiveUnitForm.ts',
+  'apps/web/src/pages/warehouse/ui/workspace/WarehouseReceiveForm.tsx',
+];
+const warehousePageFiles = ['apps/web/src/pages/warehouse/**/*.{ts,tsx}'];
 const lazyCreateWarehouseFeatureFiles: string[] = ['apps/web/src/features/create-warehouse/**/*.{ts,tsx}'];
 const globalSearchFeatureFiles: string[] = ['apps/web/src/features/global-search/**/*.{ts,tsx}'];
 const globalSearchPanelFiles: string[] = ['apps/web/src/features/global-search/ui/panel/**/*.{ts,tsx}'];
@@ -469,6 +474,11 @@ const editRequisitesPanelChunkLazyRestriction: LazyModuleRestrictionValue = {
 const createWarehouseFormChunkLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'the create-warehouse form chunk',
   regex: '(^|/)form(/|$)',
+};
+
+const warehouseReceiveFormChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the warehouse receipt form chunk',
+  regex: '(^|/)(WarehouseReceiveForm|useReceiveUnitForm)(\\.[^/]+)?$',
 };
 
 const sceneCameraControlsChunkLazyRestriction: LazyModuleRestrictionValue = {
@@ -1154,7 +1164,7 @@ export default defineConfig(
     ),
   },
   {
-    files: [...lazyDealFormFiles, ...transportFormHookFiles],
+    files: [...lazyDealFormFiles, ...transportFormHookFiles, ...lazyWarehouseReceiveFormFiles],
     ignores: webTestFiles,
     rules: createBoundaryRules(
       [
@@ -1250,6 +1260,11 @@ export default defineConfig(
     files: lazyCreateWarehouseFeatureFiles,
     ignores: [...webTestFiles, ...lazyCreateWarehouseFormFiles, ...sceneSegmentFiles],
     rules: createLazyModuleRules([createWarehouseFormChunkLazyRestriction], sourceBoundaryImportRestrictions),
+  },
+  {
+    files: warehousePageFiles,
+    ignores: [...webTestFiles, ...lazyWarehouseReceiveFormFiles],
+    rules: createLazyModuleRules([warehouseReceiveFormChunkLazyRestriction], sourceBoundaryImportRestrictions),
   },
   {
     files: globalSearchFeatureFiles,

@@ -9,6 +9,7 @@ import { createMemoryStorage } from '../core/ports/index';
 
 export interface EngineStartupOptionsValue {
   generateId: () => string;
+  isDemoWarehouseEnabled?: boolean | undefined;
   loadCore: () => Promise<CoreModuleValue>;
   openStorage: () => Promise<OpenedEngineStorageValue>;
   realTime: IRealTimeSource;
@@ -65,6 +66,7 @@ export const startEngine = async (options: EngineStartupOptionsValue): Promise<S
 
   const create = (storage: OpenedEngineStorageValue['storage']): Promise<IDemoEngine> => createEngine({
     epoch: options.generateId(),
+    isDemoWarehouseEnabled: options.isDemoWarehouseEnabled,
     realTime: options.realTime,
     storage,
   });

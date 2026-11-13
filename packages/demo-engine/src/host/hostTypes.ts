@@ -15,6 +15,7 @@ export interface CreateEngineHostOptionsValue {
   broadcastChannelFactory: IBroadcastChannelFactory;
   checkpointIntervalMs?: number;
   generateId: () => string;
+  isDemoWarehouseEnabled?: boolean | undefined;
   loadCore: () => Promise<CoreModuleValue>;
   lockManager: ILockManager | undefined;
   openStorage: () => Promise<OpenedEngineStorageValue>;

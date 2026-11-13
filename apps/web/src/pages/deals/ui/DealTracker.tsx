@@ -1,4 +1,7 @@
-import type { Deal } from '@skladburg/contracts/deal/v1/deal';
+import type {
+  Deal,
+  DealReceipt,
+} from '@skladburg/contracts/deal/v1/deal';
 import type { ReactElement } from 'react';
 
 import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
@@ -17,6 +20,7 @@ import type {
 
 interface DealTrackerProps {
   deal: Deal;
+  receipt: DealReceipt | undefined;
   t: DealsTranslate;
 }
 
@@ -54,7 +58,7 @@ const STATUS_STEPS = {
   [DealStatus.UNSPECIFIED]: 0,
 } satisfies Record<DealStatus, number>;
 
-export const DealTracker = ({ deal, t }: DealTrackerProps): ReactElement => {
+export const DealTracker = ({ deal, receipt, t }: DealTrackerProps): ReactElement => {
   const { status, transitions } = deal;
   const isStopped = status === DealStatus.CANCELLED || status === DealStatus.REJECTED;
   const currentStatus = isStopped ? transitions.at(-1)?.from ?? status : status;
@@ -66,6 +70,10 @@ export const DealTracker = ({ deal, t }: DealTrackerProps): ReactElement => {
         const isDone = index < currentStep;
         const isCurrent = !isStopped && index === currentStep;
         const Icon = isDone ? Check : isCurrent ? CircleDot : Circle;
+        const isWarehouseReceiptStep = isCurrent && step === 'deals.tracker.acceptance' && Boolean(receipt?.updDocumentId);
+        const receiptStep = receipt?.receiptTitleDocumentId !== undefined
+          ? 'deals.tracker.receiptSigned'
+          : receipt?.lines.length === 0 ? 'deals.tracker.receiving' : 'deals.tracker.receiptCompared';
 
         return (
           <li
@@ -75,7 +83,7 @@ export const DealTracker = ({ deal, t }: DealTrackerProps): ReactElement => {
           >
             <Icon aria-hidden className="size-4 shrink-0" />
             {isDone && <span className="sr-only">{t('deals.tracker.done')}</span>}
-            {t(step)}
+            {t(isWarehouseReceiptStep ? receiptStep : step)}
           </li>
         );
       })}

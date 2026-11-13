@@ -1,4 +1,7 @@
-import type { Deal } from '@skladburg/contracts/deal/v1/deal';
+import type {
+  Deal,
+  DealReceipt,
+} from '@skladburg/contracts/deal/v1/deal';
 import type { ReactElement } from 'react';
 
 import { useEffect } from 'react';
@@ -21,11 +24,12 @@ import { dealsSection } from '../i18n/dealsSection';
 
 interface DealTrackerSlotProps {
   deal: Deal;
+  receipt: DealReceipt | undefined;
 }
 
 const loadDealTracker = createCachedModuleLoader(() => import('./DealTracker'));
 
-export const DealTrackerSlot = ({ deal }: DealTrackerSlotProps): ReactElement => {
+export const DealTrackerSlot = ({ deal, receipt }: DealTrackerSlotProps): ReactElement => {
   const { t: baseText } = useI18n();
   const { t } = useCatalogSection(dealsSection);
   const { load, state } = useChunkLoader(loadDealTracker);
@@ -35,7 +39,7 @@ export const DealTrackerSlot = ({ deal }: DealTrackerSlotProps): ReactElement =>
   }, [load]);
 
   if (state.kind === 'loaded' && t !== undefined) {
-    return <state.module.DealTracker deal={deal} t={t} />;
+    return <state.module.DealTracker deal={deal} receipt={receipt} t={t} />;
   }
   if (state.kind === 'failed') {
     return (

@@ -17,7 +17,13 @@ const SEED_TOPOLOGY_SITES = [
   { prefix: '8f000002', tenantId: SeedOrganizationId.CUSTOMER_1, warehouseId: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1 },
 ] as const;
 
-const createTopology = ({ prefix, tenantId, warehouseId }: typeof SEED_TOPOLOGY_SITES[number]): WarehouseTopology => {
+interface SeedTopologySiteValue {
+  prefix: string;
+  tenantId: string;
+  warehouseId: string;
+}
+
+export const createSeedWarehouseTopology = ({ prefix, tenantId, warehouseId }: SeedTopologySiteValue): WarehouseTopology => {
   const id = (index: number): string => `${prefix}-0000-4000-8000-${String(index).padStart(12, '0')}`;
 
   return create(WarehouseTopologySchema, {
@@ -70,6 +76,6 @@ export const createSeedWarehouseTopologies = (
   findWarehouse: (id: string) => Pick<Warehouse, 'tenantId'> | undefined,
 ): WarehouseTopologyRecordValue[] => SEED_TOPOLOGY_SITES.flatMap(site => (
   findWarehouse(site.warehouseId)?.tenantId === site.tenantId
-    ? [encodeWarehouseTopology(createTopology(site))]
+    ? [encodeWarehouseTopology(createSeedWarehouseTopology(site))]
     : []
 ));

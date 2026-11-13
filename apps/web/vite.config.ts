@@ -153,6 +153,8 @@ const ORGANIZATION_CONTRACT_MODULES = [
 const CATALOG_EDIT_SHARED_MODULES = [
   'src/entities/listing/api/useOwnListingQuery.ts',
   'src/pages/catalog/lib/formatDestinationLabel.ts',
+  'src/pages/catalog/model/catalogTextsContext.ts',
+  'src/pages/catalog/model/useCatalogTexts.ts',
   'src/pages/catalog/ui/skeleton/OwnListingInspectorSkeleton.tsx',
   'src/pages/catalog/ui/skeleton/OwnTiersSkeleton.tsx',
   'src/pages/catalog/ui/skeleton/OwnWarehousesSkeleton.tsx',
@@ -263,6 +265,10 @@ const MAX_STARTUP_GZIP_KILOBYTES = 95;
 
 const MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES = 46.2;
 
+const MAX_WAREHOUSE_WORKSPACE_GZIP_KILOBYTES = 57.7;
+
+const MAX_WAREHOUSE_RECEIVE_FORM_GZIP_KILOBYTES = 77.4;
+
 const MAX_NETWORK_INSPECTOR_GZIP_KILOBYTES = 26;
 
 const MAX_NETWORK_ORGANIZATION_CARD_GZIP_KILOBYTES = 10;
@@ -355,6 +361,8 @@ const MAX_DEAL_STANDARD_FORMS_GZIP_KILOBYTES = 70.25;
 
 const MAX_DEAL_FOLDER_GZIP_KILOBYTES = 54;
 
+const MAX_DEAL_WAREHOUSE_RECEIPT_GZIP_KILOBYTES = 45.4;
+
 const MAX_DOCUMENT_VIEW_GZIP_KILOBYTES = 57.56;
 
 const MAX_DEAL_DRAFT_FORM_GZIP_KILOBYTES = 60.12;
@@ -386,6 +394,8 @@ const MAX_ENGINE_GZIP_KILOBYTES = 180.3;
 const MAX_ENGINE_SEED_GZIP_KILOBYTES = 14.53;
 
 const MAX_ENGINE_SEED_WITH_TOPOLOGY_GZIP_KILOBYTES = 17;
+
+const MAX_ENGINE_WAREHOUSE_WORKSPACE_SEED_GZIP_KILOBYTES = 10.5;
 
 const MAX_ENGINE_STOCK_GZIP_KILOBYTES = 6;
 
@@ -540,6 +550,17 @@ const ENGINE_WORKER_BUDGET = {
       isRequired: true,
       maxGzipKiloBytes: MAX_ENGINE_SEED_WITH_TOPOLOGY_GZIP_KILOBYTES,
       name: 'engine-seed-with-topology',
+    },
+    {
+      baseline: 'engine',
+      entries: [
+        'packages/demo-engine/src/core/seed/readSeedWarehouseStock.ts',
+        'packages/demo-engine/src/core/seed/seedWarehouseWorkspace.ts',
+      ],
+      forbiddenPackages: XLSX_READER_PACKAGES,
+      isRequired: true,
+      maxGzipKiloBytes: MAX_ENGINE_WAREHOUSE_WORKSPACE_SEED_GZIP_KILOBYTES,
+      name: 'engine-warehouse-workspace-seed',
     },
     {
       baseline: 'engine',
@@ -731,6 +752,22 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_CREATE_WAREHOUSE_FORM_GZIP_KILOBYTES,
     name: 'create-warehouse-form',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/warehouse/ui/workspace/WarehouseWorkspaceRoute.tsx'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_WAREHOUSE_WORKSPACE_GZIP_KILOBYTES,
+    name: 'warehouse-workspace',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/warehouse/ui/workspace/WarehouseReceiveForm.tsx'],
+    forbiddenPackages: ['@react-three/*', 'three', 'maska'],
+    isRequired: true,
+    maxGzipKiloBytes: MAX_WAREHOUSE_RECEIVE_FORM_GZIP_KILOBYTES,
+    name: 'warehouse-receive-form',
   },
   {
     baseline: STARTUP_BASELINE,
@@ -992,6 +1029,14 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_DEAL_FOLDER_GZIP_KILOBYTES,
     name: 'deal-folder',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/deals/ui/folder/receipt/DealWarehouseReceipt.tsx'],
+    forbiddenPackages: CATALOG_FORBIDDEN_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_DEAL_WAREHOUSE_RECEIPT_GZIP_KILOBYTES,
+    name: 'deal-warehouse-receipt',
   },
   {
     baseline: STARTUP_BASELINE,
@@ -1424,6 +1469,10 @@ export default defineConfig({
           }, {
             name: 'engine-runtime',
             test: (moduleId: string): boolean => hasEntryModule([moduleId], 'packages/demo-engine/src/core/engine/createEngine.ts'),
+          }, {
+            includeDependenciesRecursively: false,
+            name: 'engine-seed-topologies',
+            test: /[\\/]core[\\/](?:engine[\\/]migrateWarehouseTopologies|seed[\\/]seed(?:SnapshotWithTopology|WarehouseTopologies))\.ts$/,
           }, {
             includeDependenciesRecursively: false,
             name: 'engine-transport-shared',

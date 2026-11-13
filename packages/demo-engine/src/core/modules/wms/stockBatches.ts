@@ -46,7 +46,7 @@ export const readStockBatch = (
 
 export const writeStockBatch = (
   transaction: IStateTransaction,
-  runtime: IModuleRuntime,
+  runtime: Pick<IModuleRuntime, 'errors' | 'random'>,
   details: Pick<Batch, 'baseUnit' | 'expiresOn' | 'number' | 'productId' | 'tenantId'>,
 ): Batch => {
   const id = runtime.random.uuid();

@@ -133,6 +133,41 @@ describe('payment receipt access', () => {
     });
   });
 
+  it('shows accepted goods and applied commission without inventing a hidden transport reserve', async () => {
+    const runtime = createTestRuntime({
+      routes: router => router.service(PaymentService, {
+        getDealPayment: () => ({
+          payment: {
+            commissionAmount: { amountMinor: 2_100n, currencyCode: 'RUB' },
+            commissionRateBasisPoints: 150,
+            dealId: DEAL_ID,
+            goodsAmount: { amountMinor: 140_000n, currencyCode: 'RUB' },
+            partialReceipt: {
+              acceptedGoodsAmount: { amountMinor: 70_000n, currencyCode: 'RUB' },
+              acceptedGoodsCommission: { amountMinor: 1_050n, currencyCode: 'RUB' },
+              disputedGoodsAmount: { amountMinor: 70_000n, currencyCode: 'RUB' },
+            },
+            status: SafeDealPaymentStatus.DISPUTE,
+            version: 4,
+          },
+        }),
+      }),
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(withTestLocalizer(
+      <ApiRuntimeProvider runtime={runtime}>
+        <QueryClientProvider client={queryClient}><Receipt /></QueryClientProvider>
+      </ApiRuntimeProvider>,
+    ));
+
+    const commission = await screen.findByTestId('deal-payment-commission');
+    expect(commission.textContent).toMatch(/10,50\s₽/u);
+    expect(screen.getByText('Подтверждённый товар')).toBeTruthy();
+    expect(screen.getByText('Спорная сумма за товар')).toBeTruthy();
+    expect(screen.queryByText('Удержано за доставку')).toBeNull();
+  });
+
   it('shows the projected carrier commission and distinguishes the carrier payout', async () => {
     const supplierPayout = {
       amount: { amountMinor: 118_000n, currencyCode: 'RUB' }, organizationId: TEST_ORGANIZATION_ID, status: PayoutStatus.PAID,

@@ -13,7 +13,10 @@ import {
   isPermissionGranted,
   useSessionQuery,
 } from '@/entities/session';
-import { useActingContext } from '@/shared/api';
+import {
+  isReadAccessDenied,
+  useActingContext,
+} from '@/shared/api';
 import {
   useCatalogSection,
   useI18n,
@@ -28,7 +31,13 @@ import type { DealCommandContextValue } from '../../api/commands/dealCommandCont
 import type { DealInspectorTranslate } from '../../i18n/inspectorSection';
 import type { DealEditorValue } from './dealInspectorTypes';
 
+import { useDealCommandAccess } from '../../api/commands/useDealCommandAccess';
+import {
+  getDealReceiptMethod,
+  useDealReceipt,
+} from '../../api/useDealReceipt';
 import { dealInspectorSection } from '../../i18n/inspectorSection';
+import { shouldReadDealReceipt } from '../../lib/dealReceiptActions';
 import { DealStatusBadge } from '../DealStatusBadge';
 import { DealTrackerSlot } from '../DealTrackerSlot';
 import { DealFolderSlot } from '../folder/DealFolderSlot';
@@ -61,15 +70,25 @@ const DealInspectorBody = ({
 }: DealInspectorBodyProps): ReactElement => {
   const { organizationId } = useActingContext();
   const { data: session } = useSessionQuery();
+  const isCustomer = organizationId === deal.customerOrganizationId;
+  const isSupplier = organizationId === deal.supplierOrganizationId;
+  const party = isCustomer ? 'customer' : (isSupplier ? 'supplier' : undefined);
+  const receiptAccess = useDealCommandAccess(getDealReceiptMethod);
+  const shouldReadReceipt = shouldReadDealReceipt(deal.status, party);
+  const canReadReceipt = shouldReadReceipt && receiptAccess.status === 'allowed';
+  const receiptQuery = useDealReceipt(deal.id, canReadReceipt);
+
   const [editor, setEditor] = useState<DealEditorValue | undefined>(undefined);
   const actionListRef = useRef<HTMLElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const statusRef = useRef<HTMLDivElement>(null);
   const pendingFocusRef = useRef<'status' | DealEditorValue | undefined>(undefined);
 
-  const isCustomer = organizationId === deal.customerOrganizationId;
-  const isSupplier = organizationId === deal.supplierOrganizationId;
-  const party = isCustomer ? 'customer' : (isSupplier ? 'supplier' : undefined);
+  const isReceiptReadDenied = isReadAccessDenied(receiptQuery.error);
+  const receipt = canReadReceipt && !isReceiptReadDenied ? receiptQuery.data?.receipt : undefined;
+  const isReceiptLoading = shouldReadReceipt && (receiptAccess.status === 'checking' || (canReadReceipt && receiptQuery.isPending));
+  const canOfferManualShipment = receiptAccess.status === 'denied' || isReceiptReadDenied || (canReadReceipt && receiptQuery.isSuccess);
+  const isReceiptFailure = canReadReceipt && !isReceiptReadDenied && receiptQuery.error !== null;
   const canPublish = session !== undefined
     && isPermissionGranted(session.permissions, PermissionCode.TRANSPORT_REQUEST_CREATE, { kind: 'organization' });
   const actions = getDealActions(deal.status, party, deal.deliveryMethod, canPublish);
@@ -79,6 +98,18 @@ const DealInspectorBody = ({
   const ownCompany = session?.organizations.find(organization => organization.id === organizationId)?.name
     ?? t('dealInspector.ownCompany');
   const otherCompany = counterpartyName ?? t('dealInspector.notSpecified');
+
+  const handleRetryReceipt = (): void => {
+    console.log('> DealInspector -> handleRetryReceipt:', {});
+    void receiptQuery.refetch();
+  };
+
+  const handleRefreshReceipt = (): void => {
+    onRefresh();
+    if (canReadReceipt) {
+      handleRetryReceipt();
+    }
+  };
 
   const handleClose = (): void => {
     pendingFocusRef.current = editor;
@@ -133,7 +164,7 @@ const DealInspectorBody = ({
       <div className="self-start" data-status={deal.status} data-testid="deal-status" ref={statusRef} tabIndex={-1}>
         <DealStatusBadge status={deal.status} />
       </div>
-      <DealTrackerSlot deal={deal} />
+      <DealTrackerSlot deal={deal} receipt={receipt} />
       <dl className="flex flex-col gap-1 text-sm">
         <div className="flex flex-wrap justify-between gap-x-2 wrap-break-word">
           <dt className="text-on-panel-muted">{t('dealInspector.customer')}</dt>
@@ -148,13 +179,18 @@ const DealInspectorBody = ({
       {hasTransportRequest && <DealTransportSlot dealId={deal.id} kind="request" />}
       {hasFolder && (
         <DealFolderSlot
+          canOfferManualShipment={canOfferManualShipment}
           deal={deal}
           documentFocusRequest={documentFocusRequest}
           initialDocumentId={initialDocumentId}
+          isReceiptLoading={isReceiptLoading}
           onFocusStatus={handleFocusStatus}
-          onRefresh={onRefresh}
+          onRefresh={handleRefreshReceipt}
+          onRetryReceipt={handleRetryReceipt}
           onUpdated={handleUpdated}
           party={party}
+          receipt={receipt}
+          receiptError={isReceiptFailure ? receiptQuery.error : null}
           transportCard={hasTransportRequest ? <DealTransportSlot dealId={deal.id} kind="trip" /> : undefined}
         />
       )}

@@ -12,6 +12,7 @@ import type { EngineSeedValue } from '../seed/seedConfig';
 
 export interface CreateEngineOptionsValue {
   epoch: string;
+  isDemoWarehouseEnabled?: boolean | undefined;
   realTime: IRealTimeSource;
   seed?: EngineSeedValue;
   storage: IEngineStorage;

@@ -9,13 +9,8 @@ import type {
   IStateReader,
   IStateTransaction,
 } from '../state/index';
-import type { finishInboundReceipt } from './deals/dealReceipt';
-import type { issueInboundDocuments } from './documents/receiptDocuments';
 import type { INotifier } from './notifications/notifierTypes';
-import type {
-  prepareInboundShipment,
-  ReceivingManifestValue,
-} from './wms/inboundPlan';
+import type { ReceivingManifestValue } from './wms/inboundPlan';
 import type {
   hasInboundProduct,
   openInboundTask,
@@ -29,21 +24,19 @@ export interface IEventOutbox {
 export interface IModuleRuntime {
   command: <TResult>(work: (transaction: IStateTransaction) => TResult) => Promise<TResult>;
   errors: IDomainErrors;
-  finishInboundReceipt?: typeof finishInboundReceipt | undefined;
   getWorldTimeMs: () => number;
   guard: ICallGuard;
   hasInboundProduct?: typeof hasInboundProduct | undefined;
   idempotency: IIdempotencyGuard;
-  issueInboundDocuments?: typeof issueInboundDocuments | undefined;
   notifier: INotifier;
   openInboundTask?: typeof openInboundTask | undefined;
   openOutboundTask?: typeof openOutboundTask | undefined;
   outbox: IEventOutbox;
   paymentProvider: IPaymentProvider;
-  prepareInboundShipment?: typeof prepareInboundShipment | undefined;
   random: IRandom;
   read: IStateReader;
   wmsInboundManifests?: ReadonlyMap<string, ReceivingManifestValue> | undefined;
   wmsInboundWarehouseIds?: ReadonlySet<string> | undefined;
+  wmsManualInboundWarehouseIds?: ReadonlySet<string> | undefined;
   wmsOutboundWarehouseIds?: ReadonlySet<string> | undefined;
 }

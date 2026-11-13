@@ -1,5 +1,3 @@
-import type { StockBalance } from '@skladburg/contracts/wms/v1/stock';
-
 import { create } from '@bufbuild/protobuf';
 import {
   timestampFromMs,
@@ -67,7 +65,6 @@ export const holdPaymentForShipment = (
   runtime: IModuleRuntime,
   transaction: IStateTransaction,
   deal: Deal,
-  shippedUnits: readonly StockBalance[] | undefined,
 ): void => {
   const record = transaction.get('payments', deal.id);
   if (record?.payment === undefined) {
@@ -75,7 +72,6 @@ export const holdPaymentForShipment = (
   }
   deal.deadlines = getExchangePayments(runtime.errors, deal)?.prepareExchangeShipment(runtime, transaction, deal, record)
     ?? planDeliveryDeadlines(runtime, transaction, deal);
-  runtime.prepareInboundShipment?.(transaction, runtime, deal, shippedUnits);
   if (transaction.get('warehouseInbound', deal.id) !== undefined) {
     deal.deadlines.acceptanceDueAt = undefined;
   }

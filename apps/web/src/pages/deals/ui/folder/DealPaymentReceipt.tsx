@@ -70,13 +70,15 @@ interface DealPaymentReceiptProps {
 
 export const DealPaymentReceipt = ({ children, payment, statusRef, t, total }: DealPaymentReceiptProps): ReactElement => {
   const { locale } = useI18n();
-  const { commissionAmount, deliveryAmount, goodsAmount, payouts, status, transport } = payment;
+  const { commissionAmount, deliveryAmount, goodsAmount, partialReceipt, payouts, status, transport } = payment;
   const rateFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 2, style: 'percent' });
   const rate = rateFormat.format(payment.commissionRateBasisPoints / 10_000);
   const delivery = transport?.shippingAmount ?? deliveryAmount;
   const carrierPayout = transport?.carrierPayout;
   const supplierPayouts = payouts.filter(payout => payout.organizationId !== carrierPayout?.organizationId);
   const step = PROGRESS[status];
+  const appliedCommission = partialReceipt?.acceptedGoodsCommission ?? commissionAmount;
+  const deliveryCommission = partialReceipt === undefined ? transport?.commissionAmount : undefined;
   const isHeld = status === SafeDealPaymentStatus.BLOCKED || status === SafeDealPaymentStatus.HELD;
   const isSettled = status === SafeDealPaymentStatus.CLOSED || status === SafeDealPaymentStatus.PAID_OUT;
   const StatusIcon = isHeld ? LockKeyhole : (isSettled ? Check : Banknote);
@@ -98,19 +100,28 @@ export const DealPaymentReceipt = ({ children, payment, statusRef, t, total }: D
         {goodsAmount !== undefined && <PaymentFact label={t('dealFolder.goods')} value={formatMoney(locale, goodsAmount)} />}
         {delivery !== undefined && <PaymentFact label={t('dealFolder.delivery')} value={formatMoney(locale, delivery)} />}
         {total !== undefined && <PaymentFact label={t('dealFolder.total')} value={formatMoney(locale, total)} />}
-        {commissionAmount !== undefined && (
+        {appliedCommission !== undefined && (
           <PaymentFact
             label={t('dealFolder.commission', { rate })}
             testId="deal-payment-commission"
-            value={formatMoney(locale, commissionAmount)}
+            value={formatMoney(locale, appliedCommission)}
           />
         )}
-        {transport?.commissionAmount !== undefined && (
+        {deliveryCommission !== undefined && transport !== undefined && (
           <PaymentFact
             label={t('dealFolder.transportCommission', { rate: rateFormat.format(transport.commissionRateBasisPoints / 10_000) })}
             testId="deal-payment-transport-commission"
-            value={formatMoney(locale, transport.commissionAmount)}
+            value={formatMoney(locale, deliveryCommission)}
           />
+        )}
+        {partialReceipt?.acceptedGoodsAmount !== undefined && (
+          <PaymentFact label={t('dealFolder.acceptedGoods')} value={formatMoney(locale, partialReceipt.acceptedGoodsAmount)} />
+        )}
+        {partialReceipt?.disputedGoodsAmount !== undefined && (
+          <PaymentFact label={t('dealFolder.disputedGoods')} value={formatMoney(locale, partialReceipt.disputedGoodsAmount)} />
+        )}
+        {partialReceipt?.heldTransportAmount !== undefined && partialReceipt.heldTransportAmount.amountMinor > 0n && (
+          <PaymentFact label={t('dealFolder.heldDelivery')} value={formatMoney(locale, partialReceipt.heldTransportAmount)} />
         )}
         {supplierPayouts.map(payout => payout.amount === undefined
           ? null
@@ -130,9 +141,9 @@ export const DealPaymentReceipt = ({ children, payment, statusRef, t, total }: D
           />
         )}
       </dl>
-      {commissionAmount !== undefined && (
+      {appliedCommission !== undefined && (
         <p className="text-sm text-on-panel-muted">
-          {t(transport?.commissionAmount === undefined ? 'dealFolder.commissionHint' : 'dealFolder.transportCommissionHint')}
+          {t(deliveryCommission === undefined ? 'dealFolder.commissionHint' : 'dealFolder.transportCommissionHint')}
         </p>
       )}
       {children}

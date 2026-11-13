@@ -266,6 +266,10 @@ it('opens one private task on arrival and keeps the deal payment held after rest
     ...savedProduct, expectedVersion: mismatched?.version ?? 0n, idempotencyKey: nextUuid(),
   }, editor);
   const arrivalMs = await ship();
+  expect((await clients.deals.getDealReceipt({ dealId }, CUSTOMER_CALL)).receipt)
+    .toMatchObject({ dealId, lines: [] });
+  expect((await clients.deals.getDealReceipt({ dealId }, CUSTOMER_CALL)).receipt?.updDocumentId).toBeTruthy();
+  expect(await failureCode(clients.deals.getDealReceipt({ dealId }, receiver))).toBe(ErrorCode.PERMISSION_DENIED);
   const list = { warehouseId: WAREHOUSE };
   expect(await clients.receiving.listReceivingTasks(list, receiver)).toMatchObject({ tasks: [] });
   expect(await failureCode(clients.receiving.listReceivingTasks(list, inventoryOnly))).toBe(ErrorCode.PERMISSION_DENIED);

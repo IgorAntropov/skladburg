@@ -65,8 +65,7 @@ const readReceiptTask = (reader: IStateReader, runtime: IModuleRuntime, deal: De
   if (record.lookupKey !== deal.customerOrganizationId || record.scopeId !== deal.shipToWarehouseId) {
     throw runtime.errors.internal();
   }
-  const task = readInboundTask(record, runtime.errors);
-  return task.finishedAt === undefined ? undefined : task;
+  return readInboundTask(record, runtime.errors);
 };
 
 const requireReceiptTask = (transaction: IStateTransaction, runtime: IModuleRuntime, deal: Deal): ReceivingTask => {
@@ -108,7 +107,12 @@ export const getDealReceipt = (
   const deal = readVisibleDeal(read, errors, request.dealId, caller);
   const task = readReceiptTask(read, runtime, deal);
   if (task?.updDocumentId === undefined) {
-    return create(GetDealReceiptResponseSchema);
+    const isOwnPicking = caller.organizationId === deal.supplierOrganizationId && read.get('warehouseOutbound', deal.id) !== undefined;
+    return create(GetDealReceiptResponseSchema, { receipt: isOwnPicking ? { dealId: deal.id } : undefined });
+  }
+
+  if (task.finishedAt === undefined) {
+    return create(GetDealReceiptResponseSchema, { receipt: { dealId: deal.id, updDocumentId: task.updDocumentId } });
   }
 
   const { hasDiscrepancies, lines } = reconcileWarehouseReceipt(runtime, task, deal);

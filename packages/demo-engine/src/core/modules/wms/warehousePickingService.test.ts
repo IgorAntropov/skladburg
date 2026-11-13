@@ -1,15 +1,21 @@
-import type { CallOptions } from '@connectrpc/connect';
+import type {
+  CallOptions,
+  Client,
+} from '@connectrpc/connect';
 import type { Deal } from '@skladburg/contracts/deal/v1/deal';
 import type { Event } from '@skladburg/contracts/event/v1/event';
 
+import { create } from '@bufbuild/protobuf';
 import {
   ConnectError,
   createClient,
 } from '@connectrpc/connect';
+import { CatalogService } from '@skladburg/contracts/catalog/v1/catalog';
 import { ShowcaseService } from '@skladburg/contracts/catalog/v1/showcase';
 import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import {
+  CreateDealDraftRequestSchema,
   DealService,
   DealStatus,
 } from '@skladburg/contracts/deal/v1/deal';
@@ -27,6 +33,10 @@ import {
   WarehousePickingService,
 } from '@skladburg/contracts/wms/v1/picking';
 import {
+  ReceivingTaskStatus,
+  WarehouseReceivingService,
+} from '@skladburg/contracts/wms/v1/receiving';
+import {
   HandlingUnitKind,
   StockMovementKind,
   StockStatus,
@@ -43,11 +53,15 @@ import {
   createSpyStorage,
   createTestEngine,
 } from '../../engine/testing/engineHarness';
+import { createSeedSnapshot } from '../../seed/index';
 import {
+  SeedCityId,
   SeedOrganizationId,
   SeedUserId,
   SeedWarehouseId,
 } from '../../seed/seedIds';
+import { createSeedWarehouseTopology } from '../../seed/seedWarehouseTopologies';
+import { TABLE_DEFINITIONS } from '../../state/index';
 import { ENGINE_SCHEMA_VERSION } from '../../state/schemaVersion';
 import { CUSTOMER_CALL } from '../catalog/showcase/testing/showcaseFixtures';
 import {
@@ -61,6 +75,7 @@ import {
   captureError,
   readErrorDetail,
 } from '../testing/moduleHarness';
+import { encodeWarehouseTopology } from './warehouseTopologyCodec';
 
 const WAREHOUSE = SeedWarehouseId.SUPPLIER_1_WAREHOUSE_1;
 const SECOND_WAREHOUSE = SeedWarehouseId.SUPPLIER_1_WAREHOUSE_2;
@@ -81,6 +96,7 @@ const createOutboundClients = (engine: Awaited<ReturnType<typeof createTestEngin
   documents: ReturnType<typeof createClient<typeof DocumentService>>;
   payments: ReturnType<typeof createClient<typeof PaymentService>>;
   picking: ReturnType<typeof createClient<typeof WarehousePickingService>>;
+  receiving: Client<typeof WarehouseReceivingService>;
   showcase: ReturnType<typeof createClient<typeof ShowcaseService>>;
   stock: ReturnType<typeof createClient<typeof WarehouseStockService>>;
 } => {
@@ -90,6 +106,7 @@ const createOutboundClients = (engine: Awaited<ReturnType<typeof createTestEngin
     documents: createClient(DocumentService, transport),
     payments: createClient(PaymentService, transport),
     picking: createClient(WarehousePickingService, transport),
+    receiving: createClient(WarehouseReceivingService, transport),
     showcase: createClient(ShowcaseService, transport),
     stock: createClient(WarehouseStockService, transport),
   };
@@ -219,6 +236,167 @@ const fundForPickup = async (
 };
 
 const getFailure = async (call: Promise<unknown>): Promise<ErrorCode> => readErrorDetail(await captureError(call)).code;
+
+const GOLDEN_APPLE_LISTING = 'd1010001-0000-4000-8000-000000000000';
+
+const createDemoOutboundDraft = (): ReturnType<typeof create<typeof CreateDealDraftRequestSchema>> =>
+  create(CreateDealDraftRequestSchema, {
+    dealId: nextUuid(),
+    desiredDate: { day: 20, month: 10, year: 2026 },
+    idempotencyKey: nextUuid(),
+    lines: [{ listingId: GOLDEN_APPLE_LISTING, quantity: 480_000n }],
+    shipFromCityId: SeedCityId.KRASNODAR,
+    shipToWarehouseId: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1,
+    supplierOrganizationId: SeedOrganizationId.SUPPLIER_1,
+  });
+
+it('provisions the selected demo warehouse once and uses its real shipment for receiving', async () => {
+  const stored = addWarehouseTopologies(createSeedSnapshot());
+  const storage = createSpyStorage(stored);
+  storage.failNextReplaceAll();
+  await expect(createTestEngine({ isDemoWarehouseEnabled: true, storage })).rejects.toMatchObject({ name: 'SeedLoadError' });
+  expect(await storage.load()).toEqual(stored);
+
+  const start = await createTestEngine({ isDemoWarehouseEnabled: true, storage });
+  const clients = createOutboundClients(start.engine);
+  const provisioned = await storage.load();
+  expect(provisioned?.collections.deals).toEqual(stored.collections.deals);
+  expect(provisioned?.collections.documents).toEqual(stored.collections.documents);
+  expect(provisioned?.collections.stockBalances.size).toBeGreaterThan(0);
+  const { movements } = await clients.stock.listStockMovements({ warehouseId: SECOND_WAREHOUSE }, SUPPLIER);
+  expect(movements[0]?.kind).toBe(StockMovementKind.OPENING_BALANCE);
+  const request = createDemoOutboundDraft();
+  const submitted = await submit(clients, request);
+  const { deal } = await clients.deals.confirmDeal({ ...agreement(submitted), shipFromWarehouseId: SECOND_WAREHOUSE }, SUPPLIER);
+  if (deal === undefined) {
+    throw new Error('Missing agreement');
+  }
+  await fundForPickup(clients, deal);
+  start.realTime.advance(5 * 60_000);
+  await start.engine.tick();
+  const base = { taskId: deal.id, warehouseId: SECOND_WAREHOUSE };
+  const { task } = await clients.picking.claimPickingTask({ ...base, expectedVersion: 1, idempotencyKey: nextUuid() }, SUPPLIER);
+  await clients.picking.confirmPicking({
+    ...base, expectedVersion: 2, handlingUnitIds: task?.units.map(unit => unit.handlingUnit?.id ?? '') ?? [], idempotencyKey: nextUuid(),
+  }, SUPPLIER);
+  await clients.picking.confirmWarehouseShipment({ ...base, expectedVersion: 3, idempotencyKey: nextUuid() }, SUPPLIER);
+  const { deal: shipped } = await clients.deals.getDeal({ dealId: deal.id }, CUSTOMER_CALL);
+  expect(shipped?.status).toBe(DealStatus.SHIPPED);
+  expect(shipped?.deadlines?.acceptanceDueAt).toBeUndefined();
+  expect((await clients.deals.getDealReceipt({ dealId: deal.id }, CUSTOMER_CALL)).receipt?.updDocumentId).toBeTruthy();
+  const before = await storage.load();
+  expect(before?.collections.warehouseInbound.has(deal.id)).toBe(true);
+  const restored = await createTestEngine({ isDemoWarehouseEnabled: true, storage });
+  expect(await storage.load()).toEqual(before);
+
+  const { tasks } = await createOutboundClients(restored.engine).receiving.listReceivingTasks(
+    { warehouseId: request.shipToWarehouseId }, CUSTOMER_CALL,
+  );
+  expect(tasks).toEqual([]);
+  restored.realTime.advance(9 * 24 * 60 * 60_000);
+  await restored.engine.tick();
+  expect((await createOutboundClients(restored.engine).receiving.listReceivingTasks(
+    { warehouseId: request.shipToWarehouseId }, CUSTOMER_CALL,
+  )).tasks).toMatchObject([{ dealId: deal.id, status: ReceivingTaskStatus.OPEN }]);
+});
+
+it('keeps a paid deal with a manual origin on the legacy route when the demo warehouse is enabled', async () => {
+  const initial = await createTestEngine();
+  const previous = createOutboundClients(initial.engine);
+  const submitted = await submit(previous, createDemoOutboundDraft());
+  const { deal } = await previous.deals.confirmDeal(agreement(submitted), SUPPLIER);
+  if (deal === undefined) {
+    throw new Error('Missing agreement');
+  }
+  await fundForPickup(previous, deal);
+  initial.realTime.advance(5 * 60_000);
+  await initial.engine.tick();
+
+  const restored = await createTestEngine({ isDemoWarehouseEnabled: true, storage: initial.storage });
+  const clients = createOutboundClients(restored.engine);
+  const { deal: paid } = await clients.deals.getDeal({ dealId: deal.id }, SUPPLIER);
+  const { deal: shipped } = await clients.deals.markDealShipped({
+    dealId: deal.id, expectedVersion: paid?.version ?? 0, idempotencyKey: nextUuid(),
+  }, SUPPLIER);
+  expect(shipped?.status).toBe(DealStatus.SHIPPED);
+  expect(shipped?.deadlines?.acceptanceDueAt).toBeDefined();
+  expect((await clients.deals.getDealReceipt({ dealId: deal.id }, CUSTOMER_CALL)).receipt).toBeUndefined();
+});
+
+it('preserves manual availability for a saved custom topology without a stock ledger', async () => {
+  const snapshot = addWarehouseTopologies(createSeedSnapshot());
+  const topology = createSeedWarehouseTopology({
+    prefix: '8f000004', tenantId: SeedOrganizationId.SUPPLIER_1, warehouseId: SECOND_WAREHOUSE,
+  });
+  const warehouseTopologies = new Map(snapshot.collections.warehouseTopologies);
+  warehouseTopologies.set(SECOND_WAREHOUSE, TABLE_DEFINITIONS.warehouseTopologies.encode(encodeWarehouseTopology(topology)));
+  const customSnapshot = { ...snapshot, collections: { ...snapshot.collections, warehouseTopologies } };
+  const storage = createSpyStorage(customSnapshot);
+  const initial = await createTestEngine({ storage });
+  const restored = await createTestEngine({ isDemoWarehouseEnabled: true, storage });
+  expect(await storage.load()).toEqual(customSnapshot);
+
+  const request = createDemoOutboundDraft();
+  const listingRequest = { listingId: GOLDEN_APPLE_LISTING };
+  const initialClients = createOutboundClients(initial.engine);
+  const clients = createOutboundClients(restored.engine);
+  const availability = (await initialClients.showcase.getShowcaseListing(listingRequest, CUSTOMER_CALL)).listing?.cityAvailability;
+  expect((await clients.showcase.getShowcaseListing(listingRequest, CUSTOMER_CALL)).listing?.cityAvailability).toEqual(availability);
+  const submitted = await submit(clients, request);
+  const { deal } = await clients.deals.confirmDeal({ ...agreement(submitted), shipFromWarehouseId: SECOND_WAREHOUSE }, SUPPLIER);
+  expect(deal).toMatchObject({ shipFromWarehouseId: SECOND_WAREHOUSE, status: DealStatus.AGREED });
+  expect((await storage.load())?.collections.warehouseOutbound.has(submitted.id)).toBe(false);
+
+  const catalog = createClient(CatalogService, createEngineTransport(restored.engine, true));
+  const { listing } = await catalog.getOwnListing(listingRequest, SUPPLIER);
+  const productId = listing?.listing?.productId;
+  if (productId === undefined) {
+    throw new Error('Missing listing product');
+  }
+  await clients.stock.postOpeningStock({
+    cellId: '8f000004-0000-4000-8000-000000000006',
+    idempotencyKey: nextUuid(),
+    kind: HandlingUnitKind.PALLET,
+    lines: [{ batchNumber: 'MANUAL-01', productId, quantityBase: 480_000n, status: StockStatus.AVAILABLE }],
+    sourceDocumentNumber: 'OPENING-1',
+    sscc: SSCC,
+    warehouseId: SECOND_WAREHOUSE,
+  }, SUPPLIER);
+  const reopened = createOutboundClients((await createTestEngine({ isDemoWarehouseEnabled: true, storage })).engine);
+  expect((await reopened.showcase.getShowcaseListing(listingRequest, CUSTOMER_CALL)).listing?.cityAvailability).toEqual(availability);
+});
+
+it('provisions without colliding with stock identifiers from the existing world', async () => {
+  const initial = await createTestEngine();
+  const clients = createOutboundClients(initial.engine);
+  const catalog = createClient(CatalogService, createEngineTransport(initial.engine, true));
+  const { listing } = await catalog.getOwnListing({ listingId: GOLDEN_APPLE_LISTING }, SUPPLIER);
+  const productId = listing?.listing?.productId;
+  const sku = listing?.product?.sku;
+  if (productId === undefined || sku === undefined) {
+    throw new Error('Missing listing product');
+  }
+  const manualBatch = `${sku}-DEMO-WMS-01`;
+  const manualSscc = '090000000000000018';
+  const manual = await clients.stock.postOpeningStock({
+    cellId: CELL,
+    idempotencyKey: nextUuid(),
+    kind: HandlingUnitKind.PALLET,
+    lines: [{ batchNumber: manualBatch, productId, quantityBase: 480_000n, status: StockStatus.AVAILABLE }],
+    sourceDocumentNumber: 'OPENING-1',
+    sscc: manualSscc,
+    warehouseId: WAREHOUSE,
+  }, SUPPLIER);
+
+  const restored = await createTestEngine({ isDemoWarehouseEnabled: true, storage: initial.storage });
+  const stock = createOutboundClients(restored.engine).stock;
+  expect((await stock.listStockBalances({ warehouseId: WAREHOUSE }, SUPPLIER)).balances).toEqual([manual.balance]);
+  const { balances } = await stock.listStockBalances({ page: { pageSize: 200 }, warehouseId: SECOND_WAREHOUSE }, SUPPLIER);
+  const lines = balances.flatMap(unit => unit.lines).filter(line => line.batch?.productId === productId);
+  expect(lines.length).toBeGreaterThan(0);
+  expect(lines.map(line => line.batch?.number)).toEqual(lines.map(() => `${sku}-DEMO-WMS-02`));
+  expect(balances.every(unit => unit.handlingUnit?.sscc !== manualSscc)).toBe(true);
+});
 
 it('reserves one exact shipment across racing orders, publishes free quantity, and restores it on cancellation', async () => {
   const { clients, engine, request, unitId } = await prepareOutboundDeal();

@@ -23,6 +23,7 @@ export interface IWorkerScope extends IEnginePort {
 export const createWorkerHostOptions = (scope: IWorkerScope): CreateEngineHostOptionsValue => ({
   broadcastChannelFactory: name => new scope.BroadcastChannel(name),
   generateId: createUuidGenerator(scope.crypto),
+  isDemoWarehouseEnabled: true,
   loadCore: () => import('../core/engine/index'),
   lockManager: scope.navigator.locks,
   openStorage: () => openEngineStorage({ databaseName: ENGINE_DATABASE_NAME }),

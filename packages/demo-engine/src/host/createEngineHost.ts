@@ -125,6 +125,7 @@ export const createEngineHost = (options: CreateEngineHostOptionsValue): IEngine
   const assumeLeadership = async (): Promise<void> => {
     const started = await startEngine({
       generateId: options.generateId,
+      isDemoWarehouseEnabled: options.isDemoWarehouseEnabled,
       loadCore: options.loadCore,
       openStorage: lockManager === undefined ? openMemoryStorage : options.openStorage,
       realTime: options.realTime,

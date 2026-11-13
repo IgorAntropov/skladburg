@@ -118,18 +118,21 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
       method: method.claimReceivingTask,
       request,
     }),
-    finishReceivingTask: (request, context) => runReceivingCommand(runtime, {
-      allowedStatuses: [ReceivingTaskStatus.IN_PROGRESS],
-      handle: (transaction, _caller, task) => {
-        task.status = ReceivingTaskStatus.READY_FOR_RECONCILIATION;
-        task.finishedAt = timestampFromMs(transaction.worldTimeMs);
-        runtime.finishInboundReceipt?.(transaction, runtime, task);
-        return create(FinishReceivingTaskResponseSchema, { task });
-      },
-      headers: context.requestHeader,
-      method: method.finishReceivingTask,
-      request,
-    }),
+    finishReceivingTask: async (request, context) => {
+      const { finishInboundReceipt } = await import('../deals/dealReceipt');
+      return runReceivingCommand(runtime, {
+        allowedStatuses: [ReceivingTaskStatus.IN_PROGRESS],
+        handle: (transaction, _caller, task) => {
+          task.status = ReceivingTaskStatus.READY_FOR_RECONCILIATION;
+          task.finishedAt = timestampFromMs(transaction.worldTimeMs);
+          finishInboundReceipt(transaction, runtime, task);
+          return create(FinishReceivingTaskResponseSchema, { task });
+        },
+        headers: context.requestHeader,
+        method: method.finishReceivingTask,
+        request,
+      });
+    },
     listReceivingTasks: (request, context) => {
       const caller = guard.guardPermissionCall(read, method.listReceivingTasks, request, context.requestHeader);
       const tasks = read.listBy('warehouseInbound', 'scopeId', request.warehouseId)

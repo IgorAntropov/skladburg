@@ -2256,6 +2256,16 @@ describe('eslint.config.ts with the local rules', () => {
         .toEqual([expect.stringContaining('catalog import panel chunk')]);
     });
 
+    it('keeps the warehouse receipt form and its hook out of the task list chunk', async () => {
+      const file = fileURLToPath(new URL('../../apps/web/src/pages/warehouse/ui/workspace/WarehouseReceiving.tsx', import.meta.url));
+      for (const specifier of ['./WarehouseReceiveForm', '../../api/useReceiveUnitForm']) {
+        const messages = await readLazyMessages(toValueImport(specifier), file);
+        expect(messages).toEqual([expect.stringContaining('warehouse receipt form chunk')]);
+        expect(await readLazyMessages(toTypeImport(specifier), file)).toEqual([]);
+      }
+      expect(await readLazyMessages(toDynamicImport('./WarehouseReceiveForm'), file)).toEqual([]);
+    });
+
     describe('the lazy chunk of create-warehouse', () => {
       it.each([
         ['the form view from the button', './form/CreateWarehouseFormBody', createWarehouseButtonFilePath],

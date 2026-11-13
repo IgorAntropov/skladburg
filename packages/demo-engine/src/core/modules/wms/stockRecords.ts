@@ -81,7 +81,7 @@ export const publishStockChanged = (transaction: IStateTransaction, outbox: IEve
 
 export const recordStockMovement = (
   transaction: IStateTransaction,
-  runtime: IModuleRuntime,
+  runtime: Pick<IModuleRuntime, 'errors' | 'outbox' | 'random'>,
   actorUserId: string,
   balance: StockBalance,
   basis: MovementBasisValue,
@@ -131,7 +131,7 @@ export const recordStockMovement = (
 
 export const publishStockAvailabilityChanged = (
   transaction: IStateTransaction,
-  runtime: IModuleRuntime,
+  runtime: Pick<IModuleRuntime, 'outbox' | 'wmsOutboundWarehouseIds'>,
   warehouseId: string,
   tenantId: string,
 ): void => {

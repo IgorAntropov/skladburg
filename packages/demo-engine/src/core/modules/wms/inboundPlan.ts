@@ -23,6 +23,7 @@ import {
   checkDealInteger,
   failDealValidation,
 } from '../deals/dealRules';
+import { issueInboundDocuments } from '../documents/receiptDocuments';
 import { saveInboundTask } from './inboundRecords';
 import {
   isReceivingMarkingCode,
@@ -207,6 +208,6 @@ export const prepareInboundShipment = (
     sourceDocumentNumber: normalizeStockReference(manifest.sourceDocumentNumber, 'source_document_number', errors),
     warehouseId,
   });
-  runtime.issueInboundDocuments?.(transaction, runtime, deal, task);
+  issueInboundDocuments(transaction, runtime, deal, task);
   saveInboundTask(transaction, runtime, task, deal.customerOrganizationId);
 };

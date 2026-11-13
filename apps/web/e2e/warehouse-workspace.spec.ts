@@ -23,6 +23,14 @@ import {
   DESKTOP_VIEWPORT,
   PHONE_VIEWPORT,
 } from './fixtures/viewports.ts';
+import {
+  denyCameraTestFeed,
+  expectCameraTestFeedStopped,
+  installCameraTestFeed,
+  openWarehouseCamera,
+  setCameraTestVisibility,
+  showCameraCode,
+} from './robots/camera-scan-robot.ts';
 import { toListingRoute } from './robots/catalog-robot.ts';
 import { createDealFolderRobot } from './robots/deal-folder-robot.ts';
 import { createDealRobot } from './robots/deal-robot.ts';
@@ -54,6 +62,13 @@ test('picks and receives a seeded delivery through the warehouse workspace witho
   await context.addInitScript({ content: createStoreGraphicsPreferenceIfAbsentScript('off') });
   const supplierPage = await context.newPage();
   const storePage = await context.newPage();
+  await installCameraTestFeed(storePage);
+  const cameraRequests = new Set<string>();
+  storePage.on('request', (request) => {
+    if (/cameraDecoder\.worker|zxing_reader/u.test(request.url())) {
+      cameraRequests.add(request.url());
+    }
+  });
   await storePage.setViewportSize(PHONE_VIEWPORT);
   await storePage.emulateMedia({ colorScheme: 'dark' });
   const customer = createDealRobot(page);
@@ -143,8 +158,15 @@ test('picks and receives a seeded delivery through the warehouse workspace witho
   await expect(receive.getByTestId('warehouse-receive-leave')).toHaveCount(0);
   await expect(ssccInput).toHaveValue(sscc.slice(0, -1));
   await ssccInput.fill('');
+  await denyCameraTestFeed(storePage, true);
   const foreignScan = await scanCode(receive, 'https://example.test/skladburg/#/cells/00000000-0000-4000-8000-000000000001', true);
   await expect(foreignScan).toHaveAttribute('aria-invalid', 'true');
+  const deniedCamera = await openWarehouseCamera(receive);
+  await expect(deniedCamera.getByRole('alert')).toContainText('Разрешите доступ');
+  expect(cameraRequests.size).toBe(0);
+  await deniedCamera.getByTestId('warehouse-camera-close').click();
+  await expect(receive.getByTestId('warehouse-camera-open')).toBeFocused();
+  await foreignScan.focus();
   await scanCode(receive, `]C100${sscc}`);
   await expect(ssccInput).toHaveValue(sscc);
   const receiveScan = await scanCode(receive, sscc);
@@ -178,6 +200,25 @@ test('picks and receives a seeded delivery through the warehouse workspace witho
   }
   await scanCode(placement, cellCode, true);
   await expect(placementCell).toHaveValue(placementCellId);
+  await placementCell.selectOption('');
+  await denyCameraTestFeed(storePage, false);
+  const camera = await openWarehouseCamera(placement);
+  await expect(camera.getByRole('status')).toHaveText('Принято кодов: 0');
+  expect([...cameraRequests].some(url => url.startsWith(new URL(storePage.url()).origin) && url.endsWith('.wasm'))).toBe(true);
+  await showCameraCode(storePage, cellCode, 'cell');
+  await expect(placementCell).toHaveValue(placementCellId);
+  await expect(camera.getByRole('status')).toHaveText('Принято кодов: 1');
+  await showCameraCode(storePage, 'XX-01', 'cell');
+  await expect(camera.getByRole('status')).toHaveText('Проверьте код и выбранное место.');
+  await setCameraTestVisibility(storePage, true);
+  await expect(camera.getByTestId('warehouse-camera-restart')).toBeVisible();
+  await expectCameraTestFeedStopped(storePage);
+  await setCameraTestVisibility(storePage, false);
+  await expectCameraTestFeedStopped(storePage);
+  await camera.getByTestId('warehouse-camera-restart').click();
+  await expect(camera.getByRole('status')).toHaveText('Принято кодов: 1');
+  await camera.getByTestId('warehouse-camera-close').click();
+  await expectCameraTestFeedStopped(storePage);
   await placement.getByTestId('warehouse-place-unit').click();
   await expect(placement).toHaveCount(0);
   await receiving.getByTestId('warehouse-enter-sscc').click();
@@ -185,9 +226,11 @@ test('picks and receives a seeded delivery through the warehouse workspace witho
   await expect(repeated).toHaveAttribute('aria-invalid', 'true');
   const scanCellUrl = new URL(`#/cells/${placementCellId}`, storePage.url()).href;
   await ssccInput.fill(sscc.slice(0, -1));
-  await repeated.focus();
-  await scanCode(receive, `]Q1${scanCellUrl}`);
+  await openWarehouseCamera(receive);
+  await expect(receive.getByTestId('warehouse-camera-scanner').getByRole('status')).toHaveText('Принято кодов: 0');
+  await showCameraCode(storePage, scanCellUrl, 'qr');
   await expect(receive.getByTestId('warehouse-receive-leave')).toBeVisible();
+  await expectCameraTestFeedStopped(storePage);
   await receive.getByTestId('warehouse-receive-leave-stay').click();
   await expect(ssccInput).toHaveValue(sscc.slice(0, -1));
   await repeated.focus();

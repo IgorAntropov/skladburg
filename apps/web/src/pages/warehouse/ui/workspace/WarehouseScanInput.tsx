@@ -12,11 +12,16 @@ import {
 } from 'react';
 
 import {
+  createCachedModuleLoader,
+  useChunkLoader,
+} from '@/shared/lib/module-loader';
+import {
   getAppBaseUrl,
   useNavigate,
 } from '@/shared/routing';
 import {
   Button,
+  ChunkLoadNotice,
   TextField,
 } from '@/shared/ui';
 
@@ -32,6 +37,8 @@ import { parseWarehouseScan } from '../../model/scan/parseWarehouseScan';
 import { readScannedCell } from '../../model/scan/readScannedCell';
 import { readWarehouseQr } from '../../model/scan/readWarehouseQr';
 import { resolveTaskReceivingScan } from '../../model/scan/resolveReceivingScan';
+
+const loadCamera = createCachedModuleLoader(() => import('./WarehouseCameraScanner'));
 
 export const scanTools = {
   readCell: readScannedCell,
@@ -50,32 +57,71 @@ interface WarehouseScanInputProps {
 
 export const WarehouseScanInput = ({ isReadOnly, onScan, t }: WarehouseScanInputProps): ReactElement => {
   const navigate = useNavigate();
+  const { load, state } = useChunkLoader(loadCamera);
   const [scanner] = useState(() => createKeyboardScan(WAREHOUSE_SCANNER_PROFILE));
   const [feedback, setFeedback] = useState<'warehouseWork.scanMatched' | undefined | WarehouseScanErrorValue>();
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraTriggerRef = useRef<HTMLButtonElement>(null);
   const hasError = feedback !== undefined && feedback !== 'warehouseWork.scanMatched';
+  const Camera = state.kind === 'loaded' ? state.module.WarehouseCameraScanner : undefined;
+  const isCameraVisible = isCameraOpen && !isReadOnly;
+  const isCameraActive = isCameraVisible && Camera !== undefined;
+  const isCameraTriggerDisabled = isReadOnly || isCameraActive;
+  const isCameraLoading = isCameraVisible && state.kind === 'loading';
 
-  const handleScan = (raw: string): void => {
+  if (isReadOnly && isCameraOpen) {
+    setIsCameraOpen(false);
+  }
+
+  const handleScan = (raw: string, isCamera = false): undefined | WarehouseScanErrorValue => {
     const input = inputRef.current;
     if (input === null || isReadOnly || raw.trim() === '') {
-      return;
+      return 'warehouseWork.error.invalidCode';
     }
     const address = readWarehouseQr(raw, getAppBaseUrl());
     if (address !== undefined) {
-      input.value = '';
-      setFeedback(undefined);
+      if (!isCamera) {
+        input.value = '';
+        setFeedback(undefined);
+      }
+      setIsCameraOpen(false);
       navigate(address, { isFocusRequested: true });
-      return;
+      return undefined;
     }
     const error = onScan(raw, scanTools);
-    input.focus();
-    setFeedback(error ?? 'warehouseWork.scanMatched');
-    if (error === undefined) {
-      input.value = '';
+    if (!isCamera) {
+      setFeedback(error ?? 'warehouseWork.scanMatched');
+      input.focus();
+      if (error === undefined) {
+        input.value = '';
+      }
+      else {
+        input.select();
+      }
     }
-    else {
-      input.select();
+    return error;
+  };
+
+  const handleCameraCode = (raw: string): undefined | WarehouseScanErrorValue => handleScan(raw, true);
+
+  const handleCameraPageHide = (): void => {
+    setIsCameraOpen(false);
+  };
+
+  const handleOpenCamera = (): void => {
+    console.log('> WarehouseScanInput -> handleOpenCamera:', {});
+    if (document.hidden) {
+      return;
     }
+    setIsCameraOpen(true);
+    load();
+  };
+
+  const handleCloseCamera = (): void => {
+    console.log('> WarehouseScanInput -> handleCloseCamera:', {});
+    setIsCameraOpen(false);
+    requestAnimationFrame(() => cameraTriggerRef.current?.focus());
   };
 
   const handleApply = (): void => {
@@ -122,6 +168,25 @@ export const WarehouseScanInput = ({ isReadOnly, onScan, t }: WarehouseScanInput
     inputRef.current?.focus();
   }, []);
 
+  useEffect(() => {
+    if (!isCameraLoading) {
+      return undefined;
+    }
+
+    const handleVisibilityChange = (): void => {
+      if (document.hidden) {
+        handleCameraPageHide();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handleCameraPageHide);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handleCameraPageHide);
+    };
+  }, [isCameraLoading]);
+
   return (
     <div
       className="flex min-w-0 flex-col items-start gap-2"
@@ -144,8 +209,33 @@ export const WarehouseScanInput = ({ isReadOnly, onScan, t }: WarehouseScanInput
           spellCheck={false}
         />
       </div>
-      <Button disabled={isReadOnly} onClick={handleApply} variant="secondary">{t('warehouseWork.scanApply')}</Button>
+      <div className="flex flex-wrap gap-2">
+        <Button disabled={isReadOnly} onClick={handleApply} variant="secondary">{t('warehouseWork.scanApply')}</Button>
+        <Button
+          aria-expanded={isCameraVisible}
+          data-testid="warehouse-camera-open"
+          disabled={isCameraTriggerDisabled}
+          onClick={handleOpenCamera}
+          pending={isCameraLoading}
+          ref={cameraTriggerRef}
+          variant="secondary"
+        >
+          {t('warehouseWork.cameraOpen')}
+        </Button>
+        {isCameraLoading && <Button onClick={handleCloseCamera} variant="secondary">{t('warehouseWork.cancel')}</Button>}
+      </div>
       <span className="sr-only" role="status">{feedback === undefined ? '' : t(feedback)}</span>
+      {isCameraActive && (
+        <Camera onClose={handleCloseCamera} onCode={handleCameraCode} t={t} />
+      )}
+      {isCameraVisible && state.kind === 'failed' && (
+        <ChunkLoadNotice
+          message={t('warehouseWork.cameraFailed')}
+          onRetry={load}
+          recovery={state.recovery}
+          repeatedMessage={t('warehouseWork.cameraFailed')}
+        />
+      )}
     </div>
   );
 };

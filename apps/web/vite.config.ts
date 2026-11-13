@@ -453,6 +453,13 @@ const NAVIGATE_FALLBACK_DENYLIST = [/^[^?]*\/[^/?]*\.(?!html(?:\?|$))[^/.?]+(?:\
 
 const ASSET_BUDGETS = [
   {
+    directory: 'assets',
+    extensions: ['.wasm'],
+    isRequired: true,
+    maxKiloBytes: 950,
+    name: 'warehouse-camera-decoder-wasm',
+  },
+  {
     directory: 'models',
     extensions: ['.bin'],
     isRequired: true,
@@ -477,7 +484,7 @@ const ASSET_BUDGETS = [
 
 const XLSX_READER_PACKAGES = ['read-excel-file', 'fflate', 'saxen'];
 
-const FORBIDDEN_PACKAGES = [...XLSX_READER_PACKAGES, 'stats-gl', 'stats.js'];
+const FORBIDDEN_PACKAGES = [...XLSX_READER_PACKAGES, 'stats-gl', 'stats.js', 'zxing-wasm'];
 
 const FORBIDDEN_SCENE_PACKAGES = [
   '@bufbuild/protobuf',
@@ -528,6 +535,12 @@ const PRINT_WORKER_BUDGET = {
   forbiddenInitialPackages: ['@react-three/*', 'react', 'three'],
   maxInitialGzipKiloBytes: 65,
   targetEntries: ['src/features/print-labels/lib/printCodes.worker.ts'],
+} satisfies BundleBudgetPluginOptionsValue;
+
+const CAMERA_WORKER_BUDGET = {
+  forbiddenInitialPackages: ['@react-three/*', 'react', 'three'],
+  maxInitialGzipKiloBytes: 30,
+  targetEntries: ['src/pages/warehouse/model/scan/camera/cameraDecoder.worker.ts'],
 } satisfies BundleBudgetPluginOptionsValue;
 
 const ENGINE_WORKER_BUDGET = {
@@ -775,6 +788,14 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: 10,
     name: 'print-labels-preview',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/pages/warehouse/ui/workspace/WarehouseCameraScanner.tsx'],
+    forbiddenPackages: ['@react-three/*', 'three', 'zxing-wasm'],
+    isRequired: true,
+    maxGzipKiloBytes: 12,
+    name: 'warehouse-camera-scanner',
   },
   {
     baseline: STARTUP_BASELINE,
@@ -1285,6 +1306,10 @@ const thirdPartyLicenses = createThirdPartyLicenses({
       new URL('./build-licenses/notices/bwip-js.BWIPP-and-stb.LICENSE.txt', import.meta.url),
       'utf8',
     ).trim(),
+    'zxing-wasm@3.1.6': readFileSync(
+      new URL('./build-licenses/notices/zxing-wasm.READER.LICENSE.txt', import.meta.url),
+      'utf8',
+    ).trim(),
   },
 });
 
@@ -1492,6 +1517,7 @@ export default defineConfig({
       criticalPreload.workerPlugin(),
       bundleBudgetPlugin(ENGINE_WORKER_BUDGET),
       bundleBudgetPlugin(PRINT_WORKER_BUDGET),
+      bundleBudgetPlugin(CAMERA_WORKER_BUDGET),
     ],
     rolldownOptions: {
       output: {

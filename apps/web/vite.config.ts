@@ -26,6 +26,7 @@ import {
 } from './build-icons/appIcons.ts';
 import { ALLOWED_BUNDLE_LICENSES } from './build-licenses/allowedBundleLicenses.ts';
 import { createThirdPartyLicenses } from './build-licenses/createThirdPartyLicenses.ts';
+import { removeUnusedBarcodeFonts } from './build-licenses/removeUnusedBarcodeFonts.ts';
 import { createCriticalPreload } from './build-preload/createCriticalPreload.ts';
 import { DEFAULT_PROFILE_NAME } from './build-profile/buildProfilePaths.ts';
 import { buildProfilePlugin } from './build-profile/buildProfilePlugin.ts';
@@ -523,6 +524,12 @@ const ENGINE_IMPORT_ENTRY = 'packages/demo-engine/src/core/modules/import/import
 
 const DEFERRED_PRELOAD_ENTRIES = [...ENGINE_WORKER_ENTRIES, ...ENGINE_WORKER_DYNAMIC_ENTRIES];
 
+const PRINT_WORKER_BUDGET = {
+  forbiddenInitialPackages: ['@react-three/*', 'react', 'three'],
+  maxInitialGzipKiloBytes: 65,
+  targetEntries: ['src/features/print-labels/lib/printCodes.worker.ts'],
+} satisfies BundleBudgetPluginOptionsValue;
+
 const ENGINE_WORKER_BUDGET = {
   forbiddenInitialPackages: XLSX_READER_PACKAGES,
   lazyEntryBudgets: [
@@ -760,6 +767,14 @@ const LAZY_ENTRY_BUDGETS = [
     isRequired: true,
     maxGzipKiloBytes: MAX_WAREHOUSE_WORKSPACE_GZIP_KILOBYTES,
     name: 'warehouse-workspace',
+  },
+  {
+    baseline: STARTUP_BASELINE,
+    entries: ['src/features/print-labels/ui/PrintLabelsPreview.tsx'],
+    forbiddenPackages: ['@bwip-js/*', '@react-three/*', 'three'],
+    isRequired: true,
+    maxGzipKiloBytes: 10,
+    name: 'print-labels-preview',
   },
   {
     baseline: STARTUP_BASELINE,
@@ -1207,6 +1222,7 @@ const LAZY_ENTRY_BUDGETS = [
 ];
 
 const FORBIDDEN_INITIAL_PACKAGES = [
+  '@bwip-js/*',
   '@bufbuild/protobuf',
   '@connectrpc/*',
   '@radix-ui/*',
@@ -1264,6 +1280,12 @@ const thirdPartyLicenses = createThirdPartyLicenses({
   appRoot: import.meta.dirname,
   extraPackages: EXTRA_LICENSE_PACKAGES,
   fileName: THIRD_PARTY_LICENSES_FILE_NAME,
+  supplementalNotices: {
+    '@bwip-js/generic@4.11.4': readFileSync(
+      new URL('./build-licenses/notices/bwip-js.BWIPP-and-stb.LICENSE.txt', import.meta.url),
+      'utf8',
+    ).trim(),
+  },
 });
 
 const criticalPreload = createCriticalPreload({
@@ -1464,7 +1486,13 @@ export default defineConfig({
   },
   worker: {
     format: 'es',
-    plugins: () => [thirdPartyLicenses.workerPlugin(), criticalPreload.workerPlugin(), bundleBudgetPlugin(ENGINE_WORKER_BUDGET)],
+    plugins: () => [
+      thirdPartyLicenses.workerPlugin(),
+      removeUnusedBarcodeFonts(),
+      criticalPreload.workerPlugin(),
+      bundleBudgetPlugin(ENGINE_WORKER_BUDGET),
+      bundleBudgetPlugin(PRINT_WORKER_BUDGET),
+    ],
     rolldownOptions: {
       output: {
         codeSplitting: {

@@ -30,6 +30,7 @@ export interface ThirdPartyLicensesOptionsValue {
   fallbackDirectory?: string | undefined;
   fallbackTexts?: readonly FallbackLicenseTextValue[] | undefined;
   fileName: string;
+  supplementalNotices?: Readonly<Record<string, string>> | undefined;
 }
 
 export interface ThirdPartyLicensesValue {

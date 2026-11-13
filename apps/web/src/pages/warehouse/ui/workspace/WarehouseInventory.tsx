@@ -1,7 +1,6 @@
 import type { Warehouse } from '@skladburg/contracts/organization/v1/organization';
 import type {
   StockBalance,
-  StockLine,
   StockMovement,
 } from '@skladburg/contracts/wms/v1/stock';
 import type { ReactElement } from 'react';
@@ -10,6 +9,7 @@ import { timestampMs } from '@bufbuild/protobuf/wkt';
 
 import type { ObjectRefValue } from '@/shared/routing';
 
+import { PrintLabels } from '@/features/print-labels';
 import { useI18n } from '@/shared/i18n';
 import {
   Card,
@@ -17,13 +17,13 @@ import {
 } from '@/shared/ui';
 
 import type { WarehouseWorkTranslate } from '../../i18n/workspaceSection';
+import type { WarehouseCellAddressValue } from '../../model/warehouseCells';
 
 import {
-  formatStockQuantity,
   readMovementKind,
   readStockLocation,
-  readStockStatus,
 } from './warehouseFormatting';
+import { WarehouseStockLines } from './WarehouseStockLines';
 
 interface WarehouseInventoryProps {
   cells: ReadonlyMap<string, string>;
@@ -39,12 +39,6 @@ interface WarehouseMovementsProps extends Omit<WarehouseInventoryProps, 'focus'>
   warehouse: Warehouse;
 }
 
-interface WarehouseStockLinesProps {
-  lines: readonly StockLine[];
-  productNames?: ReadonlyMap<string, string> | undefined;
-  t: WarehouseWorkTranslate;
-}
-
 interface WarehouseStockProps extends WarehouseInventoryProps {
   balances: readonly StockBalance[];
   productNames: ReadonlyMap<string, string>;
@@ -52,64 +46,50 @@ interface WarehouseStockProps extends WarehouseInventoryProps {
 
 const MOVEMENT_TIME_FORMAT = { day: 'numeric', hour: '2-digit', minute: '2-digit', month: 'short' } as const;
 
-export const WarehouseStockLines = ({ lines, productNames, t }: WarehouseStockLinesProps): ReactElement => {
-  const { formatCalendarDate, locale } = useI18n();
-  const format = new Intl.NumberFormat(locale);
+interface WarehouseAddressesProps extends Omit<WarehouseInventoryProps, 'cells'> {
+  addresses: readonly WarehouseCellAddressValue[];
+}
 
+export const WarehouseAddresses = ({ addresses, focus, t }: WarehouseAddressesProps): ReactElement => {
+  const selected = addresses.find(cell => cell.id === focus?.id);
   return (
-    <ul className="divide-y divide-line text-sm">
-      {lines.map((line, index) => {
-        const { batch } = line;
-        const productName = batch === undefined ? undefined : productNames?.get(batch.productId);
-
-        return (
-          <li
-            className="flex flex-wrap items-start justify-between gap-x-3 py-1.5"
-            key={`${batch?.id ?? ''}:${String(line.status)}:${String(index)}`}
-          >
-            {batch !== undefined && (
-              <div className="min-w-0 wrap-anywhere">
-                {productName !== undefined && <p className="font-medium">{productName}</p>}
-                <p>{t('warehouseWork.batch', { number: batch.number })}</p>
-                {productName === undefined && (
-                  <p className="text-xs text-on-panel-muted">{t('warehouseWork.productId', { id: batch.productId })}</p>
-                )}
-                {batch.expiresOn !== undefined && (
-                  <p className="text-xs text-on-panel-muted">
-                    {t('warehouseWork.expires', { date: formatCalendarDate(batch.expiresOn) })}
-                  </p>
-                )}
-              </div>
-            )}
-            <span className="tabular-nums">{formatStockQuantity(line, format, t)}</span>
-            <span className="text-on-panel-muted">{readStockStatus(line.status, t)}</span>
+    <div className="flex flex-col gap-2">
+      {selected !== undefined && (
+        <div className="flex flex-wrap gap-2">
+          <PrintLabels
+            getPages={async () => [(await import('../../model/warehouseLabelPages')).cellPrintPage(selected)]}
+            label={t('warehouseWork.printCell')}
+            testId="warehouse-print-cell"
+          />
+          <PrintLabels
+            getPages={async () => (await import('../../model/warehouseLabelPages')).rackPrintPages(addresses, selected)}
+            label={t('warehouseWork.printRack')}
+            testId="warehouse-print-rack"
+          />
+        </div>
+      )}
+      <ul className="grid grid-cols-1 gap-2 @sm:grid-cols-2" data-testid="warehouse-addresses">
+        {addresses.map(({ code, id }) => (
+          <li key={id}>
+            <TextLink
+              aria-current={focus?.id === id ? 'location' : undefined}
+              className="w-full border border-line bg-panel-solid px-3 tabular-nums"
+              isFocusRequested
+              to={{ kind: 'object', object: { id, type: 'cell' } }}
+            >
+              {t('warehouseWork.cell')}
+              {' '}
+              {code}
+            </TextLink>
           </li>
-        );
-      })}
-    </ul>
+        ))}
+      </ul>
+    </div>
   );
 };
 
-export const WarehouseAddresses = ({ cells, focus, t }: WarehouseInventoryProps): ReactElement => (
-  <ul className="grid grid-cols-1 gap-2 @sm:grid-cols-2" data-testid="warehouse-addresses">
-    {[...cells].map(([id, code]) => (
-      <li key={id}>
-        <TextLink
-          aria-current={focus?.id === id ? 'location' : undefined}
-          className="w-full border border-line bg-panel-solid px-3 tabular-nums"
-          isFocusRequested
-          to={{ kind: 'object', object: { id, type: 'cell' } }}
-        >
-          {t('warehouseWork.cell')}
-          {' '}
-          {code}
-        </TextLink>
-      </li>
-    ))}
-  </ul>
-);
-
 export const WarehouseStock = ({ balances, cells, focus, productNames, t }: WarehouseStockProps): ReactElement => {
+  const localizer = useI18n();
   const visible = balances.filter(balance =>
     (focus?.type !== 'cell' || balance.cellId === focus.id)
     && (focus?.type !== 'handling_unit' || balance.handlingUnit?.id === focus.id));
@@ -141,6 +121,13 @@ export const WarehouseStock = ({ balances, cells, focus, productNames, t }: Ware
                 ? <TextLink size="sm" to={{ kind: 'object', object: { id: cellId, type: 'cell' } }}>{location}</TextLink>
                 : <p className="text-sm text-on-panel-muted">{location}</p>}
               <WarehouseStockLines lines={balance.lines} productNames={productNames} t={t} />
+              <PrintLabels
+                getPages={async () => {
+                  const { unitPrintPages } = await import('../../model/warehouseLabelPages');
+                  return unitPrintPages(balance, productNames, localizer, t, undefined);
+                }}
+                label={t('warehouseWork.printUnit')}
+              />
             </Card>
           </li>
         );

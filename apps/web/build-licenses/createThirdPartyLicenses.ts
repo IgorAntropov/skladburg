@@ -20,6 +20,7 @@ export const createThirdPartyLicenses = ({
   fallbackDirectory = FALLBACK_LICENSE_TEXTS_DIRECTORY,
   fallbackTexts = FALLBACK_LICENSE_TEXTS,
   fileName,
+  supplementalNotices = {},
 }: ThirdPartyLicensesOptionsValue): ThirdPartyLicensesValue => {
   const workerModuleIds = new Set<string>();
 
@@ -43,7 +44,11 @@ export const createThirdPartyLicenses = ({
         this.error(violations.join('\n'));
       }
 
-      this.emitFile({ fileName, source: formatThirdPartyLicenses(licenses), type: 'asset' });
+      const licensesWithNotices = licenses.map((license) => {
+        const notice = supplementalNotices[`${license.name}@${license.version}`];
+        return notice === undefined ? license : { ...license, text: `${license.text}\n\n${notice}` };
+      });
+      this.emitFile({ fileName, source: formatThirdPartyLicenses(licensesWithNotices), type: 'asset' });
 
       console.log('> createThirdPartyLicenses -> generateBundle:', { fileName, packages: licenses.length });
     },

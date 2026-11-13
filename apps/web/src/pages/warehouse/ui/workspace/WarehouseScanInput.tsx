@@ -12,6 +12,10 @@ import {
 } from 'react';
 
 import {
+  getAppBaseUrl,
+  useNavigate,
+} from '@/shared/routing';
+import {
   Button,
   TextField,
 } from '@/shared/ui';
@@ -26,6 +30,7 @@ import {
 } from '../../model/scan/keyboardScan';
 import { parseWarehouseScan } from '../../model/scan/parseWarehouseScan';
 import { readScannedCell } from '../../model/scan/readScannedCell';
+import { readWarehouseQr } from '../../model/scan/readWarehouseQr';
 import { resolveTaskReceivingScan } from '../../model/scan/resolveReceivingScan';
 
 export const scanTools = {
@@ -44,6 +49,7 @@ interface WarehouseScanInputProps {
 }
 
 export const WarehouseScanInput = ({ isReadOnly, onScan, t }: WarehouseScanInputProps): ReactElement => {
+  const navigate = useNavigate();
   const [scanner] = useState(() => createKeyboardScan(WAREHOUSE_SCANNER_PROFILE));
   const [feedback, setFeedback] = useState<'warehouseWork.scanMatched' | undefined | WarehouseScanErrorValue>();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,6 +58,13 @@ export const WarehouseScanInput = ({ isReadOnly, onScan, t }: WarehouseScanInput
   const handleScan = (raw: string): void => {
     const input = inputRef.current;
     if (input === null || isReadOnly || raw.trim() === '') {
+      return;
+    }
+    const address = readWarehouseQr(raw, getAppBaseUrl());
+    if (address !== undefined) {
+      input.value = '';
+      setFeedback(undefined);
+      navigate(address, { isFocusRequested: true });
       return;
     }
     const error = onScan(raw, scanTools);

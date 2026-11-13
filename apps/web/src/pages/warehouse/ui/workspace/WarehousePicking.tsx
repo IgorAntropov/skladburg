@@ -5,7 +5,9 @@ import { PickingTaskStatus } from '@skladburg/contracts/wms/v1/picking';
 import { useState } from 'react';
 
 import { useCommandAccess } from '@/entities/session';
+import { PrintLabels } from '@/features/print-labels';
 import { useActingContext } from '@/shared/api';
+import { useI18n } from '@/shared/i18n';
 import {
   ActionButton,
   Button,
@@ -22,8 +24,8 @@ import {
   useConfirmWarehouseShipment,
 } from '../../api/useWarehouseCommands';
 import { PICKING_TEXT } from './warehouseFormatting';
-import { WarehouseStockLines } from './WarehouseInventory';
 import { WarehouseScanner } from './WarehouseScanner';
+import { WarehouseStockLines } from './WarehouseStockLines';
 
 interface WarehousePickingProps {
   canViewDeals: boolean;
@@ -35,6 +37,7 @@ interface WarehousePickingProps {
 
 export const WarehousePicking = ({ canViewDeals, cells, onChanged, t, task }: WarehousePickingProps): ReactElement => {
   const { userId } = useActingContext();
+  const { locale } = useI18n();
   const [checked, setChecked] = useState<readonly string[]>([]);
   const claim = useClaimPicking(task, onChanged);
   const confirm = useConfirmPicking(task, checked, onChanged);
@@ -77,6 +80,15 @@ export const WarehousePicking = ({ canViewDeals, cells, onChanged, t, task }: Wa
       </header>
       {canViewDeals && (
         <TextLink size="sm" to={{ kind: 'object', object: { id: task.dealId, type: 'deal' } }}>{t('warehouseWork.deal')}</TextLink>
+      )}
+      {task.units.length > 0 && (
+        <div>
+          <PrintLabels
+            getPages={async () => (await import('../../model/warehouseLabelPages')).pickingPrintPages(task, cells, canViewDeals, locale, t)}
+            label={t('warehouseWork.printPicking')}
+            testId="warehouse-print-picking"
+          />
+        </div>
       )}
       {isPicking && <p aria-live="polite">{t('warehouseWork.marked', { count: checked.length, total: task.units.length })}</p>}
       {canCheck && <WarehouseScanner isReadOnly={confirm.isPending} onScan={handleScan} t={t} />}

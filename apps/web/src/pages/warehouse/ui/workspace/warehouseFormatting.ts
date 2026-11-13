@@ -1,11 +1,9 @@
 import type {
   StockBalance,
-  StockLine,
   StockMovement,
 } from '@skladburg/contracts/wms/v1/stock';
 import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
 
-import { BaseUnit } from '@skladburg/contracts/catalog/v1/catalog';
 import { PickingTaskStatus } from '@skladburg/contracts/wms/v1/picking';
 import { ReceivingTaskStatus } from '@skladburg/contracts/wms/v1/receiving';
 import {
@@ -19,13 +17,6 @@ import { getWarehouseCells } from '../../model/warehouseCells';
 
 export const readCells = (topology: null | undefined | WarehouseTopology): ReadonlyMap<string, string> =>
   new Map(getWarehouseCells(topology).map(({ code, id }) => [id, code]));
-
-const BASE_UNIT_TEXT = {
-  [BaseUnit.GRAM]: 'warehouseWork.unitGram',
-  [BaseUnit.MILLILITER]: 'warehouseWork.unitMilliliter',
-  [BaseUnit.PIECE]: 'warehouseWork.unitPiece',
-  [BaseUnit.UNSPECIFIED]: 'warehouseWork.unitUnknown',
-} as const;
 
 const STOCK_TEXT = {
   [StockStatus.AVAILABLE]: 'warehouseWork.state.available',
@@ -65,9 +56,6 @@ export const RECEIVING_TEXT = {
 
 export const readStockLocation = (balance: StockBalance, cells: ReadonlyMap<string, string>, t: WarehouseWorkTranslate): string =>
   balance.receivingAreaId !== undefined ? t('warehouseWork.receivingArea') : cells.get(balance.cellId) ?? t('warehouseWork.noCell');
-
-export const formatStockQuantity = (line: StockLine, format: Intl.NumberFormat, t: WarehouseWorkTranslate): string =>
-  t(BASE_UNIT_TEXT[line.batch?.baseUnit ?? BaseUnit.UNSPECIFIED], { quantity: format.format(line.quantityBase) });
 
 export const readStockStatus = (status: StockStatus, t: WarehouseWorkTranslate): string | undefined => {
   const key = STOCK_TEXT[status];

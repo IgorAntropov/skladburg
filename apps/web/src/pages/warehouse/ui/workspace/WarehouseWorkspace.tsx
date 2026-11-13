@@ -12,7 +12,10 @@ import {
   ClipboardList,
   Package,
 } from 'lucide-react';
-import { useState } from 'react';
+import {
+  useEffect,
+  useState,
+} from 'react';
 
 import type { ObjectRefValue } from '@/shared/routing';
 import type { TabsItemValue } from '@/shared/ui';
@@ -23,6 +26,10 @@ import {
   useCatalogSection,
   useI18n,
 } from '@/shared/i18n';
+import {
+  createCachedModuleLoader,
+  useChunkLoader,
+} from '@/shared/lib/module-loader';
 import {
   ChunkLoadNotice,
   EmptyState,
@@ -37,13 +44,8 @@ import type { WarehouseWorkTranslate } from '../../i18n/workspaceSection';
 
 import { useWarehouseWorkspace } from '../../api/useWarehouseWorkspace';
 import { warehouseWorkSection } from '../../i18n/workspaceSection';
+import { getWarehouseCells } from '../../model/warehouseCells';
 import { readCells } from './warehouseFormatting';
-import {
-  WarehouseAddresses,
-  WarehouseMovements,
-  WarehouseStock,
-} from './WarehouseInventory';
-import { WarehousePicking } from './WarehousePicking';
 import { WarehouseReceiving } from './WarehouseReceiving';
 
 interface WarehouseQueryProps<TData> {
@@ -59,6 +61,12 @@ interface WarehouseWorkspaceProps {
   warehouse: Warehouse;
 }
 
+const loadWarehousePanels = createCachedModuleLoader(() => import('./warehousePanels'));
+
+interface WarehousePanelSlotProps {
+  children: (module: typeof import('./warehousePanels')) => ReactNode;
+}
+
 const NO_CHANGE = (): void => undefined;
 const isEmptyList = (items: readonly unknown[]): boolean => items.length === 0;
 
@@ -68,6 +76,30 @@ const WarehouseSkeleton = (): ReactElement => (
     <Skeleton className="h-20 w-full" />
   </div>
 );
+
+const WarehousePanelSlot = ({ children }: WarehousePanelSlotProps): ReactNode => {
+  const { t } = useI18n();
+  const { load, state } = useChunkLoader(loadWarehousePanels);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (state.kind === 'loaded') {
+    return children(state.module);
+  }
+  if (state.kind === 'failed') {
+    return (
+      <ChunkLoadNotice
+        message={t('routing.chunkError.message')}
+        onRetry={load}
+        recovery={state.recovery}
+        repeatedMessage={t('routing.chunkError.repeated')}
+      />
+    );
+  }
+  return <SkeletonGroup isFilled label={t('routing.section.loading')}><WarehouseSkeleton /></SkeletonGroup>;
+};
 
 function WarehouseQuery<TData>({ children, empty, isEmpty, query, t }: WarehouseQueryProps<TData>): ReactElement {
   const { t: baseText } = useI18n();
@@ -126,9 +158,13 @@ const WarehouseWorkspaceContent = ({ focus, t, warehouse }: WarehouseWorkspacePr
         : (
             <div className="flex flex-col gap-3" data-testid="warehouse-tasks">
               <WarehouseQuery empty={t('warehouseWork.emptyTasks')} query={workspace.picking} t={t}>
-                {tasks => tasks.map(task => (
-                  <WarehousePicking canViewDeals={canViewDeals} cells={cells} key={task.id} onChanged={NO_CHANGE} t={t} task={task} />
-                ))}
+                {tasks => (
+                  <WarehousePanelSlot>
+                    {({ WarehousePicking }) => tasks.map(task => (
+                      <WarehousePicking canViewDeals={canViewDeals} cells={cells} key={task.id} onChanged={NO_CHANGE} t={t} task={task} />
+                    ))}
+                  </WarehousePanelSlot>
+                )}
               </WarehouseQuery>
               <WarehouseQuery empty={t('warehouseWork.emptyTasks')} query={workspace.receiving} t={t}>
                 {tasks => tasks.map(task => (
@@ -161,7 +197,11 @@ const WarehouseWorkspaceContent = ({ focus, t, warehouse }: WarehouseWorkspacePr
           query={workspace.topology}
           t={t}
         >
-          {() => <WarehouseAddresses cells={cells} focus={focus} t={t} />}
+          {topology => (
+            <WarehousePanelSlot>
+              {({ WarehouseAddresses }) => <WarehouseAddresses addresses={getWarehouseCells(topology)} focus={focus} t={t} />}
+            </WarehousePanelSlot>
+          )}
         </WarehouseQuery>
       ),
       id: 'addresses',
@@ -174,7 +214,13 @@ const WarehouseWorkspaceContent = ({ focus, t, warehouse }: WarehouseWorkspacePr
       {
         content: (
           <WarehouseQuery empty={t('warehouseWork.emptyStock')} isEmpty={isEmptyList} query={workspace.balances} t={t}>
-            {balances => <WarehouseStock balances={balances} cells={cells} focus={focus} productNames={productNames} t={t} />}
+            {balances => (
+              <WarehousePanelSlot>
+                {({ WarehouseStock }) => (
+                  <WarehouseStock balances={balances} cells={cells} focus={focus} productNames={productNames} t={t} />
+                )}
+              </WarehousePanelSlot>
+            )}
           </WarehouseQuery>
         ),
         id: 'stock',
@@ -184,15 +230,19 @@ const WarehouseWorkspaceContent = ({ focus, t, warehouse }: WarehouseWorkspacePr
         content: (
           <WarehouseQuery empty={t('warehouseWork.emptyMovements')} isEmpty={isEmptyList} query={workspace.movements} t={t}>
             {movements => (
-              <WarehouseMovements
-                balances={workspace.balances.data}
-                canViewDeals={canViewDeals}
-                cells={cells}
-                movements={movements}
-                productNames={productNames}
-                t={t}
-                warehouse={warehouse}
-              />
+              <WarehousePanelSlot>
+                {({ WarehouseMovements }) => (
+                  <WarehouseMovements
+                    balances={workspace.balances.data}
+                    canViewDeals={canViewDeals}
+                    cells={cells}
+                    movements={movements}
+                    productNames={productNames}
+                    t={t}
+                    warehouse={warehouse}
+                  />
+                )}
+              </WarehousePanelSlot>
             )}
           </WarehouseQuery>
         ),
@@ -231,7 +281,6 @@ const WarehouseWorkspaceContent = ({ focus, t, warehouse }: WarehouseWorkspacePr
               className={hasEditor ? '[&>[role=tablist]]:hidden' : undefined}
               defaultTabId={defaultTabId}
               items={tabs}
-              key={focus?.id}
               label={t('warehouseWork.tabs')}
             />
           )
@@ -244,7 +293,7 @@ export const WarehouseWorkspace = (props: WarehouseWorkspaceProps): ReactElement
   const { t: baseText } = useI18n();
   const { retry, status, t } = useCatalogSection(warehouseWorkSection);
   if (t !== undefined) {
-    return <WarehouseWorkspaceContent {...props} t={t} />;
+    return <WarehouseWorkspaceContent {...props} key={props.focus?.id} t={t} />;
   }
   if (status === 'error') {
     return (

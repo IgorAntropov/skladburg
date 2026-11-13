@@ -27,6 +27,7 @@ import { toListingRoute } from './robots/catalog-robot.ts';
 import { createDealFolderRobot } from './robots/deal-folder-robot.ts';
 import { createDealRobot } from './robots/deal-robot.ts';
 import { createPersonaRobot } from './robots/persona-robot.ts';
+import { openPrintPreview } from './robots/print-labels-robot.ts';
 
 const SUPPLIER_WAREHOUSE_ID = '80000011-0000-4000-8000-000000000000';
 const MINUTE_MS = 60_000;
@@ -86,6 +87,13 @@ test('picks and receives a seeded delivery through the warehouse workspace witho
     await customerFolder.closeDocument();
   }
 
+  await customerFolder.openDocument(DocumentType.INVOICE);
+  const documentPrint = await openPrintPreview(page.getByTestId('deal-document-view').getByTestId('print-labels-open'));
+  await expect(documentPrint.getPages()).toHaveCount(1);
+  await expect(documentPrint.getPages().locator('img')).toHaveCount(1);
+  await documentPrint.close(true);
+  await customerFolder.closeDocument();
+
   await customerFolder.fund();
   await customerFolder.expectPayment(SafeDealPaymentStatus.AWAITING_FUNDS);
   await advanceClock(5 * MINUTE_MS);
@@ -94,6 +102,10 @@ test('picks and receives a seeded delivery through the warehouse workspace witho
   await supplierPage.getByTestId('deal-open-warehouse').click();
   await expect.poll(() => new URL(supplierPage.url()).hash).toBe(SUPPLIER_WAREHOUSE_HASH);
   const picking = supplierPage.getByTestId('warehouse-picking-task');
+  const pickingPrint = await openPrintPreview(picking.getByTestId('warehouse-print-picking'));
+  await expect(pickingPrint.getPages().locator('h1')).toHaveText('Лист подбора');
+  await expect(pickingPrint.getPages().locator('img')).toHaveCount(1);
+  await pickingPrint.close();
   await picking.getByTestId('warehouse-claim-picking').click();
   const unit = picking.getByTestId('warehouse-pick-unit');
   await expect(unit).toHaveCount(1);
@@ -131,7 +143,9 @@ test('picks and receives a seeded delivery through the warehouse workspace witho
   await expect(receive.getByTestId('warehouse-receive-leave')).toHaveCount(0);
   await expect(ssccInput).toHaveValue(sscc.slice(0, -1));
   await ssccInput.fill('');
-  await scanCode(receive, `]C100${sscc}`, true);
+  const foreignScan = await scanCode(receive, 'https://example.test/skladburg/#/cells/00000000-0000-4000-8000-000000000001', true);
+  await expect(foreignScan).toHaveAttribute('aria-invalid', 'true');
+  await scanCode(receive, `]C100${sscc}`);
   await expect(ssccInput).toHaveValue(sscc);
   const receiveScan = await scanCode(receive, sscc);
   await expect(receiveScan).toHaveAttribute('aria-invalid', 'true');
@@ -142,6 +156,19 @@ test('picks and receives a seeded delivery through the warehouse workspace witho
   await expect(receiving.getByTestId('warehouse-placement')).toHaveCount(0);
   await receive.getByTestId('warehouse-receive-submit').click();
   const placement = receiving.getByTestId('warehouse-placement');
+  const printUnitButton = receiving.getByTestId('print-labels-open');
+  const unitPrint = await openPrintPreview(printUnitButton);
+  expect(await unitPrint.getStyle().textContent()).toContain('size: 100mm 150mm');
+  await expect(unitPrint.getPages().locator('figcaption')).toHaveText(`(00) ${sscc}`);
+  const unitCode = await unitPrint.getPages().locator('figure img').getAttribute('src');
+  await unitPrint.print();
+  await unitPrint.close();
+  const repeatedPrint = await openPrintPreview(printUnitButton);
+  if (unitCode === null) {
+    throw new Error('Missing printed SSCC image');
+  }
+  await expect(repeatedPrint.getPages().locator('figure img')).toHaveAttribute('src', unitCode);
+  await repeatedPrint.close();
   const placementCell = placement.locator('select');
   const firstCell = placementCell.locator('option').nth(1);
   const cellCode = await firstCell.innerText();
@@ -156,7 +183,19 @@ test('picks and receives a seeded delivery through the warehouse workspace witho
   await receiving.getByTestId('warehouse-enter-sscc').click();
   const repeated = await scanCode(receive, sscc, true);
   await expect(repeated).toHaveAttribute('aria-invalid', 'true');
-  await receive.locator('button[type="button"]').last().click();
+  const scanCellUrl = new URL(`#/cells/${placementCellId}`, storePage.url()).href;
+  await ssccInput.fill(sscc.slice(0, -1));
+  await repeated.focus();
+  await scanCode(receive, `]Q1${scanCellUrl}`);
+  await expect(receive.getByTestId('warehouse-receive-leave')).toBeVisible();
+  await receive.getByTestId('warehouse-receive-leave-stay').click();
+  await expect(ssccInput).toHaveValue(sscc.slice(0, -1));
+  await repeated.focus();
+  await scanCode(receive, `]Q1${scanCellUrl}`);
+  await receive.getByTestId('warehouse-receive-leave-leave').click();
+  await expect.poll(() => new URL(storePage.url()).hash).toBe(`#/cells/${placementCellId}`);
+  await storePage.goBack();
+  await expect.poll(() => new URL(storePage.url()).hash).toBe(CUSTOMER_WAREHOUSE_HASH);
   await receiving.getByTestId('warehouse-finish-receiving').click();
 
   await customer.expectStatus(DealStatus.ACCEPTING);
@@ -182,6 +221,20 @@ test('picks and receives a seeded delivery through the warehouse workspace witho
   await expect(stockUnit).toBeVisible();
   await expect(stock.locator(`a[href="#/cells/${placementCellId}"]`)).toBeVisible();
   await expect(storePage.locator('canvas')).toHaveCount(0);
+  const cellLink = stock.locator(`a[href="#/cells/${placementCellId}"]`);
+  await cellLink.click();
+  await workspace.locator('button[id$="-trigger-addresses"]').click();
+  const cellPrint = await openPrintPreview(workspace.getByTestId('warehouse-print-cell'));
+  expect(await cellPrint.getStyle().textContent()).toContain('size: 58mm 40mm');
+  await expect(cellPrint.getPages()).toHaveCount(1);
+  await expect(cellPrint.getPages().locator('h1')).toHaveText(cellCode);
+  await cellPrint.close();
+  const rackPrint = await openPrintPreview(workspace.getByTestId('warehouse-print-rack'));
+  expect(await rackPrint.getStyle().textContent()).toContain('size: 58mm 40mm');
+  const pageCount = await rackPrint.getPages().count();
+  expect(pageCount).toBeGreaterThan(1);
+  await rackPrint.print();
+  await rackPrint.close();
   await storekeeper.selectPersona(PERSONAS.constructionCustomer);
   await expect(storePage.getByTestId('warehouse-object-unavailable')).toBeVisible();
   await expect(storePage.getByText(sscc, { exact: true })).toHaveCount(0);

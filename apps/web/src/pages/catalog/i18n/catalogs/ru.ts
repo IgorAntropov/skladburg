@@ -40,6 +40,7 @@ export const catalog = {
   'catalog.own.priceFrom': 'от {price}',
   'catalog.own.priceNone': 'Цена не задана',
   'catalog.own.priceNoneHint': 'Цены пока нет. Укажите её в редакторе',
+  'catalog.own.printLabel': 'Печать этикетки товара',
   'catalog.own.sku': 'Арт. {sku}',
   'catalog.own.skuLabel': 'Артикул',
   'catalog.own.sr.price': 'Цена:',

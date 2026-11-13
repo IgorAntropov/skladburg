@@ -14,6 +14,7 @@ import { ListingAbout } from './ListingAbout';
 import { OwnListingParams } from './OwnListingParams';
 import { OwnListingStock } from './OwnListingStock';
 import { OwnListingTiers } from './OwnListingTiers';
+import ProductLabel from './ProductLabel';
 
 interface OwnListingDetailsProps {
   pair: OwnListingPairValue;
@@ -43,6 +44,7 @@ export const OwnListingDetails = ({ pair }: OwnListingDetailsProps): ReactElemen
         launcher={launcher}
         variant="primary"
       />
+      {product.gtin === '' && <ProductLabel pair={pair} />}
       <OwnListingTiers pair={pair} />
       <OwnListingStock pair={pair} />
       <OwnListingParams pair={pair} />

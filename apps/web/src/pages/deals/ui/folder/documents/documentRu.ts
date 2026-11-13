@@ -38,6 +38,7 @@ export const catalog = {
   'dealDocument.powerOfAttorney': 'Доверенность',
   'dealDocument.powerOfAttorneyDate': 'Дата доверенности',
   'dealDocument.powerOfAttorneyNumber': 'Номер доверенности',
+  'dealDocument.print': 'Печать документа',
   'dealDocument.relatedAct': 'Акт о расхождениях',
   'dealDocument.relatedUpd': 'УПД',
   'dealDocument.safeDealPrepayment': 'Предоплата через безопасную сделку.',

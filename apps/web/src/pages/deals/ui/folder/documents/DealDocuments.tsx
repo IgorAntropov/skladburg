@@ -54,6 +54,7 @@ import { dealDocumentSection } from './documentSection';
 
 interface DealDocumentPanelProps extends DealDocumentsProps {
   documentId: string;
+  documentTypeT: DocumentTypeTranslate;
   onRequestHeadingFocus: () => void;
   onRetryChunk: () => void;
   state: ReturnType<typeof useChunkLoader<Awaited<ReturnType<typeof loadDocumentView>>>>['state'];
@@ -76,6 +77,7 @@ const loadDocumentView = createCachedModuleLoader(() => import('./documentViewEn
 const DealDocumentPanel = ({
   deal,
   documentId,
+  documentTypeT,
   onRefresh,
   onRequestHeadingFocus,
   onRetryChunk,
@@ -118,6 +120,7 @@ const DealDocumentPanel = ({
         <state.module.DealDocumentView
           deal={deal}
           document={current}
+          heading={getDocumentTypeLabel(current.type, documentTypeT)}
           isRefreshing={query.isFetching}
           onRefresh={onRefresh}
           onRefreshDocument={handleRefreshDocument}
@@ -196,6 +199,7 @@ const DealDocumentsBody = ({ deal, documentTypeT, initialDocumentId, onRefresh, 
               <DealDocumentPanel
                 deal={deal}
                 documentId={selectedDocumentId}
+                documentTypeT={documentTypeT}
                 onRefresh={onRefresh}
                 onRequestHeadingFocus={handleHeadingFocus}
                 onRetryChunk={load}

@@ -10,6 +10,7 @@ import {
 import { createCatalogImportRobot } from './robots/catalog-import-robot.ts';
 import { createCatalogRobot } from './robots/catalog-robot.ts';
 import { createPersonaRobot } from './robots/persona-robot.ts';
+import { openPrintPreview } from './robots/print-labels-robot.ts';
 
 const catalogCsv = readFileSync(new URL('./fixtures/catalog-import.csv', import.meta.url), 'utf8').trim();
 const productName = 'Импортированный товар';
@@ -37,6 +38,11 @@ test('corrects a rejected row, loads a draft and rolls back the whole import', a
   await page.getByTestId('catalog-own-search').getByRole('textbox').fill(productName);
   await expect(page.getByTestId('catalog-own-list')).toContainText(productName);
   await expect(page.getByTestId('catalog-own-list')).toContainText('Черновик');
+  await page.getByTestId(/^own-listing-row-/u).filter({ hasText: productName }).click();
+  const productLabel = await openPrintPreview(page.getByTestId('product-print-label'));
+  await expect(productLabel.getPages().locator('h1')).toHaveText(productName);
+  await expect(productLabel.getPages().locator('figure img')).toHaveCount(1);
+  await productLabel.close();
 
   await imports.open();
   await imports.rollback();

@@ -57,6 +57,9 @@ importers:
       '@bufbuild/protobuf':
         specifier: 2.16.0
         version: 2.16.0
+      '@bwip-js/generic':
+        specifier: 4.11.4
+        version: 4.11.4
       '@connectrpc/connect':
         specifier: 2.2.0
         version: 2.2.0(@bufbuild/protobuf@2.16.0)
@@ -851,6 +854,9 @@ packages:
 
   '@bufbuild/re2@0.6.1':
     resolution: {integrity: sha512-VY7zV7bWKdAsf46epowVKidolEfMKw/FoHo2xYVDVzLj/hiP5qDL3nXqJt6seZClRYfG+uzAPFQBZBlj07wO5A==}
+
+  '@bwip-js/generic@4.11.4':
+    resolution: {integrity: sha512-76pksC4twTPnYqTNK7XSOqIQuzXit7OKFz+N+LgX2MUJCvMGc3Wimi9/OqCwcod2+ZLL7tKMQBYdhOE/MxqEhQ==}
 
   '@cacheable/memory@2.2.0':
     resolution: {integrity: sha512-CTLKqLItRCEixEAewD3/j9DB3/o96gpTPD4eJ1v+DGOlxZRZncRQkGYqqnAGCscYd6RNeXfGeiuCphsPtqyIfQ==}
@@ -4896,6 +4902,8 @@ snapshots:
       '@bufbuild/re2': 0.6.1
 
   '@bufbuild/re2@0.6.1': {}
+
+  '@bwip-js/generic@4.11.4': {}
 
   '@cacheable/memory@2.2.0':
     dependencies:

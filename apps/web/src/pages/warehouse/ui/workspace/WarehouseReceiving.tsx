@@ -4,11 +4,15 @@ import type {
 } from '@skladburg/contracts/wms/v1/receiving';
 import type { ReactElement } from 'react';
 
+import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import { MarkingMode } from '@skladburg/contracts/catalog/v1/catalog';
 import { ReceivingTaskStatus } from '@skladburg/contracts/wms/v1/receiving';
 import { useState } from 'react';
 
-import { useCommandAccess } from '@/entities/session';
+import {
+  useCan,
+  useCommandAccess,
+} from '@/entities/session';
 import { useActingContext } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
 import {
@@ -37,6 +41,7 @@ import {
 } from '../../api/useWarehouseCommands';
 import { RECEIVING_TEXT } from './warehouseFormatting';
 import { WarehousePlacement } from './WarehousePlacement';
+import { WarehouseReceiptPrint } from './WarehouseReceiptPrint';
 
 interface WarehouseReceivingProps {
   canViewDeals: boolean;
@@ -62,6 +67,7 @@ export const WarehouseReceiving = ({
   const claim = useClaimReceiving(task, onChanged);
   const finish = useFinishReceiving(task, onChanged);
   const scope = { kind: 'warehouse', warehouseId: task.warehouseId } as const;
+  const canViewInventory = useCan(PermissionCode.INVENTORY_VIEW, scope);
   const claimAccess = useCommandAccess(claim.method, scope);
   const receiveAccess = useCommandAccess(receivingMethods.receiveHandlingUnit, scope);
   const finishAccess = useCommandAccess(finish.method, scope);
@@ -209,8 +215,9 @@ export const WarehouseReceiving = ({
       )}
       <ul className="divide-y divide-line">
         {task.receivedUnits.map((unit) => {
-          const handlingUnit = unit.balanceAtReceipt?.handlingUnit;
-          if (handlingUnit === undefined) {
+          const balance = unit.balanceAtReceipt;
+          const handlingUnit = balance?.handlingUnit;
+          if (balance === undefined || handlingUnit === undefined) {
             return null;
           }
           const { putAwayCellId } = unit;
@@ -220,6 +227,7 @@ export const WarehouseReceiving = ({
             <li className="flex flex-col gap-1.5 py-2" key={unit.expectedUnitId}>
               <p className="font-medium tabular-nums wrap-anywhere">{handlingUnit.sscc}</p>
               {putAwayCellId !== undefined && <p className="text-sm">{cells.get(putAwayCellId) ?? t('warehouseWork.cell')}</p>}
+              {canViewInventory && <WarehouseReceiptPrint balance={balance} t={t} task={task} />}
               {canPlaceUnit && (
                 <WarehousePlacement cells={cells} handlingUnitId={handlingUnit.id} onChanged={onChanged} t={t} task={task} />
               )}

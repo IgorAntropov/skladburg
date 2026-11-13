@@ -1,3 +1,5 @@
+import type { Locator } from '@playwright/test';
+
 import { expect } from '@playwright/test';
 import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
 import { DocumentType } from '@skladburg/contracts/document/v1/document';
@@ -31,6 +33,18 @@ const MINUTE_MS = 60_000;
 const ORDER_DATE = '2026-10-12';
 const CUSTOMER_WAREHOUSE_HASH = toObjectHash(toWarehouseRoute(OWN_NETWORK_SITES[0].id));
 const SUPPLIER_WAREHOUSE_HASH = toObjectHash(toWarehouseRoute(SUPPLIER_WAREHOUSE_ID));
+
+const scanCode = async (surface: Locator, code: string, isOpening = false): Promise<Locator> => {
+  if (isOpening) {
+    await surface.getByTestId('warehouse-open-scanner').click();
+  }
+  const input = surface.getByTestId('warehouse-scan-input').locator('input');
+  await expect(input).toBeFocused();
+  await input.pressSequentially(code);
+  await input.press('Enter');
+
+  return input;
+};
 
 test.use({ reducedMotion: 'reduce', viewport: DESKTOP_VIEWPORT });
 
@@ -85,7 +99,13 @@ test('picks and receives a seeded delivery through the warehouse workspace witho
   await expect(unit).toHaveCount(1);
   const sscc = await picking.getByText(/^\d{18}$/u).innerText();
   await expect(picking.getByTestId('warehouse-confirm-picking')).toBeDisabled();
-  await unit.press('Space');
+  const pickInput = await scanCode(picking, ']C100000000000000000024', true);
+  await expect(pickInput).toHaveAttribute('aria-invalid', 'true');
+  await expect(unit).toHaveAttribute('aria-pressed', 'false');
+  await scanCode(picking, `]C100${sscc}`);
+  await expect(unit).toHaveAttribute('aria-pressed', 'true');
+  await scanCode(picking, sscc);
+  await expect(pickInput).toHaveAttribute('aria-invalid', 'true');
   await expect(unit).toHaveAttribute('aria-pressed', 'true');
   await picking.getByTestId('warehouse-confirm-picking').click();
   await picking.getByTestId('warehouse-confirm-shipment').click();
@@ -104,19 +124,39 @@ test('picks and receives a seeded delivery through the warehouse workspace witho
   if (browserName === 'chromium') {
     await expectNoAxeViolations(storePage);
   }
-  await ssccInput.fill(sscc);
+  await ssccInput.fill(sscc.slice(0, -1));
   await workspace.locator(`a[href="${toSectionHash('warehouse')}"]`).click();
   await expect(receive.getByTestId('warehouse-receive-leave')).toBeVisible();
   await receive.getByTestId('warehouse-receive-leave-stay').click();
   await expect(receive.getByTestId('warehouse-receive-leave')).toHaveCount(0);
+  await expect(ssccInput).toHaveValue(sscc.slice(0, -1));
+  await ssccInput.fill('');
+  await scanCode(receive, `]C100${sscc}`, true);
   await expect(ssccInput).toHaveValue(sscc);
-  await ssccInput.press('Enter');
+  const receiveScan = await scanCode(receive, sscc);
+  await expect(receiveScan).toHaveAttribute('aria-invalid', 'true');
+  await storePage.keyboard.down('Enter');
+  await storePage.keyboard.down('Enter');
+  await storePage.keyboard.up('Enter');
+  await expect(receive).toBeVisible();
+  await expect(receiving.getByTestId('warehouse-placement')).toHaveCount(0);
+  await receive.getByTestId('warehouse-receive-submit').click();
   const placement = receiving.getByTestId('warehouse-placement');
   const placementCell = placement.locator('select');
-  await placementCell.selectOption({ index: 1 });
-  const placementCellId = await placementCell.inputValue();
+  const firstCell = placementCell.locator('option').nth(1);
+  const cellCode = await firstCell.innerText();
+  const placementCellId = await firstCell.getAttribute('value');
+  if (placementCellId === null) {
+    throw new Error('Missing placement cell ID');
+  }
+  await scanCode(placement, cellCode, true);
+  await expect(placementCell).toHaveValue(placementCellId);
   await placement.getByTestId('warehouse-place-unit').click();
   await expect(placement).toHaveCount(0);
+  await receiving.getByTestId('warehouse-enter-sscc').click();
+  const repeated = await scanCode(receive, sscc, true);
+  await expect(repeated).toHaveAttribute('aria-invalid', 'true');
+  await receive.locator('button[type="button"]').last().click();
   await receiving.getByTestId('warehouse-finish-receiving').click();
 
   await customer.expectStatus(DealStatus.ACCEPTING);

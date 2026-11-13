@@ -1335,6 +1335,13 @@ export default defineConfig({
             },
             {
               includeDependenciesRecursively: false,
+              name: 'warehouse-scanner',
+              test: (moduleId: string): boolean =>
+                /[\\/]warehouse[\\/]model[\\/]scan[\\/](?:keyboardScan|parseWarehouseScan|readScannedCell|resolveReceivingScan)\.ts$/u
+                  .test(moduleId) || hasEntryModule([moduleId], 'src/pages/warehouse/ui/workspace/WarehouseScanInput.tsx'),
+            },
+            {
+              includeDependenciesRecursively: false,
               name: 'deal-form-shared',
               test: (moduleId: string): boolean => DEAL_FORM_MODULES.some(entry => hasEntryModule([moduleId], entry)),
             },

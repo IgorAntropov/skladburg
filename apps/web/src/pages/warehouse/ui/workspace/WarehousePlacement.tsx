@@ -13,8 +13,10 @@ import {
 } from '@/shared/ui';
 
 import type { WarehouseWorkTranslate } from '../../i18n/workspaceSection';
+import type { WarehouseScanHandlerValue } from './WarehouseScanner';
 
 import { usePutAway } from '../../api/useWarehouseCommands';
+import { WarehouseScanner } from './WarehouseScanner';
 
 interface WarehousePlacementProps {
   cells: ReadonlyMap<string, string>;
@@ -29,10 +31,23 @@ export const WarehousePlacement = ({ cells, handlingUnitId, onChanged, t, task }
   const command = usePutAway(task, handlingUnitId, cellId, onChanged);
   const access = useCommandAccess(command.method, { kind: 'warehouse', warehouseId: task.warehouseId });
 
+  const selectCell = (id: string): void => {
+    command.reset();
+    setCellId(id);
+  };
+
   const handleCellChange = (event: ChangeEvent<HTMLSelectElement>): void => {
     console.log('> WarehousePlacement -> handleCellChange:', {});
-    command.reset();
-    setCellId(event.currentTarget.value);
+    selectCell(event.currentTarget.value);
+  };
+
+  const handleScan: WarehouseScanHandlerValue = (raw, { readCell }) => {
+    const id = readCell(raw, cells);
+    if (id === undefined) {
+      return 'warehouseWork.error.invalidCode';
+    }
+    selectCell(id);
+    return undefined;
   };
 
   return (
@@ -47,6 +62,7 @@ export const WarehousePlacement = ({ cells, handlingUnitId, onChanged, t, task }
         <option value="" />
         {[...cells].map(([id, code]) => <option key={id} value={id}>{code}</option>)}
       </SelectField>
+      {access.status === 'allowed' && <WarehouseScanner isReadOnly={command.isPending} onScan={handleScan} t={t} />}
       <ActionButton access={access} command={command} data-testid="warehouse-place-unit" isDisabled={!cells.has(cellId)}>
         {t('warehouseWork.place')}
       </ActionButton>

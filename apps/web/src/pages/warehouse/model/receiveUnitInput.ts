@@ -12,6 +12,8 @@ import {
 } from '@skladburg/contracts/forms';
 import { ReceivingBatchEvidenceFormRules } from '@skladburg/contracts/forms/wms/v1/receiving';
 
+import { splitMarkingCodes } from './scan/splitMarkingCodes';
+
 export interface ReceiveUnitEvidenceOptionsValue {
   hasEvidence?: boolean | undefined;
   hasMarking?: boolean | undefined;
@@ -42,7 +44,6 @@ type ReceiveUnitNumberFieldValue = 'actualQuantityBase' | 'defectiveQuantityBase
 type ReceiveUnitRequestValue = Required<Pick<MessageInitShape<typeof ReceiveHandlingUnitRequestSchema>, 'batchEvidence' | 'unit'>>;
 
 const MAX_INT64 = 9_223_372_036_854_775_807n;
-const splitMarkingCodes = (value: string): string[] => value.trim().split(/\s+/u).filter(code => code !== '');
 const CODE_FIELDS = ['markingCodes', 'defectiveMarkingCodes'] as const;
 
 export const createReceiveUnitRequest = (

@@ -14,6 +14,7 @@ import {
 } from '@/shared/ui';
 
 import type { WarehouseWorkTranslate } from '../../i18n/workspaceSection';
+import type { WarehouseScanHandlerValue } from './WarehouseScanner';
 
 import {
   useClaimPicking,
@@ -22,6 +23,7 @@ import {
 } from '../../api/useWarehouseCommands';
 import { PICKING_TEXT } from './warehouseFormatting';
 import { WarehouseStockLines } from './WarehouseInventory';
+import { WarehouseScanner } from './WarehouseScanner';
 
 interface WarehousePickingProps {
   canViewDeals: boolean;
@@ -54,6 +56,19 @@ export const WarehousePicking = ({ canViewDeals, cells, onChanged, t, task }: Wa
     setChecked(prev => prev.includes(handlingUnitId) ? prev.filter(id => id !== handlingUnitId) : [...prev, handlingUnitId]);
   };
 
+  const handleScan: WarehouseScanHandlerValue = (raw, { readUnit }) => {
+    const sscc = readUnit(raw);
+    const unit = task.units.find(balance => balance.handlingUnit?.sscc === sscc)?.handlingUnit;
+    if (unit === undefined) {
+      return 'warehouseWork.error.invalidCode';
+    }
+    if (checked.includes(unit.id)) {
+      return 'warehouseWork.error.duplicate';
+    }
+    handleCheck(unit.id);
+    return undefined;
+  };
+
   return (
     <Card className="flex min-w-0 flex-col gap-3 p-3" data-testid="warehouse-picking-task">
       <header className="flex flex-wrap items-center justify-between gap-x-4">
@@ -64,6 +79,7 @@ export const WarehousePicking = ({ canViewDeals, cells, onChanged, t, task }: Wa
         <TextLink size="sm" to={{ kind: 'object', object: { id: task.dealId, type: 'deal' } }}>{t('warehouseWork.deal')}</TextLink>
       )}
       {isPicking && <p aria-live="polite">{t('warehouseWork.marked', { count: checked.length, total: task.units.length })}</p>}
+      {canCheck && <WarehouseScanner isReadOnly={confirm.isPending} onScan={handleScan} t={t} />}
       <ul className="divide-y divide-line">
         {task.units.map((balance) => {
           const unit = balance.handlingUnit;

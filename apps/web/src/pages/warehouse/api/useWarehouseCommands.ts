@@ -18,7 +18,7 @@ import {
 import type { WarehouseCommandAttemptValue } from '../model/warehouseCommandAttempt';
 
 import { createWarehouseCommandAttempt } from '../model/warehouseCommandAttempt';
-import { warehouseWorkspaceKey } from './warehouseWorkspaceQueries';
+import { warehouseWorkspaceKey } from './warehouseWorkspaceKey';
 
 type WarehouseTaskValue = Pick<PickingTask, 'id' | 'version' | 'warehouseId'>;
 

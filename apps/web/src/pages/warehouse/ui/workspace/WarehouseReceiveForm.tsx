@@ -18,8 +18,10 @@ import {
 
 import type { ReceiveUnitSelectionValue } from '../../api/useReceiveUnitForm';
 import type { WarehouseWorkTranslate } from '../../i18n/workspaceSection';
+import type { WarehouseScanHandlerValue } from './WarehouseScanner';
 
 import { useReceiveUnitForm } from '../../api/useReceiveUnitForm';
+import { WarehouseScanner } from './WarehouseScanner';
 
 interface WarehouseReceiveFormProps {
   hasEvidence: boolean;
@@ -31,30 +33,66 @@ interface WarehouseReceiveFormProps {
   task: ReceivingTask;
 }
 
+const FIELDS = {
+  actualQuantityBase: 'warehouseWork.measuredQuantity',
+  defectiveMarkingCodes: 'warehouseWork.defectiveCodes',
+  defectiveQuantityBase: 'warehouseWork.defective',
+  gtin: 'warehouseWork.gtin',
+  markingCodes: 'warehouseWork.markingCodes',
+  quantityBase: 'warehouseWork.quantity',
+  sscc: 'warehouseWork.sscc',
+} as const;
+
 export const WarehouseReceiveForm = ({
   hasEvidence, hasMarking, onCancel, onReceived, selection, t, task,
 }: WarehouseReceiveFormProps): ReactElement => {
-  const translateViolation = (ruleId: string): string | undefined => {
-    switch (ruleId) {
-      case 'catalog.amount_above_limit':
-        return t('warehouseWork.error.quantityLimit');
-      case 'scan_duplicate_code':
-        return t('warehouseWork.error.duplicate');
-      case 'scan_unexpected_item':
-      case 'scan_unknown_code':
-        return t('warehouseWork.error.invalidCode');
-      case 'stock.sscc_checksum':
-        return t('warehouseWork.error.invalidSscc');
-      default:
-        return undefined;
-    }
-  };
-  const form = useReceiveUnitForm(task, selection, onReceived, { hasEvidence, hasMarking, translateViolation });
+  const form = useReceiveUnitForm(task, selection, onReceived, {
+    hasEvidence,
+    hasMarking,
+    translateViolation: (ruleId) => {
+      switch (ruleId) {
+        case 'catalog.amount_above_limit':
+          return t('warehouseWork.error.quantityLimit');
+        case 'scan_duplicate_code':
+          return t('warehouseWork.error.duplicate');
+        case 'scan_unexpected_item':
+        case 'scan_unknown_code':
+          return t('warehouseWork.error.invalidCode');
+        case 'stock.sscc_checksum':
+          return t('warehouseWork.error.invalidSscc');
+        default:
+          return undefined;
+      }
+    },
+  });
   const access = useCommandAccess(form.command.method, { kind: 'warehouse', warehouseId: task.warehouseId });
   const { cancelLeave, confirmLeave, isLeavePending, requestLeave } = useNavigationGuard(form.isDirty);
   const formRef = useRef<HTMLFormElement>(null);
   const isLabelled = selection.kind === 'labelled';
   const isPending = form.command.isPending;
+  const fields: (keyof typeof FIELDS)[] = isLabelled ? ['sscc'] : ['gtin', 'quantityBase'];
+  if (hasEvidence) {
+    if (isLabelled) {
+      fields.push('actualQuantityBase');
+    }
+    fields.push('defectiveQuantityBase');
+  }
+  if (hasMarking) {
+    fields.push('markingCodes', 'defectiveMarkingCodes');
+  }
+
+  const handleScan: WarehouseScanHandlerValue = (raw, { resolveReceiving }) => {
+    const result = resolveReceiving(raw, task, selection, hasMarking, {
+      markingCodes: form.watchField('markingCodes'),
+      sscc: form.watchField('sscc'),
+    });
+    if ('error' in result) {
+      return result.error;
+    }
+    form.setFieldValue(result.field, result.value);
+    return undefined;
+  };
+
   const handleCancel = (): void => {
     console.log('> WarehouseReceiveForm -> handleCancel:', {});
     requestLeave(onCancel);
@@ -72,62 +110,18 @@ export const WarehouseReceiveForm = ({
       onSubmit={form.handleSubmit}
       ref={formRef}
     >
-      {isLabelled
-        ? (
-            <TextField
-              {...form.getFieldProps('sscc')}
-              autoComplete="off"
-              inputMode="numeric"
-              label={t('warehouseWork.sscc')}
-              spellCheck={false}
-            />
-          )
-        : (
-            <>
-              <TextField {...form.getFieldProps('gtin')} autoComplete="off" inputMode="numeric" label={t('warehouseWork.gtin')} />
-              <TextField
-                {...form.getFieldProps('quantityBase')}
-                autoComplete="off"
-                inputMode="numeric"
-                label={t('warehouseWork.quantity')}
-              />
-            </>
-          )}
-      {hasEvidence && (
-        <>
-          {isLabelled && (
-            <TextField
-              {...form.getFieldProps('actualQuantityBase')}
-              autoComplete="off"
-              inputMode="numeric"
-              label={t('warehouseWork.measuredQuantity')}
-            />
-          )}
-          <TextField
-            {...form.getFieldProps('defectiveQuantityBase')}
-            autoComplete="off"
-            inputMode="numeric"
-            label={t('warehouseWork.defective')}
-          />
-        </>
-      )}
-      {hasMarking && (
-        <>
-          <TextField
-            {...form.getFieldProps('markingCodes')}
-            autoComplete="off"
-            hint={t('warehouseWork.markingHint')}
-            label={t('warehouseWork.markingCodes')}
-            spellCheck={false}
-          />
-          <TextField
-            {...form.getFieldProps('defectiveMarkingCodes')}
-            autoComplete="off"
-            label={t('warehouseWork.defectiveCodes')}
-            spellCheck={false}
-          />
-        </>
-      )}
+      {fields.map(name => (
+        <TextField
+          {...form.getFieldProps(name)}
+          autoComplete="off"
+          hint={name === 'markingCodes' ? t('warehouseWork.markingHint') : undefined}
+          inputMode={name === 'markingCodes' || name === 'defectiveMarkingCodes' ? undefined : 'numeric'}
+          key={name}
+          label={t(FIELDS[name])}
+          spellCheck={false}
+        />
+      ))}
+      {access.status === 'allowed' && <WarehouseScanner isReadOnly={isPending || isLeavePending} onScan={handleScan} t={t} />}
       <div className="flex flex-wrap gap-2">
         <ActionButton
           access={access}
@@ -138,7 +132,9 @@ export const WarehouseReceiveForm = ({
         >
           {t('warehouseWork.accept')}
         </ActionButton>
-        <Button disabled={isPending} onClick={handleCancel} variant="secondary">{t('warehouseWork.cancel')}</Button>
+        <Button disabled={isPending} onClick={handleCancel} variant="secondary">
+          {t('warehouseWork.cancel')}
+        </Button>
       </div>
       <CommandErrorNotice command={form.command} />
       {isLeavePending && (

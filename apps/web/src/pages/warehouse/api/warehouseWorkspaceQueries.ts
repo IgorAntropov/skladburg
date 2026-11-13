@@ -19,19 +19,11 @@ import type {
   RealtimeEventCaseValue,
 } from '@/shared/api';
 
-import {
-  collectPages,
-  getOrganizationScope,
-} from '@/shared/api';
+import { collectPages } from '@/shared/api';
 
-export interface WarehouseWorkspaceScopeValue {
-  organizationId: string | undefined;
-  userId: string | undefined;
-  warehouseId: string | undefined;
-}
+import type { WarehouseWorkspaceScopeValue } from './warehouseWorkspaceKey';
 
-export const warehouseWorkspaceKey = ({ organizationId, userId, warehouseId }: WarehouseWorkspaceScopeValue): readonly string[] =>
-  ['warehouse-workspace', getOrganizationScope(organizationId), userId ?? '', warehouseId ?? ''];
+import { warehouseWorkspaceKey } from './warehouseWorkspaceKey';
 
 type WarehouseQueryKindValue = 'balances' | 'movements' | 'picking' | 'receiving' | 'topology';
 

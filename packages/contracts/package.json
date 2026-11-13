@@ -5,6 +5,7 @@
   "exports": {
     "./forms": "./src/forms/index.ts",
     "./forms/*": "./src/gen/forms/*_rules.ts",
+    "./gs1": "./src/forms/checks/hasGs1CheckDigit.ts",
     "./registry": "./src/registry/index.ts",
     "./runtime": "./src/runtime/index.ts",
     "./uuid": "./src/runtime/randomUuid.ts",

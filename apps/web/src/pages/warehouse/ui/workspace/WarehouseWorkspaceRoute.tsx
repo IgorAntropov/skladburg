@@ -23,15 +23,18 @@ import {
   TextLink,
 } from '@/shared/ui';
 
+import type { WarehouseLayoutRenderValue } from './WarehouseWorkspace';
+
 import { useWarehouseObjectLookup } from '../../api/useWarehouseObjectLookup';
 import { warehouseWorkSection } from '../../i18n/workspaceSection';
 import { WarehouseWorkspace } from './WarehouseWorkspace';
 
 interface WarehouseWorkspaceRouteProps {
   focus: ObjectRefValue;
+  renderLayout: WarehouseLayoutRenderValue;
 }
 
-export const WarehouseWorkspaceRoute = ({ focus }: WarehouseWorkspaceRouteProps): ReactElement => {
+export const WarehouseWorkspaceRoute = ({ focus, renderLayout }: WarehouseWorkspaceRouteProps): ReactElement => {
   const { t: baseText } = useI18n();
   const { retry, status, t } = useCatalogSection(warehouseWorkSection);
   const { organizationId, userId } = useActingContext();
@@ -52,22 +55,31 @@ export const WarehouseWorkspaceRoute = ({ focus }: WarehouseWorkspaceRouteProps)
   };
 
   if (warehouse !== undefined) {
-    return <WarehouseWorkspace focus={focus} key={`${organizationId ?? ''}:${userId ?? ''}:${warehouse.id}`} warehouse={warehouse} />;
+    return (
+      <WarehouseWorkspace
+        focus={focus}
+        key={`${organizationId ?? ''}:${userId ?? ''}:${warehouse.id}`}
+        renderLayout={renderLayout}
+        warehouse={warehouse}
+      />
+    );
   }
   if (loadError !== null) {
-    return <ErrorNotice error={loadError} onRetry={handleRetry} />;
+    return renderLayout(<ErrorNotice error={loadError} onRetry={handleRetry} />);
   }
   if (status === 'error' && t === undefined) {
-    return <ErrorNotice error={null} onRetry={retry} />;
+    return renderLayout(<ErrorNotice error={null} onRetry={retry} />);
   }
   if (data === undefined || session.isPending || lookup.isPending || t === undefined) {
-    return <SkeletonGroup isFilled label={baseText('routing.section.loading')}><Skeleton className="h-28 w-full" /></SkeletonGroup>;
+    return renderLayout(
+      <SkeletonGroup isFilled label={baseText('routing.section.loading')}><Skeleton className="h-28 w-full" /></SkeletonGroup>,
+    );
   }
 
-  return (
+  return renderLayout(
     <div className="flex flex-col items-start gap-2">
       <TextLink size="sm" to={{ kind: 'section', section: 'warehouse' }}>{t('warehouseWork.back')}</TextLink>
       <EmptyState data-testid="warehouse-object-unavailable" icon={Package} text={t('warehouseWork.noAccess')} />
-    </div>
+    </div>,
   );
 };

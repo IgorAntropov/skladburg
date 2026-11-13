@@ -759,6 +759,13 @@ const LAZY_ENTRY_BUDGETS = [
     name: 'scene',
   },
   {
+    entries: ['src/widgets/scene-viewport/scene/SceneRoot.tsx', 'src/pages/warehouse/scene/WarehouseWorldScene.tsx'],
+    forbiddenPackages: FORBIDDEN_SCENE_PACKAGES,
+    isRequired: true,
+    maxGzipKiloBytes: MAX_SCENE_GZIP_KILOBYTES,
+    name: 'warehouse-scene',
+  },
+  {
     entries: STARTUP_BUDGET_ENTRIES,
     forbiddenPackages: FORBIDDEN_STARTUP_PACKAGES,
     isRequired: true,

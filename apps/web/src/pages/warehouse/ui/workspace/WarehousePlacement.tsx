@@ -21,12 +21,13 @@ import { WarehouseScanner } from './WarehouseScanner';
 interface WarehousePlacementProps {
   cells: ReadonlyMap<string, string>;
   handlingUnitId: string;
+  onCellSelect: (id: string, taskId: string) => void;
   onChanged: () => void;
   t: WarehouseWorkTranslate;
   task: ReceivingTask;
 }
 
-export const WarehousePlacement = ({ cells, handlingUnitId, onChanged, t, task }: WarehousePlacementProps): ReactElement => {
+export const WarehousePlacement = ({ cells, handlingUnitId, onCellSelect, onChanged, t, task }: WarehousePlacementProps): ReactElement => {
   const [cellId, setCellId] = useState('');
   const command = usePutAway(task, handlingUnitId, cellId, onChanged);
   const access = useCommandAccess(command.method, { kind: 'warehouse', warehouseId: task.warehouseId });
@@ -47,6 +48,7 @@ export const WarehousePlacement = ({ cells, handlingUnitId, onChanged, t, task }
       return 'warehouseWork.error.invalidCode';
     }
     selectCell(id);
+    onCellSelect(id, task.id);
     return undefined;
   };
 

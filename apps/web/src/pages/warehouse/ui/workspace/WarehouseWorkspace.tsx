@@ -13,6 +13,8 @@ import {
   Package,
 } from 'lucide-react';
 import {
+  Suspense,
+  useCallback,
   useEffect,
   useState,
 } from 'react';
@@ -28,6 +30,7 @@ import {
 } from '@/shared/i18n';
 import {
   createCachedModuleLoader,
+  createLazyComponent,
   useChunkLoader,
 } from '@/shared/lib/module-loader';
 import {
@@ -39,14 +42,19 @@ import {
   TextLink,
   WidgetStates,
 } from '@/shared/ui';
+import { ScenePlaceholder } from '@/widgets/scene-viewport';
 
+import type { WarehouseWorkspaceValue } from '../../api/useWarehouseWorkspace';
 import type { WarehouseWorkTranslate } from '../../i18n/workspaceSection';
+import type { WarehouseSceneScanValue } from '../../model/warehouseSceneInteraction';
 
 import { useWarehouseWorkspace } from '../../api/useWarehouseWorkspace';
 import { warehouseWorkSection } from '../../i18n/workspaceSection';
 import { getWarehouseCells } from '../../model/warehouseCells';
 import { readCells } from './warehouseFormatting';
 import { WarehouseReceiving } from './WarehouseReceiving';
+
+export type WarehouseLayoutRenderValue = (panel: ReactNode, scene?: ReactNode, sceneControls?: ReactNode) => ReactElement;
 
 interface WarehouseQueryProps<TData> {
   children: (data: TData) => ReactNode;
@@ -58,10 +66,16 @@ interface WarehouseQueryProps<TData> {
 
 interface WarehouseWorkspaceProps {
   focus: ObjectRefValue | undefined;
+  renderLayout: WarehouseLayoutRenderValue;
   warehouse: Warehouse;
 }
 
 const loadWarehousePanels = createCachedModuleLoader(() => import('./warehousePanels'));
+const loadWarehouseSceneView = createCachedModuleLoader(() => import('../WarehouseWorkspaceScene'));
+const WarehouseWorkspaceScene = createLazyComponent(loadWarehouseSceneView);
+const WarehouseSceneControls = createLazyComponent<object>(createCachedModuleLoader(() => loadWarehouseSceneView().then(module => ({
+  default: module.WarehouseSceneControls,
+}))));
 
 interface WarehousePanelSlotProps {
   children: (module: typeof import('./warehousePanels')) => ReactNode;
@@ -101,6 +115,13 @@ const WarehousePanelSlot = ({ children }: WarehousePanelSlotProps): ReactNode =>
   return <SkeletonGroup isFilled label={t('routing.section.loading')}><WarehouseSkeleton /></SkeletonGroup>;
 };
 
+interface WarehouseWorkspaceContentProps extends Omit<WarehouseWorkspaceProps, 'renderLayout'> {
+  onCellSelect: (id: string, taskId: string) => void;
+  onTaskSelect: (id: string) => void;
+  t: WarehouseWorkTranslate;
+  workspace: WarehouseWorkspaceValue;
+}
+
 function WarehouseQuery<TData>({ children, empty, isEmpty, query, t }: WarehouseQueryProps<TData>): ReactElement {
   const { t: baseText } = useI18n();
 
@@ -129,9 +150,10 @@ function WarehouseQuery<TData>({ children, empty, isEmpty, query, t }: Warehouse
   );
 }
 
-const WarehouseWorkspaceContent = ({ focus, t, warehouse }: WarehouseWorkspaceProps & { t: WarehouseWorkTranslate }): ReactElement => {
+const WarehouseWorkspaceContent = ({
+  focus, onCellSelect, onTaskSelect, t, warehouse, workspace,
+}: WarehouseWorkspaceContentProps): ReactElement => {
   const { t: baseText } = useI18n();
-  const workspace = useWarehouseWorkspace(warehouse.id);
   const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
   const [editingTaskId, setEditingTaskId] = useState<string | undefined>();
   const hasEditor = editingTaskId !== undefined && workspace.receiving.data?.some(task => task.id === editingTaskId
@@ -140,6 +162,13 @@ const WarehouseWorkspaceContent = ({ focus, t, warehouse }: WarehouseWorkspacePr
   const productNames = new Map(workspace.receiving.data?.flatMap(task =>
     task.orderLines.map(({ productId, productName }) => [productId, productName] as const)));
   const tabs: TabsItemValue[] = [];
+
+  const handleEditingChange = (id: string | undefined): void => {
+    setEditingTaskId(id);
+    if (id !== undefined) {
+      onTaskSelect(id);
+    }
+  };
 
   if (workspace.isSessionPending) {
     return <SkeletonGroup isFilled label={baseText('routing.section.loading')}><WarehouseSkeleton /></SkeletonGroup>;
@@ -173,8 +202,9 @@ const WarehouseWorkspaceContent = ({ focus, t, warehouse }: WarehouseWorkspacePr
                     cells={cells}
                     editingTaskId={hasEditor ? editingTaskId : undefined}
                     key={task.id}
+                    onCellSelect={onCellSelect}
                     onChanged={NO_CHANGE}
-                    onEditingChange={setEditingTaskId}
+                    onEditingChange={handleEditingChange}
                     t={t}
                     task={task}
                   />
@@ -289,22 +319,73 @@ const WarehouseWorkspaceContent = ({ focus, t, warehouse }: WarehouseWorkspacePr
   );
 };
 
-export const WarehouseWorkspace = (props: WarehouseWorkspaceProps): ReactElement => {
+export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: WarehouseWorkspaceProps): ReactElement => {
   const { t: baseText } = useI18n();
   const { retry, status, t } = useCatalogSection(warehouseWorkSection);
+  const workspace = useWarehouseWorkspace(warehouse.id);
+  const [scannedCell, setScannedCell] = useState<WarehouseSceneScanValue>();
+  const [preferredTaskId, setPreferredTaskId] = useState<string | undefined>();
+  const focusId = focus?.id;
+
+  const handleCellSelect = useCallback((id: string, taskId: string): void => {
+    setScannedCell({ cellId: id, focusId });
+    setPreferredTaskId(taskId);
+  }, [focusId]);
+
+  const topology = workspace.canViewTopology && !isReadAccessDenied(workspace.topology.error)
+    ? workspace.topology.data
+    : undefined;
+  const tasks = workspace.canViewTasks && !isReadAccessDenied(workspace.receiving.error) ? workspace.receiving.data : undefined;
+  const balances = workspace.canViewInventory && !isReadAccessDenied(workspace.balances.error) ? workspace.balances.data : undefined;
+  const focusCellId = focus?.type === 'cell'
+    ? focusId
+    : focus?.type === 'handling_unit'
+      ? balances?.find(balance => balance.handlingUnit?.id === focusId)?.cellId
+      : undefined;
+  const currentScan = scannedCell?.focusId === focusId ? scannedCell : undefined;
+  if (scannedCell !== undefined && currentScan === undefined) {
+    setScannedCell(undefined);
+  }
+
   if (t !== undefined) {
-    return <WarehouseWorkspaceContent {...props} key={props.focus?.id} t={t} />;
+    const panel = (
+      <WarehouseWorkspaceContent
+        focus={focus}
+        key={focusId}
+        onCellSelect={handleCellSelect}
+        onTaskSelect={setPreferredTaskId}
+        t={t}
+        warehouse={warehouse}
+        workspace={workspace}
+      />
+    );
+    return renderLayout(
+      panel,
+      <Suspense fallback={<ScenePlaceholder isLoading label={baseText('routing.section.loading')} />}>
+        <WarehouseWorkspaceScene
+          balances={balances}
+          isLoading={workspace.topology.isPending && workspace.canViewTopology}
+          label={warehouse.name}
+          preferredTaskId={preferredTaskId}
+          scannedCell={currentScan}
+          selectedCellId={focusCellId}
+          tasks={tasks}
+          topology={topology}
+        />
+      </Suspense>,
+      topology == null ? undefined : <Suspense fallback={null}><WarehouseSceneControls /></Suspense>,
+    );
   }
   if (status === 'error') {
-    return (
+    return renderLayout(
       <ChunkLoadNotice
         message={baseText('routing.chunkError.message')}
         onRetry={retry}
         recovery="retry"
         repeatedMessage={baseText('routing.chunkError.repeated')}
-      />
+      />,
     );
   }
 
-  return <SkeletonGroup isFilled label={baseText('routing.section.loading')}><WarehouseSkeleton /></SkeletonGroup>;
+  return renderLayout(<SkeletonGroup isFilled label={baseText('routing.section.loading')}><WarehouseSkeleton /></SkeletonGroup>);
 };

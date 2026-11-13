@@ -47,6 +47,7 @@ interface WarehouseReceivingProps {
   canViewDeals: boolean;
   cells: ReadonlyMap<string, string>;
   editingTaskId: string | undefined;
+  onCellSelect: (id: string, taskId: string) => void;
   onChanged: () => void;
   onEditingChange: (taskId: string | undefined) => void;
   t: WarehouseWorkTranslate;
@@ -56,7 +57,7 @@ interface WarehouseReceivingProps {
 const loadReceiveForm = createCachedModuleLoader(() => import('./WarehouseReceiveForm'));
 
 export const WarehouseReceiving = ({
-  canViewDeals, cells, editingTaskId, onChanged, onEditingChange, t, task,
+  canViewDeals, cells, editingTaskId, onCellSelect, onChanged, onEditingChange, t, task,
 }: WarehouseReceivingProps): ReactElement => {
   const { userId } = useActingContext();
   const { t: baseText } = useI18n();
@@ -229,7 +230,14 @@ export const WarehouseReceiving = ({
               {putAwayCellId !== undefined && <p className="text-sm">{cells.get(putAwayCellId) ?? t('warehouseWork.cell')}</p>}
               {canViewInventory && <WarehouseReceiptPrint balance={balance} t={t} task={task} />}
               {canPlaceUnit && (
-                <WarehousePlacement cells={cells} handlingUnitId={handlingUnit.id} onChanged={onChanged} t={t} task={task} />
+                <WarehousePlacement
+                  cells={cells}
+                  handlingUnitId={handlingUnit.id}
+                  onCellSelect={onCellSelect}
+                  onChanged={onChanged}
+                  t={t}
+                  task={task}
+                />
               )}
             </li>
           );

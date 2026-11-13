@@ -1,4 +1,7 @@
-import type { ReactElement } from 'react';
+import type {
+  ReactElement,
+  ReactNode,
+} from 'react';
 
 import { useState } from 'react';
 
@@ -29,6 +32,7 @@ import { ObjectInspector } from '@/widgets/object-inspector';
 import { ScenePlaceholder } from '@/widgets/scene-viewport';
 
 import { warehouseImportLauncherMessages } from '../i18n/warehouseImportLauncherRu';
+import { warehouseSceneMessages } from '../i18n/warehouseSceneRu';
 import { loadWarehouseImportPanel } from './loadWarehouseImportPanel';
 import { OrganizationCard } from './OrganizationCard';
 import { WarehouseList } from './WarehouseList';
@@ -68,11 +72,9 @@ export const WarehousePage = ({ focus }: WarehousePageProps): ReactElement => {
     setIsImportRequested(false);
   };
 
-  const panel = isWarehouseFocus
-    ? <WarehouseWorkspaceRoute focus={focus} />
-    : launcher.isOpen
-      ? <CreateWarehousePanel launcher={launcher} />
-      : ImportPanel === undefined ? undefined : <ImportPanel focusedWarehouseId={undefined} onClose={handleImportClose} />;
+  const panel = launcher.isOpen
+    ? <CreateWarehousePanel launcher={launcher} />
+    : ImportPanel === undefined ? undefined : <ImportPanel focusedWarehouseId={undefined} onClose={handleImportClose} />;
 
   const listTabs: readonly TabsItemValue[] = [
     {
@@ -111,17 +113,25 @@ export const WarehousePage = ({ focus }: WarehousePageProps): ReactElement => {
     },
   ];
 
+  const scenePlaceholder = <ScenePlaceholder label={createSectionTranslator(warehouseSceneMessages)('warehouseScene.select')} />;
+
+  const renderLayout = (content: ReactNode, scene?: ReactNode, sceneControls?: ReactNode): ReactElement => (
+    <HudLayout
+      {...inspectorFocus}
+      canCollapsePanels={sceneControls !== undefined}
+      inspector={isWarehouseFocus ? undefined : <ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
+      listsHeader={<OrganizationCard />}
+      listTabs={listTabs}
+      panel={content}
+      scene={scene ?? scenePlaceholder}
+      sceneControls={sceneControls}
+    />
+  );
+
   return (
     <div className="contents" data-testid="page-warehouse">
       <h1 className="sr-only">{t('section.warehouse.title')}</h1>
-      <HudLayout
-        {...inspectorFocus}
-        inspector={isWarehouseFocus ? undefined : <ObjectInspector focus={focus} onClose={inspectorFocus.onInspectorClose} />}
-        listsHeader={<OrganizationCard />}
-        listTabs={listTabs}
-        panel={panel}
-        scene={<ScenePlaceholder label={t('warehouse.placeholder')} />}
-      />
+      {isWarehouseFocus ? <WarehouseWorkspaceRoute focus={focus} renderLayout={renderLayout} /> : renderLayout(panel)}
     </div>
   );
 };

@@ -69,8 +69,9 @@ const createHandlerClient = (errors: IDomainErrors, getSession: GetSessionHandle
     clockService: { getWorldClock: unused },
     dealService: {
       acceptCounterOffer: unused, acceptDeal: unused, cancelDeal: unused, chooseDelivery: unused,
-      confirmDeal: unused, counterDeal: unused, createDealDraft: unused, getDeal: unused, listDeals: unused,
-      markDealShipped: unused, rejectCounterOffer: unused, rejectDeal: unused, submitDeal: unused, updateDealDraft: unused,
+      confirmDeal: unused, confirmDealReceipt: unused, counterDeal: unused, createDealDraft: unused, getDeal: unused,
+      getDealReceipt: unused, listDeals: unused, markDealShipped: unused,
+      openDealReceiptClaim: unused, rejectCounterOffer: unused, rejectDeal: unused, submitDeal: unused, updateDealDraft: unused,
     },
     documentService: { getDocument: unused, listDealDocuments: unused, signDocument: unused, signSupplyContract: unused },
     errors,

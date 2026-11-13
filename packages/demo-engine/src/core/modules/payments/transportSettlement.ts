@@ -95,6 +95,9 @@ export const projectPayment = (record: SafeDealPaymentRecord, deal: Deal, organi
     ...payment,
     deliveryAmount: isBuyer || isPayer ? payment.deliveryAmount : undefined,
     fundedAmount: isBuyer ? payment.fundedAmount : undefined,
+    partialReceipt: isPayer || payment.partialReceipt === undefined
+      ? payment.partialReceipt
+      : { ...payment.partialReceipt, heldTransportAmount: undefined },
     payouts: isPayer ? payment.payouts : payment.payouts.filter(payout => payout.organizationId === organizationId),
     transport: isPayer ? buildTransportBreakdown(transportSettlement, payment) : undefined,
   };

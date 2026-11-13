@@ -2,32 +2,41 @@ import type { Event } from '@skladburg/contracts/event/v1/event';
 
 import {
   create,
+  fromBinary,
   toBinary,
 } from '@bufbuild/protobuf';
-import { timestampMs } from '@bufbuild/protobuf/wkt';
+import {
+  timestampFromMs,
+  timestampMs,
+} from '@bufbuild/protobuf/wkt';
 import { createClient } from '@connectrpc/connect';
 import {
   BaseUnit,
   CatalogService,
+  MarkingMode,
   SaveProductRequestSchema,
 } from '@skladburg/contracts/catalog/v1/catalog';
 import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import {
+  DealSchema,
   DealService,
   DealStatus,
 } from '@skladburg/contracts/deal/v1/deal';
 import {
+  DocumentSchema,
   DocumentService,
   DocumentType,
 } from '@skladburg/contracts/document/v1/document';
 import { hasGs1CheckDigit } from '@skladburg/contracts/forms';
 import {
   PaymentService,
+  PayoutStatus,
   SafeDealPaymentStatus,
 } from '@skladburg/contracts/payment/v1/payment';
 import { tasksChannel } from '@skladburg/contracts/runtime';
 import {
+  ReceivingTaskSchema,
   ReceivingTaskStatus,
   WarehouseReceivingService,
 } from '@skladburg/contracts/wms/v1/receiving';
@@ -112,6 +121,7 @@ const prepareInbound = async (
   receiver: ReturnType<typeof callAs>;
   secondReceiver: ReturnType<typeof callAs>;
   ship: () => Promise<number>;
+  signOnly: ReturnType<typeof callAs>;
 }> => {
   const { harness, request } = await createDealFixture({ product: { gtin: GTIN_ONE } });
   if (deliveryMethod === DeliveryMethod.SUPPLIER) {
@@ -147,6 +157,11 @@ const prepareInbound = async (
   const editor = callAs(await addTestMember(harness, {
     organizationId: SeedOrganizationId.CUSTOMER_1,
     permissions: ['catalog_edit', 'catalog_view'],
+    warehouseIds: [],
+  }), SeedOrganizationId.CUSTOMER_1);
+  const signOnly = callAs(await addTestMember(harness, {
+    organizationId: SeedOrganizationId.CUSTOMER_1,
+    permissions: ['document_sign'],
     warehouseIds: [],
   }), SeedOrganizationId.CUSTOMER_1);
   const snapshot = await harness.storage.load();
@@ -207,7 +222,7 @@ const prepareInbound = async (
     return timestampMs(arrival);
   };
 
-  return { clients, dealId, editor, engine, inventoryOnly, receiver, secondReceiver, ship };
+  return { clients, dealId, editor, engine, inventoryOnly, receiver, secondReceiver, ship, signOnly };
 };
 
 const tickAt = async (test: TestEngineValue, targetMs: number): Promise<void> => {
@@ -298,7 +313,7 @@ it('opens one private task on arrival and keeps the deal payment held after rest
   }, receiver))).toBe(ErrorCode.INVALID_TRANSITION);
 
   const { deal } = await current.deals.getDeal({ dealId }, CUSTOMER_CALL);
-  expect(deal?.status).toBe(DealStatus.ARRIVED);
+  expect(deal?.status).toBe(DealStatus.ACCEPTING);
   expect(await failureCode(current.deals.acceptDeal({
     dealId, expectedVersion: deal?.version ?? 0, idempotencyKey: nextUuid(),
   }, CUSTOMER_CALL))).toBe(ErrorCode.INVALID_TRANSITION);
@@ -387,7 +402,7 @@ it('records labelled and unlabelled places once and moves the quarantined balanc
   const { movements } = await reopened.stock.listStockMovements(base, inventoryOnly);
   expect(movements.filter(movement => movement.kind === StockMovementKind.RECEIPT)).toHaveLength(3);
   expect(movements.filter(movement => movement.kind === StockMovementKind.TRANSFER)).toMatchObject([{
-    dealId, fromReceivingAreaId: AREA, sourceDocumentNumber: 'RECEIVING-1', toCellId: CELL,
+    dealId, fromReceivingAreaId: AREA, sourceDocumentNumber: task?.sourceDocumentNumber, toCellId: CELL,
   }]);
   expect((await reopened.payments.getDealPayment({ dealId }, CUSTOMER_CALL)).payment).toMatchObject({
     payouts: [], status: SafeDealPaymentStatus.HELD,
@@ -413,4 +428,191 @@ it('opens receiving for supplier delivery and rejects a label previously shipped
   expect((await clients.stock.listStockMovements(base, inventoryOnly)).movements).toEqual([]);
   expect((await clients.receiving.listReceivingTasks(base, receiver)).tasks)
     .toMatchObject([{ receivedUnits: [], status: ReceivingTaskStatus.IN_PROGRESS, version: 2 }]);
+});
+
+it('opens a claim and classifies only signed receipt stock without closing the disputed payment', async () => {
+  const { clients, dealId, engine, receiver, ship, signOnly } = await prepareInbound();
+  await tickAt(engine, await ship());
+  const command = { idempotencyKey: nextUuid(), taskId: dealId, warehouseId: WAREHOUSE };
+  await clients.receiving.claimReceivingTask({ ...command, expectedVersion: 1 }, receiver);
+  const { task } = await clients.receiving.receiveHandlingUnit({
+    ...command, expectedVersion: 2, idempotencyKey: nextUuid(), unit: { case: 'sscc', value: SSCC },
+  }, receiver);
+  const handlingUnitId = task?.receivedUnits[0]?.balanceAtReceipt?.handlingUnit?.id;
+  if (handlingUnitId === undefined) {
+    throw new Error('Missing received unit');
+  }
+  await clients.receiving.finishReceivingTask({ ...command, expectedVersion: 3, idempotencyKey: nextUuid() }, receiver);
+  const { deal } = await clients.deals.getDeal({ dealId }, CUSTOMER_CALL);
+  const { receipt } = await clients.deals.getDealReceipt({ dealId }, CUSTOMER_CALL);
+  expect(deal?.status).toBe(DealStatus.ACCEPTING);
+  expect(receipt).toMatchObject({
+    hasDiscrepancies: true,
+    lines: [{ acceptedQuantityBase: 6n, documentedQuantityBase: 10n, orderedQuantityBase: 10n, shortageQuantityBase: 4n }],
+  });
+  const request = { dealId, expectedVersion: deal?.version ?? 0, idempotencyKey: nextUuid() };
+  expect(await failureCode(clients.deals.confirmDealReceipt(request, CUSTOMER_CALL))).toBe(ErrorCode.INVALID_TRANSITION);
+  expect(await failureCode(clients.deals.openDealReceiptClaim(request, SUPPLIER_1_CALL))).toBe(ErrorCode.PERMISSION_DENIED);
+  const { deal: claimed } = await clients.deals.openDealReceiptClaim(request, CUSTOMER_CALL);
+  expect(claimed?.status).toBe(DealStatus.CLAIM);
+  const sign = { ...request, expectedVersion: claimed?.version ?? 0, idempotencyKey: nextUuid() };
+  const signed = await clients.deals.confirmDealReceipt(sign, CUSTOMER_CALL);
+  expect(signed.deal?.status).toBe(DealStatus.CLAIM);
+  const payment = await clients.payments.getDealPayment({ dealId }, CUSTOMER_CALL);
+  expect(payment.payment).toMatchObject({ status: SafeDealPaymentStatus.DISPUTE });
+  expect(payment.payment?.partialReceipt?.acceptedGoodsAmount).toEqual(receipt?.lines[0]?.acceptedGoodsAmount);
+  expect(await clients.deals.confirmDealReceipt(sign, CUSTOMER_CALL)).toEqual(signed);
+  expect(await failureCode(clients.deals.confirmDealReceipt(sign, signOnly))).toBe(ErrorCode.PERMISSION_DENIED);
+  expect(await failureCode(clients.deals.confirmDealReceipt({
+    ...sign, expectedVersion: signed.deal?.version ?? 0, idempotencyKey: nextUuid(),
+  }, CUSTOMER_CALL))).toBe(ErrorCode.INVALID_TRANSITION);
+  const { task: placed } = await clients.receiving.putAwayHandlingUnit({
+    ...command, expectedVersion: 5, handlingUnitId, idempotencyKey: nextUuid(), toCellId: CELL,
+  }, receiver);
+  expect(placed).toMatchObject({
+    receivedUnits: [{ balanceAtReceipt: { lines: [{ status: StockStatus.QUARANTINE }] }, putAwayCellId: CELL }],
+    status: ReceivingTaskStatus.RECONCILED,
+  });
+  const { documents } = await clients.documents.listDealDocuments({ dealId }, SUPPLIER_1_CALL);
+  expect(documents.filter(document => document.type > DocumentType.INVOICE).map(document => document.type)).toEqual([
+    DocumentType.UPD, DocumentType.DISPATCH_TITLE, DocumentType.RECEIPT_TITLE, DocumentType.RECEIPT_DISCREPANCY_ACT,
+    DocumentType.RECEIPT_CLAIM,
+  ]);
+  const signature = documents.find(document => document.type === DocumentType.RECEIPT_TITLE)?.signatures[0];
+  expect(signature?.contentSha256).toMatch(/^[0-9a-f]{64}$/u);
+  expect(signature?.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
+  const reopened = await createTestEngine({ storage: engine.storage });
+  reopened.realTime.advance(10 * 60_000);
+  await reopened.engine.tick();
+  expect((await createClients(reopened.engine).payments.getDealPayment({ dealId }, CUSTOMER_CALL)).payment)
+    .toMatchObject({ payouts: [{ status: PayoutStatus.PAID }], status: SafeDealPaymentStatus.DISPUTE });
+});
+
+it('confirms a fully received order once and releases the whole payment', async () => {
+  const { clients, dealId, engine, inventoryOnly, receiver, ship } = await prepareInbound();
+  await tickAt(engine, await ship());
+  const command = { taskId: dealId, warehouseId: WAREHOUSE };
+  const { task: claimed } = await clients.receiving.claimReceivingTask({
+    ...command, expectedVersion: 1, idempotencyKey: nextUuid(),
+  }, receiver);
+  const { task: labelled } = await clients.receiving.receiveHandlingUnit({
+    ...command, expectedVersion: 2, idempotencyKey: nextUuid(), unit: { case: 'sscc', value: SSCC },
+  }, receiver);
+  const handlingUnitId = labelled?.receivedUnits[0]?.balanceAtReceipt?.handlingUnit?.id ?? '';
+  await clients.receiving.putAwayHandlingUnit({
+    ...command, expectedVersion: 3, handlingUnitId, idempotencyKey: nextUuid(), toCellId: CELL,
+  }, receiver);
+  for (const [index, unit] of (claimed?.expectedUnits ?? []).slice(1).entries()) {
+    await clients.receiving.receiveHandlingUnit({
+      ...command,
+      expectedVersion: index + 4,
+      idempotencyKey: nextUuid(),
+      unit: { case: 'unlabelledUnit', value: { expectedUnitId: unit.id, gtin: GTIN_ONE, quantityBase: 2n } },
+    }, receiver);
+  }
+  await clients.receiving.finishReceivingTask({ ...command, expectedVersion: 6, idempotencyKey: nextUuid() }, receiver);
+  const { deal } = await clients.deals.getDeal({ dealId }, CUSTOMER_CALL);
+  const request = { dealId, expectedVersion: deal?.version ?? 0, idempotencyKey: nextUuid() };
+  expect(await clients.deals.getDealReceipt({ dealId }, CUSTOMER_CALL)).toMatchObject({
+    receipt: { hasDiscrepancies: false, lines: [{ acceptedQuantityBase: 10n }] },
+  });
+  expect(await failureCode(clients.deals.openDealReceiptClaim(request, CUSTOMER_CALL))).toBe(ErrorCode.INVALID_TRANSITION);
+  engine.storage.failNextCommit();
+  expect(await failureCode(clients.deals.confirmDealReceipt(request, CUSTOMER_CALL))).toBe(ErrorCode.UNAVAILABLE);
+  expect((await clients.payments.getDealPayment({ dealId }, CUSTOMER_CALL)).payment)
+    .toMatchObject({ payouts: [], status: SafeDealPaymentStatus.HELD });
+  const current = (await clients.stock.listStockBalances(command, inventoryOnly)).balances;
+  expect(current.find(balance => balance.handlingUnit?.id === handlingUnitId))
+    .toMatchObject({ cellId: CELL, lines: [{ status: StockStatus.QUARANTINE }] });
+  const confirmed = await clients.deals.confirmDealReceipt(request, CUSTOMER_CALL);
+  expect(confirmed.deal?.status).toBe(DealStatus.ACCEPTED);
+  expect(await clients.deals.confirmDealReceipt(request, CUSTOMER_CALL)).toEqual(confirmed);
+  const { movements } = await clients.stock.listStockMovements(command, inventoryOnly);
+  expect(movements.filter(movement => movement.kind === StockMovementKind.RECEIPT_CLASSIFICATION)).toHaveLength(3);
+  const classified = (await clients.stock.listStockBalances(command, inventoryOnly)).balances;
+  expect(classified.find(balance => balance.handlingUnit?.id === handlingUnitId))
+    .toMatchObject({ cellId: CELL, lines: [{ status: StockStatus.AVAILABLE }] });
+  engine.realTime.advance(10 * 60_000);
+  await engine.engine.tick();
+  expect((await clients.payments.getDealPayment({ dealId }, CUSTOMER_CALL)).payment)
+    .toMatchObject({ payouts: [{ status: PayoutStatus.PAID }], status: SafeDealPaymentStatus.CLOSED });
+});
+
+it('backfills documents and a finished task atomically from a schema 23 world', async () => {
+  const { clients, dealId, engine, receiver, ship } = await prepareInbound();
+  await tickAt(engine, await ship());
+  const command = { taskId: dealId, warehouseId: WAREHOUSE };
+  await clients.receiving.claimReceivingTask({ ...command, expectedVersion: 1, idempotencyKey: nextUuid() }, receiver);
+  await clients.receiving.finishReceivingTask({ ...command, expectedVersion: 2, idempotencyKey: nextUuid() }, receiver);
+  const snapshot = await engine.storage.load();
+  const record = snapshot?.collections.warehouseInbound.get(dealId);
+  const dealBytes = snapshot?.collections.deals.get(dealId);
+  if (snapshot === undefined || record === undefined || !('bytes' in record) || !(record.bytes instanceof Uint8Array)
+    || !(dealBytes instanceof Uint8Array)) {
+    throw new Error('Missing receipt snapshot');
+  }
+  const task = fromBinary(ReceivingTaskSchema, record.bytes);
+  const deal = fromBinary(DealSchema, dealBytes);
+  task.updDocumentId = undefined;
+  task.sourceDocumentNumber = 'OLD-UPD';
+  for (const orderLine of task.orderLines) {
+    orderLine.markingMode = MarkingMode.UNSPECIFIED;
+  }
+  deal.status = DealStatus.ARRIVED;
+  deal.transitions.pop();
+  deal.version--;
+  const anotherDealId = '00000000-0000-4000-8000-000000000001';
+  const shipped = deal.transitions.find(transition => transition.to === DealStatus.SHIPPED);
+  if (shipped?.at === undefined || task.finishedAt === undefined) {
+    throw new Error('Missing legacy timestamps');
+  }
+  const earlierFinish = timestampFromMs(timestampMs(task.finishedAt) - 60_000);
+  const laterShipment = timestampFromMs(timestampMs(shipped.at) + 60_000);
+  const anotherDeal = create(DealSchema, {
+    ...deal,
+    id: anotherDealId,
+    transitions: deal.transitions.map(transition => transition === shipped ? { ...transition, at: laterShipment } : transition),
+  });
+  const anotherTask = create(ReceivingTaskSchema, { ...task, dealId: anotherDealId, finishedAt: earlierFinish, id: anotherDealId });
+  const documents = [...snapshot.collections.documents].filter(([, bytes]) =>
+    !(bytes instanceof Uint8Array) || fromBinary(DocumentSchema, bytes).type <= DocumentType.INVOICE);
+  const old = {
+    ...snapshot,
+    collections: {
+      ...snapshot.collections,
+      deals: new Map([
+        ...snapshot.collections.deals, [anotherDealId, toBinary(DealSchema, anotherDeal)], [dealId, toBinary(DealSchema, deal)],
+      ]),
+      documents: new Map(documents),
+      warehouseInbound: new Map([
+        [anotherDealId, { ...record, bytes: toBinary(ReceivingTaskSchema, anotherTask), id: anotherDealId }],
+        [dealId, { ...record, bytes: toBinary(ReceivingTaskSchema, task) }],
+      ]),
+    },
+    schemaVersion: 23,
+  };
+  const storage = createSpyStorage(old);
+  storage.failNextReplaceAll();
+  await expect(createTestEngine({ storage })).rejects.toThrow('The saved world migration failed');
+  expect(await storage.load()).toEqual(old);
+
+  const restored = await createTestEngine({ storage });
+  const current = createClients(restored.engine);
+  const { receipt } = await current.deals.getDealReceipt({ dealId }, CUSTOMER_CALL);
+  expect(receipt?.hasDiscrepancies).toBe(true);
+  expect(receipt?.updDocumentId).toBeTruthy();
+  expect(receipt?.discrepancyActDocumentId).toBeTruthy();
+  expect((await current.deals.getDeal({ dealId }, CUSTOMER_CALL)).deal?.status).toBe(DealStatus.ACCEPTING);
+  const { tasks } = await current.receiving.listReceivingTasks(command, receiver);
+  expect(tasks.find(candidate => candidate.dealId === dealId)?.sourceDocumentNumber).toBe('OLD-UPD');
+  const first = await current.documents.listDealDocuments({ dealId }, CUSTOMER_CALL);
+  const second = await current.documents.listDealDocuments({ dealId: anotherDealId }, CUSTOMER_CALL);
+  const numberFor = (documents: typeof first.documents, type: DocumentType): number | undefined =>
+    documents.find(document => document.type === type)?.number;
+  expect(numberFor(first.documents, DocumentType.UPD)).toBe(2);
+  expect(numberFor(second.documents, DocumentType.UPD)).toBe(3);
+  expect(numberFor(first.documents, DocumentType.RECEIPT_DISCREPANCY_ACT)).toBe(3);
+  expect(numberFor(second.documents, DocumentType.RECEIPT_DISCREPANCY_ACT)).toBe(2);
+  const restarted = await createTestEngine({ storage });
+  expect((await createClients(restarted.engine).deals.getDealReceipt({ dealId }, CUSTOMER_CALL)).receipt).toEqual(receipt);
 });

@@ -8,7 +8,6 @@ import { timestampFromMs } from '@bufbuild/protobuf/wkt';
 import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
-import { DealChange } from '@skladburg/contracts/deal/v1/deal_events';
 import {
   DocumentStatus,
   DocumentType,
@@ -31,17 +30,17 @@ import {
   readVisibleDeal,
   requireDealPartyProfiles,
 } from '../deals/dealAccess';
-import { publishDealEffects } from '../deals/dealEffects';
 import { failDealValidation } from '../deals/dealRules';
+import { createInvoicedPayment } from './invoicedPayment';
 import {
   getExchangePayments,
   loadExchangePayments,
 } from './loadExchangePayments';
-import { planDeliveryDeadlines } from './paymentLifecycle';
 import {
-  advancePayment,
-  createInvoicedPayment,
-} from './paymentMachine';
+  planDeliveryDeadlines,
+  writePayment,
+} from './paymentLifecycle';
+import { advancePayment } from './paymentMachine';
 
 export interface SignedInvoiceValue {
   deliveryAmount: Money;
@@ -120,8 +119,7 @@ export const createPaymentService = (runtime: IModuleRuntime): ServiceImpl<typeo
           const funding = runtime.paymentProvider.scheduleFunding(transaction.worldTimeMs);
           payment.bankReference = funding.reference;
           record.bankDueAt = timestampFromMs(funding.dueAtMs);
-          transaction.put('payments', record);
-          publishDealEffects(runtime, transaction, deal, undefined, DealChange.PAYMENT, caller.organizationId);
+          writePayment(runtime, transaction, deal, record, caller.organizationId);
           exchange?.publishCarrierPaymentChange(runtime, transaction, record);
           return create(FundDealResponseSchema, {
             payment: exchange === undefined ? payment : exchange.projectPayment(record, deal, caller.organizationId),

@@ -1,6 +1,7 @@
 import type {
   ExpectedReceivingUnit,
   ReceiveHandlingUnitRequest,
+  ReceivingBatchFact,
   ReceivingTask,
 } from '@skladburg/contracts/wms/v1/receiving';
 import type { StockLine } from '@skladburg/contracts/wms/v1/stock';
@@ -27,6 +28,7 @@ import type {
 } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
+import { readReceivingBatchFacts } from './receivingEvidence';
 import {
   buildStockBatchKey,
   hasSameStockExpiry,
@@ -119,10 +121,12 @@ const readReceivedLines = (
   tenantId: string,
   task: ReceivingTask,
   input: ReceivingUnitInputValue,
-): StockLine[] => input.expected.batches.map((planned) => {
+  facts: readonly ReceivingBatchFact[],
+): StockLine[] => facts.filter(fact => fact.quantityBase > 0n).map(({ batchIndex, quantityBase }) => {
   const { errors } = runtime;
-  const line = task.orderLines.find(candidate => candidate.dealLineId === planned.dealLineId);
-  if (line === undefined) {
+  const planned = input.expected.batches[batchIndex];
+  const line = task.orderLines.find(candidate => candidate.dealLineId === planned?.dealLineId);
+  if (planned === undefined || line === undefined) {
     throw errors.internal();
   }
   const { baseUnit, productId } = line;
@@ -134,7 +138,7 @@ const readReceivedLines = (
   }
   const batch = existing ?? writeStockBatch(transaction, runtime, { baseUnit, expiresOn, number: batchNumber, productId, tenantId });
 
-  return create(StockLineSchema, { batch, quantityBase: input.quantityBase ?? planned.quantityBase, status: StockStatus.QUARANTINE });
+  return create(StockLineSchema, { batch, quantityBase, status: StockStatus.QUARANTINE });
 });
 
 export const receiveHandlingUnit = (
@@ -151,6 +155,7 @@ export const receiveHandlingUnit = (
     || (input.sscc !== undefined && isSsccUsed(transaction, tenantId, input.sscc))) {
     return failScan(runtime, fieldPath, 'scan_duplicate_code');
   }
+  const batchFacts = readReceivingBatchFacts(runtime.errors, task, input.expected, input.quantityBase, request.batchEvidence);
   const sscc = input.sscc ?? createDemoSscc(transaction, runtime, tenantId, task);
   const id = runtime.random.uuid();
   if (transaction.get('stockBalances', id) !== undefined) {
@@ -158,7 +163,7 @@ export const receiveHandlingUnit = (
   }
   const balance = create(StockBalanceSchema, {
     handlingUnit: { id, kind: input.expected.kind, sscc, tenantId, version: 1, warehouseId: task.warehouseId },
-    lines: readReceivedLines(transaction, runtime, tenantId, task, input),
+    lines: readReceivedLines(transaction, runtime, tenantId, task, input, batchFacts),
     receivingAreaId: task.receivingAreaId,
   });
   recordStockMovement(transaction, runtime, caller.user.id, balance, {
@@ -169,6 +174,7 @@ export const receiveHandlingUnit = (
   });
   task.receivedUnits.push(create(ReceivedHandlingUnitSchema, {
     balanceAtReceipt: balance,
+    batchFacts,
     expectedUnitId: input.expected.id,
     receivedAt: timestampFromMs(transaction.worldTimeMs),
   }));

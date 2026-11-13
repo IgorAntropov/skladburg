@@ -4,6 +4,10 @@ import type { Deal } from '@skladburg/contracts/deal/v1/deal';
 import type { StockBalance } from '@skladburg/contracts/wms/v1/stock';
 
 import { create } from '@bufbuild/protobuf';
+import {
+  BaseUnit,
+  MarkingMode,
+} from '@skladburg/contracts/catalog/v1/catalog';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import { hasGs1CheckDigit } from '@skladburg/contracts/forms';
 import {
@@ -15,8 +19,15 @@ import { HandlingUnitKind } from '@skladburg/contracts/wms/v1/stock';
 import type { IStateTransaction } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
-import { failDealValidation } from '../deals/dealRules';
+import {
+  checkDealInteger,
+  failDealValidation,
+} from '../deals/dealRules';
 import { saveInboundTask } from './inboundRecords';
+import {
+  isReceivingMarkingCode,
+  MAX_RECEIVING_MARKING_CODES,
+} from './receivingEvidence';
 import { normalizeStockReference } from './stockLocations';
 import { readWarehouseTopology } from './warehouseTopologyCodec';
 
@@ -29,6 +40,7 @@ interface ManifestBatchValue {
   batchNumber: string;
   expiresOn?: CalendarDate | undefined;
   listingId: string;
+  markingCodes?: readonly string[] | undefined;
   quantityBase: bigint;
 }
 
@@ -123,6 +135,8 @@ export const prepareInboundShipment = (
   const customerProductIds = resolveOrderProducts(transaction, runtime, deal);
   const byListing = new Map(deal.lines.map(line => [line.listingId, line]));
   const seenSsccs = new Set<string>();
+  const seenMarking = new Set<string>();
+  const documentedByLine = new Map<string, bigint>();
   const expectedUnits = manifest.units.map(({ batches, kind, sscc }) => {
     if ((kind !== HandlingUnitKind.PALLET && kind !== HandlingUnitKind.BOX) || batches.length === 0
       || (sscc === undefined && batches.length !== 1)) {
@@ -140,10 +154,26 @@ export const prepareInboundShipment = (
         if (line === undefined || batch.quantityBase <= 0n) {
           throw errors.internal();
         }
+        const documented = (documentedByLine.get(line.id) ?? 0n) + batch.quantityBase;
+        documentedByLine.set(line.id, checkDealInteger(errors, documented, 'documented_quantity_base'));
+
+        const markingCodes = batch.markingCodes ?? [];
+        if (markingCodes.length > 0 && (line.productSnapshot?.markingMode !== MarkingMode.UNIT
+          || line.productSnapshot.baseUnit !== BaseUnit.PIECE || BigInt(markingCodes.length) !== batch.quantityBase
+          || markingCodes.length > MAX_RECEIVING_MARKING_CODES)) {
+          throw errors.internal();
+        }
+        for (const code of markingCodes) {
+          if (!isReceivingMarkingCode(code) || seenMarking.has(code)) {
+            throw errors.internal();
+          }
+          seenMarking.add(code);
+        }
         return {
           batchNumber: normalizeStockReference(batch.batchNumber, 'batch_number', errors),
           dealLineId: line.id,
           expiresOn: batch.expiresOn,
+          markingCodes: [...markingCodes],
           quantityBase: batch.quantityBase,
         };
       }),
@@ -162,6 +192,7 @@ export const prepareInboundShipment = (
       baseUnit: productSnapshot.baseUnit,
       dealLineId: id,
       gtin: productSnapshot.gtin,
+      markingMode: productSnapshot.markingMode,
       productId,
       productName: productSnapshot.name,
       quantityBase: quantity,
@@ -176,5 +207,6 @@ export const prepareInboundShipment = (
     sourceDocumentNumber: normalizeStockReference(manifest.sourceDocumentNumber, 'source_document_number', errors),
     warehouseId,
   });
+  runtime.issueInboundDocuments?.(transaction, runtime, deal, task);
   saveInboundTask(transaction, runtime, task, deal.customerOrganizationId);
 };

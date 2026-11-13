@@ -123,6 +123,7 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
       handle: (transaction, _caller, task) => {
         task.status = ReceivingTaskStatus.READY_FOR_RECONCILIATION;
         task.finishedAt = timestampFromMs(transaction.worldTimeMs);
+        runtime.finishInboundReceipt?.(transaction, runtime, task);
         return create(FinishReceivingTaskResponseSchema, { task });
       },
       headers: context.requestHeader,
@@ -139,7 +140,11 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
       return create(ListReceivingTasksResponseSchema, { page, tasks: items });
     },
     putAwayHandlingUnit: (request, context) => runReceivingCommand(runtime, {
-      allowedStatuses: [ReceivingTaskStatus.IN_PROGRESS, ReceivingTaskStatus.READY_FOR_RECONCILIATION],
+      allowedStatuses: [
+        ReceivingTaskStatus.IN_PROGRESS,
+        ReceivingTaskStatus.READY_FOR_RECONCILIATION,
+        ReceivingTaskStatus.RECONCILED,
+      ],
       handle: (transaction, caller, task) => {
         putAwayHandlingUnit(transaction, runtime, caller, task, request);
         return create(PutAwayHandlingUnitResponseSchema, { task });

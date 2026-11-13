@@ -12,14 +12,19 @@ import type { IStateTransaction } from '../../state/index';
 
 import { toCalendarDate } from '../../calendar/index';
 
-export const assignDocumentNumber = (errors: IDomainErrors, transaction: IStateTransaction, document: Document): void => {
+export const assignDocumentNumber = (
+  errors: IDomainErrors,
+  transaction: IStateTransaction,
+  document: Document,
+  issuedAtMs = transaction.worldTimeMs,
+): void => {
   const issuer = document.issuerOrganizationId;
   const timeZone = transaction.get('organizationRequisites', issuer)?.timeZone;
   if (timeZone === undefined) {
     throw errors.unavailable();
   }
 
-  const date = toCalendarDate(transaction.worldTimeMs, timeZone);
+  const date = toCalendarDate(issuedAtMs, timeZone);
   const id = `${issuer}:${String(document.type)}:${String(date.year)}`;
   const number = (transaction.get('documentNumbers', id)?.lastNumber ?? 0) + 1;
   if (number > 2_147_483_647) {
@@ -27,12 +32,11 @@ export const assignDocumentNumber = (errors: IDomainErrors, transaction: IStateT
   }
 
   const prefixes = transaction.get('organizationSettings', issuer)?.documentNumberPrefixes;
-  const prefixByType = {
+  const prefixByType: Partial<Record<DocumentType, string | undefined>> = {
     [DocumentType.INVOICE]: prefixes?.invoice,
     [DocumentType.SPECIFICATION]: prefixes?.specification,
     [DocumentType.SUPPLY_CONTRACT]: prefixes?.supplyContract,
-    [DocumentType.UNSPECIFIED]: undefined,
-  } satisfies Record<DocumentType, string | undefined>;
+  } satisfies Partial<Record<DocumentType, string | undefined>>;
 
   transaction.put('documentNumbers', create(DocumentNumberSequenceSchema, { id, lastNumber: number }));
   document.number = number;

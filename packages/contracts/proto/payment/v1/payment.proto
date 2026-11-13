@@ -57,6 +57,13 @@ message TransportSettlement {
   common.v1.Money funded_amount = 8;
 }
 
+message PartialReceiptSettlement {
+  common.v1.Money accepted_goods_amount = 1;
+  common.v1.Money disputed_goods_amount = 2;
+  common.v1.Money accepted_goods_commission = 3;
+  common.v1.Money held_transport_amount = 4;
+}
+
 message SafeDealPayment {
   string id = 1;
   string deal_id = 2;
@@ -71,6 +78,7 @@ message SafeDealPayment {
   int32 version = 11;
   common.v1.Money funded_amount = 12;
   TransportPaymentBreakdown transport = 13;
+  PartialReceiptSettlement partial_receipt = 14;
 }
 
 message SafeDealPaymentRecord {

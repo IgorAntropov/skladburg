@@ -41,6 +41,10 @@ export const DEAL_TRANSITIONS = {
   close: { [DealStatus.SETTLEMENT]: transition(DealStatus.CLOSED, 'system', '') },
   confirmDeal: { [DealStatus.SUBMITTED]: transition(DealStatus.AGREED, 'supplier', 'deal_approve') },
   confirmDocuments: { [DealStatus.LOGISTICS_CHOSEN]: transition(DealStatus.DOCUMENTS_CONFIRMED, 'system', '') },
+  confirmReceipt: {
+    [DealStatus.ACCEPTING]: transition(DealStatus.ACCEPTED, 'customer', 'document_sign'),
+    [DealStatus.CLAIM]: transition(DealStatus.CLAIM, 'customer', 'document_sign'),
+  },
   confirmTransportOrder: { [DealStatus.AWAITING_LOGISTICS]: transition(DealStatus.LOGISTICS_CHOSEN, 'system', '') },
   counterDeal: { [DealStatus.SUBMITTED]: transition(DealStatus.COUNTER_OFFERED, 'supplier', 'deal_edit') },
   fund: { [DealStatus.AWAITING_PAYMENT]: transition(DealStatus.PAID, 'system', '') },
@@ -74,6 +78,7 @@ const intendedStatuses: Record<DealCommand, DealStatus> = {
   close: DealStatus.CLOSED,
   confirmDeal: DealStatus.AGREED,
   confirmDocuments: DealStatus.DOCUMENTS_CONFIRMED,
+  confirmReceipt: DealStatus.ACCEPTED,
   confirmTransportOrder: DealStatus.LOGISTICS_CHOSEN,
   counterDeal: DealStatus.COUNTER_OFFERED,
   fund: DealStatus.PAID,

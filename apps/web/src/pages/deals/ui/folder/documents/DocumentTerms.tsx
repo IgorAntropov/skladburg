@@ -68,10 +68,6 @@ interface DocumentTermsProps {
 export const DocumentTerms = ({ t, terms }: DocumentTermsProps): null | ReactElement => {
   const { formatCalendarDate, formatNumber, locale } = useI18n();
 
-  if (terms.case === undefined) {
-    return null;
-  }
-
   if (terms.case === 'supplyContract') {
     const { acceptanceTerms, paymentTerms, templateVersion } = terms.value;
     const payment = paymentTerms === 'safe_deal_prepayment' ? t('dealDocument.safeDealPrepayment') : t('dealDocument.notSpecified');
@@ -89,6 +85,10 @@ export const DocumentTerms = ({ t, terms }: DocumentTermsProps): null | ReactEle
         </dl>
       </section>
     );
+  }
+
+  if (terms.case !== 'invoice' && terms.case !== 'specification') {
+    return null;
   }
 
   const { deliveryTotal, goodsTotal, lines } = terms.value;

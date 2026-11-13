@@ -430,7 +430,7 @@ it('preserves an open picking task across migration from version 22', async () =
   expect(tasks).toMatchObject([
     { dealId: deal.id, status: PickingTaskStatus.OPEN, units: [{ handlingUnit: { id: unitId, sscc: SSCC } }], version: 1 },
   ]);
-  expect(await storage.load()).toEqual({ ...snapshot, schemaVersion: 23 });
+  expect(await storage.load()).toEqual({ ...snapshot, schemaVersion: 24 });
 });
 
 it('uses another warehouse when the first cannot fill the order with whole handling units', async () => {

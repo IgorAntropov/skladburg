@@ -31,7 +31,10 @@ import type { IModuleRuntime } from '../moduleRuntime';
 
 import { loadDocuments } from '../documents/loadDocuments';
 import { paginate } from '../pagination';
-import { loadPayments } from '../payments/loadPayments';
+import {
+  loadPayments,
+  loadShipmentPayments,
+} from '../payments/loadPayments';
 import { readVisibleDeal } from './dealAccess';
 import { runDealCommand } from './dealCommand';
 import { createDealDeadlines } from './dealDeadlines';
@@ -121,6 +124,7 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
         response: deal => create(ChooseDeliveryResponseSchema, { deal }),
       });
     },
+    confirmDealReceipt: async (request, context) => (await import('./dealReceipt')).confirmDealReceipt(runtime, request, context),
     getDeal: (request, context) => {
       const caller = runtime.guard.guardPermissionCall(runtime.read, DealService.method.getDeal, request, context.requestHeader);
       const deal = readVisibleDeal(runtime.read, runtime.errors, request.dealId, caller);
@@ -130,6 +134,7 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
         deal: projectDeal(deal,
           caller.organizationId) });
     },
+    getDealReceipt: async (request, context) => (await import('./dealReceipt')).getDealReceipt(runtime, request, context),
     listDeals: (request, context) => {
       const caller = runtime.guard.guardPermissionCall(runtime.read, DealService.method.listDeals, request, context.requestHeader);
       if (caller.admission.kind !== 'membership') {
@@ -153,7 +158,7 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
       return create(ListDealsResponseSchema, { deals: items.map(deal => projectDeal(deal, caller.organizationId)), page });
     },
     markDealShipped: async (request, context) => {
-      const { holdPaymentForShipment } = await loadPayments();
+      const { holdPaymentForShipment } = await loadShipmentPayments(runtime.read, request.dealId);
       return runDealCommand(runtime, {
         command: 'markDealShipped',
         handle: (transaction, _caller, deal) => {
@@ -171,6 +176,7 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
         response: deal => create(MarkDealShippedResponseSchema, { deal }),
       });
     },
+    openDealReceiptClaim: async (request, context) => (await import('./dealReceipt')).openDealReceiptClaim(runtime, request, context),
     rejectCounterOffer: (request, context) => runDealCommand(runtime, {
       command: 'rejectCounterOffer',
       handle: (transaction, _caller, deal) => endNegotiation(transaction, deal),

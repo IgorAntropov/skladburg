@@ -300,6 +300,58 @@ message AcceptDealResponse {
   Deal deal = 1;
 }
 
+message ReceiptLineComparison {
+  string deal_line_id = 1;
+  int64 ordered_quantity_base = 2;
+  int64 documented_quantity_base = 3;
+  int64 received_quantity_base = 4;
+  int64 accepted_quantity_base = 5;
+  int64 defective_quantity_base = 6;
+  int64 excess_quantity_base = 7;
+  int64 shortage_quantity_base = 8;
+  int64 missing_marking_count = 9;
+  int64 unexpected_marking_count = 10;
+  common.v1.Money accepted_goods_amount = 11;
+}
+
+message DealReceipt {
+  string deal_id = 1;
+  string upd_document_id = 2;
+  repeated ReceiptLineComparison lines = 3;
+  bool has_discrepancies = 4;
+  optional string discrepancy_act_document_id = 5;
+  optional string claim_document_id = 6;
+  optional string receipt_title_document_id = 7;
+}
+
+message GetDealReceiptRequest {
+  string deal_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetDealReceiptResponse {
+  DealReceipt receipt = 1;
+}
+
+message OpenDealReceiptClaimRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gt = 0];
+  string deal_id = 3 [(buf.validate.field).string.uuid = true];
+}
+
+message OpenDealReceiptClaimResponse {
+  Deal deal = 1;
+}
+
+message ConfirmDealReceiptRequest {
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 2 [(buf.validate.field).int32.gt = 0];
+  string deal_id = 3 [(buf.validate.field).string.uuid = true];
+}
+
+message ConfirmDealReceiptResponse {
+  Deal deal = 1;
+}
+
 message GetDealRequest {
   string deal_id = 1 [(buf.validate.field).string.uuid = true];
 }
@@ -373,6 +425,19 @@ service DealService {
   }
 
   rpc AcceptDeal(AcceptDealRequest) returns (AcceptDealResponse) {
+    option (common.v1.access).permission.name = "document_sign";
+  }
+
+  rpc GetDealReceipt(GetDealReceiptRequest) returns (GetDealReceiptResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission.name = "document_view";
+  }
+
+  rpc OpenDealReceiptClaim(OpenDealReceiptClaimRequest) returns (OpenDealReceiptClaimResponse) {
+    option (common.v1.access).permission.name = "claim_create";
+  }
+
+  rpc ConfirmDealReceipt(ConfirmDealReceiptRequest) returns (ConfirmDealReceiptResponse) {
     option (common.v1.access).permission.name = "document_sign";
   }
 

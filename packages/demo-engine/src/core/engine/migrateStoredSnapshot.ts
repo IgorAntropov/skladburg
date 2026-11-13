@@ -10,6 +10,7 @@ const PRE_STOCK_SCHEMA_VERSION = 19;
 const PRE_WAREHOUSE_IMPORT_SCHEMA_VERSION = 20;
 const PRE_WAREHOUSE_OUTBOUND_SCHEMA_VERSION = 21;
 const PRE_WAREHOUSE_INBOUND_SCHEMA_VERSION = 22;
+const PRE_RECEIPT_SETTLEMENT_SCHEMA_VERSION = 23;
 
 const addStockCollections = (snapshot: EngineSnapshotValue): EngineSnapshotValue => ({
   ...snapshot,
@@ -23,6 +24,14 @@ const addStockCollections = (snapshot: EngineSnapshotValue): EngineSnapshotValue
 });
 
 export const migrateStoredSnapshot = async (stored: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
+  if (stored.schemaVersion === PRE_RECEIPT_SETTLEMENT_SCHEMA_VERSION) {
+    if (stored.collections.warehouseInbound.size === 0) {
+      return { ...stored, schemaVersion: ENGINE_SCHEMA_VERSION };
+    }
+    const { migrateReceiptDocuments } = await import('./migrateReceiptDocuments');
+    return migrateReceiptDocuments(stored);
+  }
+
   const snapshot: EngineSnapshotValue = {
     ...stored,
     collections: { ...stored.collections, warehouseInbound: new Map() },

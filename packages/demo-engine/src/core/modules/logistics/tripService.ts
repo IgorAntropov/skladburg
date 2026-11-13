@@ -11,6 +11,8 @@ import {
   ListTripsResponseSchema,
   LogisticsService,
   type Trip,
+  type TripReceiptDocuments,
+  TripReceiptDocumentsSchema,
   TripSchema,
 } from '@skladburg/contracts/logistics/v1/logistics';
 import { DealNotice } from '@skladburg/contracts/notification/v1/notification';
@@ -41,6 +43,25 @@ import { readTripBodyTemperature } from './tripTemperature';
 
 type TripServiceValue = Pick<ServiceImpl<typeof LogisticsService>, 'assignTrip' | 'confirmTransportOrder' | 'getTrip' | 'listTrips'>;
 
+const readReceiptDocuments = (read: IStateReader, dealId: string): TripReceiptDocuments | undefined => {
+  const documents = read.listBy('documents', 'dealId', dealId).filter(document => document.displayNumber !== '');
+  const dispatch = documents.find(document => document.content?.terms.case === 'dispatchTitle');
+  const receipt = documents.find(document => document.content?.terms.case === 'receiptTitle' && document.signatures.length > 0);
+  const act = documents.find(document => document.content?.terms.case === 'receiptDiscrepancyAct');
+  const terms = dispatch?.content?.terms;
+  if (dispatch === undefined && receipt === undefined && act === undefined) {
+    return undefined;
+  }
+
+  return create(TripReceiptDocumentsSchema, {
+    discrepancyActNumber: act?.displayNumber,
+    dispatchedAt: terms?.case === 'dispatchTitle' ? terms.value.shippedAt : undefined,
+    dispatchTitleNumber: dispatch?.displayNumber,
+    receiptConfirmedAt: receipt?.signatures[0]?.signedAt,
+    receiptTitleNumber: receipt?.displayNumber,
+  });
+};
+
 const projectTrip = (
   read: IStateReader,
   trip: TripRecord,
@@ -70,6 +91,7 @@ const projectTrip = (
     pickup: order.pickup,
     plannedArrivalAt: trip.assignment?.arrivalAt,
     plannedDepartureAt: trip.assignment?.departureAt,
+    receiptDocuments: readReceiptDocuments(read, trip.dealId),
     status: trip.status,
     transportOrder: isCarrier || order.shipperOrganizationId === organizationId
       ? { ...order, confirmedByUserId: isCarrier ? order.confirmedByUserId : '' }

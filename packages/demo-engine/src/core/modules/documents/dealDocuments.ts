@@ -21,7 +21,7 @@ import type {
 } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
-const readParty = (runtime: IModuleRuntime, reader: IStateReader, organizationId: string): DocumentParty => {
+export const readDocumentParty = (runtime: Pick<IModuleRuntime, 'errors'>, reader: IStateReader, organizationId: string): DocumentParty => {
   const organization = reader.get('organizations', organizationId);
   if (organization === undefined) {
     throw runtime.errors.notFound(EntityKind.ORGANIZATION);
@@ -61,8 +61,8 @@ export const issueDealDocuments = (runtime: IModuleRuntime, transaction: IStateT
   }
 
   const parties = {
-    customer: readParty(runtime, transaction, deal.customerOrganizationId),
-    supplier: readParty(runtime, transaction, deal.supplierOrganizationId),
+    customer: readDocumentParty(runtime, transaction, deal.customerOrganizationId),
+    supplier: readDocumentParty(runtime, transaction, deal.supplierOrganizationId),
   };
   const issue = (type: DocumentType, terms: MessageInitShape<typeof DocumentContentSchema>['terms']): Document => {
     const document = create(DocumentSchema, {

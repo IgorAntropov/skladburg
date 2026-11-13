@@ -121,6 +121,7 @@ const STARTUP_CONTRACT_MODULES = [
   'node_modules/@bufbuild/protobuf/dist/esm/wkt/wrappers.js',
   'packages/contracts/src/gen/common/v1/entity_pb.ts',
   'packages/contracts/src/gen/common/v1/error_pb.ts',
+  'packages/contracts/src/gen/common/v1/field_options_pb.ts',
   'packages/contracts/src/gen/common/v1/money_pb.ts',
   'packages/contracts/src/runtime/channels.ts',
   'packages/contracts/src/runtime/compareCodeUnits.ts',
@@ -128,9 +129,12 @@ const STARTUP_CONTRACT_MODULES = [
   'packages/contracts/src/runtime/index.ts',
 ];
 
-const LISTING_SHARED_MODULES = [
+const CATALOG_CONTRACT_MODULES = [
   'packages/contracts/src/gen/catalog/v1/catalog_pb.ts',
   'packages/contracts/src/gen/catalog/v1/showcase_pb.ts',
+];
+
+const LISTING_SHARED_MODULES = [
   'src/entities/listing/api/fetchOwnListings.ts',
   'src/entities/listing/api/fetchShowcaseListings.ts',
   'src/entities/listing/api/listingQueryMeta.ts',
@@ -1250,6 +1254,11 @@ export default defineConfig({
             },
             {
               includeDependenciesRecursively: false,
+              name: 'catalog-contract',
+              test: (moduleId: string): boolean => CATALOG_CONTRACT_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
               name: 'listing-shared',
               test: (moduleId: string): boolean => LISTING_SHARED_MODULES.some(entry => hasEntryModule([moduleId], entry)),
             },
@@ -1419,6 +1428,14 @@ export default defineConfig({
             includeDependenciesRecursively: false,
             name: 'engine-transport-shared',
             test: /[\\/]core[\\/]modules[\\/]logistics[\\/]transport(?:Events|Matching)\.ts$/,
+          }, {
+            includeDependenciesRecursively: false,
+            name: 'engine-payment-lifecycle',
+            test: /[\\/]core[\\/]modules[\\/]payments[\\/](?:index|paymentLifecycle|paymentMachine|paymentService)\.ts$/,
+          }, {
+            includeDependenciesRecursively: false,
+            name: 'engine-invoiced-payment',
+            test: /[\\/]core[\\/]modules[\\/]payments[\\/](?:invoicedPayment|paymentRules)\.ts$/,
           }],
         },
       },

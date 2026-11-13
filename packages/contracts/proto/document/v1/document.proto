@@ -18,6 +18,11 @@ enum DocumentType {
   DOCUMENT_TYPE_SUPPLY_CONTRACT = 1;
   DOCUMENT_TYPE_SPECIFICATION = 2;
   DOCUMENT_TYPE_INVOICE = 3;
+  DOCUMENT_TYPE_UPD = 4;
+  DOCUMENT_TYPE_DISPATCH_TITLE = 5;
+  DOCUMENT_TYPE_RECEIPT_TITLE = 6;
+  DOCUMENT_TYPE_RECEIPT_DISCREPANCY_ACT = 7;
+  DOCUMENT_TYPE_RECEIPT_CLAIM = 8;
 }
 
 enum DocumentStatus {
@@ -79,6 +84,38 @@ message InvoiceContent {
   common.v1.Money total = 4;
 }
 
+message UpdLine {
+  string deal_line_id = 1;
+  string product_name = 2;
+  int64 quantity_base = 3;
+}
+
+message UpdContent {
+  repeated UpdLine lines = 1;
+}
+
+message DispatchTitleContent {
+  string upd_document_id = 1;
+  google.protobuf.Timestamp shipped_at = 2;
+}
+
+message ReceiptTitleContent {
+  string upd_document_id = 1;
+  repeated deal.v1.ReceiptLineComparison lines = 2;
+  google.protobuf.Timestamp finished_at = 3;
+}
+
+message ReceiptDiscrepancyActContent {
+  string upd_document_id = 1;
+  repeated deal.v1.ReceiptLineComparison lines = 2;
+  google.protobuf.Timestamp finished_at = 3;
+}
+
+message ReceiptClaimContent {
+  string discrepancy_act_document_id = 1;
+  common.v1.Money disputed_goods_amount = 2;
+}
+
 message DocumentContent {
   DocumentParty supplier = 1;
   DocumentParty customer = 2;
@@ -86,6 +123,11 @@ message DocumentContent {
     SupplyContractContent supply_contract = 3;
     SpecificationContent specification = 4;
     InvoiceContent invoice = 5;
+    UpdContent upd = 6;
+    DispatchTitleContent dispatch_title = 7;
+    ReceiptTitleContent receipt_title = 8;
+    ReceiptDiscrepancyActContent receipt_discrepancy_act = 9;
+    ReceiptClaimContent receipt_claim = 10;
   }
 }
 

@@ -30,6 +30,7 @@ import { dealMachine } from './dealMachine';
 import { projectDeal } from './dealProjection';
 
 export interface DealCommandInputValue<TInput extends DescMessage, TOutput extends DescMessage> {
+  authorize?: ((caller: PermissionCallerValue) => void) | undefined;
   command: DealCommand;
   handle: (transaction: IStateTransaction, caller: PermissionCallerValue, deal: Deal) => Deal;
   headers: Headers;
@@ -85,6 +86,7 @@ export const runDealCommand = <TInput extends DescMessage, TOutput extends DescM
   input: DealCommandInputValue<TInput, TOutput>,
 ): Promise<MessageShape<TOutput>> => runtime.command((transaction) => {
   const caller = runtime.guard.guardPermissionCall(transaction, input.method, input.request, input.headers);
+  input.authorize?.(caller);
   return runtime.idempotency.run(transaction, {
     handler: () => {
       const deal = readVisibleDeal(transaction, runtime.errors, input.request.dealId, caller);

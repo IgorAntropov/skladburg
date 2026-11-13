@@ -31,14 +31,17 @@ import {
   ceilTimestampMs,
   markTripAccepted,
   markTripPaid,
-  markTripShipped,
   readTripForDeal,
 } from '../logistics/tripLifecycle';
-import { createInvoicedPayment } from './paymentMachine';
+import { createInvoicedPayment } from './invoicedPayment';
+import { getTripShipment } from './loadPayments';
 import { buildTransportSettlement } from './transportSettlement';
 
 export { projectPayment } from './transportSettlement';
-export { markTripPaid };
+export {
+  markTripAccepted,
+  markTripPaid,
+};
 
 export const publishCarrierPaymentChange = (
   runtime: IModuleRuntime,
@@ -94,7 +97,11 @@ export const prepareExchangeShipment = (
   deal: Deal,
   record: SafeDealPaymentRecord,
 ): DealDeadlines => {
-  markTripShipped(runtime, transaction, deal);
+  const shipment = getTripShipment();
+  if (shipment === undefined) {
+    throw runtime.errors.unavailable();
+  }
+  shipment.markTripShipped(runtime, transaction, deal);
   const trip = readTripForDeal(transaction, deal.id);
   if (trip?.assignment?.arrivalAt === undefined || record.transportSettlement?.tripId !== trip.id) {
     throw runtime.errors.internal();

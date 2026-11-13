@@ -13,7 +13,6 @@ import type { OrderTranslate } from '../../i18n/order/orderSection';
 import type { DestinationOptionValue } from '../../lib/destinationOptions';
 
 import { CREATE_DEAL_DRAFT_METHOD } from '../../api/order/createDealDraftMethod';
-import { useCatalogTexts } from '../../model/useCatalogTexts';
 import { useEditLauncher } from '../../model/useEditLauncher';
 
 export interface OrderLauncherProps {
@@ -33,7 +32,6 @@ const OrderLauncherContent = ({
   supplierOrganizationId,
   t,
 }: OrderLauncherProps): ReactElement => {
-  const { t: catalogT } = useCatalogTexts();
   const access = useCommandAccess(CREATE_DEAL_DRAFT_METHOD);
   const {
     buttonRef,
@@ -75,7 +73,7 @@ const OrderLauncherContent = ({
         data-testid="order-open"
         onClick={handleOpen}
         pending={isLoading}
-        pendingLabel={catalogT('catalog.own.opening')}
+        pendingLabel={t('order.opening')}
         ref={buttonRef}
         variant="primary"
       >
@@ -86,7 +84,7 @@ const OrderLauncherContent = ({
           message={t('order.openError')}
           onRetry={handleOpen}
           recovery={loadRecovery}
-          repeatedMessage={catalogT('catalog.chunkError.repeated')}
+          repeatedMessage={t('order.openRepeated')}
         />
       )}
     </div>

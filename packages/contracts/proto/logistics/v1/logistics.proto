@@ -120,6 +120,14 @@ message TripMapTrack {
   string registration_number = 3;
 }
 
+message TripReceiptDocuments {
+  google.protobuf.Timestamp dispatched_at = 1;
+  optional string dispatch_title_number = 2;
+  google.protobuf.Timestamp receipt_confirmed_at = 3;
+  optional string receipt_title_number = 4;
+  optional string discrepancy_act_number = 5;
+}
+
 message Trip {
   string id = 1;
   string deal_id = 2;
@@ -136,6 +144,7 @@ message Trip {
   payment.v1.TransportPaymentBreakdown carrier_payment = 13;
   TripTemperatureReading body_temperature = 14;
   TripMapTrack map_track = 15;
+  TripReceiptDocuments receipt_documents = 16;
 }
 
 message GetTripRequest {

@@ -25,7 +25,6 @@ import {
 import { compareIds } from '../../state/index';
 import { paginate } from '../pagination';
 import { canCarryTransportRequest } from './transportMatching';
-import { projectTransportRequest } from './transportProjection';
 
 export const createLogisticsService = (runtime: IModuleRuntime): ServiceImpl<typeof LogisticsService> => {
   const { errors, getWorldTimeMs, guard, read } = runtime;
@@ -36,7 +35,8 @@ export const createLogisticsService = (runtime: IModuleRuntime): ServiceImpl<typ
   return {
     assignTrip: async (request, context) => (await tripService()).assignTrip(request, context),
     confirmTransportOrder: async (request, context) => (await tripService()).confirmTransportOrder(request, context),
-    getTransportRequest: (request, context) => {
+    getTransportRequest: async (request, context) => {
+      const { projectTransportRequest } = await import('./transportProjection');
       const method = LogisticsService.method.getTransportRequest;
       const { organizationId } = guard.guardPermissionCall(read, method, request, context.requestHeader);
       const record = read.get('transportRequests', request.transportRequestId);
@@ -79,7 +79,8 @@ export const createLogisticsService = (runtime: IModuleRuntime): ServiceImpl<typ
         page,
       });
     },
-    listTransportRequests: (request, context) => {
+    listTransportRequests: async (request, context) => {
+      const { projectTransportRequest } = await import('./transportProjection');
       const method = LogisticsService.method.listTransportRequests;
       const { organizationId } = guard.guardPermissionCall(read, method, request, context.requestHeader);
       const now = getWorldTimeMs();

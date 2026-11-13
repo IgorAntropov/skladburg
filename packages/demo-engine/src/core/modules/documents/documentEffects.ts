@@ -29,7 +29,8 @@ const advanceDeal = (runtime: IModuleRuntime, transaction: IStateTransaction, de
   if (deal.status !== DealStatus.LOGISTICS_CHOSEN) {
     return false;
   }
-  const documents = readDealDocuments(transaction, deal);
+  const documents = readDealDocuments(transaction, deal).filter(document => document.type === DocumentType.SUPPLY_CONTRACT
+    || document.type === DocumentType.SPECIFICATION || document.type === DocumentType.INVOICE);
   if (documents.length !== 3 || documents.some(document => document.status !== DocumentStatus.SIGNED)) {
     return false;
   }

@@ -11,6 +11,8 @@ export const catalog = {
   'order.leave.stay': 'Продолжить заказ',
   'order.open': 'Заказать',
   'order.openError': 'Не удалось открыть форму заказа. Проверьте соединение и повторите',
+  'order.opening': 'Открываем…',
+  'order.openRepeated': 'Опять не открылось. Обновите страницу, чтобы загрузить свежую версию',
   'order.quantity': 'Количество, {unit}',
   'order.quantityHint': 'Минимум: {minimum}. Шаг: {step}',
   'order.route.empty': 'До этого склада нет маршрута. Выберите другой склад',

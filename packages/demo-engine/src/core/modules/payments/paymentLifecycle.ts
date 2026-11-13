@@ -33,19 +33,19 @@ import {
 } from '../deals/dealEffects';
 import { rub } from '../deals/dealRules';
 import { getExchangePayments } from './loadExchangePayments';
-import { advancePayment } from './paymentMachine';
+import {
+  advancePayment,
+  bumpPaymentVersion,
+} from './paymentMachine';
 
 const MINUTE_MS = 60_000;
 const ACCEPTANCE_NOTICE_LEAD_MS = 60 * MINUTE_MS;
 
-const writePayment = (
-  runtime: IModuleRuntime,
-  transaction: IStateTransaction,
-  deal: Deal,
-  record: SafeDealPaymentRecord,
+export const writePayment = (
+  runtime: IModuleRuntime, transaction: IStateTransaction, deal: Deal, record: SafeDealPaymentRecord, actingOrganizationId = '',
 ): void => {
   transaction.put('payments', record);
-  publishDealEffects(runtime, transaction, deal, undefined, DealChange.PAYMENT, '');
+  publishDealEffects(runtime, transaction, deal, undefined, DealChange.PAYMENT, actingOrganizationId);
 };
 
 export const planDeliveryDeadlines = (runtime: IModuleRuntime, transaction: IStateTransaction, deal: Deal): DealDeadlines => {
@@ -137,18 +137,25 @@ const processBankOperation = (runtime: IModuleRuntime, transaction: IStateTransa
     advanceSystemDeal(runtime, transaction, deal, 'fund', DealNotice.FUNDS_BLOCKED);
     runtime.openOutboundTask?.(transaction, runtime, deal.id);
   }
-  else if (payment.status === SafeDealPaymentStatus.TO_PAYOUT && deal.status === DealStatus.SETTLEMENT) {
-    advancePayment(runtime.errors, payment, 'payOut', transaction.worldTimeMs);
+  else {
+    const isPartial = payment.status === SafeDealPaymentStatus.DISPUTE && deal.status === DealStatus.CLAIM;
+    if (!isPartial && (payment.status !== SafeDealPaymentStatus.TO_PAYOUT || deal.status !== DealStatus.SETTLEMENT)) {
+      return;
+    }
+    const paidAt = timestampFromMs(transaction.worldTimeMs);
     for (const payout of payment.payouts) {
-      payout.paidAt = timestampFromMs(transaction.worldTimeMs);
+      payout.paidAt = paidAt;
       payout.status = PayoutStatus.PAID;
     }
-    getExchangePayments(runtime.errors, deal)?.markTripPaid(runtime, transaction, deal);
-    advancePayment(runtime.errors, payment, 'close', transaction.worldTimeMs);
-    advanceSystemDeal(runtime, transaction, deal, 'close', DealNotice.PAID_OUT);
-  }
-  else {
-    return;
+    if (isPartial) {
+      bumpPaymentVersion(runtime.errors, payment);
+    }
+    else {
+      advancePayment(runtime.errors, payment, 'payOut', transaction.worldTimeMs);
+      getExchangePayments(runtime.errors, deal)?.markTripPaid(runtime, transaction, deal);
+      advancePayment(runtime.errors, payment, 'close', transaction.worldTimeMs);
+      advanceSystemDeal(runtime, transaction, deal, 'close', DealNotice.PAID_OUT);
+    }
   }
   record.bankDueAt = undefined;
   writePayment(runtime, transaction, deal, record);

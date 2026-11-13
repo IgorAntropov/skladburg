@@ -1,6 +1,21 @@
+import type {
+  DescMessage,
+  DescMethodUnary,
+  MessageInitShape,
+  MessageShape,
+} from '@bufbuild/protobuf';
 import type { Page } from '@playwright/test';
-import type { Deal } from '@skladburg/contracts/deal/v1/deal';
+import type {
+  ConfirmDealReceiptRequest,
+  Deal,
+} from '@skladburg/contracts/deal/v1/deal';
+import type { ClaimReceivingTaskRequest } from '@skladburg/contracts/wms/v1/receiving';
 
+import {
+  create,
+  fromBinary,
+  toBinary,
+} from '@bufbuild/protobuf';
 import { timestampFromMs } from '@bufbuild/protobuf/wkt';
 import { ConnectError } from '@connectrpc/connect';
 import {
@@ -21,10 +36,22 @@ import {
   PayoutStatus,
   SafeDealPaymentStatus,
 } from '@skladburg/contracts/payment/v1/payment';
+import {
+  ReceivingTaskStatus,
+  WarehouseReceivingService,
+} from '@skladburg/contracts/wms/v1/receiving';
+import {
+  StockMovementKind,
+  StockStatus,
+  WarehouseStockService,
+} from '@skladburg/contracts/wms/v1/stock';
 import { randomUUID } from 'node:crypto';
 
 import type { DealWorkerRobotValue } from './robots/deal-worker-robot.ts';
-import type { WorkerActingContextValue } from './robots/engine-worker-robot.ts';
+import type {
+  EngineWorkerRobotValue,
+  WorkerActingContextValue,
+} from './robots/engine-worker-robot.ts';
 
 import { freezeEngineClock } from './fixtures/engineClock.ts';
 import {
@@ -35,11 +62,18 @@ import {
   createDealWorkerRobot,
   DEAL_CUSTOMER,
 } from './robots/deal-worker-robot.ts';
+import { createEngineWorkerRobot } from './robots/engine-worker-robot.ts';
+import {
+  RECEIPT_CELL_ID,
+  RECEIPT_SSCC,
+  seedLegacyWarehouseReceipt,
+} from './robots/warehouse-receipt-storage-robot.ts';
 
 const MOSCOW_ID = '60000001-0000-4000-8000-000000000000';
 const CUSTOMER_WAREHOUSE_ID = '80000001-0000-4000-8000-000000000000';
 const SUPPLIER_WAREHOUSE_ID = '80000012-0000-4000-8000-000000000000';
 const LISTING_ID = 'd1060003-0000-4000-8000-000000000000';
+const SUPPLIER_PRODUCT_ID = 'd0060003-0000-4000-8000-000000000000';
 const VEHICLE_ID = 'e1000002-0000-4000-8000-000000000000';
 const DRIVER_ID = 'e2000001-0000-4000-8000-000000000000';
 const SUPPLIER: WorkerActingContextValue = {
@@ -49,6 +83,14 @@ const SUPPLIER: WorkerActingContextValue = {
 const CARRIER: WorkerActingContextValue = {
   organizationId: '10000004-0000-4000-8000-000000000000',
   userId: '20000004-0000-4000-8000-000000000000',
+};
+const STOREKEEPER: WorkerActingContextValue = {
+  organizationId: DEAL_CUSTOMER.organizationId,
+  userId: '20000010-0000-4000-8000-000000000000',
+};
+const BUYER: WorkerActingContextValue = {
+  organizationId: DEAL_CUSTOMER.organizationId,
+  userId: '20000019-0000-4000-8000-000000000000',
 };
 const RATE = { amountMinor: 100_000n, currencyCode: 'RUB' };
 const MINUTE_MS = 60_000;
@@ -60,15 +102,15 @@ const required = <TValue>(value: TValue | undefined, entity: string): TValue => 
   return value;
 };
 
-const expectHidden = async (call: Promise<unknown>): Promise<void> => {
+const expectDomainFailure = async (call: Promise<unknown>, code: ErrorCode = ErrorCode.NOT_FOUND): Promise<void> => {
   try {
     await call;
   }
   catch (error: unknown) {
-    expect(ConnectError.from(error).findDetails(ErrorDetailSchema).map(detail => detail.code)).toContain(ErrorCode.NOT_FOUND);
+    expect(ConnectError.from(error).findDetails(ErrorDetailSchema).map(detail => detail.code)).toContain(code);
     return;
   }
-  throw new Error('Expected the record to be hidden');
+  throw new Error('The operation must fail with a domain error');
 };
 
 const agreeDeal = async (customer: DealWorkerRobotValue, supplier: DealWorkerRobotValue): Promise<Deal> => {
@@ -116,8 +158,178 @@ const signGoodsDocuments = async (customer: DealWorkerRobotValue, supplier: Deal
   }
 };
 
-for (const shipperSide of ['customer', 'supplier'] as const) {
-  test(`runs an exchange trip and settles it with the ${shipperSide} paying for transport`, async ({ context, page }) => {
+const callWorker = async <TInput extends DescMessage, TOutput extends DescMessage>(
+  worker: EngineWorkerRobotValue,
+  method: DescMethodUnary<TInput, TOutput>,
+  input: MessageInitShape<TInput>,
+): Promise<MessageShape<TOutput>> => {
+  const request = toBinary(method.input, create(method.input, input));
+  const response = await worker.call(`${method.parent.typeName}/${method.name}`, request);
+  return fromBinary(method.output, response);
+};
+
+interface WarehouseReceiptCheckValue {
+  advance: (elapsedMs: number) => Promise<void>;
+  arrived: Deal;
+  carrier: DealWorkerRobotValue;
+  customer: DealWorkerRobotValue;
+  page: Page;
+  supplier: DealWorkerRobotValue;
+  tripId: string;
+}
+
+const verifyWarehouseReceipt = async (
+  { advance, arrived, carrier, customer, page, supplier, tripId }: WarehouseReceiptCheckValue,
+): Promise<void> => {
+  const storekeeperPage = await page.context().newPage();
+  const buyerPage = await page.context().newPage();
+  const storekeeper = await createEngineWorkerRobot(storekeeperPage, STOREKEEPER);
+  const buyer = await createDealWorkerRobot(buyerPage, BUYER);
+
+  try {
+    const dealId = arrived.id;
+    const warehouseId = arrived.shipToWarehouseId;
+    const { method } = WarehouseReceivingService;
+    const { tasks } = await callWorker(storekeeper, method.listReceivingTasks, { warehouseId });
+    const task = required(tasks.find(task => task.dealId === dealId), 'the migrated receiving task');
+    expect(task.status).toBe(ReceivingTaskStatus.OPEN);
+    expect(task.updDocumentId).toBeTruthy();
+    expect((await supplier.documents.listDealDocuments({ dealId })).documents).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: task.updDocumentId, type: DocumentType.UPD }),
+      expect.objectContaining({ type: DocumentType.DISPATCH_TITLE }),
+    ]));
+    await advance(2 * 24 * 60 * MINUTE_MS);
+    const { deal: stillArrived } = await customer.deals.getDeal({ dealId });
+    expect(stillArrived?.status).toBe(DealStatus.ARRIVED);
+    expect((await customer.payments.getDealPayment({ dealId })).payment).toMatchObject({
+      payouts: [],
+      status: SafeDealPaymentStatus.HELD,
+    });
+
+    const taskCommand = (expectedVersion: number): Omit<ClaimReceivingTaskRequest, '$typeName' | '$unknown'> =>
+      ({ expectedVersion, idempotencyKey: randomUUID(), taskId: task.id, warehouseId });
+    const { task: claimed } = await callWorker(storekeeper, method.claimReceivingTask, taskCommand(task.version));
+    const order = required(arrived.lines[0], 'the deal line');
+    const receivedQuantity = order.quantity / 2n;
+    const { task: received } = await callWorker(storekeeper, method.receiveHandlingUnit, {
+      ...taskCommand(required(claimed, 'the claimed task').version),
+      batchEvidence: [{ batchIndex: 0, quantityBase: receivedQuantity }],
+      unit: { case: 'sscc', value: RECEIPT_SSCC },
+    });
+    const unit = required(received?.receivedUnits[0]?.balanceAtReceipt?.handlingUnit, 'the received pallet');
+    const { task: finished } = await callWorker(
+      storekeeper,
+      method.finishReceivingTask,
+      taskCommand(required(received, 'the fact').version),
+    );
+    expect(finished?.status).toBe(ReceivingTaskStatus.READY_FOR_RECONCILIATION);
+
+    const { deal: accepting } = await customer.deals.getDeal({ dealId });
+    expect(accepting?.status).toBe(DealStatus.ACCEPTING);
+    const { receipt } = await supplier.deals.getDealReceipt({ dealId });
+    expect(receipt).toMatchObject({
+      hasDiscrepancies: true,
+      lines: [{
+        acceptedQuantityBase: receivedQuantity,
+        documentedQuantityBase: order.quantity,
+        orderedQuantityBase: order.quantity,
+        receivedQuantityBase: receivedQuantity,
+        shortageQuantityBase: order.quantity - receivedQuantity,
+      }],
+    });
+    expect(receipt?.discrepancyActDocumentId).toBeTruthy();
+    await expectDomainFailure(carrier.deals.getDealReceipt({ dealId }));
+    const dealCommand = (expectedVersion: number): Omit<ConfirmDealReceiptRequest, '$typeName' | '$unknown'> =>
+      ({ dealId, expectedVersion, idempotencyKey: randomUUID() });
+    const claim = dealCommand(required(accepting, 'the awaiting confirmation deal').version);
+    await expectDomainFailure(customer.deals.acceptDeal(claim), ErrorCode.INVALID_TRANSITION);
+    await expectDomainFailure(customer.deals.confirmDealReceipt(claim), ErrorCode.INVALID_TRANSITION);
+    const { deal: disputed } = await buyer.deals.openDealReceiptClaim(claim);
+    expect(disputed?.status).toBe(DealStatus.CLAIM);
+    expect((await supplier.payments.getDealPayment({ dealId })).payment).toMatchObject({ payouts: [], status: SafeDealPaymentStatus.HELD });
+    const confirmation = dealCommand(required(disputed, 'the disputed deal').version);
+    await expectDomainFailure(buyer.deals.confirmDealReceipt(confirmation), ErrorCode.PERMISSION_DENIED);
+    expect((await customer.deals.confirmDealReceipt(confirmation)).deal?.status).toBe(DealStatus.CLAIM);
+    await customer.deals.confirmDealReceipt(confirmation);
+    const { receipt: confirmed } = await customer.deals.getDealReceipt({ dealId });
+    expect(confirmed?.claimDocumentId).toBeTruthy();
+    expect(confirmed?.receiptTitleDocumentId).toBeTruthy();
+
+    const acceptedAmount = required(confirmed?.lines[0]?.acceptedGoodsAmount, 'the accepted amount').amountMinor;
+    const goodsAmount = required(arrived.goodsTotal, 'the goods total').amountMinor;
+    expect(acceptedAmount).toBe(goodsAmount / 2n);
+    const commission = (acceptedAmount * 150n + 5_000n) / 10_000n;
+    const supplierPayout = acceptedAmount - commission - RATE.amountMinor;
+    const { payment: disputedPayment } = await supplier.payments.getDealPayment({ dealId });
+    expect(disputedPayment).toMatchObject({
+      partialReceipt: {
+        acceptedGoodsAmount: { amountMinor: acceptedAmount },
+        acceptedGoodsCommission: { amountMinor: commission },
+        disputedGoodsAmount: { amountMinor: goodsAmount - acceptedAmount },
+        heldTransportAmount: RATE,
+      },
+      payouts: [{ amount: { amountMinor: supplierPayout }, organizationId: SUPPLIER.organizationId, status: PayoutStatus.PENDING }],
+      status: SafeDealPaymentStatus.DISPUTE,
+    });
+    expect((await customer.payments.getDealPayment({ dealId })).payment?.partialReceipt?.heldTransportAmount).toBeUndefined();
+    const { trip } = await carrier.logistics.getTrip({ tripId });
+    expect(trip).toMatchObject({ status: TripStatus.DELIVERED });
+    expect(trip?.receiptDocuments).toMatchObject({
+      discrepancyActNumber: expect.any(String),
+      dispatchTitleNumber: expect.any(String),
+      receiptTitleNumber: expect.any(String),
+    });
+    expect(trip?.carrierPayment?.carrierPayout).toBeUndefined();
+    await expectDomainFailure(carrier.documents.listDealDocuments({ dealId }));
+
+    const { tasks: completed } = await callWorker(storekeeper, method.listReceivingTasks, { warehouseId });
+    const reconciled = required(completed.find(task => task.dealId === dealId), 'the reconciled task');
+    expect(reconciled.status).toBe(ReceivingTaskStatus.RECONCILED);
+    await callWorker(storekeeper, method.putAwayHandlingUnit, {
+      ...taskCommand(reconciled.version), handlingUnitId: unit.id, toCellId: RECEIPT_CELL_ID,
+    });
+    const { movements } = await callWorker(storekeeper, WarehouseStockService.method.listStockMovements, { warehouseId });
+    const unitMovements = movements.filter(movement => movement.handlingUnit?.id === unit.id);
+    expect(unitMovements).toHaveLength(3);
+    expect(unitMovements).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: StockMovementKind.RECEIPT, lines: [expect.objectContaining({ status: StockStatus.QUARANTINE })] }),
+      expect.objectContaining({
+        kind: StockMovementKind.RECEIPT_CLASSIFICATION,
+        lines: [expect.objectContaining({ quantityBase: receivedQuantity, status: StockStatus.AVAILABLE })],
+      }),
+      expect.objectContaining({ kind: StockMovementKind.TRANSFER, toCellId: RECEIPT_CELL_ID }),
+    ]));
+
+    await advance(3 * MINUTE_MS);
+    await expect.poll(async () => (await supplier.payments.getDealPayment({ dealId })).payment).toMatchObject({
+      payouts: [{ amount: { amountMinor: supplierPayout }, status: PayoutStatus.PAID }],
+      status: SafeDealPaymentStatus.DISPUTE,
+    });
+    expect((await customer.deals.getDeal({ dealId })).deal?.status).toBe(DealStatus.CLAIM);
+    expect((await carrier.logistics.getTrip({ tripId })).trip?.status).toBe(TripStatus.DELIVERED);
+  }
+  finally {
+    await buyer.stop();
+    await storekeeper.stop();
+    await buyerPage.close();
+    await storekeeperPage.close();
+  }
+};
+
+for (const { hasWarehouseReceipt, shipperSide, title } of [
+  {
+    hasWarehouseReceipt: false,
+    shipperSide: 'customer',
+    title: 'runs an exchange trip and settles it with the customer paying for transport',
+  },
+  {
+    hasWarehouseReceipt: false,
+    shipperSide: 'supplier',
+    title: 'runs an exchange trip and settles it with the supplier paying for transport',
+  },
+  { hasWarehouseReceipt: true, shipperSide: 'supplier', title: 'opens a warehouse receipt claim and pays only the accepted goods' },
+] as const) {
+  test(title, async ({ context, page }) => {
     const supplierPage = await context.newPage();
     const carrierPage = await context.newPage();
     const workers: DealWorkerRobotValue[] = [];
@@ -182,7 +394,7 @@ for (const shipperSide of ['customer', 'supplier'] as const) {
       }
       const open = await carrier.logistics.getTransportRequest({ transportRequestId: tripId });
       expect(open.transportRequest?.perspective.case).toBe('carrier');
-      await expectHidden(carrier.logistics.getTrip({ tripId }));
+      await expectDomainFailure(carrier.logistics.getTrip({ tripId }));
       const { offer } = await carrier.logistics.submitTransportOffer({
         amount: RATE, idempotencyKey: randomUUID(), transportRequestId: tripId,
       });
@@ -196,8 +408,8 @@ for (const shipperSide of ['customer', 'supplier'] as const) {
       const { trip: draftTrip } = await carrier.logistics.getTrip({ tripId });
       expect(draftTrip).toMatchObject({ status: TripStatus.AWAITING_CONFIRMATION, transportOrder: { amount: RATE } });
       expect((await otherParty.logistics.getTrip({ tripId })).trip?.transportOrder).toBeUndefined();
-      await expectHidden(carrier.deals.getDeal({ dealId }));
-      await expectHidden(carrier.documents.listDealDocuments({ dealId }));
+      await expectDomainFailure(carrier.deals.getDeal({ dealId }));
+      await expectDomainFailure(carrier.documents.listDealDocuments({ dealId }));
 
       const { trip: confirmed } = await carrier.logistics.confirmTransportOrder({
         expectedVersion: required(draftTrip, 'the trip draft').version, idempotencyKey: randomUUID(), tripId,
@@ -243,6 +455,22 @@ for (const shipperSide of ['customer', 'supplier'] as const) {
       await expect.poll(async () => (await carrier.logistics.getTrip({ tripId })).trip?.status).toBe(TripStatus.IN_TRANSIT);
       await advance(61 * MINUTE_MS);
       await expect.poll(async () => (await readDeal()).status).toBe(DealStatus.ARRIVED);
+      if (hasWarehouseReceipt) {
+        const arrived = await readDeal();
+        await stopWorkers();
+        await seedLegacyWarehouseReceipt(page, arrived, SUPPLIER_PRODUCT_ID);
+        customer = await startWorker(page, DEAL_CUSTOMER);
+        supplier = await startWorker(supplierPage, SUPPLIER);
+        carrier = await startWorker(carrierPage, CARRIER);
+        advance = await freezeEngineClock(page, supplierPage, carrierPage);
+        await verifyWarehouseReceipt({ advance, arrived, carrier, customer, page, supplier, tripId });
+        const confirmed = await customer.deals.getDealReceipt({ dealId });
+        await stopWorkers();
+        customer = await startWorker(page, DEAL_CUSTOMER);
+        expect(await customer.deals.getDealReceipt({ dealId })).toEqual(confirmed);
+        expect((await customer.payments.getDealPayment({ dealId })).payment?.status).toBe(SafeDealPaymentStatus.DISPUTE);
+        return;
+      }
       if (shipperSide === 'customer') {
         await customer.deals.acceptDeal({ dealId, expectedVersion: (await readDeal()).version, idempotencyKey: randomUUID() });
       }

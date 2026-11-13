@@ -9,6 +9,8 @@ import type {
   IStateReader,
   IStateTransaction,
 } from '../state/index';
+import type { finishInboundReceipt } from './deals/dealReceipt';
+import type { issueInboundDocuments } from './documents/receiptDocuments';
 import type { INotifier } from './notifications/notifierTypes';
 import type {
   prepareInboundShipment,
@@ -27,10 +29,12 @@ export interface IEventOutbox {
 export interface IModuleRuntime {
   command: <TResult>(work: (transaction: IStateTransaction) => TResult) => Promise<TResult>;
   errors: IDomainErrors;
+  finishInboundReceipt?: typeof finishInboundReceipt | undefined;
   getWorldTimeMs: () => number;
   guard: ICallGuard;
   hasInboundProduct?: typeof hasInboundProduct | undefined;
   idempotency: IIdempotencyGuard;
+  issueInboundDocuments?: typeof issueInboundDocuments | undefined;
   notifier: INotifier;
   openInboundTask?: typeof openInboundTask | undefined;
   openOutboundTask?: typeof openOutboundTask | undefined;

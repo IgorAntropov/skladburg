@@ -66,7 +66,7 @@ import {
   isCurrentSnapshot,
 } from './schemaVersion';
 
-const SHAPE_FINGERPRINTS: Readonly<Record<number, readonly string[]>> = {
+const PRE_SETTLEMENT_SHAPE_FINGERPRINTS: Readonly<Record<number, readonly string[]>> = {
   1: [
     'collection.boardNodes:bytes',
     'collection.cities:bytes',
@@ -922,6 +922,11 @@ const SHAPE_FINGERPRINTS: Readonly<Record<number, readonly string[]>> = {
   ],
 };
 
+const SHAPE_FINGERPRINTS = {
+  ...PRE_SETTLEMENT_SHAPE_FINGERPRINTS,
+  24: PRE_SETTLEMENT_SHAPE_FINGERPRINTS[23] ?? [],
+} as Readonly<Record<number, readonly string[]>>;
+
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === 'object' && value !== null && !(value instanceof Uint8Array) && !(value instanceof Map);
 
@@ -1073,14 +1078,15 @@ describe('snapshot shape', () => {
     expect(describeSnapshotShape(await createPopulatedSnapshot())).toEqual(SHAPE_FINGERPRINTS[ENGINE_SCHEMA_VERSION]);
   });
 
-  it('differs from the fingerprints of all earlier schema versions', () => {
+  it('records the identical storage layout for the receipt document backfill', () => {
     const earlier = Object.entries(SHAPE_FINGERPRINTS)
-      .filter(([version]) => Number(version) < ENGINE_SCHEMA_VERSION)
+      .filter(([version]) => Number(version) < 23)
       .map(([, fingerprint]) => fingerprint.join('\n'));
 
     expect(earlier.length).toBeGreaterThan(0);
     expect(earlier).not.toContain(SHAPE_FINGERPRINTS[ENGINE_SCHEMA_VERSION]?.join('\n'));
     expect(new Set(earlier).size).toBe(earlier.length);
+    expect(SHAPE_FINGERPRINTS[24]).toEqual(SHAPE_FINGERPRINTS[23]);
   });
 
   it('keeps the same collections and meta keys in the starting snapshot as in the populated one', async () => {
@@ -1101,8 +1107,8 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 23 since inbound warehouse tasks joined', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(23);
+  it('is version 24 after receipt settlement backfill', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(24);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
   });
 });

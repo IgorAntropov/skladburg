@@ -10,11 +10,7 @@ import type { IModuleRuntime } from '../moduleRuntime';
 import type { TripCommand } from './tripMachine';
 
 import { publishTripChanges } from './transportEvents';
-import { buildTripAssignment } from './tripAssignment';
-import {
-  advanceTrip,
-  requireTripTransition,
-} from './tripMachine';
+import { advanceTrip } from './tripMachine';
 import { readTripForDeal } from './tripRecords';
 
 export {
@@ -29,24 +25,13 @@ interface TripDeliveryProgressValue {
 
 export const ceilTimestampMs = (value: Timestamp): number => Number(value.seconds) * 1000 + Math.ceil(value.nanos / 1_000_000);
 
-const requireDealTrip = (runtime: IModuleRuntime, transaction: IStateTransaction, dealId: string): TripRecord => {
+export const requireDealTrip = (runtime: IModuleRuntime, transaction: IStateTransaction, dealId: string): TripRecord => {
   const trip = readTripForDeal(transaction, dealId);
   if (trip === undefined) {
     throw runtime.errors.notFound(EntityKind.TRIP);
   }
 
   return trip;
-};
-
-export const markTripShipped = (runtime: IModuleRuntime, transaction: IStateTransaction, deal: Deal): void => {
-  const trip = requireDealTrip(runtime, transaction, deal.id);
-  requireTripTransition(runtime.errors, 'load', trip, undefined);
-  if (trip.assignment === undefined) {
-    throw runtime.errors.internal();
-  }
-  trip.assignment = buildTripAssignment(runtime.errors, transaction, trip, trip.assignment);
-  advanceTrip(runtime, transaction, trip, 'load');
-  publishTripChanges(runtime, transaction, trip);
 };
 
 export const advanceTripDelivery = (

@@ -89,7 +89,7 @@ import {
   type ModuleHarnessValue,
   readErrorDetail,
 } from '../testing/moduleHarness';
-import { markTripShipped } from './tripLifecycle';
+import { markTripShipped } from './tripShipment';
 
 const CARRIER_ONE = callAs(SeedUserId.ADMIN_4, SeedOrganizationId.CARRIER_1);
 const CARRIER_TWO = callAs(SeedUserId.ADMIN_8, SeedOrganizationId.CARRIER_2);

@@ -15,6 +15,7 @@ enum ReceivingTaskStatus {
   RECEIVING_TASK_STATUS_OPEN = 1;
   RECEIVING_TASK_STATUS_IN_PROGRESS = 2;
   RECEIVING_TASK_STATUS_READY_FOR_RECONCILIATION = 3;
+  RECEIVING_TASK_STATUS_RECONCILED = 4;
 }
 
 message ReceivingOrderLine {
@@ -24,6 +25,7 @@ message ReceivingOrderLine {
   string gtin = 4;
   catalog.v1.BaseUnit base_unit = 5;
   int64 quantity_base = 6;
+  catalog.v1.MarkingMode marking_mode = 7;
 }
 
 message ExpectedReceivingBatch {
@@ -31,6 +33,7 @@ message ExpectedReceivingBatch {
   string batch_number = 2;
   common.v1.CalendarDate expires_on = 3;
   int64 quantity_base = 4;
+  repeated string marking_codes = 5;
 }
 
 message ExpectedReceivingUnit {
@@ -40,12 +43,21 @@ message ExpectedReceivingUnit {
   repeated ExpectedReceivingBatch batches = 4;
 }
 
+message ReceivingBatchFact {
+  int32 batch_index = 1;
+  int64 quantity_base = 2;
+  int64 defective_quantity_base = 3;
+  repeated string marking_codes = 4;
+  repeated string defective_marking_codes = 5;
+}
+
 message ReceivedHandlingUnit {
   string expected_unit_id = 1;
   StockBalance balance_at_receipt = 2;
   google.protobuf.Timestamp received_at = 3;
   optional string put_away_cell_id = 4;
   google.protobuf.Timestamp put_away_at = 5;
+  repeated ReceivingBatchFact batch_facts = 6;
 }
 
 message ReceivingTask {
@@ -61,6 +73,7 @@ message ReceivingTask {
   repeated ExpectedReceivingUnit expected_units = 10;
   repeated ReceivedHandlingUnit received_units = 11;
   google.protobuf.Timestamp finished_at = 12;
+  optional string upd_document_id = 13;
 }
 
 message ListReceivingTasksRequest {
@@ -90,6 +103,26 @@ message UnlabelledReceivingUnit {
   int64 quantity_base = 3 [(buf.validate.field).int64.gt = 0];
 }
 
+message ReceivingBatchEvidence {
+  int32 batch_index = 1 [(buf.validate.field).int32.gte = 0];
+  optional int64 quantity_base = 2 [(buf.validate.field).int64.gte = 0];
+  int64 defective_quantity_base = 3 [(buf.validate.field).int64.gte = 0];
+  repeated string marking_codes = 4 [
+    (buf.validate.field).repeated.max_items = 1000,
+    (buf.validate.field).repeated.items.string = {
+      min_len: 1
+      max_len: 128
+    }
+  ];
+  repeated string defective_marking_codes = 5 [
+    (buf.validate.field).repeated.max_items = 1000,
+    (buf.validate.field).repeated.items.string = {
+      min_len: 1
+      max_len: 128
+    }
+  ];
+}
+
 message ReceiveHandlingUnitRequest {
   string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
   string task_id = 2 [(buf.validate.field).string.uuid = true];
@@ -101,6 +134,7 @@ message ReceiveHandlingUnitRequest {
     string sscc = 5 [(buf.validate.field).string.pattern = "^[0-9]{18}$"];
     UnlabelledReceivingUnit unlabelled_unit = 6;
   }
+  repeated ReceivingBatchEvidence batch_evidence = 7 [(buf.validate.field).repeated.max_items = 100];
 }
 
 message ReceiveHandlingUnitResponse {

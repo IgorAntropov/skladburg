@@ -50,6 +50,8 @@ const expectedRows = [
     permission: '',
     side: 'system',
     status: DealStatus.DOCUMENTS_CONFIRMED },
+  { command: 'confirmReceipt', from: DealStatus.ACCEPTING, permission: 'document_sign', side: 'customer', status: DealStatus.ACCEPTED },
+  { command: 'confirmReceipt', from: DealStatus.CLAIM, permission: 'document_sign', side: 'customer', status: DealStatus.CLAIM },
   { command: 'confirmTransportOrder',
     from: DealStatus.AWAITING_LOGISTICS,
     permission: '',

@@ -51,7 +51,7 @@ import { writeUserDealTransition } from '../deals/dealCommand';
 import { advanceSystemDeal } from '../deals/dealEffects';
 import { dealMachine } from '../deals/dealMachine';
 import { paginate } from '../pagination';
-import { loadPayments } from '../payments/loadPayments';
+import { loadShipmentPayments } from '../payments/loadPayments';
 import {
   readOutboundTask,
   saveOutboundTask,
@@ -174,7 +174,7 @@ export const createWarehousePickingService = (runtime: IModuleRuntime): ServiceI
       request,
     }),
     confirmWarehouseShipment: async (request, context) => {
-      const { holdPaymentForShipment } = await loadPayments();
+      const { holdPaymentForShipment } = await loadShipmentPayments(runtime.read, request.taskId);
       return runPickingCommand(runtime, {
         handle: (transaction, caller, task) => {
           const deal = readTaskDeal(transaction, runtime, caller, task);

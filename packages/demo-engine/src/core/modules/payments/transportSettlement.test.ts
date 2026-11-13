@@ -41,7 +41,10 @@ import {
   SeedUserId,
 } from '../../seed/index';
 import { CUSTOMER_CALL } from '../catalog/showcase/testing/showcaseFixtures';
-import { nextUuid } from '../catalog/testing/catalogFixtures';
+import {
+  nextUuid,
+  SUPPLIER_1_CALL,
+} from '../catalog/testing/catalogFixtures';
 import {
   MAX_DEAL_INTEGER,
   rub,
@@ -139,6 +142,69 @@ describe('transport settlement', () => {
 });
 
 describe('transport payment projection', () => {
+  it('projects receipt documents as title and act references for trip participants', async () => {
+    const { runtime, transport } = createModuleHarness();
+    const logistics = createClient(LogisticsService, transport);
+    const tripId = nextUuid();
+    const dealId = nextUuid();
+    const buyerId = SeedOrganizationId.CUSTOMER_1;
+    const supplierId = SeedOrganizationId.SUPPLIER_1;
+    const carrierId = SeedOrganizationId.CARRIER_1;
+    const dispatchedAt = timestampFromMs(120_000);
+    const receiptConfirmedAt = timestampFromMs(180_000);
+    await runtime.command((transaction) => {
+      transaction.put('trips', create(TripRecordSchema, {
+        customerOrganizationId: buyerId,
+        dealId,
+        id: tripId,
+        status: TripStatus.DELIVERED,
+        supplierOrganizationId: supplierId,
+        transportOrder: { carrierOrganizationId: carrierId, shipperOrganizationId: buyerId },
+      }));
+      transaction.put('documents', create(DocumentSchema, {
+        content: { terms: { case: 'dispatchTitle', value: { shippedAt: dispatchedAt } } },
+        dealId,
+        displayNumber: '10',
+        id: nextUuid(),
+        status: DocumentStatus.APPROVED,
+        type: DocumentType.DISPATCH_TITLE,
+      }));
+      transaction.put('documents', create(DocumentSchema, {
+        content: { terms: { case: 'receiptTitle', value: { lines: [{ acceptedGoodsAmount: rub(500n) }] } } },
+        dealId,
+        displayNumber: '11',
+        id: nextUuid(),
+        signatures: [{ signedAt: receiptConfirmedAt }],
+        status: DocumentStatus.SIGNED,
+        type: DocumentType.RECEIPT_TITLE,
+      }));
+      transaction.put('documents', create(DocumentSchema, {
+        content: { terms: { case: 'receiptDiscrepancyAct', value: { lines: [{ acceptedGoodsAmount: rub(500n) }] } } },
+        dealId,
+        displayNumber: '12',
+        id: nextUuid(),
+        status: DocumentStatus.APPROVED,
+        type: DocumentType.RECEIPT_DISCREPANCY_ACT,
+      }));
+    });
+    const carrier = callAs(SeedUserId.ADMIN_4, carrierId);
+    const expected = {
+      $typeName: 'logistics.v1.TripReceiptDocuments',
+      discrepancyActNumber: '12',
+      dispatchedAt,
+      dispatchTitleNumber: '10',
+      receiptConfirmedAt,
+      receiptTitleNumber: '11',
+    };
+    for (const caller of [CUSTOMER_CALL, SUPPLIER_1_CALL, carrier]) {
+      expect((await logistics.getTrip({ tripId }, caller)).trip?.receiptDocuments).toEqual(expected);
+      expect((await logistics.listTrips({}, caller)).trips.find(trip => trip.id === tripId)?.receiptDocuments).toEqual(expected);
+    }
+    const otherCarrier = callAs(SeedUserId.ADMIN_8, SeedOrganizationId.CARRIER_2);
+    await expect(logistics.getTrip({ tripId }, otherCarrier)).rejects.toThrow('not_found');
+    expect((await logistics.listTrips({}, otherCarrier)).trips).toEqual([]);
+  });
+
   it('invalidates the carrier trip exactly once when funding first exposes its breakdown', async () => {
     const { events, runtime, transport } = createModuleHarness();
     const payments = createClient(PaymentService, transport);

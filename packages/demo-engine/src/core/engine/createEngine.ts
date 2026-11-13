@@ -150,7 +150,7 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
   return createSeedSnapshotWithTopology(seed);
 };
 
-const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22];
+const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23];
 
 const loadOrSeedSnapshot = async (
   options: CreateEngineOptionsValue,
@@ -219,16 +219,19 @@ export const createEngineWithTasks = async (
   });
   const validator = createRequestValidator(errors, await getEngineContractRegistry());
   const hasInboundConfiguration = options.wmsInboundWarehouseIds !== undefined;
-  const [outbound, inbound, inboundPlan] = await Promise.all([
+  const [outbound, inbound, inboundPlan, receipt, receiptDocuments] = await Promise.all([
     options.wmsOutboundWarehouseIds !== undefined || snapshot.collections.warehouseOutbound.size > 0
       ? import('../modules/wms/outboundRecords')
       : undefined,
     hasInboundConfiguration || snapshot.collections.warehouseInbound.size > 0 ? import('../modules/wms/inboundRecords') : undefined,
     hasInboundConfiguration ? import('../modules/wms/inboundPlan') : undefined,
+    hasInboundConfiguration || snapshot.collections.warehouseInbound.size > 0 ? import('../modules/deals/dealReceipt') : undefined,
+    hasInboundConfiguration ? import('../modules/documents/receiptDocuments') : undefined,
   ]);
   const runtime: IModuleRuntime = {
     command,
     errors,
+    finishInboundReceipt: receipt?.finishInboundReceipt,
     getWorldTimeMs: readWorldTimeMs,
     guard: createCallGuard({
       errors,
@@ -237,6 +240,7 @@ export const createEngineWithTasks = async (
     }),
     hasInboundProduct: inbound?.hasInboundProduct,
     idempotency: createIdempotencyGuard(errors),
+    issueInboundDocuments: receiptDocuments?.issueInboundDocuments,
     notifier: createNotifier({ outbox: bus.outbox, random }),
     openInboundTask: inbound?.openInboundTask,
     openOutboundTask: outbound?.openOutboundTask,

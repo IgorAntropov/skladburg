@@ -72,5 +72,6 @@ describe('warehouse scene layout', () => {
 
     expect(layout.receiving?.dock).toEqual({ x: 9.5, z: 5 });
     expect(layout.truck.get('sideCarrier')?.[0]?.position[0]).toBe(9.5);
+    expect(layout.navigation.bounds.minZ).toBeCloseTo(5.11);
   });
 });

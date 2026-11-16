@@ -8,6 +8,8 @@ import type {
   WorldPaletteKeyValue,
 } from '@/shared/3d';
 
+import type { WarehouseAisleRectValue } from './warehouseAislePath';
+
 import {
   addWarehouseBox,
   buildWarehouseFloor,
@@ -20,6 +22,7 @@ export interface WarehouseBoxValue {
 
 export interface WarehouseCellVisualValue extends WarehouseBoxValue {
   id: string;
+  rack: WarehouseAisleRectValue;
 }
 
 export interface WarehouseFloorValue {
@@ -33,10 +36,16 @@ export interface WarehouseLayoutValue {
   cells: readonly WarehouseCellVisualValue[];
   cellsById: ReadonlyMap<string, WarehouseCellVisualValue>;
   floor: ReadonlyMap<WorldPaletteKeyValue, readonly WarehouseBoxValue[]>;
+  navigation: WarehouseNavigationValue;
   racks: WarehouseRackLayoutValue;
   receiving: undefined | WarehouseReceivingLayoutValue;
   truck: ReadonlyMap<WorldPaletteKeyValue, readonly WarehouseBoxValue[]>;
   world: SceneWorldValue;
+}
+
+export interface WarehouseNavigationValue {
+  bounds: WarehouseAisleRectValue;
+  obstacles: readonly WarehouseAisleRectValue[];
 }
 
 export interface WarehouseRackLayoutValue {
@@ -56,6 +65,8 @@ type VectorValue = [number, number, number];
 const layouts = new WeakMap<WarehouseTopology, WarehouseLayoutValue>();
 const METER = 1000;
 const TRUCK_LENGTH = 6.2;
+export const WAREHOUSE_DOCK_RAMP_END = 0.505;
+export const WAREHOUSE_DOCK_HANDOFF_Z = 0.4;
 
 const readFloor = (rect: undefined | WarehouseFloorRect): undefined | WarehouseFloorValue => {
   if (rect?.origin === undefined || rect.widthMm === 0 || rect.depthMm === 0) {
@@ -92,6 +103,7 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
   const dividers: WarehouseBoxValue[] = [];
   const frames: WarehouseBoxValue[] = [];
   const guards: WarehouseBoxValue[] = [];
+  const obstacles: WarehouseAisleRectValue[] = [];
   const floor = readFloor(topology.receivingArea?.footprint);
   const point = topology.receivingArea?.unloadingPoint?.position;
   const receiving = floor === undefined || topology.receivingArea === undefined
@@ -119,6 +131,14 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
         const { depth, width, x, z } = rect;
         const centerX = x + width / 2;
         const centerZ = z + depth / 2;
+        const frameWidth = Math.min(0.09, width * 0.14);
+        const guardDepth = Math.min(0.095, depth / 4);
+        const footprint = {
+          maxX: x + width + frameWidth * 0.675,
+          maxZ: z + depth + 0.026 + guardDepth / 2,
+          minX: x - frameWidth * 0.675,
+          minZ: z,
+        };
         let height = 0.8;
 
         for (const tier of rack.tiers) {
@@ -131,6 +151,7 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
             cells.push({
               id: cell.id,
               position: [start + cellWidth / 2, elevation + 0.147, centerZ],
+              rack: footprint,
               size: [cellWidth, 0.025, depth],
             });
             const dividerWidth = Math.min(0.026, cellWidth / 5);
@@ -142,14 +163,14 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
         }
 
         for (const sideX of [x, x + width]) {
-          const frameWidth = Math.min(0.09, width * 0.14);
           frames.push({ position: [sideX, height / 2, centerZ], size: [frameWidth, height, depth] });
           guards.push({
             position: [sideX, 0.15, z + depth + 0.026],
-            size: [frameWidth * 1.35, 0.3, Math.min(0.095, depth / 4)],
+            size: [frameWidth * 1.35, 0.3, guardDepth],
           });
         }
 
+        obstacles.push(footprint);
         aisleMarks.push({ position: [centerX, 0.012, z + depth + 0.18], size: [width, 0.012, 0.039] });
         minX = Math.min(minX, x);
         minZ = Math.min(minZ, z);
@@ -160,20 +181,30 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
     }
   }
 
-  minX -= 0.8;
+  minX -= 1.55;
   minZ -= 0.55;
-  maxX += 1;
-  maxZ += 0.8;
+  maxX += 1.55;
+  maxZ += 1.65;
   const width = maxX - minX;
   const depth = maxZ - minZ;
   const centerX = (minX + maxX) / 2;
   const centerZ = (minZ + maxZ) / 2;
   const radius = Math.max(4.5, Math.hypot(width, depth) * 0.52);
   const padding = 18 + radius * 5;
+  if (dock !== undefined) {
+    obstacles.push({
+      maxX: dock.x + 0.93,
+      maxZ: dock.z + WAREHOUSE_DOCK_RAMP_END,
+      minX: dock.x - 0.93,
+      minZ: dock.z - 0.145,
+    });
+  }
+  const bounds = { maxX, maxZ, minX: minX + 0.19, minZ: (dock?.z ?? minZ) + 0.11 };
   return {
     cells,
     cellsById: new Map(cells.map(cell => [cell.id, cell])),
     floor: buildWarehouseFloor({ depth, width, x: minX, z: minZ }, receiving, aisleMarks, padding),
+    navigation: { bounds, obstacles },
     racks: { decks, dividers, frames, guards },
     receiving,
     truck: dock === undefined ? new Map() : buildTruck(dock),

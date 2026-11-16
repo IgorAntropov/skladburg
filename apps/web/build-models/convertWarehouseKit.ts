@@ -1,67 +1,27 @@
-import {
-  readFile,
-  writeFile,
-} from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import {
   Box3,
   BoxGeometry,
-  BufferGeometry,
-  Material,
   Matrix4,
-  Mesh,
   Vector3,
 } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-interface MeshValue {
-  indices: number[];
-  positions: number[];
-}
+import type {
+  MeshValue,
+  TriangleValue,
+} from './warehouseModelGeometry.ts';
+
+import {
+  readTriangles,
+  readWarehouseGlb,
+  toWarehouseMesh,
+} from './warehouseModelGeometry.ts';
 
 interface PartValue {
   bounds: Box3;
   material: string;
   triangles: TriangleValue[];
 }
-
-type TriangleValue = readonly [Vector3, Vector3, Vector3];
-
-const readTriangles = (geometry: BufferGeometry, transform: Matrix4): TriangleValue[] => {
-  const positions = geometry.getAttribute('position');
-  const indices = geometry.getIndex();
-  const vertexCount = indices?.count ?? positions.count;
-
-  if (vertexCount % 3 !== 0) {
-    throw new Error('Warehouse kit: expected triangles');
-  }
-
-  const isMirrored = transform.determinant() < 0;
-  const vertices = new Map<string, Vector3>();
-  const getVertex = (offset: number): Vector3 => {
-    const position = new Vector3().fromBufferAttribute(positions, indices?.getX(offset) ?? offset).applyMatrix4(transform);
-    const key = position.toArray().join(',');
-    const previous = vertices.get(key);
-
-    if (previous !== undefined) {
-      return previous;
-    }
-
-    vertices.set(key, position);
-
-    return position;
-  };
-  const triangles: TriangleValue[] = [];
-
-  for (let offset = 0; offset < vertexCount; offset += 3) {
-    const first = getVertex(offset);
-    const second = getVertex(offset + 1);
-    const third = getVertex(offset + 2);
-
-    triangles.push(isMirrored ? [first, third, second] : [first, second, third]);
-  }
-
-  return triangles;
-};
 
 const splitParts = (triangles: TriangleValue[], material: string): PartValue[] => {
   const vertexTriangles = new Map<Vector3, TriangleValue[]>();
@@ -104,65 +64,10 @@ const splitParts = (triangles: TriangleValue[], material: string): PartValue[] =
   return parts;
 };
 
-const isBufferGeometry = (geometry: unknown): geometry is BufferGeometry => geometry instanceof BufferGeometry;
+const readAsset = async (path: string): Promise<PartValue[]> => {
+  const meshes = await readWarehouseGlb(path);
 
-const readAsset = async (loader: GLTFLoader, path: string): Promise<PartValue[]> => {
-  const data = Uint8Array.from(await readFile(path));
-  const { scene } = await loader.parseAsync(data.buffer, '');
-  const parts: PartValue[] = [];
-
-  scene.updateMatrixWorld(true);
-  scene.traverse((object) => {
-    if (!(object instanceof Mesh)) {
-      return;
-    }
-
-    const geometry: unknown = object.geometry;
-    const material: unknown = object.material;
-
-    if (!isBufferGeometry(geometry) || !geometry.hasAttribute('position') || !(material instanceof Material)) {
-      throw new Error('Warehouse kit: expected a positioned mesh with a single material');
-    }
-
-    parts.push(...splitParts(readTriangles(geometry, object.matrixWorld), material.name));
-  });
-
-  return parts;
-};
-
-const round = (value: number, scale: number): number => Math.round(value * scale) / scale;
-
-const toMesh = (triangles: readonly TriangleValue[], bounds: Box3): MeshValue => {
-  const center = bounds.getCenter(new Vector3());
-  const size = bounds.getSize(new Vector3());
-
-  if (triangles.length === 0 || size.x <= 0 || size.y <= 0 || size.z <= 0) {
-    throw new Error('Warehouse kit: expected a nonempty three-dimensional module');
-  }
-
-  const mesh: MeshValue = { indices: [], positions: [] };
-  const vertexIndices = new Map<string, number>();
-  const edge = new Vector3();
-  const normal = new Vector3();
-
-  for (const [first, second, third] of triangles) {
-    normal.subVectors(second, first).cross(edge.subVectors(third, first)).normalize();
-
-    for (const point of [first, second, third]) {
-      const position = new Vector3().subVectors(point, center).divide(size).toArray().map(value => round(value, 100_000));
-      const key = [...position, ...normal.toArray().map(value => round(value, 1_000))].join(',');
-      const index = vertexIndices.get(key) ?? vertexIndices.size;
-
-      if (!vertexIndices.has(key)) {
-        vertexIndices.set(key, index);
-        mesh.positions.push(...position);
-      }
-
-      mesh.indices.push(index);
-    }
-  }
-
-  return mesh;
+  return meshes.flatMap(mesh => splitParts(mesh.triangles, mesh.material));
 };
 
 const wholeBounds = (parts: readonly PartValue[]): Box3 => {
@@ -229,8 +134,8 @@ const frameMeshes = (parts: PartValue[]): { rackFrame: MeshValue; rackFrameLow: 
   });
 
   return {
-    rackFrame: toMesh([...postTriangles, ...plateTriangles, ...braceTriangles, ...sleeveTriangles], bounds),
-    rackFrameLow: toMesh([...postTriangles, ...lowPlateTriangles, ...lowerDiagonal.triangles], bounds),
+    rackFrame: toWarehouseMesh([...postTriangles, ...plateTriangles, ...braceTriangles, ...sleeveTriangles], bounds),
+    rackFrameLow: toWarehouseMesh([...postTriangles, ...lowPlateTriangles, ...lowerDiagonal.triangles], bounds),
   };
 };
 
@@ -280,16 +185,16 @@ const levelMeshes = (parts: PartValue[]): {
   });
 
   return {
-    rackDeck: toMesh(boards.flatMap(part => boxTriangles(part.bounds)), bounds),
-    rackDeckLow: toMesh(boxTriangles(wholeBounds(boards)), bounds),
-    rackRail: toMesh([...beams, ...fittings].flatMap(part => boxTriangles(part.bounds)), bounds),
-    rackRailLow: toMesh(lowBeams, bounds),
+    rackDeck: toWarehouseMesh(boards.flatMap(part => boxTriangles(part.bounds)), bounds),
+    rackDeckLow: toWarehouseMesh(boxTriangles(wholeBounds(boards)), bounds),
+    rackRail: toWarehouseMesh([...beams, ...fittings].flatMap(part => boxTriangles(part.bounds)), bounds),
+    rackRailLow: toWarehouseMesh(lowBeams, bounds),
   };
 };
 
 const palletMeshes = (parts: PartValue[]): { palletBase: MeshValue; palletBoards: MeshValue; palletLoad: MeshValue } => {
   const bounds = wholeBounds(parts);
-  const byMaterial = (material: string): MeshValue => toMesh(
+  const byMaterial = (material: string): MeshValue => toWarehouseMesh(
     parts.filter(part => part.material === material).flatMap(part => part.triangles),
     bounds,
   );
@@ -307,11 +212,10 @@ if (uprightPath === undefined || deckPath === undefined || palletPath === undefi
   throw new Error('Usage: node apps/web/build-models/convertWarehouseKit.ts <upright.glb> <deck.glb> <pallet.glb>');
 }
 
-const loader = new GLTFLoader();
 const [upright, deck, pallet] = await Promise.all([
-  readAsset(loader, uprightPath),
-  readAsset(loader, deckPath),
-  readAsset(loader, palletPath),
+  readAsset(uprightPath),
+  readAsset(deckPath),
+  readAsset(palletPath),
 ]);
 const kit = {
   ...frameMeshes(upright),

@@ -7,17 +7,28 @@ import type {
 import type { getWarehouseLayout } from './warehouseLayout';
 
 import { readWarehouseCargoMoves } from '../model/warehouseSceneCargo';
+import { isWarehouseAisleSegmentOpen } from './warehouseAislePath';
+import { WAREHOUSE_DOCK_HANDOFF_Z } from './warehouseLayout';
 
-interface CargoPlacementValue {
+export interface CargoPlacementValue {
   point: CargoPointValue;
   size: number;
 }
-type CargoPointValue = [number, number, number];
+export type CargoPointValue = [number, number, number];
 
-interface WarehouseCargoVisualValue extends CargoPlacementValue {
+export interface WarehouseCargoEndpointValue extends CargoPlacementValue {
+  cellId: string | undefined;
+  location: WarehouseCargoUnitValue['location'];
+}
+
+export interface WarehouseCargoTransferValue {
+  from: WarehouseCargoEndpointValue;
   id: string;
-  path: readonly CargoPointValue[];
-  stays: boolean;
+  to: WarehouseCargoEndpointValue;
+}
+
+export interface WarehouseCargoVisualValue extends CargoPlacementValue {
+  id: string;
   stockUnitIds: readonly string[] | undefined;
 }
 
@@ -56,9 +67,8 @@ const readTruck = (layout: WarehouseLayoutValue, slot: number): CargoPlacementVa
   if (dock === undefined) {
     return undefined;
   }
-  const index = Math.min(slot, TRUCK_SLOTS - 1);
   return {
-    point: [dock.x + (index % 2 === 0 ? -0.36 : 0.36), 0.75, dock.z - 0.55 - Math.floor(index / 2) * 0.63],
+    point: [dock.x + (slot % 2 === 0 ? -0.36 : 0.36), 0.75, dock.z - 0.55 - Math.floor(slot / 2) * 0.63],
     size: CARGO_SIZE,
   };
 };
@@ -89,38 +99,90 @@ const readPosition = (
   return readCell(layout, unit.cellId);
 };
 
-export const buildWarehouseCargoVisuals = (
+const canReachDockHandoff = (
+  layout: WarehouseLayoutValue,
+  previous: WarehouseCargoUnitValue,
+  truckUnits: readonly WarehouseCargoUnitValue[],
+): boolean => {
+  const dock = layout.receiving?.dock;
+  const start = readTruck(layout, previous.truckSlot);
+  if (dock === undefined || start === undefined) {
+    return false;
+  }
+
+  const halfWidth = CARGO_SIZE * 0.54;
+  const obstacles = truckUnits.flatMap((unit) => {
+    const placement = unit.expectedUnitId === previous.expectedUnitId ? undefined : readTruck(layout, unit.truckSlot);
+    if (placement === undefined) {
+      return [];
+    }
+    const [x, , z] = placement.point;
+    return [{ maxX: x + halfWidth, maxZ: z + halfWidth, minX: x - halfWidth, minZ: z - halfWidth }];
+  });
+  const bounds = { maxX: dock.x + 1, maxZ: dock.z + 1, minX: dock.x - 1, minZ: dock.z - 4.2 };
+  return isWarehouseAisleSegmentOpen(
+    bounds, obstacles, { x: start.point[0], z: start.point[2] }, { x: dock.x, z: dock.z + WAREHOUSE_DOCK_HANDOFF_Z }, halfWidth,
+  );
+};
+
+export const buildWarehouseCargoTransfers = (
   layout: WarehouseLayoutValue,
   prev: undefined | WarehouseCargoValue,
   current: WarehouseCargoValue,
+): WarehouseCargoTransferValue[] => {
+  const previousById = new Map(prev?.units.map(unit => [unit.expectedUnitId, unit]));
+  const truckUnits = prev?.units.filter(unit =>
+    unit.location === 'truck' && unit.taskId === prev.dockTaskId && unit.truckSlot < TRUCK_SLOTS,
+  ) ?? [];
+  const transfers: WarehouseCargoTransferValue[] = [];
+  for (const unit of readWarehouseCargoMoves(prev, current)) {
+    const previous = previousById.get(unit.expectedUnitId);
+    if (previous === undefined) {
+      continue;
+    }
+    const isTruckPickup = previous.location === 'truck' && current.hasDock;
+    const hasConfirmedHandoff = isTruckPickup && prev?.dockTaskId === previous.taskId && current.dockTaskId === previous.taskId
+      && previous.truckSlot < TRUCK_SLOTS
+      && canReachDockHandoff(layout, previous, truckUnits);
+    if (isTruckPickup && !hasConfirmedHandoff) {
+      continue;
+    }
+
+    let from: undefined | WarehouseCargoEndpointValue;
+    for (const [index, location] of unit.stops.entries()) {
+      const source = index === 0 && location === previous.location ? previous : unit;
+      const placement = readPosition(layout, source, location);
+      if (placement === undefined) {
+        break;
+      }
+
+      const to = { ...placement, cellId: source.cellId, location };
+      if (from !== undefined) {
+        transfers.push({ from, id: unit.id, to });
+      }
+      from = to;
+    }
+  }
+  return transfers;
+};
+
+export const buildWarehouseCargoVisuals = (
+  layout: WarehouseLayoutValue,
+  current: WarehouseCargoValue,
   balances: readonly StockBalance[] | undefined,
 ): WarehouseCargoVisualValue[] => {
-  const moves = new Map(readWarehouseCargoMoves(prev, current).map(move => [move.id, move.stops] as const));
   const result: WarehouseCargoVisualValue[] = [];
 
   for (const unit of current.units) {
-    const stops = moves.get(unit.id);
     const isHiddenTruck = unit.location === 'truck' && (unit.taskId !== current.dockTaskId || unit.truckSlot >= TRUCK_SLOTS);
-    if (isHiddenTruck || (unit.location === 'cell' && stops === undefined)) {
+    if (isHiddenTruck || unit.location === 'cell') {
       continue;
     }
 
     const target = readPosition(layout, unit, unit.location);
-    if (target === undefined) {
-      continue;
+    if (target !== undefined) {
+      result.push({ ...target, id: unit.id, stockUnitIds: undefined });
     }
-    const path = stops?.flatMap((stop) => {
-      const placement = readPosition(layout, unit, stop);
-      return placement === undefined ? [] : [placement.point];
-    }) ?? [];
-
-    result.push({
-      ...target,
-      id: unit.id,
-      path,
-      stays: unit.location !== 'cell',
-      stockUnitIds: undefined,
-    });
   }
 
   const occupiedCells = new Map<string, string[]>();
@@ -141,7 +203,7 @@ export const buildWarehouseCargoVisuals = (
   for (const [id, stockUnitIds] of occupiedCells) {
     const cell = readCell(layout, id);
     if (cell !== undefined) {
-      result.push({ ...cell, id: `stock:${id}`, path: [], stays: true, stockUnitIds });
+      result.push({ ...cell, id: `stock:${id}`, stockUnitIds });
     }
   }
 

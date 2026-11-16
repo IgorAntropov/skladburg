@@ -75,7 +75,8 @@ test('renders the dock and the confirmed receiving movements, then returns to re
   const beforePlacement = await scene.readDrawFrames();
   await placement.getByTestId('warehouse-place-unit').click();
   await expect(placement).toHaveCount(0);
-  await scene.waitForDrawFramesToExceed(beforePlacement + 4, 'the staging-to-cell motion did not draw');
+  await scene.waitForDrawFramesToExceed(beforePlacement + 24, 'the staging-to-cell motion did not draw');
+  await canvas.screenshot({ path: testInfo.outputPath('warehouse-forklift-put-away.png') });
   await scene.waitForIdle();
   await scene.expectNoDrawFramesFor(700);
   await receiving.getByTestId('warehouse-finish-receiving').click();

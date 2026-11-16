@@ -1,9 +1,10 @@
 import type { WorldModelDataValue } from './format/worldModelFormat';
-import type { WorldModelEntryValue } from './worldModelCatalog';
+import type { WorldModelFileValue } from './worldModelCatalog';
 
 import { readWorldModel } from './format/worldModelFormat';
 import {
   buildWorldModelPath,
+  INDUSTRIAL_YARD_MODEL,
   WORLD_MODEL_CATALOG,
 } from './worldModelCatalog';
 
@@ -20,11 +21,13 @@ const KILOBYTE_DECIMALS = 100;
 const roundKiloBytes = (bytes: number): number => Math.round((bytes / BYTES_IN_KILOBYTE) * KILOBYTE_DECIMALS) / KILOBYTE_DECIMALS;
 
 export const createWorldModelLoader = (fetchBuffer: FetchWorldModelBuffer): IWorldModelLoader => {
-  const entriesById = new Map<string, WorldModelEntryValue>(WORLD_MODEL_CATALOG.map(entry => [entry.id, entry]));
+  const entriesById = new Map<string, WorldModelFileValue>(
+    [...WORLD_MODEL_CATALOG, INDUSTRIAL_YARD_MODEL].map(entry => [entry.id, entry]),
+  );
   const modelCache = new Map<string, Promise<WorldModelDataValue>>();
   const loadedModels = new Map<string, WorldModelDataValue>();
 
-  const fetchModel = async (entry: WorldModelEntryValue): Promise<WorldModelDataValue> => {
+  const fetchModel = async (entry: WorldModelFileValue): Promise<WorldModelDataValue> => {
     const buffer = await fetchBuffer(`${import.meta.env.BASE_URL}${buildWorldModelPath(entry)}`);
     const model = readWorldModel(buffer);
 

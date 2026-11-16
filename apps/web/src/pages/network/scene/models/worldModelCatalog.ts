@@ -1,15 +1,18 @@
-export interface WorldModelEntryValue {
+export interface WorldModelEntryValue extends WorldModelFileValue {
   farWalls: WorldModelWallWindowsValue;
   footprint: readonly [number, number];
   group: WorldModelGroupValue;
-  id: string;
-  kit: WorldModelKitValue;
   lod: WorldModelLodValue;
-  sourceName: string;
   walls: undefined | WorldModelWallWindowsValue;
 }
 
 export type WorldModelFaceValue = 'negativeX' | 'negativeZ' | 'positiveX' | 'positiveZ';
+
+export interface WorldModelFileValue {
+  id: string;
+  kit: WorldModelKitValue;
+  sourceName: string;
+}
 
 export type WorldModelGroupValue = 'house' | 'office' | 'warehouse';
 
@@ -117,4 +120,10 @@ export const WORLD_MODEL_CATALOG: readonly WorldModelEntryValue[] = [
 
 export const COMPANY_WAREHOUSE_MODEL_ID = 'industrial/building-k';
 
-export const buildWorldModelPath = ({ kit, sourceName }: WorldModelEntryValue): string => `models/${kit}/${sourceName}.bin`;
+export const INDUSTRIAL_YARD_MODEL = {
+  id: 'industrial/loading-yard',
+  kit: 'industrial',
+  sourceName: 'loading-yard',
+} satisfies WorldModelFileValue;
+
+export const buildWorldModelPath = ({ kit, sourceName }: WorldModelFileValue): string => `models/${kit}/${sourceName}.bin`;

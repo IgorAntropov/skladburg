@@ -20,6 +20,15 @@ import type {
 
 import { BYTES_PER_KILOBYTE } from '../build-budget/bundleBudgetConstants.ts';
 import {
+  CORNER_BASE_HEIGHT_METERS,
+  CORNER_LIGHT_THICKNESS_METERS,
+  PLAZA_HEIGHT_METERS,
+  SITE_CORNER_BAR_WIDTH_METERS,
+  SITE_CORNER_GAP_METERS,
+  SITE_CORNER_LENGTH_METERS,
+} from '../src/pages/network/scene/geometry/networkSceneMetrics.ts';
+import { WAREHOUSE_SIZE_METERS } from '../src/pages/network/scene/layout/layoutConstants.ts';
+import {
   readWorldModel,
   WORLD_MODEL_ROLES,
 } from '../src/pages/network/scene/models/format/worldModelFormat.ts';
@@ -27,8 +36,13 @@ import { listWorldModelWindows } from '../src/pages/network/scene/models/listWor
 import {
   buildWorldModelPath,
   COMPANY_WAREHOUSE_MODEL_ID,
+  INDUSTRIAL_YARD_MODEL,
   WORLD_MODEL_CATALOG,
 } from '../src/pages/network/scene/models/worldModelCatalog.ts';
+import {
+  INDUSTRIAL_YARD_DEPTH,
+  INDUSTRIAL_YARD_WIDTH,
+} from '../src/pages/network/scene/yard/industrialYardSize.ts';
 
 const appRoot = join(import.meta.dirname, '..');
 
@@ -208,9 +222,48 @@ describe('world model files', () => {
   });
 
   it('has no other .bin files than the catalog', () => {
-    const expected = WORLD_MODEL_CATALOG.map(entry => join(appRoot, 'public', buildWorldModelPath(entry))).toSorted();
+    const expected = [...WORLD_MODEL_CATALOG, INDUSTRIAL_YARD_MODEL].map(
+      entry => join(appRoot, 'public', buildWorldModelPath(entry)),
+    ).toSorted();
 
     expect(listBinFiles().toSorted()).toEqual(expected);
+  });
+
+  it('keeps the loading yard inside the lot used for placement and gives its props palette roles', () => {
+    const path = join(appRoot, 'public', buildWorldModelPath(INDUSTRIAL_YARD_MODEL));
+    const { bounds, roles, triangleCount } = readWorldModel(Uint8Array.from(readFileSync(path)).buffer);
+
+    expect(bounds.min[0]).toBeCloseTo(-INDUSTRIAL_YARD_WIDTH / 2);
+    expect(bounds.max[0]).toBeCloseTo(INDUSTRIAL_YARD_WIDTH / 2);
+    expect(bounds.min[1]).toBe(0);
+    expect(bounds.min[2]).toBeCloseTo(-INDUSTRIAL_YARD_DEPTH / 2);
+    expect(bounds.max[2]).toBeCloseTo(INDUSTRIAL_YARD_DEPTH / 2);
+    expect(triangleCount).toBeLessThan(2000);
+    const palette = [...new Set(roles)].map(role => WORLD_MODEL_ROLES[role]);
+
+    expect(palette).toEqual(expect.arrayContaining(['dark', 'glass', 'green', 'light', 'red', 'yellow']));
+  });
+
+  it('leaves the light selection corners above the loading yard', () => {
+    const path = join(appRoot, 'public', buildWorldModelPath(INDUSTRIAL_YARD_MODEL));
+    const model = readWorldModel(Uint8Array.from(readFileSync(path)).buffer);
+    const yardFrameRight = INDUSTRIAL_YARD_WIDTH / 2 - SITE_CORNER_GAP_METERS;
+    const yardFrameLeft = yardFrameRight - SITE_CORNER_BAR_WIDTH_METERS;
+    const yardFrameNear = WAREHOUSE_SIZE_METERS.depth / 2 + SITE_CORNER_GAP_METERS
+      - SITE_CORNER_LENGTH_METERS + SITE_CORNER_BAR_WIDTH_METERS;
+    const yardFrameHeight = CORNER_BASE_HEIGHT_METERS + CORNER_LIGHT_THICKNESS_METERS / 2 - PLAZA_HEIGHT_METERS;
+    const obstructingTriangles = Array.from({ length: model.triangleCount }, (_, index) => readTriangle(model, index))
+      .filter(({ corners }) => {
+        const xs = corners.map(([x]) => x);
+        const ys = corners.map(([, y]) => y);
+        const zs = corners.map(([, , z]) => z);
+        const overlapsFrameX = Math.min(...xs) <= yardFrameRight && Math.max(...xs) >= yardFrameLeft;
+        const overlapsFrameZ = Math.max(...zs) >= yardFrameNear || Math.min(...zs) <= -yardFrameNear;
+
+        return overlapsFrameX && overlapsFrameZ && Math.max(...ys) >= yardFrameHeight;
+      });
+
+    expect(obstructingTriangles).toHaveLength(0);
   });
 
   it.each(KITS)('keeps the license of the %s kit next to its models', (kit) => {

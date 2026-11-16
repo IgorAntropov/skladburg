@@ -1,0 +1,9 @@
+Loading yard model
+
+CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/
+
+The dock frame and container geometry are adapted from 3DAssets.dev:
+https://3dassets.dev/packs/parcel-depot-and-sorting-hall (Dock shelter frame, asset 34810)
+https://3dassets.dev/packs/long-haul-trucking-and-truck-stop (Twenty-foot intermodal container, asset 13988)
+
+The lot, markings and conifers were assembled for Tridok.

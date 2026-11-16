@@ -16,6 +16,7 @@ import {
 import { loadWorldModels } from './models/loadWorldModels';
 import {
   buildWorldModelPath,
+  INDUSTRIAL_YARD_MODEL,
   WORLD_MODEL_CATALOG,
 } from './models/worldModelCatalog';
 import { createTestWorldModelBytes } from './models/worldModelTestSupport';
@@ -24,6 +25,8 @@ import {
   prepare,
   resolveWorld,
 } from './NetworkWorldScene';
+
+const MODEL_FILES = [...WORLD_MODEL_CATALOG, INDUSTRIAL_YARD_MODEL];
 
 const FAILING_MODEL_ID = 'commercial/building-a';
 const FAILING_MODEL_PATH = 'models/commercial/building-a.bin';
@@ -71,6 +74,16 @@ describe('NetworkWorldScene module', () => {
     await expect(prepare(model)).resolves.toBeUndefined();
   });
 
+  it('does not request an industrial yard for a map with no warehouses', async () => {
+    const model = createTestModel([createTestCity('a', 4, 2)], [], []);
+
+    await expect(prepare(model)).resolves.toBeUndefined();
+
+    const yardUrl = `${import.meta.env.BASE_URL}${buildWorldModelPath(INDUSTRIAL_YARD_MODEL)}`;
+
+    expect(fetch).not.toHaveBeenCalledWith(yardUrl);
+  });
+
   it('asks for every model once, keeps loading the others when one fails and loads the failed one on the next prepare', async () => {
     const requested: string[] = [];
 
@@ -84,10 +97,10 @@ describe('NetworkWorldScene module', () => {
 
     const requestedUrls = requested.toSorted();
 
-    expect(requestedUrls).toHaveLength(WORLD_MODEL_CATALOG.length);
-    expect(requestedUrls).toEqual(WORLD_MODEL_CATALOG.map(entry => `${import.meta.env.BASE_URL}${buildWorldModelPath(entry)}`).toSorted());
+    expect(requestedUrls).toHaveLength(MODEL_FILES.length);
+    expect(requestedUrls).toEqual(MODEL_FILES.map(entry => `${import.meta.env.BASE_URL}${buildWorldModelPath(entry)}`).toSorted());
 
-    for (const { id } of WORLD_MODEL_CATALOG) {
+    for (const { id } of MODEL_FILES) {
       expect(loadWorldModels.peek(id)).toBeUndefined();
     }
 
@@ -97,10 +110,10 @@ describe('NetworkWorldScene module', () => {
 
     await expect(prepare(createModel())).resolves.toBeUndefined();
 
-    expect(fetch).toHaveBeenCalledTimes(WORLD_MODEL_CATALOG.length);
+    expect(fetch).toHaveBeenCalledTimes(MODEL_FILES.length);
     expect(loadWorldModels.peek(FAILING_MODEL_ID)).toBeUndefined();
 
-    for (const { id } of WORLD_MODEL_CATALOG.filter(entry => entry.id !== FAILING_MODEL_ID)) {
+    for (const { id } of MODEL_FILES.filter(entry => entry.id !== FAILING_MODEL_ID)) {
       expect(loadWorldModels.peek(id)?.triangleCount).toBeGreaterThan(0);
     }
 
@@ -110,7 +123,7 @@ describe('NetworkWorldScene module', () => {
 
     expect(fetch).toHaveBeenCalledTimes(1);
 
-    for (const { id } of WORLD_MODEL_CATALOG) {
+    for (const { id } of MODEL_FILES) {
       expect(loadWorldModels.peek(id)?.triangleCount).toBeGreaterThan(0);
     }
   });

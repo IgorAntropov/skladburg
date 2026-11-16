@@ -1,0 +1,3 @@
+export const INDUSTRIAL_YARD_DEPTH = 1.52;
+
+export const INDUSTRIAL_YARD_WIDTH = 1.12;

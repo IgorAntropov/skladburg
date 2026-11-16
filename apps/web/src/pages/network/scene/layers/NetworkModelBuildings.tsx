@@ -15,35 +15,50 @@ import {
 
 import type { WorldModelDataValue } from '../models/format/worldModelFormat';
 import type { WorldModelPlacementValue } from '../models/placeWorldModels';
+import type { IndustrialYardPlacementValue } from '../yard/placeIndustrialYard';
 
+import { PLAZA_HEIGHT_METERS } from '../geometry/networkSceneMetrics';
 import { getVisibleBuildingCount } from '../layout';
 import { createWorldModelGeometry } from '../models/createWorldModelGeometry';
 import { useWorldModelMaterials } from '../models/useWorldModelMaterials';
+import { INDUSTRIAL_YARD_MODEL } from '../models/worldModelCatalog';
 import { InstancedLayer } from './InstancedLayer';
 
 interface NetworkModelBuildingsProps {
   level: QualityLevelValue;
   models: ReadonlyMap<string, WorldModelDataValue>;
   placements: readonly WorldModelPlacementValue[];
+  yard: IndustrialYardPlacementValue | undefined;
 }
 
 const createGeometries = (
-  placements: readonly WorldModelPlacementValue[],
+  modelIds: readonly string[],
   models: ReadonlyMap<string, WorldModelDataValue>,
 ): ReadonlyMap<string, BufferGeometry> => new Map(
-  placements.flatMap(({ modelId }): [string, BufferGeometry][] => {
+  modelIds.flatMap((modelId): [string, BufferGeometry][] => {
     const data = models.get(modelId);
 
     return data === undefined ? [] : [[modelId, createWorldModelGeometry(data)]];
   }),
 );
 
-export const NetworkModelBuildings = ({ level, models, placements }: NetworkModelBuildingsProps): ReactElement => {
+export const NetworkModelBuildings = ({ level, models, placements, yard }: NetworkModelBuildingsProps): ReactElement => {
   const { decorDensity, hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const refreshShadowMap = useShadowMapRefresh();
   const materials = useWorldModelMaterials();
 
-  const geometries = useMemo(() => createGeometries(placements, models), [models, placements]);
+  const hasYard = yard !== undefined;
+  const geometries = useMemo(() => {
+    const modelIds = placements.map(({ modelId }) => modelId);
+
+    if (hasYard) {
+      modelIds.push(INDUSTRIAL_YARD_MODEL.id);
+    }
+
+    return createGeometries(modelIds, models);
+  }, [hasYard, models, placements]);
+  const yardGeometry = geometries.get(INDUSTRIAL_YARD_MODEL.id);
+  const hasYardGeometry = yard !== undefined && yardGeometry !== undefined;
 
   useEffect(() => {
     refreshShadowMap();
@@ -59,6 +74,15 @@ export const NetworkModelBuildings = ({ level, models, placements }: NetworkMode
 
   return (
     <>
+      {hasYardGeometry && (
+        <mesh
+          geometry={yardGeometry}
+          material={materials.warehouse}
+          position={[yard.x, PLAZA_HEIGHT_METERS, yard.z]}
+          receiveShadow={hasShadows}
+          rotation={[0, yard.rotation, 0]}
+        />
+      )}
       {placements.map((placement) => {
         const geometry = geometries.get(placement.modelId);
 

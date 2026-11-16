@@ -26,6 +26,7 @@ import {
   expect,
   test,
 } from './fixtures/test.ts';
+import { createStoreSystemThemeScript } from './fixtures/themePreference.ts';
 import { DESKTOP_VIEWPORT } from './fixtures/viewports.ts';
 import { createNavigationRobot } from './robots/navigation-robot.ts';
 import { createNetworkRobot } from './robots/network-robot.ts';
@@ -164,6 +165,42 @@ test.describe('selection on the network map', () => {
     initialGraphicsPreference: 'low',
     reducedMotion: 'no-preference',
     viewport: DESKTOP_VIEWPORT,
+  });
+
+  test('loads the loading yard and keeps its warehouse selected by day and night', async ({ page }, testInfo) => {
+    const scene = createSceneRobot(page);
+    const network = createNetworkRobot(page);
+    const [warehouse] = OWN_NETWORK_SITES;
+
+    scene.watchPageErrors();
+    await page.addInitScript({ content: createStoreSystemThemeScript() });
+
+    const [yardResponse] = await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/models/industrial/loading-yard.bin')),
+      scene.openNetworkWithGraphicsPreference('high'),
+    ]);
+
+    expect(yardResponse.ok()).toBe(true);
+    await scene.expectSceneState('ready');
+    await scene.waitForCameraControls();
+    await network.tapRow(warehouse.id);
+    await network.expectSiteInspector(warehouse);
+    await scene.waitForIdle();
+    await scene.pressCameraButton('rotate-left');
+    await scene.waitForIdle();
+
+    for (let step = 0; step < 2; step += 1) {
+      await scene.pressCameraButton('zoom-in');
+      await scene.waitForIdle();
+    }
+
+    await scene.moveMouseToWorldCorner();
+    await scene.waitForIdle();
+    await page.screenshot({ path: testInfo.outputPath('industrial-yard-day.png') });
+    await switchColorSchemeAndSettle(scene, 'dark');
+    await network.expectRowSelected(warehouse.id);
+    await page.screenshot({ path: testInfo.outputPath('industrial-yard-night.png') });
+    expect(scene.readPageErrors()).toEqual([]);
   });
 
   test('a tap on the row of a far site flies the camera to it and the scene rests', async ({ page }) => {

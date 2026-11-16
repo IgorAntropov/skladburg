@@ -59,12 +59,16 @@ import { createModelWindowSources } from './mix/createModelWindowSources';
 import { partitionNetworkBuildings } from './mix/partitionNetworkBuildings';
 import { loadWorldModels } from './models/loadWorldModels';
 import { useLoadedWorldModels } from './models/useLoadedWorldModels';
-import { WORLD_MODEL_CATALOG } from './models/worldModelCatalog';
+import {
+  INDUSTRIAL_YARD_MODEL,
+  WORLD_MODEL_CATALOG,
+} from './models/worldModelCatalog';
 import { NETWORK_WORLD_SEED } from './networkWorldConstants';
 import {
   buildStreetLamps,
   buildWindowSets,
 } from './night';
+import { placeIndustrialYard } from './yard/placeIndustrialYard';
 
 interface NetworkTripActorSlotProps {
   layout: NetworkSceneLayoutValue;
@@ -91,14 +95,20 @@ const createTerrainParams = (layout: NetworkSceneLayoutValue): Parameters<typeof
   world: layout.world,
 });
 
-const loadCatalogModels = async (): Promise<void> => {
-  const results = await Promise.allSettled(WORLD_MODEL_CATALOG.map(({ id }) => loadWorldModels([id])));
+const loadCatalogModels = async (hasIndustrialYard: boolean): Promise<void> => {
+  const ids = WORLD_MODEL_CATALOG.map(({ id }) => id);
+
+  if (hasIndustrialYard) {
+    ids.push(INDUSTRIAL_YARD_MODEL.id);
+  }
+
+  const results = await Promise.allSettled(ids.map(id => loadWorldModels([id])));
 
   for (const [index, result] of results.entries()) {
     if (result.status === 'rejected') {
       const error: unknown = result.reason;
 
-      console.log('> NetworkWorldScene -> prepare:', { error, id: WORLD_MODEL_CATALOG[index]?.id });
+      console.log('> NetworkWorldScene -> prepare:', { error, id: ids[index] });
     }
   }
 };
@@ -115,9 +125,12 @@ const loadSiteLogos = async (data: NetworkMapModelValue): Promise<void> => {
 };
 
 export const prepare = async (data: NetworkMapModelValue): Promise<void> => {
+  const layout = buildNetworkSceneLayout(data);
+  const yard = placeIndustrialYard(layout.buildings, layout.cities);
+
   await Promise.all([
-    loadWorldTerrain(createTerrainParams(buildNetworkSceneLayout(data))),
-    loadCatalogModels(),
+    loadWorldTerrain(createTerrainParams(layout)),
+    loadCatalogModels(yard !== undefined),
     loadSiteBannerFonts(),
     loadSiteLogos(data),
   ]);
@@ -134,6 +147,7 @@ const NetworkWorldScene = ({
   const terrain = loadWorldTerrain.peek(createTerrainParams(layout));
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const models = useLoadedWorldModels();
+  const yard = useMemo(() => placeIndustrialYard(layout.buildings, layout.cities), [layout.buildings, layout.cities]);
   const tierByCityId = useMemo(
     (): ReadonlyMap<string, NetworkCityTierValue> => new Map(layout.cities.map(city => [city.id, city.tier])),
     [layout.cities],
@@ -185,7 +199,7 @@ const NetworkWorldScene = ({
       <NetworkShadowBlobs buildings={layout.buildings} level={level} terrain={terrain} />
       <NetworkBuildings boxGeometry={boxGeometry} buildings={boxes} level={level} />
       <NetworkBeveledBuildings buildings={beveled} level={level} />
-      <NetworkModelBuildings level={level} models={models} placements={placements} />
+      <NetworkModelBuildings level={level} models={models} placements={placements} yard={yard} />
       <NetworkWindows level={level} windows={windows} />
       <NetworkSelectionCorners
         boxGeometry={boxGeometry}

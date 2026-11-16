@@ -88,7 +88,7 @@ const sumNormals = (normals: Float32Array, corners: readonly number[]): [number,
 
 export const prepareModel = (
   mesh: GlbMeshValue,
-  resolveStyle: (u: number, v: number) => VertexStyleValue,
+  resolveStyle: (u: number, v: number, vertexId: number) => VertexStyleValue,
 ): PreparedModelValue => {
   const sourceTriangleCount = mesh.indices.length / TRIANGLE_CORNERS;
   const keptCorners: number[] = [];
@@ -165,7 +165,7 @@ export const prepareModel = (
     const corners = keptCorners.slice(triangle * TRIANGLE_CORNERS, triangle * TRIANGLE_CORNERS + TRIANGLE_CORNERS);
     const cornerData = corners.map((vertexId) => {
       const quantized = quantizeVertex(vertexId);
-      const style = resolveStyle(mesh.uvs[vertexId * 2] ?? 0, mesh.uvs[vertexId * 2 + 1] ?? 0);
+      const style = resolveStyle(mesh.uvs[vertexId * 2] ?? 0, mesh.uvs[vertexId * 2 + 1] ?? 0, vertexId);
       const role = WORLD_MODEL_ROLES.indexOf(style.role);
 
       return { key: `${quantized.join(',')}|${String(role)}|${String(style.shadeByte)}`, quantized, role, shadeByte: style.shadeByte };

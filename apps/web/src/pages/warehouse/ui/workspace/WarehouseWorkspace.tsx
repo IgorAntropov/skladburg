@@ -336,6 +336,7 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
     ? workspace.topology.data
     : undefined;
   const tasks = workspace.canViewTasks && !isReadAccessDenied(workspace.receiving.error) ? workspace.receiving.data : undefined;
+  const picking = workspace.canViewTasks && !isReadAccessDenied(workspace.picking.error) ? workspace.picking.data : undefined;
   const balances = workspace.canViewInventory && !isReadAccessDenied(workspace.balances.error) ? workspace.balances.data : undefined;
   const focusCellId = focus?.type === 'cell'
     ? focusId
@@ -366,11 +367,13 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
           balances={balances}
           isLoading={workspace.topology.isPending && workspace.canViewTopology}
           label={warehouse.name}
+          picking={picking}
           preferredTaskId={preferredTaskId}
           scannedCell={currentScan}
           selectedCellId={focusCellId}
           tasks={tasks}
           topology={topology}
+          warehouseId={warehouse.id}
         />
       </Suspense>,
       topology == null ? undefined : <Suspense fallback={null}><WarehouseSceneControls /></Suspense>,

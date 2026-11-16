@@ -182,6 +182,9 @@ const createJob = (
   turn(dropoff.yaw, 'forks');
   addPhase({ ...current, lift: dropoff.lift }, 'forks', 0.14 + dropoff.lift * 0.28);
   addPhase({ ...current, reach: dropoff.reach }, 'forks', 0.14 + dropoff.reach * 0.17);
+  if (transfer.to.location === 'truck') {
+    addPhase(current, 'handoff', 0.38);
+  }
   addPhase({ ...current, reach: 0 }, 'target', 0.14 + dropoff.reach * 0.15);
   addPhase({ ...current, lift: 0 }, 'target', 0.14 + dropoff.lift * 0.22);
 

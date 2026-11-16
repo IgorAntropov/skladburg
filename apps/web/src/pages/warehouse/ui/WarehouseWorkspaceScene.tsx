@@ -1,12 +1,17 @@
+import type { PickingTask } from '@skladburg/contracts/wms/v1/picking';
 import type { ReceivingTask } from '@skladburg/contracts/wms/v1/receiving';
 import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
 import type { ReactElement } from 'react';
 
+import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import {
   useCallback,
   useMemo,
 } from 'react';
 
+import { useCan } from '@/entities/session';
+import { useTrips } from '@/entities/transport';
+import { isReadAccessDenied } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
 import { createCachedModuleLoader } from '@/shared/lib/module-loader';
 import {
@@ -29,22 +34,32 @@ const loadWarehouseScene = createCachedModuleLoader(() => import('../scene/Wareh
 interface WarehouseWorkspaceSceneProps extends Omit<WarehouseSceneInteractionValue, 'cargo' | 'focusRequest' | 'onCellSelect'> {
   isLoading: boolean;
   label: string;
+  picking: readonly PickingTask[] | undefined;
   preferredTaskId: string | undefined;
   tasks: readonly ReceivingTask[] | undefined;
   topology: null | undefined | WarehouseTopology;
+  warehouseId: string;
 }
 
 const WarehouseWorkspaceScene = ({
-  balances, isLoading, label, preferredTaskId, scannedCell, selectedCellId, tasks, topology,
+  balances, isLoading, label, picking, preferredTaskId, scannedCell, selectedCellId, tasks, topology, warehouseId,
 }: WarehouseWorkspaceSceneProps): ReactElement => {
   const { createSectionTranslator, t } = useI18n();
   const navigate = useNavigate();
   const { focusRequest } = useAddress();
+  const canViewTrips = useCan(PermissionCode.TRIP_VIEW, { kind: 'organization' });
   const areaId = topology?.receivingArea?.id;
   const hasDock = topology?.receivingArea?.unloadingPoint?.position !== undefined;
+  const hasLocalTasks = picking?.some(task => task.warehouseId === warehouseId) === true
+    || tasks?.some(task => task.warehouseId === warehouseId && task.receivingAreaId === areaId) === true;
+  const canLoadTrips = canViewTrips && hasDock && hasLocalTasks;
+  const tripQuery = useTrips(canLoadTrips);
+  const trips = canLoadTrips && !isReadAccessDenied(tripQuery.error) ? tripQuery.data : undefined;
   const cargo = useMemo(
-    () => tasks === undefined ? undefined : projectWarehouseCargo(tasks, areaId, hasDock, preferredTaskId),
-    [areaId, hasDock, preferredTaskId, tasks],
+    () => tasks === undefined && picking === undefined
+      ? undefined
+      : projectWarehouseCargo(tasks ?? [], areaId, hasDock, preferredTaskId, { picking, trips, warehouseId }),
+    [areaId, hasDock, picking, preferredTaskId, tasks, trips, warehouseId],
   );
 
   const handleCellSelect = useCallback((id: string): void => {

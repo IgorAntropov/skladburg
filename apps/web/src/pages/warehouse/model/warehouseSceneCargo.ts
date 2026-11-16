@@ -2,6 +2,7 @@ export interface WarehouseCargoUnitValue {
   cellId: string | undefined;
   expectedUnitId: string;
   id: string;
+  isOutbound?: boolean;
   location: CargoLocationValue;
   slot: number;
   taskId: string;
@@ -10,7 +11,9 @@ export interface WarehouseCargoUnitValue {
 
 export interface WarehouseCargoValue {
   dockTaskId: string | undefined;
+  dockTripId?: string | undefined;
   hasDock: boolean;
+  shippedUnitIds?: ReadonlySet<string> | undefined;
   units: readonly WarehouseCargoUnitValue[];
 }
 
@@ -32,6 +35,14 @@ export const readWarehouseCargoMoves = (
   const moves: WarehouseCargoMoveValue[] = [];
   for (const unit of current.units) {
     const previous = before.get(unit.expectedUnitId);
+    if (unit.isOutbound === true) {
+      if (prev.hasDock && current.hasDock && previous?.isOutbound === true && previous.taskId === unit.taskId
+        && previous.location === 'cell' && unit.location === 'truck' && prev.dockTaskId === unit.taskId
+        && (current.dockTaskId === unit.taskId || current.dockTaskId === undefined)) {
+        moves.push({ ...unit, stops: ['cell', 'truck'] });
+      }
+      continue;
+    }
     if (unit.location === 'truck' || unit.location === previous?.location) {
       continue;
     }

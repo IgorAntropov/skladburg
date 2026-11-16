@@ -1,4 +1,5 @@
 import { create } from '@bufbuild/protobuf';
+import { StockBalanceSchema } from '@skladburg/contracts/wms/v1/stock';
 import { WarehouseTopologySchema } from '@skladburg/contracts/wms/v1/topology';
 import {
   describe,
@@ -12,7 +13,10 @@ import type {
 } from '../model/warehouseSceneCargo';
 
 import { isWarehouseAisleSegmentOpen } from './warehouseAislePath';
-import { buildWarehouseCargoTransfers } from './warehouseCargoPositions';
+import {
+  buildWarehouseCargoTransfers,
+  buildWarehouseCargoVisuals,
+} from './warehouseCargoPositions';
 import {
   advanceWarehouseForklift,
   createWarehouseForkliftPlayback,
@@ -65,7 +69,60 @@ const placed = {
   units: [{ ...receivedUnit, cellId: 'upper-cell', location: 'cell', slot: 1 }],
 } satisfies WarehouseCargoValue;
 
+const pickedOutbound = {
+  cellId: 'upper-cell',
+  expectedUnitId: 'shipment:pallet',
+  id: 'pallet',
+  isOutbound: true,
+  location: 'cell',
+  slot: 0,
+  taskId: 'dispatch',
+  truckSlot: 0,
+} satisfies WarehouseCargoUnitValue;
+
+const packedOutbound = { ...pickedOutbound, location: 'truck' } satisfies WarehouseCargoUnitValue;
+const picked = { dockTaskId: 'dispatch', dockTripId: 'trip', hasDock: true, units: [pickedOutbound] } satisfies WarehouseCargoValue;
+const packed = { ...picked, shippedUnitIds: new Set(['pallet']), units: [packedOutbound] } satisfies WarehouseCargoValue;
+
 describe('warehouse forklift jobs', () => {
+  it('collects a confirmed pallet from its upper cell and hands it into the assigned truck', () => {
+    const transfers = buildWarehouseCargoTransfers(layout, picked, packed);
+    const playback = createWarehouseForkliftPlayback(layout);
+    queueWarehouseForkliftJobs(playback, layout, transfers);
+    const [job] = playback.jobs;
+
+    expect(transfers).toMatchObject([{ dockTaskId: 'dispatch', from: { location: 'cell' }, id: 'pallet', to: { location: 'truck' } }]);
+    expect(job?.transfer.to.size).toEqual(job?.transfer.from.size);
+    expect(job?.phases.find(phase => phase.load === 'forks')?.from.lift).toBeCloseTo(1.5595 - FORKLIFT_FORK_HEIGHT);
+    const handoff = job?.phases.findIndex(phase => phase.load === 'handoff');
+    expect(handoff).toBeGreaterThan(0);
+    expect(job?.phases[handoff === undefined ? 0 : handoff + 1]?.load).toBe('target');
+    expect(buildWarehouseCargoTransfers(layout, picked, { ...packed, dockTripId: 'different-truck' })).toEqual([]);
+    expect(buildWarehouseCargoTransfers(layout, undefined, packed)).toEqual([]);
+  });
+
+  it('fills the back of the truck first when one confirmation loads several pallets', () => {
+    const units = [0, 1, 2, 3].map((truckSlot): WarehouseCargoUnitValue => ({
+      ...pickedOutbound, expectedUnitId: `shipment:${String(truckSlot)}`, id: String(truckSlot), truckSlot,
+    }));
+    const loaded = units.map((unit): WarehouseCargoUnitValue => ({ ...unit, location: 'truck' }));
+    const transfers = buildWarehouseCargoTransfers(layout, { ...picked, units }, { ...packed, units: loaded });
+
+    expect(transfers.map(({ id }) => id)).toEqual(['3', '2', '1', '0']);
+  });
+
+  it('keeps local cargo at the dock only during handling and hides the stale cell balance', () => {
+    const local = { ...packed, dockTaskId: undefined, dockTripId: undefined };
+    const balances = [create(StockBalanceSchema, { cellId: 'upper-cell', handlingUnit: { id: 'pallet' } })];
+
+    expect(buildWarehouseCargoTransfers(layout, { ...picked, dockTripId: undefined }, local)).toHaveLength(1);
+    expect(buildWarehouseCargoVisuals(layout, packed, balances, undefined))
+      .toMatchObject([{ id: 'pallet', requiresActiveDispatch: false, size: 0.6 * 0.78 }]);
+    expect(buildWarehouseCargoVisuals(layout, local, balances, 'dispatch')).toMatchObject([{ id: 'pallet', requiresActiveDispatch: true }]);
+    expect(buildWarehouseCargoVisuals(layout, local, balances, undefined)).toEqual([]);
+    expect(buildWarehouseCargoVisuals(layout, { ...local, units: [] }, balances, undefined)).toEqual([]);
+  });
+
   it('uses the actual previous staging slot and ignores historical and other dock cargo', () => {
     const [receipt] = buildWarehouseCargoTransfers(layout, truck, staging);
     const [placement] = buildWarehouseCargoTransfers(layout, staging, placed);

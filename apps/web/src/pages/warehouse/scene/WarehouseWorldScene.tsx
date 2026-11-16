@@ -1,6 +1,7 @@
 import type { ThreeEvent } from '@react-three/fiber';
 import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
 import type { ReactElement } from 'react';
+import type { Group } from 'three';
 
 import {
   useEffect,
@@ -67,6 +68,7 @@ const WarehouseWorldScene = ({
   const layout = getWarehouseLayout(data);
   const geometry = useMemo(() => new BoxGeometry(1, 1, 1), []);
   const kit = useMemo(() => createWarehouseGeometryKit(), []);
+  const dockTruck = useRef<Group>(null);
   const forklift = useRef<WarehouseForkliftRigValue>(null);
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const lastFocus = useRef<{ request: number; scan: WarehouseSceneInteractionValue['scannedCell'] }>(undefined);
@@ -108,13 +110,18 @@ const WarehouseWorldScene = ({
       {layout.cells.length > 0 && (
         <WarehouseInstances boxes={layout.cells} geometry={geometry} materialKey="buildingWall" onClick={handleCellClick} />
       )}
-      {cargo?.dockTaskId !== undefined && [...layout.truck].map(([key, boxes]) => (
-        <WarehouseInstances boxes={boxes} geometry={geometry} isShadowed={hasShadows} key={key} materialKey={key} />
-      ))}
+      {cargo?.hasDock === true && (
+        <group name="warehouse-dock-truck" ref={dockTruck} visible={false}>
+          {[...layout.truck].map(([key, boxes]) => (
+            <WarehouseInstances boxes={boxes} geometry={geometry} isShadowed={hasShadows} key={key} materialKey={key} />
+          ))}
+        </group>
+      )}
       <WarehouseForklift rig={forklift} />
       <WarehouseCargo
         balances={balances}
         cargo={cargo ?? EMPTY_CARGO}
+        dockTruck={dockTruck}
         forklift={forklift}
         geometry={geometry}
         key={cargo === undefined ? 'stock' : 'receiving'}

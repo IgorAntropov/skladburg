@@ -22,6 +22,7 @@ export interface WarehouseCargoEndpointValue extends CargoPlacementValue {
 }
 
 export interface WarehouseCargoTransferValue {
+  dockTaskId?: string | undefined;
   from: WarehouseCargoEndpointValue;
   id: string;
   to: WarehouseCargoEndpointValue;
@@ -29,6 +30,7 @@ export interface WarehouseCargoTransferValue {
 
 export interface WarehouseCargoVisualValue extends CargoPlacementValue {
   id: string;
+  requiresActiveDispatch?: boolean | undefined;
   stockUnitIds: readonly string[] | undefined;
 }
 
@@ -36,7 +38,7 @@ type WarehouseLayoutValue = ReturnType<typeof getWarehouseLayout>;
 
 const STAGING_MARGIN = 0.12;
 const CARGO_SIZE = 0.48;
-const TRUCK_SLOTS = 12;
+export const WAREHOUSE_TRUCK_SLOTS = 12;
 
 const readStaging = (layout: WarehouseLayoutValue, slot: number): CargoPlacementValue | undefined => {
   const area = layout.receiving;
@@ -91,7 +93,9 @@ const readPosition = (
   location: WarehouseCargoUnitValue['location'],
 ): CargoPlacementValue | undefined => {
   if (location === 'truck') {
-    return readTruck(layout, unit.truckSlot);
+    const truck = readTruck(layout, unit.truckSlot);
+    const source = unit.isOutbound === true ? readCell(layout, unit.cellId) : undefined;
+    return truck === undefined || source === undefined ? truck : { ...truck, size: source.size };
   }
   if (location === 'staging') {
     return readStaging(layout, unit.slot);
@@ -132,19 +136,27 @@ export const buildWarehouseCargoTransfers = (
 ): WarehouseCargoTransferValue[] => {
   const previousById = new Map(prev?.units.map(unit => [unit.expectedUnitId, unit]));
   const truckUnits = prev?.units.filter(unit =>
-    unit.location === 'truck' && unit.taskId === prev.dockTaskId && unit.truckSlot < TRUCK_SLOTS,
+    unit.location === 'truck' && unit.taskId === prev.dockTaskId && unit.truckSlot < WAREHOUSE_TRUCK_SLOTS,
   ) ?? [];
+  const isSameTruck = prev?.dockTripId === undefined || current.dockTripId === undefined || prev.dockTripId === current.dockTripId;
+  const moves = readWarehouseCargoMoves(prev, current).sort((first, second) =>
+    (second.isOutbound === true ? second.truckSlot + 1 : 0) - (first.isOutbound === true ? first.truckSlot + 1 : 0),
+  );
   const transfers: WarehouseCargoTransferValue[] = [];
-  for (const unit of readWarehouseCargoMoves(prev, current)) {
+  for (const unit of moves) {
     const previous = previousById.get(unit.expectedUnitId);
     if (previous === undefined) {
       continue;
     }
     const isTruckPickup = previous.location === 'truck' && current.hasDock;
-    const hasConfirmedHandoff = isTruckPickup && prev?.dockTaskId === previous.taskId && current.dockTaskId === previous.taskId
-      && previous.truckSlot < TRUCK_SLOTS
+    const isSameDockTask = prev?.dockTaskId === previous.taskId && current.dockTaskId === previous.taskId;
+    const hasConfirmedHandoff = isTruckPickup && isSameTruck && isSameDockTask && previous.truckSlot < WAREHOUSE_TRUCK_SLOTS
       && canReachDockHandoff(layout, previous, truckUnits);
     if (isTruckPickup && !hasConfirmedHandoff) {
+      continue;
+    }
+    const isDispatch = unit.isOutbound === true && unit.location === 'truck';
+    if (isDispatch && (!isSameTruck || unit.truckSlot >= WAREHOUSE_TRUCK_SLOTS || !canReachDockHandoff(layout, unit, truckUnits))) {
       continue;
     }
 
@@ -158,9 +170,13 @@ export const buildWarehouseCargoTransfers = (
 
       const to = { ...placement, cellId: source.cellId, location };
       if (from !== undefined) {
-        transfers.push({ from, id: unit.id, to });
+        const dockTaskId = from.location === 'truck' || to.location === 'truck' ? unit.taskId : undefined;
+        transfers.push({ dockTaskId, from, id: unit.id, to });
       }
       from = to;
+    }
+    if (isDispatch) {
+      truckUnits.push(unit);
     }
   }
   return transfers;
@@ -170,25 +186,29 @@ export const buildWarehouseCargoVisuals = (
   layout: WarehouseLayoutValue,
   current: WarehouseCargoValue,
   balances: readonly StockBalance[] | undefined,
+  activeDispatchId: string | undefined,
 ): WarehouseCargoVisualValue[] => {
   const result: WarehouseCargoVisualValue[] = [];
 
   for (const unit of current.units) {
-    const isHiddenTruck = unit.location === 'truck' && (unit.taskId !== current.dockTaskId || unit.truckSlot >= TRUCK_SLOTS);
+    const requiresActiveDispatch = current.dockTaskId === undefined && unit.isOutbound === true && unit.taskId === activeDispatchId;
+    const isTruck = unit.location === 'truck';
+    const isHiddenTruck = isTruck && (unit.truckSlot >= WAREHOUSE_TRUCK_SLOTS
+      || (unit.taskId !== current.dockTaskId && !requiresActiveDispatch));
     if (isHiddenTruck || unit.location === 'cell') {
       continue;
     }
 
     const target = readPosition(layout, unit, unit.location);
     if (target !== undefined) {
-      result.push({ ...target, id: unit.id, stockUnitIds: undefined });
+      result.push({ ...target, id: unit.id, requiresActiveDispatch, stockUnitIds: undefined });
     }
   }
 
   const occupiedCells = new Map<string, string[]>();
   for (const balance of balances ?? []) {
     const id = balance.handlingUnit?.id;
-    if (id === undefined || !layout.cellsById.has(balance.cellId)) {
+    if (id === undefined || current.shippedUnitIds?.has(id) === true || !layout.cellsById.has(balance.cellId)) {
       continue;
     }
     const ids = occupiedCells.get(balance.cellId);

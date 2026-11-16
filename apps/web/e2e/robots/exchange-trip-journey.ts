@@ -76,7 +76,7 @@ interface ExchangeDealScenarioValue {
 interface FundedExchangeTripValue {
   advanceClock: (elapsedMs: number) => Promise<void>;
   carrierPage: Page;
-  shipTrip: () => Promise<void>;
+  shipTrip: (confirmShipment?: () => Promise<void>) => Promise<void>;
   supplierPage: Page;
   tripAddress: string;
 }
@@ -84,6 +84,7 @@ interface FundedExchangeTripValue {
 interface FundExchangeTripOptionsValue extends Pick<AgreeExchangeDealOptionsValue, 'context' | 'page'> {
   automaticOfferAmount?: RegExp | undefined;
   kind: VehicleCargoKind;
+  originWarehouseId?: string | undefined;
   shipperSide: 'customer' | 'supplier';
 }
 
@@ -140,10 +141,15 @@ export const fundExchangeTrip = async ({
   automaticOfferAmount,
   context,
   kind,
+  originWarehouseId = APPLE_EXCHANGE_DEAL.originWarehouseId,
   page,
   shipperSide,
 }: FundExchangeTripOptionsValue): Promise<FundedExchangeTripValue> => {
-  const { advanceClock, carrierPage, supplierPage } = await agreeExchangeDeal({ context, page });
+  const { advanceClock, carrierPage, supplierPage } = await agreeExchangeDeal({
+    context,
+    page,
+    scenario: { ...APPLE_EXCHANGE_DEAL, originWarehouseId },
+  });
   const customer = createDealRobot(page);
   const supplier = createDealRobot(supplierPage);
   const customerFolder = createDealFolderRobot(page);
@@ -191,11 +197,11 @@ export const fundExchangeTrip = async ({
   await advanceClock(5 * MINUTE_MS);
   await supplier.expectStatus(DealStatus.PAID);
 
-  const shipTrip = async (): Promise<void> => {
+  const shipTrip = async (confirmShipment = supplierFolder.markShipped): Promise<void> => {
     const elapsedWaitingForOffer = automaticOfferAmount === undefined ? 0 : TRANSPORT_BOT_WAIT_MS;
 
     await advanceClock(DAY_MINUTES * MINUTE_MS - elapsedWaitingForOffer);
-    await supplierFolder.markShipped();
+    await confirmShipment();
     await carrierTransport.expectTripStatus(TripStatus.LOADED);
   };
 

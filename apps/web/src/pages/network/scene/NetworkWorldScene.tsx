@@ -19,7 +19,6 @@ import type {
 import {
   loadWorldTerrain,
   QUALITY_LEVEL_SETTINGS,
-  WorldTerrain,
 } from '@/shared/3d';
 import { createCachedModuleLoader } from '@/shared/lib/module-loader';
 
@@ -41,6 +40,7 @@ import { EMPTY_ID_LIST } from './geometry/emptyIdList';
 import { listSelectedIds } from './geometry/selectionFrame';
 import { useNetworkCameraFocus } from './interaction/useNetworkCameraFocus';
 import { useNetworkPointerPicking } from './interaction/useNetworkPointerPicking';
+import { NetworkLandscape } from './landscape/NetworkLandscape';
 import { NetworkBeveledBuildings } from './layers/NetworkBeveledBuildings';
 import { NetworkBuildings } from './layers/NetworkBuildings';
 import { NetworkCityLabels } from './layers/NetworkCityLabels';
@@ -191,7 +191,7 @@ const NetworkWorldScene = ({
 
   return (
     <>
-      <WorldTerrain level={level} terrain={terrain} />
+      <NetworkLandscape level={level} terrain={terrain} />
       <NetworkRoads hasShadowReceive={hasShadows} roads={layout.roads} />
       {tracks !== undefined && tracks.actors.length > 0 && <NetworkTripActorSlot layout={layout} tracks={tracks} />}
       <NetworkStreetLamps boxGeometry={boxGeometry} lamps={lamps} level={level} />

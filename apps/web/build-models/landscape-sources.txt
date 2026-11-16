@@ -1,0 +1,15 @@
+Network landscape model components
+
+3DAssets.dev, CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Alpine and Arctic Biomes
+https://3dassets.dev/packs/alpine-and-arctic-biomes
+
+Mature alpine spruce (20926)
+https://cdn.3dassets.dev/assets/20926/v1/model.glb
+Gendarme (20994)
+https://cdn.3dassets.dev/assets/20994/v1/model.glb
+
+The spruce hulls follow cross sections sampled from the original foliage.
+The tall rock mesh is reduced to 20 triangles and fitted to the terrain footprint.

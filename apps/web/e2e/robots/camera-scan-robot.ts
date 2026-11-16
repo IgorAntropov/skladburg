@@ -6,6 +6,7 @@ import type {
 import {
   code128,
   drawingSVG,
+  gs1datamatrix,
   qrcode,
 } from '@bwip-js/generic';
 import { expect } from '@playwright/test';
@@ -109,11 +110,21 @@ export const setCameraTestVisibility = async (page: Page, isHidden: boolean): Pr
   }, isHidden);
 };
 
-export const showCameraCode = async (page: Page, value: string, kind: 'cell' | 'qr'): Promise<void> => {
-  const drawing = drawingSVG();
-  const symbol = kind === 'cell'
-    ? code128({ bcid: 'code128', height: 18, padding: 6, scale: 3, text: value }, drawing)
-    : qrcode({ bcid: 'qrcode', padding: 4, scale: 5, text: value }, drawing);
+type CameraCodeKind = 'cell' | 'gs1datamatrix' | 'qr';
+
+const encodeCameraSymbol = (value: string, kind: CameraCodeKind): string => {
+  switch (kind) {
+    case 'cell':
+      return code128({ bcid: 'code128', height: 18, padding: 6, scale: 3, text: value }, drawingSVG());
+    case 'gs1datamatrix':
+      return gs1datamatrix({ bcid: 'gs1datamatrix', padding: 4, scale: 8, text: value }, drawingSVG());
+    case 'qr':
+      return qrcode({ bcid: 'qrcode', padding: 4, scale: 5, text: value }, drawingSVG());
+  }
+};
+
+export const showCameraCode = async (page: Page, value: string, kind: CameraCodeKind): Promise<void> => {
+  const symbol = encodeCameraSymbol(value, kind);
   const svg = symbol.replace(/^<svg viewBox="0 0 (\d+) (\d+)"/u, '<svg width="$1" height="$2" viewBox="0 0 $1 $2"');
   await page.evaluate(async (src) => {
     const target: CameraTestWindowValue = window;

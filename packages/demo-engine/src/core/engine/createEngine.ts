@@ -463,7 +463,10 @@ export const createEngineWithTasks = async (
   };
 };
 
-const loadDemoSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<EngineSnapshotValue> => {
+const loadDemoSeedSnapshot = async (
+  seed: EngineSeedValue | undefined,
+  isDemoWarehouseEnabled: boolean | undefined,
+): Promise<EngineSnapshotValue> => {
   const snapshot = await loadSeedSnapshot(seed);
 
   if (seed !== undefined) {
@@ -471,10 +474,20 @@ const loadDemoSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<
   }
 
   try {
-    const { addSeedDealHistory } = await import('../seed/seedDealHistory');
+    const [{ addSeedDealHistory }, receiving] = await Promise.all([
+      import('../seed/seedDealHistory'),
+      isDemoWarehouseEnabled === true ? import('../seed/seedReceivingExamples') : undefined,
+    ]);
+    const examples = receiving?.createSeedReceivingExamples(snapshot);
 
-    return await addSeedDealHistory(snapshot, (storage, realTime) =>
-      createEngineWithTasks({ epoch: 'seed', realTime, storage }, runtime => [createDeferredPaymentTask(runtime)]));
+    return await addSeedDealHistory(examples?.snapshot ?? snapshot, (storage, realTime, wmsInboundManifests) =>
+      createEngineWithTasks({
+        epoch: 'seed',
+        realTime,
+        storage,
+        wmsInboundManifests,
+        wmsInboundWarehouseIds: examples?.routes.map(route => route.customer.warehouseId),
+      }, runtime => [createDeferredPaymentTask(runtime)]), examples?.routes);
   }
   catch (error) {
     throw new SeedLoadError(error);
@@ -482,4 +495,4 @@ const loadDemoSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<
 };
 
 export const createEngine = (options: CreateEngineOptionsValue): Promise<IDemoEngine> =>
-  createEngineWithTasks(options, createEngineTasks, loadDemoSeedSnapshot);
+  createEngineWithTasks(options, createEngineTasks, seed => loadDemoSeedSnapshot(seed, options.isDemoWarehouseEnabled));

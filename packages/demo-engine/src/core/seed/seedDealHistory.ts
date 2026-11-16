@@ -28,6 +28,7 @@ import { ACTING_ORGANIZATION_HEADER } from '@skladburg/contracts/runtime';
 
 import type { CalendarDateValue } from '../calendar/index';
 import type { IDemoEngine } from '../engine/engineTypes';
+import type { ReceivingManifestValue } from '../modules/wms/inboundPlan';
 import type {
   EngineSnapshotValue,
   IEngineStorage,
@@ -49,8 +50,16 @@ import {
   SeedWarehouseId,
 } from './seedIds';
 
+export interface HistoryRouteValue {
+  cityId: string;
+  customer: HistoryPartyValue;
+  orders: readonly HistoryOrderValue[];
+  supplier: HistoryPartyValue;
+}
+
 interface HistoryOrderValue {
   listingId: string;
+  manifest?: ReceivingManifestValue | undefined;
   quantity: bigint;
   submittedAtMs: number;
 }
@@ -59,13 +68,6 @@ interface HistoryPartyValue {
   organizationId: string;
   userId: string;
   warehouseId: string;
-}
-
-interface HistoryRouteValue {
-  cityId: string;
-  customer: HistoryPartyValue;
-  orders: readonly HistoryOrderValue[];
-  supplier: HistoryPartyValue;
 }
 
 const HISTORY_START_MS = Date.UTC(2026, 9, 5, 7);
@@ -122,7 +124,12 @@ const requireSeedValue = <TValue>(value: TValue | undefined, description: string
 
 export const addSeedDealHistory = async (
   snapshot: EngineSnapshotValue,
-  createReplayEngine: (storage: IEngineStorage, realTime: IRealTimeSource) => Promise<IDemoEngine>,
+  createReplayEngine: (
+    storage: IEngineStorage,
+    realTime: IRealTimeSource,
+    manifests: ReadonlyMap<string, ReceivingManifestValue>,
+  ) => Promise<IDemoEngine>,
+  receivingRoutes: readonly HistoryRouteValue[] = [],
 ): Promise<EngineSnapshotValue> => {
   const memberships = new Map(snapshot.collections.memberships);
   const directorRecord = requireSeedValue(memberships.get(SeedMembershipId.ADMIN_5), 'construction director');
@@ -137,7 +144,8 @@ export const addSeedDealHistory = async (
   let elapsedMs = 0;
   let identifier = 0;
   const nextId = (): string => `d4000000-0000-4000-8000-${String(++identifier).padStart(12, '0')}`;
-  const engine = await createReplayEngine(storage, { now: () => elapsedMs });
+  const manifests = new Map<string, ReceivingManifestValue>();
+  const engine = await createReplayEngine(storage, { now: () => elapsedMs }, manifests);
   const deals = DealService.method;
   const documents = DocumentService.method;
   const payments = PaymentService.method;
@@ -229,11 +237,20 @@ export const addSeedDealHistory = async (
     }, customerHeaders);
     await tickAtBankDeadline(dealId);
     const { deal: paid } = await call(deals.getDeal, { dealId }, supplierHeaders);
+    if (order.manifest !== undefined) {
+      manifests.set(dealId, order.manifest);
+    }
     const { deal: shipped } = await call(deals.markDealShipped, {
       dealId, expectedVersion: requireSeedValue(paid, 'paid deal').version, idempotencyKey: nextId(),
     }, supplierHeaders);
     await tickAt(timestampMs(requireSeedValue(shipped?.deadlines?.arrivalDueAt, 'arrival deadline')));
     const { deal: arrived } = await call(deals.getDeal, { dealId }, customerHeaders);
+    if (order.manifest !== undefined) {
+      if (arrived?.status !== DealStatus.ARRIVED) {
+        throw new Error(`Seed deal ${dealId} did not arrive`);
+      }
+      return;
+    }
     await call(deals.acceptDeal, {
       dealId, expectedVersion: requireSeedValue(arrived, 'arrived deal').version, idempotencyKey: nextId(),
     }, customerHeaders);
@@ -244,7 +261,7 @@ export const addSeedDealHistory = async (
     }
   };
 
-  for (const route of HISTORY_ROUTES) {
+  for (const route of [...HISTORY_ROUTES, ...receivingRoutes]) {
     for (const order of route.orders) {
       await replayOrder(route, order);
     }

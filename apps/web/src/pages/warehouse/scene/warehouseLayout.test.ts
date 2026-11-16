@@ -32,6 +32,33 @@ describe('warehouse scene layout', () => {
     expect(cell?.position[1]).toBeCloseTo(2.147);
     expect(cell?.position[2]).toBeCloseTo(3.8);
     expect(cell?.size[0]).toBeCloseTo(0.8);
+    expect(layout.racks.frames.map(({ position }) => position[0])).toEqual([4, 6.4]);
+    expect(layout.racks.decks[0]?.size[2]).toBeCloseTo(1.6);
+    expect(layout.racks.decks[0]?.position[1]).toBeCloseTo(2.088);
+    const hasConcrete = layout.floor.get('warehouseWall')?.some(({ size }) => size[1] === 0.024);
+    expect(hasConcrete).toBe(true);
+  });
+
+  it('expands the slab to fit distant racks and bounds the number of floor joints', () => {
+    const layout = getWarehouseLayout(create(WarehouseTopologySchema, {
+      storageZones: [{
+        rows: [{
+          racks: [
+            { footprint: { depthMm: 1000, origin: { xMm: 2000, zMm: 3000 }, widthMm: 1600 } },
+            { footprint: { depthMm: 1600, origin: { xMm: 124_000, zMm: 69_000 }, widthMm: 3200 } },
+          ],
+        }],
+      }],
+    }));
+
+    expect(layout.racks.frames).toHaveLength(4);
+    expect(layout.world.home.centerX).toBeGreaterThan(60);
+    const floors = layout.floor.get('warehouseWall') ?? [];
+    const joints = layout.floor.get('plaza') ?? [];
+
+    expect(floors.some(({ size: [width, , depth] }) => width > 127 && depth > 70)).toBe(true);
+    expect(joints.length).toBeGreaterThan(0);
+    expect(joints.length).toBeLessThanOrEqual(64);
   });
 
   it('anchors the dock and truck at the configured point', () => {

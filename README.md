@@ -38,6 +38,7 @@ pnpm dev
 | `pnpm proto:generate`                | генерация типов и образа контракта из `.proto`                                                |
 | `pnpm --filter @skladburg/web icons` | перерисовка PNG-иконок приложения из SVG-мастеров `apps/web/build-icons/sources`              |
 | `pnpm --filter @skladburg/web models -- --commercial <папка> --industrial <папка>` | конвертация выбранных моделей Kenney в формат карты (`apps/web/public/models`); наборы City Kit Commercial и Industrial скачиваются с kenney.nl и в git не кладутся. Для пересборки двора добавь `--yard-container <GLB>` и `--yard-dock <GLB>` из [списка источников](apps/web/public/models/industrial/loading-yard-sources.txt). |
+| `node apps/web/build-models/convertWarehouseKit.ts <upright.glb> <deck.glb> <pallet.glb>` | пересборка облегчённых модулей склада из [CC0-моделей](apps/web/build-models/warehouse-kit-sources.txt) |
 
 ## Сквозные тесты
 

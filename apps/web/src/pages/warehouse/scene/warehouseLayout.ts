@@ -8,6 +8,11 @@ import type {
   WorldPaletteKeyValue,
 } from '@/shared/3d';
 
+import {
+  addWarehouseBox,
+  buildWarehouseFloor,
+} from './warehouseFloorLayout';
+
 export interface WarehouseBoxValue {
   position: VectorValue;
   size: VectorValue;
@@ -17,28 +22,36 @@ export interface WarehouseCellVisualValue extends WarehouseBoxValue {
   id: string;
 }
 
-type VectorValue = [number, number, number];
-
-interface WarehouseFloorValue {
+export interface WarehouseFloorValue {
   depth: number;
   width: number;
   x: number;
   z: number;
 }
 
-interface WarehouseLayoutValue {
-  boxes: ReadonlyMap<WorldPaletteKeyValue, readonly WarehouseBoxValue[]>;
+export interface WarehouseLayoutValue {
   cells: readonly WarehouseCellVisualValue[];
   cellsById: ReadonlyMap<string, WarehouseCellVisualValue>;
+  floor: ReadonlyMap<WorldPaletteKeyValue, readonly WarehouseBoxValue[]>;
+  racks: WarehouseRackLayoutValue;
   receiving: undefined | WarehouseReceivingLayoutValue;
   truck: ReadonlyMap<WorldPaletteKeyValue, readonly WarehouseBoxValue[]>;
   world: SceneWorldValue;
 }
 
-interface WarehouseReceivingLayoutValue extends WarehouseFloorValue {
+export interface WarehouseRackLayoutValue {
+  decks: readonly WarehouseBoxValue[];
+  dividers: readonly WarehouseBoxValue[];
+  frames: readonly WarehouseBoxValue[];
+  guards: readonly WarehouseBoxValue[];
+}
+
+export interface WarehouseReceivingLayoutValue extends WarehouseFloorValue {
   dock: undefined | { x: number; z: number };
   id: string;
 }
+
+type VectorValue = [number, number, number];
 
 const layouts = new WeakMap<WarehouseTopology, WarehouseLayoutValue>();
 const METER = 1000;
@@ -52,45 +65,33 @@ const readFloor = (rect: undefined | WarehouseFloorRect): undefined | WarehouseF
   return { depth: rect.depthMm / METER, width: rect.widthMm / METER, x: rect.origin.xMm / METER, z: rect.origin.zMm / METER };
 };
 
-const addBox = (
-  layers: Map<WorldPaletteKeyValue, WarehouseBoxValue[]>,
-  material: WorldPaletteKeyValue,
-  position: VectorValue,
-  size: VectorValue,
-): void => {
-  const box = { position, size };
-  const layer = layers.get(material);
-  if (layer === undefined) {
-    layers.set(material, [box]);
-  }
-  else {
-    layer.push(box);
-  }
-};
-
 const buildTruck = ({ x, z }: NonNullable<WarehouseReceivingLayoutValue['dock']>): Map<WorldPaletteKeyValue, WarehouseBoxValue[]> => {
   const boxes = new Map<WorldPaletteKeyValue, WarehouseBoxValue[]>();
-  addBox(boxes, 'road', [x, 0.36, z - 3.1], [1.36, 0.29, 5.8]);
-  addBox(boxes, 'warehouseWall', [x, 0.64, z - 2.16], [1.68, 0.2, 4.04]);
-  addBox(boxes, 'warehouseRoof', [x, 1, z - 4.13], [1.68, 0.7, 0.12]);
-  addBox(boxes, 'sideCarrier', [x, 0.91, z - 5.1], [1.59, 1.15, 1.58]);
-  addBox(boxes, 'windowGlass', [x, 1.35, z - 5.89], [1.2, 0.35, 0.03]);
-  addBox(boxes, 'sideRim', [x, 0.52, z - 5.92], [1.66, 0.14, 0.12]);
+  addWarehouseBox(boxes, 'road', [x, 0.36, z - 3.1], [1.36, 0.29, 5.8]);
+  addWarehouseBox(boxes, 'warehouseWall', [x, 0.64, z - 2.16], [1.68, 0.2, 4.04]);
+  addWarehouseBox(boxes, 'warehouseRoof', [x, 1, z - 4.13], [1.68, 0.7, 0.12]);
+  addWarehouseBox(boxes, 'sideCarrier', [x, 0.91, z - 5.1], [1.59, 1.15, 1.58]);
+  addWarehouseBox(boxes, 'windowGlass', [x, 1.35, z - 5.89], [1.2, 0.35, 0.03]);
+  addWarehouseBox(boxes, 'sideRim', [x, 0.52, z - 5.92], [1.66, 0.14, 0.12]);
   for (const offset of [-0.78, 0.78]) {
-    addBox(boxes, 'warehouseRoof', [x + offset, 0.89, z - 2.17], [0.1, 0.36, 3.96]);
-    addBox(boxes, 'windowGlass', [x + offset, 1.27, z - 5.19], [0.05, 0.35, 0.73]);
-    addBox(boxes, 'windowGlow', [x + offset * 0.79, 0.67, z - 5.93], [0.22, 0.13, 0.04]);
+    addWarehouseBox(boxes, 'warehouseRoof', [x + offset, 0.89, z - 2.17], [0.1, 0.36, 3.96]);
+    addWarehouseBox(boxes, 'windowGlass', [x + offset, 1.27, z - 5.19], [0.05, 0.35, 0.73]);
+    addWarehouseBox(boxes, 'windowGlow', [x + offset * 0.79, 0.67, z - 5.93], [0.22, 0.13, 0.04]);
     for (const axle of [0.96, 1.58, 4.83, 5.63]) {
-      addBox(boxes, 'road', [x + offset, 0.26, z - axle], [0.25, 0.52, 0.52]);
-      addBox(boxes, 'sideRim', [x + offset * 1.17, 0.26, z - axle], [0.04, 0.2, 0.2]);
+      addWarehouseBox(boxes, 'road', [x + offset, 0.26, z - axle], [0.25, 0.52, 0.52]);
+      addWarehouseBox(boxes, 'sideRim', [x + offset * 1.17, 0.26, z - axle], [0.04, 0.2, 0.2]);
     }
   }
   return boxes;
 };
 
 const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue => {
-  const boxes = new Map<WorldPaletteKeyValue, WarehouseBoxValue[]>();
   const cells: WarehouseCellVisualValue[] = [];
+  const aisleMarks: WarehouseBoxValue[] = [];
+  const decks: WarehouseBoxValue[] = [];
+  const dividers: WarehouseBoxValue[] = [];
+  const frames: WarehouseBoxValue[] = [];
+  const guards: WarehouseBoxValue[] = [];
   const floor = readFloor(topology.receivingArea?.footprint);
   const point = topology.receivingArea?.unloadingPoint?.position;
   const receiving = floor === undefined || topology.receivingArea === undefined
@@ -103,8 +104,8 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
   const dock = receiving?.dock;
   let minX = Math.min(0, (dock?.x ?? 2) - 1.5);
   let minZ = Math.min(0, (dock?.z ?? TRUCK_LENGTH) - TRUCK_LENGTH);
-  let maxX = receiving === undefined ? 6 : receiving.x + receiving.width;
-  let maxZ = receiving === undefined ? 4 : receiving.z + receiving.depth;
+  let maxX = Math.max(receiving === undefined ? 6 : receiving.x + receiving.width, (dock?.x ?? 0) + 1.5);
+  let maxZ = Math.max(receiving === undefined ? 4 : receiving.z + receiving.depth, dock?.z ?? 0);
   let maxHeight = 2.4;
 
   for (const zone of topology.storageZones) {
@@ -123,8 +124,7 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
         for (const tier of rack.tiers) {
           const elevation = tier.elevationMm / METER;
           height = Math.max(height, elevation + 0.75);
-          addBox(boxes, 'warehouseWall', [centerX, elevation + 0.05, centerZ], [width, 0.1, depth]);
-          addBox(boxes, 'buildingBrick', [centerX, elevation + 0.1, z + depth], [width, 0.11, 0.055]);
+          decks.push({ position: [centerX, elevation + 0.088, centerZ], size: [width, 0.15, depth] });
           for (const cell of tier.cells) {
             const cellWidth = cell.widthMm / METER;
             const start = x + cell.xOffsetMm / METER;
@@ -133,45 +133,29 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
               position: [start + cellWidth / 2, elevation + 0.147, centerZ],
               size: [cellWidth, 0.025, depth],
             });
-            addBox(boxes, 'warehouseRoof', [start + 0.015, elevation + 0.16, centerZ], [0.03, 0.09, depth]);
+            const dividerWidth = Math.min(0.026, cellWidth / 5);
+            dividers.push({
+              position: [start + dividerWidth / 2, elevation + 0.16, centerZ],
+              size: [dividerWidth, 0.045, depth * 0.96],
+            });
           }
         }
 
         for (const sideX of [x, x + width]) {
-          for (const sideZ of [z, z + depth]) {
-            addBox(boxes, 'warehouseRoof', [sideX, height / 2, sideZ], [0.055, height, 0.055]);
-          }
+          const frameWidth = Math.min(0.09, width * 0.14);
+          frames.push({ position: [sideX, height / 2, centerZ], size: [frameWidth, height, depth] });
+          guards.push({
+            position: [sideX, 0.15, z + depth + 0.026],
+            size: [frameWidth * 1.35, 0.3, Math.min(0.095, depth / 4)],
+          });
         }
 
-        addBox(boxes, 'sideRim', [centerX, 0.007, centerZ + depth / 2 + 0.18], [width + 0.2, 0.015, 0.035]);
+        aisleMarks.push({ position: [centerX, 0.012, z + depth + 0.18], size: [width, 0.012, 0.039] });
         minX = Math.min(minX, x);
         minZ = Math.min(minZ, z);
         maxX = Math.max(maxX, x + width);
         maxZ = Math.max(maxZ, z + depth);
         maxHeight = Math.max(maxHeight, height);
-      }
-    }
-  }
-
-  if (receiving !== undefined) {
-    const { depth, width, x, z } = receiving;
-    addBox(boxes, 'plaza', [x + width / 2, 0.019, z + depth / 2], [width, 0.038, depth]);
-    for (const edge of [x, x + width]) {
-      addBox(boxes, 'sand', [edge, 0.04, z + depth / 2], [0.055, 0.018, depth]);
-    }
-    addBox(boxes, 'sand', [x + width / 2, 0.04, z + depth], [width, 0.018, 0.055]);
-  }
-
-  if (dock !== undefined) {
-    const { x, z } = dock;
-    addBox(boxes, 'road', [x, 0.01, z - 3.22], [2.5, 0.02, 6.44]);
-    addBox(boxes, 'warehouseRoof', [x, 0.16, z + 0.18], [1.86, 0.32, 0.65]);
-    addBox(boxes, 'warehouseWall', [x, 2.32, z], [2.16, 0.2, 0.24]);
-    for (const offset of [-1.02, 1.02]) {
-      addBox(boxes, 'warehouseWall', [x + offset, 1.1, z], [0.2, 2.2, 0.24]);
-      addBox(boxes, 'lampGlow', [x + offset, 2.17, z - 0.13], [0.12, 0.11, 0.03]);
-      for (let index = 0; index < 6; index += 1) {
-        addBox(boxes, 'sand', [x + offset * 1.15, 0.025, z - 0.6 - index], [0.045, 0.02, 0.55]);
       }
     }
   }
@@ -186,19 +170,11 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
   const centerZ = (minZ + maxZ) / 2;
   const radius = Math.max(4.5, Math.hypot(width, depth) * 0.52);
   const padding = 18 + radius * 5;
-  const backWallZ = dock === undefined ? minZ : dock.z;
-  const wallStartX = dock === undefined ? minX : dock.x + 1.12;
-  if (wallStartX < maxX) {
-    addBox(boxes, 'warehouseWall', [(wallStartX + maxX) / 2, 0.44, backWallZ], [maxX - wallStartX, 0.88, 0.16]);
-  }
-  addBox(boxes, 'warehouseWall', [minX, 0.44, (backWallZ + maxZ) / 2], [0.16, 0.88, maxZ - backWallZ]);
-  addBox(boxes, 'groundAlt', [centerX, -0.14, centerZ], [width, 0.28, depth]);
-  addBox(boxes, 'ground', [centerX, -0.33, centerZ], [width + 2 * padding, 0.1, depth + 2 * padding]);
-
   return {
-    boxes,
     cells,
     cellsById: new Map(cells.map(cell => [cell.id, cell])),
+    floor: buildWarehouseFloor({ depth, width, x: minX, z: minZ }, receiving, aisleMarks, padding),
+    racks: { decks, dividers, frames, guards },
     receiving,
     truck: dock === undefined ? new Map() : buildTruck(dock),
     world: {

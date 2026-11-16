@@ -26,9 +26,12 @@ import type {
   WarehouseCellVisualValue,
 } from './warehouseLayout';
 
+import { createWarehouseGeometryKit } from './createWarehouseGeometryKit';
 import { WarehouseCargo } from './WarehouseCargo';
+import { WarehouseFloor } from './WarehouseFloor';
 import { WarehouseInstances } from './WarehouseInstances';
 import { getWarehouseLayout } from './warehouseLayout';
+import { WarehouseRacks } from './WarehouseRacks';
 
 const TAP_SLOP_PX = 5;
 const EMPTY_CARGO: WarehouseCargoValue = { dockTaskId: undefined, hasDock: false, units: [] };
@@ -61,6 +64,7 @@ const WarehouseWorldScene = ({
   const rig = useSceneCameraRig();
   const layout = getWarehouseLayout(data);
   const geometry = useMemo(() => new BoxGeometry(1, 1, 1), []);
+  const kit = useMemo(() => createWarehouseGeometryKit(), []);
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const lastFocus = useRef<{ request: number; scan: WarehouseSceneInteractionValue['scannedCell'] }>(undefined);
   const { balances, cargo, focusRequest, onCellSelect, scannedCell, selectedCellId } = interaction;
@@ -78,7 +82,10 @@ const WarehouseWorldScene = ({
 
   useEffect(() => (): void => {
     geometry.dispose();
-  }, [geometry]);
+    for (const part of Object.values(kit)) {
+      part.dispose();
+    }
+  }, [geometry, kit]);
 
   useEffect(() => {
     const prev = lastFocus.current;
@@ -93,17 +100,10 @@ const WarehouseWorldScene = ({
 
   return (
     <>
-      {[...layout.boxes].map(([key, boxes]) => (
-        <WarehouseInstances
-          boxes={boxes}
-          geometry={geometry}
-          isShadowed={hasShadows && key !== 'ground'}
-          key={key}
-          materialKey={key}
-        />
-      ))}
+      <WarehouseFloor batches={layout.floor} geometry={geometry} hasShadows={hasShadows} />
+      <WarehouseRacks box={geometry} kit={kit} layout={layout.racks} level={level} />
       {layout.cells.length > 0 && (
-        <WarehouseInstances boxes={layout.cells} geometry={geometry} materialKey="warehouseWall" onClick={handleCellClick} />
+        <WarehouseInstances boxes={layout.cells} geometry={geometry} materialKey="buildingWall" onClick={handleCellClick} />
       )}
       {cargo?.dockTaskId !== undefined && [...layout.truck].map(([key, boxes]) => (
         <WarehouseInstances boxes={boxes} geometry={geometry} isShadowed={hasShadows} key={key} materialKey={key} />
@@ -113,6 +113,7 @@ const WarehouseWorldScene = ({
         cargo={cargo ?? EMPTY_CARGO}
         geometry={geometry}
         key={cargo === undefined ? 'stock' : 'receiving'}
+        kit={kit}
         layout={layout}
       />
       {selectionBoxes.length > 0 && <WarehouseInstances boxes={selectionBoxes} geometry={geometry} materialKey="lampGlow" />}

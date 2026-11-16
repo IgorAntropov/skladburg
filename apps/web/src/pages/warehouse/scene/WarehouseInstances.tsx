@@ -1,7 +1,7 @@
 import type { ThreeEvent } from '@react-three/fiber';
 import type { ReactElement } from 'react';
 import type {
-  BoxGeometry,
+  BufferGeometry,
   InstancedMesh,
 } from 'three';
 
@@ -20,7 +20,7 @@ import type { WarehouseBoxValue } from './warehouseLayout';
 
 interface WarehouseInstancesProps {
   boxes: readonly WarehouseBoxValue[];
-  geometry: BoxGeometry;
+  geometry: BufferGeometry;
   isShadowed?: boolean | undefined;
   materialKey: WorldPaletteKeyValue;
   onClick?: ((event: ThreeEvent<MouseEvent>) => void) | undefined;
@@ -28,7 +28,7 @@ interface WarehouseInstancesProps {
 
 export const WarehouseInstances = ({
   boxes, geometry, isShadowed = false, materialKey, onClick,
-}: WarehouseInstancesProps): ReactElement => {
+}: WarehouseInstancesProps): null | ReactElement => {
   const material = useWorldMaterial(materialKey);
   const invalidate = useThree(state => state.invalidate);
   const ref = useRef<InstancedMesh>(null);
@@ -46,7 +46,11 @@ export const WarehouseInstances = ({
     mesh.instanceMatrix.needsUpdate = true;
     mesh.computeBoundingSphere();
     invalidate();
-  }, [boxes, invalidate]);
+  }, [boxes, geometry, invalidate, material]);
+
+  if (boxes.length === 0) {
+    return null;
+  }
 
   return (
     <instancedMesh

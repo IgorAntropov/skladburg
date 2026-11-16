@@ -21,6 +21,7 @@ import {
 import { useWorldMaterial } from '@/shared/3d';
 
 import type { WarehouseCargoValue } from '../model/warehouseSceneCargo';
+import type { WarehouseGeometryKitValue } from './createWarehouseGeometryKit';
 import type { getWarehouseLayout } from './warehouseLayout';
 
 import { buildWarehouseCargoVisuals } from './warehouseCargoPositions';
@@ -32,6 +33,7 @@ interface CargoActorValue {
 }
 
 interface CargoMeshesValue {
+  boards: InstancedMesh | undefined;
   body: InstancedMesh;
   skid: InstancedMesh;
   visibleCargoIds: Set<string>;
@@ -41,6 +43,7 @@ interface WarehouseCargoProps {
   balances: readonly StockBalance[] | undefined;
   cargo: WarehouseCargoValue;
   geometry: BoxGeometry;
+  kit: WarehouseGeometryKitValue;
   layout: ReturnType<typeof getWarehouseLayout>;
 }
 
@@ -48,6 +51,7 @@ type WarehouseCargoVisualValue = ReturnType<typeof buildWarehouseCargoVisuals>[n
 
 const LEG_SECONDS = 0.54;
 const MAX_FRAME_DELTA = 1 / 25;
+const MAX_DETAILED_PALLETS = 256;
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 const paint = (meshes: CargoMeshesValue, actors: readonly CargoActorValue[], matrix: Matrix4): void => {
@@ -90,9 +94,16 @@ const paint = (meshes: CargoMeshesValue, actors: readonly CargoActorValue[], mat
     const y = from === undefined || to === undefined ? targetY : from[1] + (to[1] - from[1]) * ease + Math.sin(fraction * Math.PI) * 0.1;
     const z = from === undefined || to === undefined ? targetZ : from[2] + (to[2] - from[2]) * ease;
     const { size } = visual;
-    matrix.makeScale(size, size * 0.78, size * 0.86).setPosition(x, y + size * 0.48, z);
-    meshes.body.setMatrixAt(count, matrix);
-    matrix.makeScale(size * 1.08, size * 0.1, size * 0.95).setPosition(x, y + size * 0.05, z);
+    if (meshes.boards === undefined) {
+      matrix.makeScale(size, size * 0.78, size * 0.86).setPosition(x, y + size * 0.48, z);
+      meshes.body.setMatrixAt(count, matrix);
+      matrix.makeScale(size * 1.08, size * 0.1, size * 0.95).setPosition(x, y + size * 0.05, z);
+    }
+    else {
+      matrix.makeScale(size * 1.08, size * 0.88, size * 0.95).setPosition(x, y + size * 0.44, z);
+      meshes.body.setMatrixAt(count, matrix);
+      meshes.boards.setMatrixAt(count, matrix);
+    }
     meshes.skid.setMatrixAt(count, matrix);
     count += 1;
   }
@@ -100,6 +111,10 @@ const paint = (meshes: CargoMeshesValue, actors: readonly CargoActorValue[], mat
   meshes.skid.count = count;
   meshes.body.instanceMatrix.needsUpdate = true;
   meshes.skid.instanceMatrix.needsUpdate = true;
+  if (meshes.boards !== undefined) {
+    meshes.boards.count = count;
+    meshes.boards.instanceMatrix.needsUpdate = true;
+  }
 };
 
 const advanceCargo = (
@@ -126,11 +141,13 @@ const advanceCargo = (
   return isMoving;
 };
 
-export const WarehouseCargo = ({ balances, cargo, geometry, layout }: WarehouseCargoProps): ReactElement => {
+export const WarehouseCargo = ({ balances, cargo, geometry, kit, layout }: WarehouseCargoProps): ReactElement => {
   const invalidate = useThree(state => state.invalidate);
-  const bodyMaterial = useWorldMaterial('sand');
-  const skidMaterial = useWorldMaterial('buildingBrick');
+  const bodyMaterial = useWorldMaterial('buildingRoofAlt');
+  const boardsMaterial = useWorldMaterial('buildingWall');
+  const skidMaterial = useWorldMaterial('treeTrunk');
   const body = useRef<InstancedMesh>(null);
+  const boards = useRef<InstancedMesh>(null);
   const skid = useRef<InstancedMesh>(null);
   const prev = useRef<WarehouseCargoValue>(undefined);
   const motion = useRef<MediaQueryList | undefined>(undefined);
@@ -139,6 +156,7 @@ export const WarehouseCargo = ({ balances, cargo, geometry, layout }: WarehouseC
   const scratch = useRef<Matrix4 | undefined>(undefined);
   const capacity = cargo.units.length + (balances?.length ?? 0) + 1;
   const bucket = 2 ** Math.ceil(Math.log2(capacity));
+  const hasDetailedPallets = bucket <= MAX_DETAILED_PALLETS;
 
   useLayoutEffect(() => {
     const query = window.matchMedia(REDUCED_MOTION_QUERY);
@@ -156,7 +174,12 @@ export const WarehouseCargo = ({ balances, cargo, geometry, layout }: WarehouseC
     if (body.current === null || skid.current === null) {
       return;
     }
-    const currentMeshes = { body: body.current, skid: skid.current, visibleCargoIds: new Set<string>() };
+    const currentMeshes = {
+      boards: hasDetailedPallets ? boards.current ?? undefined : undefined,
+      body: body.current,
+      skid: skid.current,
+      visibleCargoIds: new Set<string>(),
+    };
     meshes.current = currentMeshes;
     const matrix = scratch.current ?? new Matrix4();
     scratch.current = matrix;
@@ -190,7 +213,7 @@ export const WarehouseCargo = ({ balances, cargo, geometry, layout }: WarehouseC
     prev.current = cargo;
     paint(currentMeshes, nextActors, matrix);
     invalidate();
-  }, [balances, bucket, cargo, invalidate, layout]);
+  }, [balances, bucket, cargo, hasDetailedPallets, invalidate, layout]);
 
   useFrame((_, delta) => {
     const matrix = scratch.current;
@@ -204,21 +227,30 @@ export const WarehouseCargo = ({ balances, cargo, geometry, layout }: WarehouseC
   });
 
   return (
-    <>
+    <group name="warehouse-cargo">
       <instancedMesh
-        args={[geometry, bodyMaterial, bucket]}
+        args={[hasDetailedPallets ? kit.palletLoad : geometry, bodyMaterial, bucket]}
         frustumCulled={false}
         instanceMatrix-usage={DynamicDrawUsage}
         receiveShadow
         ref={body}
       />
+      {hasDetailedPallets && (
+        <instancedMesh
+          args={[kit.palletBoards, boardsMaterial, bucket]}
+          frustumCulled={false}
+          instanceMatrix-usage={DynamicDrawUsage}
+          receiveShadow
+          ref={boards}
+        />
+      )}
       <instancedMesh
-        args={[geometry, skidMaterial, bucket]}
+        args={[hasDetailedPallets ? kit.palletBase : geometry, skidMaterial, bucket]}
         frustumCulled={false}
         instanceMatrix-usage={DynamicDrawUsage}
         receiveShadow
         ref={skid}
       />
-    </>
+    </group>
   );
 };

@@ -22,6 +22,7 @@ import {
 import { TransportRequestStatus } from '@skladburg/contracts/logistics/v1/logistics_records';
 import { WarehouseTopologySchema } from '@skladburg/contracts/wms/v1/topology';
 import { IDBFactory } from 'fake-indexeddb';
+import { deepStrictEqual } from 'node:assert/strict';
 import {
   beforeAll,
   describe,
@@ -224,7 +225,7 @@ it('preserves the pre-marketplace database and reloads a selected offer after re
   let selection: Omit<SelectTransportOfferRequest, '$typeName'>;
   try {
     const engine = await createEngine({ epoch: 'migrated-world', realTime, storage: migratedStorage });
-    expect(await migratedStorage.load()).toEqual({ ...original, schemaVersion: ENGINE_SCHEMA_VERSION });
+    deepStrictEqual(await migratedStorage.load(), { ...original, schemaVersion: ENGINE_SCHEMA_VERSION });
     selection = await selectCarrier(engine, deal);
   }
   finally {
@@ -308,7 +309,7 @@ describe('saved world migration with an active trip', () => {
     const storage = await createIndexedDbStorage({ databaseName: DATABASE_NAME, factory });
 
     try {
-      expect(await storage.load()).toEqual(old);
+      deepStrictEqual(await storage.load(), old);
       const replaceAll = storage.replaceAll;
       vi.spyOn(storage, 'replaceAll').mockImplementationOnce(next => replaceAll({
         ...next,
@@ -319,10 +320,10 @@ describe('saved world migration with an active trip', () => {
       }));
 
       await expect(createEngine({ epoch: 'failed', realTime, storage })).rejects.toMatchObject({ name: 'SeedLoadError' });
-      expect(await storage.load()).toEqual(old);
+      deepStrictEqual(await storage.load(), old);
 
       await createEngine({ epoch: 'migrated', realTime, storage });
-      expect(await storage.load()).toEqual(expected);
+      deepStrictEqual(await storage.load(), expected);
     }
     finally {
       storage.close();
@@ -332,7 +333,7 @@ describe('saved world migration with an active trip', () => {
 
     try {
       await createEngine({ epoch: 'reopened', realTime, storage: reopened });
-      expect(await reopened.load()).toEqual(expected);
+      deepStrictEqual(await reopened.load(), expected);
     }
     finally {
       reopened.close();

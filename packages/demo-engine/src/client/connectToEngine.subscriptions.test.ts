@@ -223,7 +223,7 @@ describe('connectToEngine subscriptions', () => {
   });
 
   it('delivers all events of one message in one call and reports a repeated subscribed message', async () => {
-    const { connection, createOrganizationClient, stub } = await createClientHarness();
+    const { connection, stub } = await createClientHarness();
     const recorded = createRecordedHandlers();
     connection.subscribe(CUSTOMER_CHANNEL, createCustomerHeaders(), recorded.handlers);
     await vi.waitFor(() => {
@@ -237,15 +237,16 @@ describe('connectToEngine subscriptions', () => {
       subscriptionId,
       type: 'events',
     });
-    await createOrganizationClient(true).listWarehouses({}, customerOptions);
+    await vi.waitFor(() => {
+      expect(recorded.events).toHaveLength(1);
+    });
 
     expect(recorded.positions).toEqual([{ epoch: 'epoch-1', seq: 0n }, { epoch: 'epoch-2', seq: 5n }]);
-    expect(recorded.events).toHaveLength(1);
     expect(recorded.events[0]?.map(event => event.seq)).toEqual([1n, 2n, 3n]);
   });
 
   it('routes messages to the subscription they belong to', async () => {
-    const { connection, createOrganizationClient, stub } = await createClientHarness();
+    const { connection, stub } = await createClientHarness();
     const first = createRecordedHandlers();
     const second = createRecordedHandlers();
     connection.subscribe(CUSTOMER_CHANNEL, createCustomerHeaders(), first.handlers);
@@ -256,10 +257,11 @@ describe('connectToEngine subscriptions', () => {
     const secondId = stub.subscriptionIds()[1] ?? '';
 
     stub.send({ events: [encodeEvent(create(EventSchema, { seq: 7n }))], subscriptionId: secondId, type: 'events' });
-    await createOrganizationClient(true).listWarehouses({}, customerOptions);
+    await vi.waitFor(() => {
+      expect(second.events).toHaveLength(1);
+    });
 
     expect(first.events).toHaveLength(0);
-    expect(second.events).toHaveLength(1);
   });
 
   it('keeps delivering after a handler throws and logs the failure', async () => {

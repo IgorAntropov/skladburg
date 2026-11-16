@@ -32,6 +32,11 @@ export interface WarehouseCargoVisualValue extends CargoPlacementValue {
   id: string;
   requiresActiveDispatch?: boolean | undefined;
   stockUnitIds: readonly string[] | undefined;
+  truckTaskId?: string | undefined;
+}
+
+export interface WarehouseDeparturePalletValue extends CargoPlacementValue {
+  id: string;
 }
 
 type WarehouseLayoutValue = ReturnType<typeof getWarehouseLayout>;
@@ -133,6 +138,7 @@ export const buildWarehouseCargoTransfers = (
   layout: WarehouseLayoutValue,
   prev: undefined | WarehouseCargoValue,
   current: WarehouseCargoValue,
+  displayedDockTaskId?: string,
 ): WarehouseCargoTransferValue[] => {
   const previousById = new Map(prev?.units.map(unit => [unit.expectedUnitId, unit]));
   const truckUnits = prev?.units.filter(unit =>
@@ -149,14 +155,17 @@ export const buildWarehouseCargoTransfers = (
       continue;
     }
     const isTruckPickup = previous.location === 'truck' && current.hasDock;
-    const isSameDockTask = prev?.dockTaskId === previous.taskId && current.dockTaskId === previous.taskId;
-    const hasConfirmedHandoff = isTruckPickup && isSameTruck && isSameDockTask && previous.truckSlot < WAREHOUSE_TRUCK_SLOTS
-      && canReachDockHandoff(layout, previous, truckUnits);
+    const isClosingReceipt = displayedDockTaskId === previous.taskId && current.dockDepartures?.get(previous.taskId) === 'received';
+    const isSameDockTask = prev?.dockTaskId === previous.taskId && (current.dockTaskId === previous.taskId || isClosingReceipt);
+    const hasConfirmedHandoff = isTruckPickup && (isSameTruck || isClosingReceipt) && isSameDockTask
+      && previous.truckSlot < WAREHOUSE_TRUCK_SLOTS && canReachDockHandoff(layout, previous, truckUnits);
     if (isTruckPickup && !hasConfirmedHandoff) {
       continue;
     }
     const isDispatch = unit.isOutbound === true && unit.location === 'truck';
-    if (isDispatch && (!isSameTruck || unit.truckSlot >= WAREHOUSE_TRUCK_SLOTS || !canReachDockHandoff(layout, unit, truckUnits))) {
+    const hasDispatchTruck = current.dockTaskId === unit.taskId || displayedDockTaskId === unit.taskId;
+    if (isDispatch && (!hasDispatchTruck || !isSameTruck || unit.truckSlot >= WAREHOUSE_TRUCK_SLOTS
+      || !canReachDockHandoff(layout, unit, truckUnits))) {
       continue;
     }
 
@@ -182,6 +191,26 @@ export const buildWarehouseCargoTransfers = (
   return transfers;
 };
 
+export const buildWarehouseDepartureCargo = (
+  layout: WarehouseLayoutValue,
+  taskId: string,
+  prev: undefined | WarehouseCargoValue,
+  shippedUnitIds: ReadonlySet<string> | undefined,
+): WarehouseDeparturePalletValue[] => {
+  const result: WarehouseDeparturePalletValue[] = [];
+  for (const unit of prev?.units ?? []) {
+    if (unit.taskId !== taskId || unit.isOutbound !== true || unit.truckSlot >= WAREHOUSE_TRUCK_SLOTS
+      || shippedUnitIds?.has(unit.id) !== true) {
+      continue;
+    }
+    const target = readPosition(layout, unit, 'truck');
+    if (target !== undefined) {
+      result.push({ ...target, id: unit.id });
+    }
+  }
+  return result;
+};
+
 export const buildWarehouseCargoVisuals = (
   layout: WarehouseLayoutValue,
   current: WarehouseCargoValue,
@@ -201,7 +230,9 @@ export const buildWarehouseCargoVisuals = (
 
     const target = readPosition(layout, unit, unit.location);
     if (target !== undefined) {
-      result.push({ ...target, id: unit.id, requiresActiveDispatch, stockUnitIds: undefined });
+      result.push({
+        ...target, id: unit.id, requiresActiveDispatch, stockUnitIds: undefined, truckTaskId: isTruck ? unit.taskId : undefined,
+      });
     }
   }
 

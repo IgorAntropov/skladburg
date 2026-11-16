@@ -6,8 +6,12 @@ import type {
   WarehouseReceivingLayoutValue,
 } from './warehouseLayout';
 
+import { WAREHOUSE_TRUCK_RUNUP } from './warehouseDockTruckMotion';
+
 type BoxLayersValue = Map<WorldPaletteKeyValue, WarehouseBoxValue[]>;
 type VectorValue = WarehouseBoxValue['position'];
+
+export const WAREHOUSE_DOCK_LANE_LENGTH = 6.44 + WAREHOUSE_TRUCK_RUNUP;
 
 export const addWarehouseBox = (
   layers: BoxLayersValue,
@@ -64,7 +68,7 @@ const addReceivingMarks = (
 };
 
 const addDock = (floor: BoxLayersValue, { x, z }: { x: number; z: number }): void => {
-  addWarehouseBox(floor, 'road', [x, 0.01, z - 3.22], [2.5, 0.02, 6.44]);
+  addWarehouseBox(floor, 'road', [x, 0.01, z - WAREHOUSE_DOCK_LANE_LENGTH / 2], [2.5, 0.02, WAREHOUSE_DOCK_LANE_LENGTH]);
   addWarehouseBox(floor, 'warehouseRoof', [x, 0.16, z + 0.18], [1.86, 0.32, 0.65]);
   addWarehouseBox(floor, 'windowGlass', [x, 2.32, z], [2.16, 0.2, 0.24]);
   addWarehouseBox(floor, 'warehouseRoof', [x, 2.45, z], [2.32, 0.09, 0.35]);
@@ -72,7 +76,7 @@ const addDock = (floor: BoxLayersValue, { x, z }: { x: number; z: number }): voi
     addWarehouseBox(floor, 'windowGlass', [x + offset, 1.1, z], [0.2, 2.2, 0.24]);
     addWarehouseBox(floor, 'lampGlow', [x + offset, 2.17, z - 0.13], [0.12, 0.11, 0.03]);
     addWarehouseBox(floor, 'buildingRoofAlt', [x + offset * 1.12, 0.32, z - 0.3], [0.11, 0.64, 0.11]);
-    for (let index = 0; index < 6; index += 1) {
+    for (let index = 0; index < Math.floor(WAREHOUSE_DOCK_LANE_LENGTH); index += 1) {
       addWarehouseBox(floor, 'sand', [x + offset * 1.28, 0.025, z - 0.6 - index], [0.045, 0.02, 0.55]);
     }
   }

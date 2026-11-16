@@ -28,9 +28,16 @@ import {
   useWorldMaterial,
 } from '@/shared/3d';
 
-import type { WarehouseCargoValue } from '../model/warehouseSceneCargo';
+import type {
+  WarehouseCargoValue,
+  WarehouseDockDepartureValue,
+} from '../model/warehouseSceneCargo';
 import type { WarehouseGeometryKitValue } from './createWarehouseGeometryKit';
-import type { WarehouseCargoVisualValue } from './warehouseCargoPositions';
+import type {
+  WarehouseCargoVisualValue,
+  WarehouseDeparturePalletValue,
+} from './warehouseCargoPositions';
+import type { WarehouseDockTruckValue } from './warehouseDockTruckMotion';
 import type { WarehouseForkliftRigValue } from './WarehouseForklift';
 import type { WarehouseForkliftPlaybackValue } from './warehouseForkliftPlayback';
 import type { WarehouseLayoutValue } from './warehouseLayout';
@@ -38,8 +45,15 @@ import type { WarehouseLayoutValue } from './warehouseLayout';
 import {
   buildWarehouseCargoTransfers,
   buildWarehouseCargoVisuals,
+  buildWarehouseDepartureCargo,
   WAREHOUSE_TRUCK_SLOTS,
 } from './warehouseCargoPositions';
+import {
+  advanceWarehouseDockTruck,
+  createWarehouseDockTruck,
+  isWarehouseDockTruckMoving,
+  syncWarehouseDockTruck,
+} from './warehouseDockTruckMotion';
 import { applyWarehouseForkliftPose } from './WarehouseForklift';
 import {
   advanceWarehouseForklift,
@@ -68,12 +82,18 @@ interface CargoPaintValue {
 }
 
 interface CargoSceneValue {
+  departure: undefined | WarehouseDockDepartureValue;
+  departureCargo: readonly WarehouseDeparturePalletValue[];
+  dockTaskId: string | undefined;
+  dockTripId: string | undefined;
   dockTruck: Group | null;
-  hasParkedTruck: boolean;
+  hasShadows: boolean;
+  isTruckShadowed: boolean;
   layout: WarehouseLayoutValue;
   paint: CargoPaintValue;
   playback: WarehouseForkliftPlaybackValue;
   refreshShadowMap: () => void;
+  truck: WarehouseDockTruckValue;
 }
 
 interface WarehouseCargoProps {
@@ -82,6 +102,7 @@ interface WarehouseCargoProps {
   dockTruck: RefObject<Group | null>;
   forklift: RefObject<null | WarehouseForkliftRigValue>;
   geometry: BoxGeometry;
+  hasShadows: boolean;
   kit: WarehouseGeometryKitValue;
   layout: WarehouseLayoutValue;
 }
@@ -104,7 +125,43 @@ const writePallet = (paint: CargoPaintValue, index: number, x: number, y: number
   meshes.skid.setMatrixAt(index, matrix);
 };
 
-const paintScene = ({ dockTruck, hasParkedTruck, paint, playback, refreshShadowMap }: CargoSceneValue): void => {
+const readDockTarget = ({ departure, dockTaskId, playback, truck }: CargoSceneValue): string | undefined => {
+  if (truck.taskId === undefined || departure === undefined) {
+    return dockTaskId;
+  }
+  let index = 0;
+  while (index < playback.jobs.length) {
+    if (playback.jobs[index]?.transfer.dockTaskId === truck.taskId) {
+      return truck.taskId;
+    }
+    index += 1;
+  }
+  return dockTaskId;
+};
+
+const paintDockTruck = (scene: CargoSceneValue): void => {
+  const { dockTruck, hasShadows, truck } = scene;
+  if (dockTruck === null) {
+    return;
+  }
+  dockTruck.visible = truck.phase !== 'away';
+  dockTruck.position.z = truck.offsetZ;
+  const isShadowed = hasShadows && truck.phase === 'docked';
+  if (scene.isTruckShadowed !== isShadowed) {
+    let index = 0;
+    while (index < dockTruck.children.length) {
+      const part = dockTruck.children[index];
+      index += 1;
+      if (part !== undefined) {
+        part.castShadow = isShadowed;
+      }
+    }
+    scene.isTruckShadowed = isShadowed;
+    scene.refreshShadowMap();
+  }
+};
+
+const paintScene = ({ departure, departureCargo, dockTaskId, paint, playback, truck }: CargoSceneValue): void => {
   const { activeIds, meshes, visuals } = paint;
   const { jobs, phaseIndex, pose } = playback;
   activeIds.clear();
@@ -139,16 +196,29 @@ const paintScene = ({ dockTruck, hasParkedTruck, paint, playback, refreshShadowM
       }
     }
     else {
-      const { point, size } = load === 'target' ? to : from;
-      writePallet(paint, count, point[0], point[1], point[2], 0, size);
+      const { location, point, size } = load === 'target' ? to : from;
+      if (location === 'truck' && job.transfer.dockTaskId !== truck.taskId) {
+        continue;
+      }
+      const offsetZ = location === 'truck' ? truck.offsetZ : 0;
+      writePallet(paint, count, point[0], point[1], point[2] + offsetZ, 0, size);
     }
     count += 1;
   }
 
-  const isTruckVisible = hasParkedTruck || hasActiveDispatch;
-  if (dockTruck !== null && dockTruck.visible !== isTruckVisible) {
-    dockTruck.visible = isTruckVisible;
-    refreshShadowMap();
+  const isDeparting = truck.phase === 'departing';
+  const isFinishingRouteLoad = departure === 'route' && truck.taskId !== undefined && truck.taskId !== dockTaskId;
+  if (isDeparting || isFinishingRouteLoad) {
+    let departureIndex = 0;
+    while (departureIndex < departureCargo.length) {
+      const load = departureCargo[departureIndex];
+      departureIndex += 1;
+      if (load !== undefined && !activeIds.has(load.id)) {
+        const { point, size } = load;
+        writePallet(paint, count, point[0], point[1], point[2] + truck.offsetZ, 0, size);
+        count += 1;
+      }
+    }
   }
 
   let index = 0;
@@ -159,7 +229,10 @@ const paintScene = ({ dockTruck, hasParkedTruck, paint, playback, refreshShadowM
       continue;
     }
 
-    const { point, size, stockUnitIds } = visual;
+    const { point, size, stockUnitIds, truckTaskId } = visual;
+    if (truckTaskId !== undefined && (isDeparting || truckTaskId !== truck.taskId)) {
+      continue;
+    }
     if (stockUnitIds !== undefined) {
       let hasVisibleStock = false;
       let unit = 0;
@@ -176,7 +249,7 @@ const paintScene = ({ dockTruck, hasParkedTruck, paint, playback, refreshShadowM
       }
     }
 
-    writePallet(paint, count, point[0], point[1], point[2], 0, size);
+    writePallet(paint, count, point[0], point[1], point[2] + (truckTaskId === undefined ? 0 : truck.offsetZ), 0, size);
     count += 1;
   }
 
@@ -190,7 +263,9 @@ const paintScene = ({ dockTruck, hasParkedTruck, paint, playback, refreshShadowM
   }
 };
 
-export const WarehouseCargo = ({ balances, cargo, dockTruck, forklift, geometry, kit, layout }: WarehouseCargoProps): ReactElement => {
+export const WarehouseCargo = ({
+  balances, cargo, dockTruck, forklift, geometry, hasShadows, kit, layout,
+}: WarehouseCargoProps): ReactElement => {
   const invalidate = useThree(state => state.invalidate);
   const refreshShadowMap = useShadowMapRefresh();
   const bodyMaterial = useWorldMaterial('buildingRoofAlt');
@@ -228,6 +303,10 @@ export const WarehouseCargo = ({ balances, cargo, dockTruck, forklift, geometry,
     const prior = scene.current;
     const isSameLayout = prior?.layout === layout;
     const playback = isSameLayout ? prior.playback : createWarehouseForkliftPlayback(layout);
+    const truck = isSameLayout ? prior.truck : createWarehouseDockTruck(cargo.dockTaskId);
+    const reportedDeparture = truck.taskId === undefined ? undefined : cargo.dockDepartures?.get(truck.taskId);
+    const previousTripId = isSameLayout && prev.current?.dockTaskId === truck.taskId ? prior.dockTripId : undefined;
+    const departure = reportedDeparture === 'self-pickup' && previousTripId !== undefined ? undefined : reportedDeparture;
     const meshes = {
       boards: hasDetailedPallets ? boards.current ?? undefined : undefined,
       body: body.current,
@@ -238,21 +317,36 @@ export const WarehouseCargo = ({ balances, cargo, dockTruck, forklift, geometry,
       && prev.current.dockTripId !== cargo.dockTripId;
     const hasInterruptedJob = playback.jobs.some(({ transfer }) => {
       const usesDifferentDock = transfer.dockTaskId !== undefined && transfer.dockTaskId !== cargo.dockTaskId;
-      const isLocalDispatch = transfer.to.location === 'truck' && cargo.dockTaskId === undefined;
-      return !visibleUnitIds.has(transfer.id) || (transfer.dockTaskId !== undefined && hasTruckChanged)
-        || (usesDifferentDock && !isLocalDispatch);
+      const canFinishHandoff = transfer.dockTaskId !== undefined && transfer.dockTaskId === truck.taskId && departure !== undefined;
+      const isLoadedOnRoute = canFinishHandoff && departure === 'route' && cargo.shippedUnitIds?.has(transfer.id) === true;
+      if (isLoadedOnRoute) {
+        return false;
+      }
+      return !visibleUnitIds.has(transfer.id)
+        || (!canFinishHandoff && (usesDifferentDock || (transfer.dockTaskId !== undefined && hasTruckChanged)));
     });
     if (hasInterruptedJob || motion.current?.matches === true) {
       clearWarehouseForkliftJobs(playback);
     }
     if (isSameLayout && motion.current?.matches !== true) {
-      queueWarehouseForkliftJobs(playback, layout, buildWarehouseCargoTransfers(layout, prev.current, cargo));
+      const displayedDockTaskId = truck.phase === 'departing' ? undefined : truck.taskId;
+      queueWarehouseForkliftJobs(playback, layout, buildWarehouseCargoTransfers(layout, prev.current, cargo, displayedDockTaskId));
     }
 
     const activeDispatchId = playback.jobs.find(({ transfer }) => transfer.to.location === 'truck')?.transfer.dockTaskId;
-    const current = {
+    const hasDepartedWithCargo = departure === 'route' || departure === 'self-pickup';
+    const canKeepDepartureCargo = isSameLayout && (truck.phase === 'departing' || (hasDepartedWithCargo && prior.departure === departure));
+    const departureCargo = truck.taskId !== undefined && hasDepartedWithCargo && prev.current?.dockTaskId === truck.taskId
+      ? buildWarehouseDepartureCargo(layout, truck.taskId, prev.current, cargo.shippedUnitIds)
+      : canKeepDepartureCargo ? prior.departureCargo : [];
+    const current: CargoSceneValue = {
+      departure,
+      departureCargo,
+      dockTaskId: cargo.dockTaskId,
+      dockTripId: cargo.dockTripId ?? previousTripId,
       dockTruck: dockTruck.current,
-      hasParkedTruck: cargo.dockTaskId !== undefined,
+      hasShadows,
+      isTruckShadowed: prior?.dockTruck === dockTruck.current && prior.isTruckShadowed,
       layout,
       paint: {
         activeIds: prior?.paint.activeIds ?? new Set<string>(),
@@ -263,30 +357,44 @@ export const WarehouseCargo = ({ balances, cargo, dockTruck, forklift, geometry,
       },
       playback,
       refreshShadowMap,
+      truck,
     };
     scene.current = current;
     prev.current = cargo;
+    syncWarehouseDockTruck(truck, readDockTarget(current), departure !== undefined, motion.current?.matches === true);
+    paintDockTruck(current);
     paintScene(current);
     applyWarehouseForkliftPose(forklift.current, playback.pose);
     invalidate();
-  }, [balances, bucket, cargo, dockTruck, forklift, hasDetailedPallets, invalidate, layout, refreshShadowMap]);
+  }, [balances, bucket, cargo, dockTruck, forklift, hasDetailedPallets, hasShadows, invalidate, layout, refreshShadowMap]);
 
   useFrame((_, delta) => {
     const current = scene.current;
-    if (current === undefined || current.playback.jobs.length === 0) {
+    if (current === undefined || (current.playback.jobs.length === 0 && !isWarehouseDockTruckMoving(current.truck))) {
       return;
     }
 
-    const { playback } = current;
-    if (motion.current?.matches === true) {
+    const { departure, playback, truck } = current;
+    const isReducedMotion = motion.current?.matches === true;
+    if (isReducedMotion) {
       clearWarehouseForkliftJobs(playback);
     }
     else {
-      advanceWarehouseForklift(playback, delta);
+      advanceWarehouseDockTruck(truck, delta);
+      const job = playback.jobs[0];
+      const handoff = job?.transfer.dockTaskId;
+      if (handoff !== undefined && handoff !== truck.taskId && handoff !== current.dockTaskId) {
+        clearWarehouseForkliftJobs(playback);
+      }
+      else if (job !== undefined && (handoff === undefined || (truck.phase === 'docked' && handoff === truck.taskId))) {
+        advanceWarehouseForklift(playback, delta);
+      }
     }
+    syncWarehouseDockTruck(truck, readDockTarget(current), departure !== undefined, isReducedMotion);
+    paintDockTruck(current);
     applyWarehouseForkliftPose(forklift.current, playback.pose);
     paintScene(current);
-    if (playback.jobs.length > 0) {
+    if (playback.jobs.length > 0 || isWarehouseDockTruckMoving(truck)) {
       invalidate();
     }
   });

@@ -16,6 +16,7 @@ import { isWarehouseAisleSegmentOpen } from './warehouseAislePath';
 import {
   buildWarehouseCargoTransfers,
   buildWarehouseCargoVisuals,
+  buildWarehouseDepartureCargo,
 } from './warehouseCargoPositions';
 import {
   advanceWarehouseForklift,
@@ -115,12 +116,36 @@ describe('warehouse forklift jobs', () => {
     const local = { ...packed, dockTaskId: undefined, dockTripId: undefined };
     const balances = [create(StockBalanceSchema, { cellId: 'upper-cell', handlingUnit: { id: 'pallet' } })];
 
-    expect(buildWarehouseCargoTransfers(layout, { ...picked, dockTripId: undefined }, local)).toHaveLength(1);
+    expect(buildWarehouseCargoTransfers(layout, { ...picked, dockTripId: undefined }, local, 'dispatch')).toHaveLength(1);
+    expect(buildWarehouseCargoTransfers(layout, { ...picked, dockTripId: undefined }, local, 'previous-truck')).toEqual([]);
     expect(buildWarehouseCargoVisuals(layout, packed, balances, undefined))
       .toMatchObject([{ id: 'pallet', requiresActiveDispatch: false, size: 0.6 * 0.78 }]);
     expect(buildWarehouseCargoVisuals(layout, local, balances, 'dispatch')).toMatchObject([{ id: 'pallet', requiresActiveDispatch: true }]);
     expect(buildWarehouseCargoVisuals(layout, local, balances, undefined)).toEqual([]);
     expect(buildWarehouseCargoVisuals(layout, { ...local, units: [] }, balances, undefined)).toEqual([]);
+  });
+
+  it('keeps the confirmed outbound pallet in its truck slot as the truck departs', () => {
+    const prev = { ...picked, units: [pickedOutbound, { ...pickedOutbound, id: 'unshipped', truckSlot: 1 }] };
+    const [visual] = buildWarehouseCargoVisuals(layout, packed, undefined, undefined);
+
+    expect(visual?.truckTaskId).toBe('dispatch');
+    expect(buildWarehouseDepartureCargo(layout, 'dispatch', prev, packed.shippedUnitIds))
+      .toMatchObject([{ point: visual?.point, size: visual?.size }]);
+    expect(buildWarehouseDepartureCargo(layout, 'wrong-dock', prev, packed.shippedUnitIds)).toEqual([]);
+  });
+
+  it('preserves the final unload if receipt and dock release arrive together', () => {
+    const closed = {
+      ...staging,
+      dockDepartures: new Map([['receiving-task', 'received']]),
+      dockTaskId: 'next-task',
+      dockTripId: 'next-trip',
+    } satisfies WarehouseCargoValue;
+    const prev = { ...truck, dockTripId: 'previous-trip' };
+    expect(buildWarehouseCargoTransfers(layout, prev, closed, 'receiving-task'))
+      .toMatchObject([{ dockTaskId: 'receiving-task', from: { location: 'truck' }, to: { location: 'staging' } }]);
+    expect(buildWarehouseCargoTransfers(layout, prev, closed, 'previous-truck')).toEqual([]);
   });
 
   it('uses the actual previous staging slot and ignores historical and other dock cargo', () => {

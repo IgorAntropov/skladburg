@@ -113,7 +113,7 @@ const WarehouseWorldScene = ({
       {cargo?.hasDock === true && (
         <group name="warehouse-dock-truck" ref={dockTruck} visible={false}>
           {[...layout.truck].map(([key, boxes]) => (
-            <WarehouseInstances boxes={boxes} geometry={geometry} isShadowed={hasShadows} key={key} materialKey={key} />
+            <WarehouseInstances boxes={boxes} geometry={geometry} key={key} materialKey={key} />
           ))}
         </group>
       )}
@@ -124,6 +124,7 @@ const WarehouseWorldScene = ({
         dockTruck={dockTruck}
         forklift={forklift}
         geometry={geometry}
+        hasShadows={hasShadows}
         key={cargo === undefined ? 'stock' : 'receiving'}
         kit={kit}
         layout={layout}

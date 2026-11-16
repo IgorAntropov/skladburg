@@ -1,6 +1,13 @@
+import type {
+  Locator,
+  TestInfo,
+} from '@playwright/test';
+
 import { expect } from '@playwright/test';
 import { VehicleCargoKind } from '@skladburg/contracts/fleet/v1/fleet';
 import { TripStatus } from '@skladburg/contracts/logistics/v1/trip_records';
+
+import type { SceneRobotValue } from './robots/scene-robot.ts';
 
 import { expectNoAxeViolations } from './fixtures/axe.ts';
 import { PERSONAS } from './fixtures/demoData.ts';
@@ -25,9 +32,10 @@ import {
   scanCode,
 } from './robots/warehouse-delivery-robot.ts';
 import {
-  pickTripPallet,
+  openTripPicking,
   scanDeliveredPallet,
   scanPutAwayCell,
+  scanTripPallet,
   TRIP_ORIGIN_WAREHOUSE_ID,
 } from './robots/warehouse-trip-handoff-robot.ts';
 
@@ -35,7 +43,28 @@ test.use({ viewport: DESKTOP_VIEWPORT });
 
 const IN_TRANSIT_ADVANCE_MS = TRIP_DEPARTURE_ADVANCE_MS + 240 * MINUTE_MS;
 const REST_PERIOD_MS = 700;
+const MIN_DOCK_MOTION_FRAMES = 10;
 const MIN_WAREHOUSE_MOTION_FRAMES = 5;
+const CANVAS_ONLY_STYLE = 'body * { visibility: hidden !important; } canvas { visibility: visible !important; }';
+
+const expectDockTruckMotion = async (
+  scene: SceneRobotValue,
+  canvas: Locator,
+  trigger: () => Promise<void>,
+  testInfo: TestInfo,
+  name: string,
+): Promise<void> => {
+  await scene.waitForIdle();
+  const before = await canvas.screenshot({ style: CANVAS_ONLY_STYLE });
+  const beforeFrames = await scene.readDrawFrames();
+  await trigger();
+  await scene.waitForDrawFramesToExceed(beforeFrames + MIN_DOCK_MOTION_FRAMES - 1, `${name} did not animate`);
+  await canvas.screenshot({ path: testInfo.outputPath(`${name}-motion.png`), style: CANVAS_ONLY_STYLE });
+  await scene.waitForIdle();
+  await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
+  const after = await canvas.screenshot({ path: testInfo.outputPath(`${name}-settled.png`), style: CANVAS_ONLY_STYLE });
+  expect(after.equals(before), `${name} did not change the dock scene`).toBe(false);
+};
 
 test('renders the dock and the confirmed receiving movements, then returns to rest', async ({ context, page }, testInfo) => {
   test.setTimeout(150_000);
@@ -142,10 +171,12 @@ test('loads, transports and puts away the same pallet on an assigned warehouse t
   supplierScene.watchPageErrors();
   await supplierPage.bringToFront();
   await supplierPage.emulateMedia({ colorScheme: 'light', reducedMotion: 'no-preference' });
-  const { confirmShipment, sscc } = await pickTripPallet(supplierPage);
+  const picking = await openTripPicking(supplierPage);
   await supplierScene.chooseGraphicsPreference('low');
   await supplierScene.expectSceneState('ready');
   await supplierScene.expectOneCanvas();
+  const { confirmPicking, confirmShipment, sscc } = await scanTripPallet(picking);
+  await expectDockTruckMotion(supplierScene, supplierCanvas, confirmPicking, testInfo, 'supplier-dock-approach');
 
   await page.bringToFront();
   await networkTrips.openFromApp();
@@ -183,16 +214,28 @@ test('loads, transports and puts away the same pallet on an assigned warehouse t
   await storeScene.expectSceneState('ready');
   await storeScene.expectOneCanvas();
   const receiving = storePage.getByTestId('warehouse-receiving-task');
+  const storeCanvas = storePage.getByTestId('scene-viewport').locator('canvas');
   await expect(receiving).toHaveCount(0);
 
+  await supplierPage.bringToFront();
+  await expectDockTruckMotion(supplierScene, supplierCanvas, async () => {
+    await advanceClock(IN_TRANSIT_ADVANCE_MS);
+    await carrier.expectTripStatus(TripStatus.IN_TRANSIT);
+  }, testInfo, 'supplier-dock-departure');
+
   await page.bringToFront();
-  await advanceClock(IN_TRANSIT_ADVANCE_MS);
   await networkTrips.expectStatus(tripAddress, TripStatus.IN_TRANSIT);
   const duringTravel = await networkScene.readDrawFrames();
   await networkScene.waitForDrawFramesToExceed(duringTravel + 2, 'the truck did not sustain frames during travel');
   await page.getByTestId('scene-viewport').locator('canvas').screenshot({ path: testInfo.outputPath('warehouse-trip-in-transit.png') });
 
-  await advanceClock(TRIP_ARRIVAL_ADVANCE_MS);
+  await storePage.bringToFront();
+  await expectDockTruckMotion(storeScene, storeCanvas, async () => {
+    await advanceClock(TRIP_ARRIVAL_ADVANCE_MS);
+    await expect(receiving.getByTestId('warehouse-claim-receiving')).toBeVisible();
+  }, testInfo, 'recipient-dock-approach');
+
+  await page.bringToFront();
   await networkTrips.expectStatus(tripAddress, TripStatus.ARRIVED);
   await carrier.expectTripStatus(TripStatus.ARRIVED);
   await networkScene.waitForIdle();
@@ -208,7 +251,6 @@ test('loads, transports and puts away the same pallet on an assigned warehouse t
   const receivedPallet = receiving.getByText(sscc, { exact: true });
   await expect(receivedPallet).toBeVisible();
   await storeScene.waitForDrawFramesToExceed(beforeUnload + MIN_WAREHOUSE_MOTION_FRAMES - 1, 'the dock-to-staging motion did not draw');
-  const storeCanvas = storePage.getByTestId('scene-viewport').locator('canvas');
   await storeCanvas.screenshot({ path: testInfo.outputPath('warehouse-unloading.png') });
   await storeScene.waitForIdle();
 
@@ -222,7 +264,11 @@ test('loads, transports and puts away the same pallet on an assigned warehouse t
   await storeCanvas.screenshot({ path: testInfo.outputPath('warehouse-trip-put-away.png') });
   await storeScene.waitForIdle();
   await storeScene.expectNoDrawFramesFor(REST_PERIOD_MS);
-  await receiving.getByTestId('warehouse-finish-receiving').click();
+  await expectDockTruckMotion(storeScene, storeCanvas, async () => {
+    const finish = receiving.getByTestId('warehouse-finish-receiving');
+    await finish.click();
+    await expect(finish).toHaveCount(0);
+  }, testInfo, 'recipient-dock-departure');
   await expectNoAxeViolations(storePage);
 
   expect(networkScene.readPageErrors()).toEqual([]);

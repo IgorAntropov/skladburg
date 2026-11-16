@@ -123,6 +123,7 @@ describe('warehouse scene cargo', () => {
     const closed = projectWarehouseCargo([task], 'receiving', true, undefined);
 
     expect(closed.dockTaskId).toBeUndefined();
+    expect(closed.dockDepartures?.get('task')).toBe('received');
     expect(closed.units).toMatchObject([{ id: 'actual', location: 'staging' }]);
     expect(projectWarehouseCargo([task], 'receiving', false, undefined).units).toEqual(closed.units);
   });
@@ -157,6 +158,7 @@ describe('warehouse scene cargo', () => {
 
       expect(cargo.dockTaskId).toBeUndefined();
       expect(cargo.dockTripId).toBeUndefined();
+      expect(cargo.dockDepartures?.get('picking')).toBe(status === TripStatus.CANCELLED ? undefined : 'route');
       expect(cargo.shippedUnitIds).toEqual(new Set(['local-pallet']));
       expect(cargo.units).toEqual([]);
     },
@@ -169,6 +171,7 @@ describe('warehouse scene cargo', () => {
     expect(picked.dockTaskId).toBe('picking');
     expect(shipped.dockTaskId).toBeUndefined();
     expect(shipped.dockTripId).toBeUndefined();
+    expect(shipped.dockDepartures?.get('picking')).toBe('self-pickup');
     expect(readWarehouseCargoMoves(picked, shipped)).toMatchObject([{ id: 'local-pallet', stops: ['cell', 'truck'] }]);
   });
 

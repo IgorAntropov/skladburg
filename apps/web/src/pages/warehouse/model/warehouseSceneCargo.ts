@@ -10,12 +10,15 @@ export interface WarehouseCargoUnitValue {
 }
 
 export interface WarehouseCargoValue {
+  dockDepartures?: ReadonlyMap<string, WarehouseDockDepartureValue> | undefined;
   dockTaskId: string | undefined;
   dockTripId?: string | undefined;
   hasDock: boolean;
   shippedUnitIds?: ReadonlySet<string> | undefined;
   units: readonly WarehouseCargoUnitValue[];
 }
+
+export type WarehouseDockDepartureValue = 'received' | 'route' | 'self-pickup';
 
 type CargoLocationValue = 'cell' | 'staging' | 'truck';
 

@@ -50,16 +50,15 @@ const WarehouseWorkspaceScene = ({
   const canViewTrips = useCan(PermissionCode.TRIP_VIEW, { kind: 'organization' });
   const areaId = topology?.receivingArea?.id;
   const hasDock = topology?.receivingArea?.unloadingPoint?.position !== undefined;
-  const hasLocalTasks = picking?.some(task => task.warehouseId === warehouseId) === true
-    || tasks?.some(task => task.warehouseId === warehouseId && task.receivingAreaId === areaId) === true;
-  const canLoadTrips = canViewTrips && hasDock && hasLocalTasks;
+  const canLoadTrips = canViewTrips && hasDock;
   const tripQuery = useTrips(canLoadTrips);
+  const isAwaitingTrips = canLoadTrips && tripQuery.isPending;
   const trips = canLoadTrips && !isReadAccessDenied(tripQuery.error) ? tripQuery.data : undefined;
   const cargo = useMemo(
-    () => tasks === undefined && picking === undefined
+    () => isAwaitingTrips || (tasks === undefined && picking === undefined)
       ? undefined
       : projectWarehouseCargo(tasks ?? [], areaId, hasDock, preferredTaskId, { picking, trips, warehouseId }),
-    [areaId, hasDock, picking, preferredTaskId, tasks, trips, warehouseId],
+    [areaId, hasDock, isAwaitingTrips, picking, preferredTaskId, tasks, trips, warehouseId],
   );
 
   const handleCellSelect = useCallback((id: string): void => {

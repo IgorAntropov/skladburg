@@ -13,6 +13,7 @@ import type { WarehouseAisleRectValue } from './warehouseAislePath';
 import {
   addWarehouseBox,
   buildWarehouseFloor,
+  WAREHOUSE_DOCK_LANE_LENGTH,
 } from './warehouseFloorLayout';
 
 export interface WarehouseBoxValue {
@@ -64,7 +65,6 @@ type VectorValue = [number, number, number];
 
 const layouts = new WeakMap<WarehouseTopology, WarehouseLayoutValue>();
 const METER = 1000;
-const TRUCK_LENGTH = 6.2;
 export const WAREHOUSE_DOCK_RAMP_END = 0.505;
 export const WAREHOUSE_DOCK_HANDOFF_Z = 0.4;
 
@@ -115,7 +115,7 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
       };
   const dock = receiving?.dock;
   let minX = Math.min(0, (dock?.x ?? 2) - 1.5);
-  let minZ = Math.min(0, (dock?.z ?? TRUCK_LENGTH) - TRUCK_LENGTH);
+  let minZ = Math.min(0, (dock?.z ?? WAREHOUSE_DOCK_LANE_LENGTH) - WAREHOUSE_DOCK_LANE_LENGTH);
   let maxX = Math.max(receiving === undefined ? 6 : receiving.x + receiving.width, (dock?.x ?? 0) + 1.5);
   let maxZ = Math.max(receiving === undefined ? 4 : receiving.z + receiving.depth, dock?.z ?? 0);
   let maxHeight = 2.4;

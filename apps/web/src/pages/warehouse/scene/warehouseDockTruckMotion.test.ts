@@ -13,6 +13,21 @@ import {
 } from './warehouseDockTruckMotion';
 
 describe('warehouse dock truck motion', () => {
+  it('clears the shared parking lane laterally before backing into another dock', () => {
+    const truck = createWarehouseDockTruck(undefined);
+    syncWarehouseDockTruck(truck, 'waiting', false, false, -10.4, -6.2);
+    expect(truck).toMatchObject({ offsetX: -6.2, offsetZ: -10.4, phase: 'approaching' });
+    for (let frame = 0; frame < 18; frame += 1) {
+      advanceWarehouseDockTruck(truck, 0.05);
+    }
+    expect(truck.offsetX).toBeGreaterThan(-6.2);
+    expect(truck.offsetZ).toBe(-10.4);
+    for (let frame = 0; frame < 40; frame += 1) {
+      advanceWarehouseDockTruck(truck, 0.05);
+    }
+    expect(truck).toMatchObject({ offsetX: -0, offsetZ: 0, phase: 'docked' });
+  });
+
   it('backs into the dock on a new task and settles without requesting more frames', () => {
     const truck = createWarehouseDockTruck(undefined);
     syncWarehouseDockTruck(truck, 'pickup', false, false);

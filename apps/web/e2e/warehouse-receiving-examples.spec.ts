@@ -32,7 +32,7 @@ test.use({ reducedMotion: 'reduce', viewport: PHONE_VIEWPORT });
 test('receives a pallet without a label and prints its assigned SSCC in a fresh world', async ({ page }) => {
   await createPersonaRobot(page).openAsPersona(REHEARSAL_WAREHOUSE_HASH, PERSONAS.freshCustomer.id);
   const receiving = page.getByTestId('warehouse-receiving-task');
-  await expect(receiving).toHaveCount(2);
+  await expect(receiving).toHaveCount(3);
   const task = receiving.first();
   await task.getByTestId('warehouse-claim-receiving').click();
   await task.getByTestId('warehouse-enter-sscc').click();
@@ -75,7 +75,7 @@ test('scans marked products and issues a discrepancy act when one DataMatrix is 
   await installCameraTestFeed(page);
   await createPersonaRobot(page).openAsPersona(REHEARSAL_WAREHOUSE_HASH, PERSONAS.freshCustomer.id);
   const receiving = page.getByTestId('warehouse-receiving-task');
-  await expect(receiving).toHaveCount(2);
+  await expect(receiving).toHaveCount(3);
   const task = receiving.nth(1);
   await task.getByTestId('warehouse-claim-receiving').click();
   await task.getByTestId('warehouse-receive-unit').click();

@@ -21,7 +21,7 @@ import {
 } from '../modules/wms/openingStockPlan';
 import { buildStockBatchKey } from '../modules/wms/stockBatches';
 import { buildSsccKey } from '../modules/wms/stockRecords';
-import { createWarehouseTopologyRecord } from '../modules/wms/warehouseTopologyRecords';
+import { encodeWarehouseTopology } from '../modules/wms/warehouseTopologyCodec';
 import { createRandom } from '../ports/index';
 import { createEngineState } from '../state/index';
 import {
@@ -89,7 +89,7 @@ export const seedWarehouseWorkspace = (snapshot: EngineSnapshotValue): EngineSna
   const today = toCalendarDate(worldTimeMs, warehouse.timeZone);
   const readLiveMeta = (): typeof meta => ({ ...meta, randomState: random.getState() });
   const outcome = state.transact(worldTimeMs, (transaction) => {
-    transaction.put('warehouseTopologies', createWarehouseTopologyRecord(topology));
+    transaction.put('warehouseTopologies', encodeWarehouseTopology(topology));
     let sequence = 0;
     const nextSscc = (): string => {
       let sscc: string;

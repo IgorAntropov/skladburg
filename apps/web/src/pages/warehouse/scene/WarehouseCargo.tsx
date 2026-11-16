@@ -41,7 +41,10 @@ import type {
 import type { WarehouseDockTruckValue } from './warehouseDockTruckMotion';
 import type { WarehouseForkliftRigValue } from './WarehouseForklift';
 import type { WarehouseForkliftPlaybackValue } from './warehouseForkliftPlayback';
-import type { WarehouseLayoutValue } from './warehouseLayout';
+import type {
+  WarehouseDockPointValue,
+  WarehouseLayoutValue,
+} from './warehouseLayout';
 import type { WarehouseYardMotionValue } from './warehouseYardMotion';
 import type { WarehouseYardParkingRigValue } from './WarehouseYardParkingLayer';
 
@@ -70,13 +73,26 @@ import {
   FORKLIFT_FORK_HEIGHT,
   FORKLIFT_PALLET_OFFSET,
 } from './warehouseForkliftRoute';
+import { canAdvanceWarehouseForklift } from './warehouseForkliftTraffic';
 import {
   advanceWarehouseYardMotion,
   createWarehouseYardMotion,
+  readPreviousWarehouseYardTruckOffset,
   readWarehouseYardTruckOffset,
   syncWarehouseYardMotion,
+  WAREHOUSE_TRUCK_CLEARANCE,
 } from './warehouseYardMotion';
 import { WAREHOUSE_YARD_PARKING_LIMIT } from './warehouseYardParking';
+
+export interface WarehouseYardTrafficValue {
+  forklifts: readonly (undefined | WarehouseForkliftPlaybackValue)[];
+  isPrimaryNear: (offsetZ: number) => boolean;
+  readCrossingOffsetZ: () => number | undefined;
+  setForklift: (index: number, playback: undefined | WarehouseForkliftPlaybackValue) => void;
+  setReservation: (index: number, offsetZ: number | undefined) => void;
+  setTruck: (index: number, truck: undefined | WarehouseDockTruckValue) => void;
+  yard: WarehouseYardMotionValue;
+}
 
 interface CargoMeshesValue {
   boards: InstancedMesh | undefined;
@@ -93,16 +109,21 @@ interface CargoPaintValue {
 }
 
 interface CargoSceneValue {
+  crossingOffsetZ: number | undefined;
   departure: undefined | WarehouseDockDepartureValue;
   departureCargo: readonly WarehouseDeparturePalletValue[];
+  dockOffsetX: number;
+  dockOffsetZ: number;
   dockTaskId: string | undefined;
   dockTripId: string | undefined;
   dockTruck: Group | null;
   hasShadows: boolean;
   isTruckShadowed: boolean;
+  isYardOwner: boolean;
   layout: WarehouseLayoutValue;
   paint: CargoPaintValue;
   playback: WarehouseForkliftPlaybackValue;
+  promotionOffsetZ: number | undefined;
   refreshShadowMap: () => void;
   truck: WarehouseDockTruckValue;
   yard: WarehouseYardMotionValue;
@@ -113,18 +134,68 @@ interface CargoSceneValue {
 interface WarehouseCargoProps {
   balances: readonly StockBalance[] | undefined;
   cargo: WarehouseCargoValue;
+  dock: undefined | WarehouseDockPointValue;
   dockTruck: RefObject<Group | null>;
   forklift: RefObject<null | WarehouseForkliftRigValue>;
   geometry: BoxGeometry;
+  hasAssignedDocks: boolean;
   hasShadows: boolean;
   kit: WarehouseGeometryKitValue;
+  laneIndex: number;
   layout: WarehouseLayoutValue;
+  traffic: WarehouseYardTrafficValue;
   yardParking: RefObject<null | WarehouseYardParkingRigValue>;
 }
 
 const MAX_DETAILED_PALLETS = 256;
 const MAX_VISIBLE_TRUCKS = WAREHOUSE_YARD_PARKING_LIMIT + 1;
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+const CROSSING_WIDTH = 2.1;
+const CROSSING_CLEARANCE = 7.1;
+
+const readCrossingOffsetZ = (
+  trucks: readonly (undefined | WarehouseDockTruckValue)[],
+  reservations: readonly (number | undefined)[],
+): number | undefined => {
+  let index = 1;
+  let offsetZ: number | undefined;
+  while (index < trucks.length) {
+    const truck = trucks[index];
+    const reservation = reservations[index];
+    index += 1;
+    if (truck?.phase === 'approaching' && truck.startX !== 0 && Math.abs(truck.offsetX - truck.startX) < CROSSING_WIDTH) {
+      offsetZ = Math.min(offsetZ ?? Infinity, truck.offsetZ);
+    }
+    if (reservation !== undefined) {
+      offsetZ = Math.min(offsetZ ?? Infinity, reservation);
+    }
+  }
+  return offsetZ;
+};
+
+export const createWarehouseYardTraffic = (): WarehouseYardTrafficValue => {
+  const trucks: (undefined | WarehouseDockTruckValue)[] = [];
+  const reservations: (number | undefined)[] = [];
+  const forklifts: (undefined | WarehouseForkliftPlaybackValue)[] = [];
+  return {
+    forklifts,
+    isPrimaryNear: (offsetZ) => {
+      const primary = trucks[0];
+      return primary !== undefined && primary.phase !== 'away' && Math.abs(primary.offsetZ - offsetZ) < WAREHOUSE_TRUCK_CLEARANCE;
+    },
+    readCrossingOffsetZ: () => readCrossingOffsetZ(trucks, reservations),
+    setForklift: (index, playback) => {
+      forklifts[index] = playback;
+    },
+    setReservation: (index, offsetZ) => {
+      reservations[index] = offsetZ;
+    },
+    setTruck: (index, truck) => {
+      trucks[index] = truck;
+    },
+    yard: createWarehouseYardMotion(),
+  };
+};
 
 const writePallet = (paint: CargoPaintValue, index: number, x: number, y: number, z: number, yaw: number, size: number): void => {
   const { matrix, meshes, scale } = paint;
@@ -155,12 +226,39 @@ const readDockTarget = ({ departure, dockTaskId, playback, truck }: CargoSceneVa
   return dockTaskId;
 };
 
-const syncSceneTrucks = (scene: CargoSceneValue, isReducedMotion: boolean): void => {
-  const { departure, truck, yard, yardVisits } = scene;
+const syncSceneTrucks = (
+  scene: CargoSceneValue,
+  isReducedMotion: boolean,
+  traffic: WarehouseYardTrafficValue,
+  laneIndex: number,
+): void => {
+  const { crossingOffsetZ, departure, dockOffsetX, dockOffsetZ, isYardOwner, promotionOffsetZ, truck, yard, yardVisits } = scene;
   const target = readDockTarget(scene);
-  const parkingOffsetZ = readWarehouseYardTruckOffset(yard, target);
-  syncWarehouseDockTruck(truck, target, departure !== undefined, isReducedMotion, parkingOffsetZ);
-  syncWarehouseYardMotion(yard, yardVisits, truck.taskId, isReducedMotion, truck.phase === 'away' ? undefined : truck.offsetZ);
+  const parkingOffsetZ = isYardOwner
+    ? readWarehouseYardTruckOffset(yard, target)
+    : promotionOffsetZ !== undefined && !traffic.isPrimaryNear(promotionOffsetZ) ? promotionOffsetZ : undefined;
+  const startingZ = parkingOffsetZ === undefined ? undefined : parkingOffsetZ - dockOffsetZ;
+  syncWarehouseDockTruck(truck, target, departure !== undefined, isReducedMotion, startingZ, -dockOffsetX);
+  if (isYardOwner) {
+    const offsetZ = truck.phase === 'away' ? crossingOffsetZ : Math.min(truck.offsetZ, crossingOffsetZ ?? Infinity);
+    syncWarehouseYardMotion(yard, yardVisits, truck.taskId, isReducedMotion, offsetZ);
+  }
+  else {
+    traffic.setReservation(laneIndex, truck.taskId === scene.dockTaskId ? undefined : promotionOffsetZ);
+  }
+};
+
+const readReadyForklift = ({ dockTaskId, playback, truck }: CargoSceneValue): undefined | WarehouseForkliftPlaybackValue => {
+  const job = playback.jobs[0];
+  const handoff = job?.transfer.dockTaskId;
+  if (handoff !== undefined && handoff !== truck.taskId && handoff !== dockTaskId) {
+    clearWarehouseForkliftJobs(playback);
+    return undefined;
+  }
+  if (job !== undefined && (handoff === undefined || (truck.phase === 'docked' && handoff === truck.taskId))) {
+    return playback;
+  }
+  return undefined;
 };
 
 const paintYard = ({ yard, yardParking }: CargoSceneValue): void => {
@@ -171,12 +269,13 @@ const paintYard = ({ yard, yardParking }: CargoSceneValue): void => {
 };
 
 const paintDockTruck = (scene: CargoSceneValue): void => {
-  const { dockTruck, hasShadows, truck } = scene;
+  const { dockOffsetX, dockOffsetZ, dockTruck, hasShadows, truck } = scene;
   if (dockTruck === null) {
     return;
   }
   dockTruck.visible = truck.phase !== 'away';
-  dockTruck.position.z = truck.offsetZ;
+  dockTruck.position.x = dockOffsetX + truck.offsetX;
+  dockTruck.position.z = dockOffsetZ + truck.offsetZ;
   const isShadowed = hasShadows && truck.phase === 'docked';
   if (scene.isTruckShadowed !== isShadowed) {
     let index = 0;
@@ -192,7 +291,7 @@ const paintDockTruck = (scene: CargoSceneValue): void => {
   }
 };
 
-const paintScene = ({ departure, departureCargo, dockTaskId, paint, playback, truck, yard }: CargoSceneValue): void => {
+const paintScene = ({ departure, departureCargo, dockTaskId, isYardOwner, paint, playback, truck, yard }: CargoSceneValue): void => {
   const { activeIds, meshes, visuals } = paint;
   const { jobs, phaseIndex, pose } = playback;
   activeIds.clear();
@@ -232,7 +331,8 @@ const paintScene = ({ departure, departureCargo, dockTaskId, paint, playback, tr
         continue;
       }
       const offsetZ = location === 'truck' ? truck.offsetZ : 0;
-      writePallet(paint, count, point[0], point[1], point[2] + offsetZ, 0, size);
+      const offsetX = location === 'truck' ? truck.offsetX : 0;
+      writePallet(paint, count, point[0] + offsetX, point[1], point[2] + offsetZ, 0, size);
     }
     count += 1;
   }
@@ -246,7 +346,7 @@ const paintScene = ({ departure, departureCargo, dockTaskId, paint, playback, tr
       departureIndex += 1;
       if (load !== undefined && !activeIds.has(load.id)) {
         const { point, size } = load;
-        writePallet(paint, count, point[0], point[1], point[2] + truck.offsetZ, 0, size);
+        writePallet(paint, count, point[0] + truck.offsetX, point[1], point[2] + truck.offsetZ, 0, size);
         count += 1;
       }
     }
@@ -261,11 +361,9 @@ const paintScene = ({ departure, departureCargo, dockTaskId, paint, playback, tr
     }
 
     const { point, size, stockUnitIds, truckTaskId } = visual;
-    const offsetZ = truckTaskId === undefined
-      ? 0
-      : truckTaskId === truck.taskId && !isDeparting
-        ? truck.offsetZ
-        : readWarehouseYardTruckOffset(yard, truckTaskId);
+    const isActiveTruck = truckTaskId !== undefined && truckTaskId === truck.taskId && !isDeparting;
+    const parkedOffsetZ = isYardOwner ? readWarehouseYardTruckOffset(yard, truckTaskId) : undefined;
+    const offsetZ = truckTaskId === undefined ? 0 : isActiveTruck ? truck.offsetZ : parkedOffsetZ;
     if (offsetZ === undefined) {
       continue;
     }
@@ -285,7 +383,7 @@ const paintScene = ({ departure, departureCargo, dockTaskId, paint, playback, tr
       }
     }
 
-    writePallet(paint, count, point[0], point[1], point[2] + offsetZ, 0, size);
+    writePallet(paint, count, point[0] + (isActiveTruck ? truck.offsetX : 0), point[1], point[2] + offsetZ, 0, size);
     count += 1;
   }
 
@@ -300,7 +398,8 @@ const paintScene = ({ departure, departureCargo, dockTaskId, paint, playback, tr
 };
 
 export const WarehouseCargo = ({
-  balances, cargo: cargoSnapshot, dockTruck, forklift, geometry, hasShadows, kit, layout, yardParking,
+  balances, cargo: cargoSnapshot, dock, dockTruck, forklift, geometry, hasAssignedDocks, hasShadows, kit, laneIndex, layout, traffic,
+  yardParking,
 }: WarehouseCargoProps): ReactElement => {
   const invalidate = useThree(state => state.invalidate);
   const refreshShadowMap = useShadowMapRefresh();
@@ -313,6 +412,7 @@ export const WarehouseCargo = ({
   const prev = useRef<WarehouseCargoValue>(undefined);
   const motion = useRef<MediaQueryList | undefined>(undefined);
   const scene = useRef<CargoSceneValue>(undefined);
+  const isYardOwner = laneIndex === 0;
   const stagedCount = cargoSnapshot.units.reduce((count, unit) => unit.location === 'staging' ? count + 1 : count, 0);
   const truckCount = Math.min(MAX_VISIBLE_TRUCKS, 1 + (cargoSnapshot.dockVisits?.length ?? 0));
   const truckCapacity = cargoSnapshot.hasDock ? WAREHOUSE_TRUCK_SLOTS * truckCount : 0;
@@ -332,6 +432,12 @@ export const WarehouseCargo = ({
     };
   }, [invalidate]);
 
+  useLayoutEffect(() => (): void => {
+    traffic.setForklift(laneIndex, undefined);
+    traffic.setReservation(laneIndex, undefined);
+    traffic.setTruck(laneIndex, undefined);
+  }, [laneIndex, traffic]);
+
   useLayoutEffect(() => {
     if (body.current === null || skid.current === null) {
       return;
@@ -339,10 +445,19 @@ export const WarehouseCargo = ({
 
     const prior = scene.current;
     const isSameLayout = prior?.layout === layout;
-    const cargo = retainWarehouseDockOrder(isSameLayout ? prev.current : undefined, cargoSnapshot);
-    const playback = isSameLayout ? prior.playback : createWarehouseForkliftPlayback(layout);
+    const cargo = hasAssignedDocks ? cargoSnapshot : retainWarehouseDockOrder(isSameLayout ? prev.current : undefined, cargoSnapshot);
+    const playback = isSameLayout ? prior.playback : createWarehouseForkliftPlayback(layout, dock);
     const truck = isSameLayout ? prior.truck : createWarehouseDockTruck(cargo.dockTaskId);
-    const yard = isSameLayout ? prior.yard : createWarehouseYardMotion();
+    const { yard } = traffic;
+    traffic.setTruck(laneIndex, truck);
+    const primaryDock = layout.receiving?.dock;
+    const dockOffsetX = dock === undefined || primaryDock === undefined ? 0 : dock.x - primaryDock.x;
+    const dockOffsetZ = dock === undefined || primaryDock === undefined ? 0 : dock.z - primaryDock.z;
+    const promotionOffsetZ = !isSameLayout || isYardOwner
+      ? undefined
+      : prev.current?.dockTaskId === cargo.dockTaskId
+        ? prior.promotionOffsetZ
+        : readWarehouseYardTruckOffset(yard, cargo.dockTaskId) ?? readPreviousWarehouseYardTruckOffset(yard, cargo.dockTaskId);
     const reportedDeparture = truck.taskId === undefined ? undefined : cargo.dockDepartures?.get(truck.taskId);
     const previousTripId = isSameLayout && prev.current?.dockTaskId === truck.taskId ? prior.dockTripId : undefined;
     const departure = reportedDeparture === 'self-pickup' && previousTripId !== undefined ? undefined : reportedDeparture;
@@ -369,33 +484,40 @@ export const WarehouseCargo = ({
     }
     if (isSameLayout && motion.current?.matches !== true) {
       const displayedDockTaskId = truck.phase === 'departing' ? undefined : truck.taskId;
-      queueWarehouseForkliftJobs(playback, layout, buildWarehouseCargoTransfers(layout, prev.current, cargo, displayedDockTaskId));
+      queueWarehouseForkliftJobs(playback, layout, buildWarehouseCargoTransfers(layout, prev.current, cargo, displayedDockTaskId, dock));
     }
 
     const activeDispatchId = playback.jobs.find(({ transfer }) => transfer.to.location === 'truck')?.transfer.dockTaskId;
     const hasDepartedWithCargo = departure === 'route' || departure === 'self-pickup';
     const canKeepDepartureCargo = isSameLayout && (truck.phase === 'departing' || (hasDepartedWithCargo && prior.departure === departure));
     const departureCargo = truck.taskId !== undefined && hasDepartedWithCargo && prev.current?.dockTaskId === truck.taskId
-      ? buildWarehouseDepartureCargo(layout, truck.taskId, prev.current, cargo.shippedUnitIds)
+      ? buildWarehouseDepartureCargo(layout, truck.taskId, prev.current, cargo.shippedUnitIds, dock)
       : canKeepDepartureCargo ? prior.departureCargo : [];
     const yardVisits = cargo.dockVisits?.slice(0, MAX_VISIBLE_TRUCKS) ?? [];
     const current: CargoSceneValue = {
+      crossingOffsetZ: isYardOwner ? traffic.readCrossingOffsetZ() : undefined,
       departure,
       departureCargo,
+      dockOffsetX,
+      dockOffsetZ,
       dockTaskId: cargo.dockTaskId,
       dockTripId: cargo.dockTripId ?? previousTripId,
       dockTruck: dockTruck.current,
       hasShadows,
       isTruckShadowed: prior?.dockTruck === dockTruck.current && prior.isTruckShadowed,
+      isYardOwner,
       layout,
       paint: {
         activeIds: prior?.paint.activeIds ?? new Set<string>(),
         matrix: prior?.paint.matrix ?? new Matrix4(),
         meshes,
         scale: prior?.paint.scale ?? new Vector3(),
-        visuals: buildWarehouseCargoVisuals(layout, cargo, balances, activeDispatchId, new Set(yardVisits.map(visit => visit.taskId))),
+        visuals: buildWarehouseCargoVisuals(
+          layout, cargo, balances, activeDispatchId, new Set(yardVisits.map(visit => visit.taskId)), dock,
+        ),
       },
       playback,
+      promotionOffsetZ,
       refreshShadowMap,
       truck,
       yard,
@@ -404,14 +526,16 @@ export const WarehouseCargo = ({
     };
     scene.current = current;
     prev.current = cargo;
-    syncSceneTrucks(current, motion.current?.matches === true);
+    syncSceneTrucks(current, motion.current?.matches === true, traffic, laneIndex);
+    traffic.setForklift(laneIndex, readReadyForklift(current));
     paintDockTruck(current);
     paintYard(current);
     paintScene(current);
     applyWarehouseForkliftPose(forklift.current, playback.pose);
     invalidate();
   }, [
-    balances, bucket, cargoSnapshot, dockTruck, forklift, hasDetailedPallets, hasShadows, invalidate, layout, refreshShadowMap, yardParking,
+    balances, bucket, cargoSnapshot, dock, dockTruck, forklift, hasAssignedDocks, hasDetailedPallets, hasShadows, invalidate,
+    isYardOwner, laneIndex, layout, refreshShadowMap, traffic, yardParking,
   ]);
 
   useFrame((_, delta) => {
@@ -421,31 +545,40 @@ export const WarehouseCargo = ({
     }
 
     const { playback, truck, yard } = current;
-    if (playback.jobs.length === 0 && !isWarehouseDockTruckMoving(truck) && !yard.isMoving) {
+    const crossingOffsetZ = isYardOwner ? traffic.readCrossingOffsetZ() : undefined;
+    const hasLaneMovement = isYardOwner && (yard.isMoving || current.crossingOffsetZ !== crossingOffsetZ);
+    if (playback.jobs.length === 0 && !isWarehouseDockTruckMoving(truck) && !hasLaneMovement) {
       return;
     }
+
+    current.crossingOffsetZ = crossingOffsetZ;
     const isReducedMotion = motion.current?.matches === true;
     if (isReducedMotion) {
       clearWarehouseForkliftJobs(playback);
+      traffic.setForklift(laneIndex, undefined);
     }
     else {
-      advanceWarehouseDockTruck(truck, delta);
-      advanceWarehouseYardMotion(yard, delta);
-      const job = playback.jobs[0];
-      const handoff = job?.transfer.dockTaskId;
-      if (handoff !== undefined && handoff !== truck.taskId && handoff !== current.dockTaskId) {
-        clearWarehouseForkliftJobs(playback);
+      const canAdvance = crossingOffsetZ === undefined || truck.offsetZ > crossingOffsetZ
+        || crossingOffsetZ - truck.offsetZ > CROSSING_CLEARANCE;
+      if (canAdvance) {
+        advanceWarehouseDockTruck(truck, delta);
       }
-      else if (job !== undefined && (handoff === undefined || (truck.phase === 'docked' && handoff === truck.taskId))) {
-        advanceWarehouseForklift(playback, delta);
+      if (isYardOwner && crossingOffsetZ === undefined) {
+        advanceWarehouseYardMotion(yard, delta);
+      }
+      const ready = readReadyForklift(current);
+      traffic.setForklift(laneIndex, ready);
+      if (ready !== undefined && (!hasAssignedDocks || canAdvanceWarehouseForklift(traffic.forklifts, laneIndex))) {
+        advanceWarehouseForklift(ready, delta, hasAssignedDocks);
+        traffic.setForklift(laneIndex, readReadyForklift(current));
       }
     }
-    syncSceneTrucks(current, isReducedMotion);
+    syncSceneTrucks(current, isReducedMotion, traffic, laneIndex);
     paintDockTruck(current);
     paintYard(current);
     applyWarehouseForkliftPose(forklift.current, playback.pose);
     paintScene(current);
-    if (playback.jobs.length > 0 || isWarehouseDockTruckMoving(truck) || yard.isMoving) {
+    if (playback.jobs.length > 0 || isWarehouseDockTruckMoving(truck) || (isYardOwner && yard.isMoving)) {
       invalidate();
     }
   });

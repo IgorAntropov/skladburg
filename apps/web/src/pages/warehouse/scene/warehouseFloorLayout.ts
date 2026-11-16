@@ -2,6 +2,7 @@ import type { WorldPaletteKeyValue } from '@/shared/3d';
 
 import type {
   WarehouseBoxValue,
+  WarehouseDockPointValue,
   WarehouseFloorValue,
   WarehouseReceivingLayoutValue,
 } from './warehouseLayout';
@@ -16,6 +17,7 @@ type BoxLayersValue = Map<WorldPaletteKeyValue, WarehouseBoxValue[]>;
 type VectorValue = WarehouseBoxValue['position'];
 
 export const WAREHOUSE_DOCK_LANE_LENGTH = 6.44 + WAREHOUSE_TRUCK_RUNUP;
+const DOCK_LANE_WIDTH = 2.5;
 
 export const addWarehouseBox = (
   layers: BoxLayersValue,
@@ -58,6 +60,24 @@ const addWall = (floor: BoxLayersValue, x: number, z: number, width: number, dep
   addWarehouseBox(floor, 'windowGlass', [x, 1.09, z], [width + 0.06, 0.075, depth + 0.06]);
 };
 
+const addFacade = (floor: BoxLayersValue, x: number, z: number, width: number, docks: readonly WarehouseDockPointValue[]): void => {
+  const dockGap = 1.12;
+  let start = x;
+
+  for (const dock of docks.toSorted((first, second) => first.x - second.x)) {
+    const span = dock.x - dockGap - start;
+    if (span > 0.18) {
+      addWall(floor, start + span / 2, z, span, 0.16);
+    }
+    start = Math.max(start, dock.x + dockGap);
+  }
+
+  const span = x + width - start;
+  if (span > 0.18) {
+    addWall(floor, start + span / 2, z, span, 0.16);
+  }
+};
+
 const addReceivingMarks = (
   floor: BoxLayersValue,
   { depth, width, x, z }: WarehouseReceivingLayoutValue,
@@ -76,8 +96,8 @@ const addReceivingMarks = (
   }
 };
 
-const addDock = (floor: BoxLayersValue, { x, z }: { x: number; z: number }): void => {
-  addWarehouseBox(floor, 'road', [x, 0.01, z - WAREHOUSE_DOCK_LANE_LENGTH / 2], [2.5, 0.02, WAREHOUSE_DOCK_LANE_LENGTH]);
+const addDock = (floor: BoxLayersValue, { x, z }: WarehouseDockPointValue): void => {
+  addWarehouseBox(floor, 'road', [x, 0.01, z - WAREHOUSE_DOCK_LANE_LENGTH / 2], [DOCK_LANE_WIDTH, 0.02, WAREHOUSE_DOCK_LANE_LENGTH]);
   addWarehouseBox(floor, 'warehouseRoof', [x, 0.16, z + 0.18], [1.86, 0.32, 0.65]);
   addWarehouseBox(floor, 'windowGlass', [x, 2.32, z], [2.16, 0.2, 0.24]);
   addWarehouseBox(floor, 'warehouseRoof', [x, 2.45, z], [2.32, 0.09, 0.35]);
@@ -91,31 +111,43 @@ const addDock = (floor: BoxLayersValue, { x, z }: { x: number; z: number }): voi
   }
 };
 
-const addParking = (floor: BoxLayersValue, { x, z }: { x: number; z: number }, slabStartZ: number): void => {
+const addParking = (
+  floor: BoxLayersValue,
+  { x, z }: WarehouseDockPointValue,
+  docks: readonly WarehouseDockPointValue[],
+  slabStartZ: number,
+): void => {
   const spacing = readWarehouseParkingOffset(0) - readWarehouseParkingOffset(1);
   const laneStartZ = z - WAREHOUSE_DOCK_LANE_LENGTH;
   const laneLength = WAREHOUSE_YARD_PARKING_LIMIT * spacing;
   const laneCenterZ = laneStartZ - laneLength / 2;
-  const laneWidth = 2.5;
+  let left = x;
+  let right = x;
+  for (const dock of docks) {
+    left = Math.min(left, dock.x);
+    right = Math.max(right, dock.x);
+  }
+  const centerX = (left + right) / 2;
+  const pavementWidth = right - left + DOCK_LANE_WIDTH;
   const apronStartZ = laneStartZ - laneLength - 0.65;
   const apronDepth = slabStartZ - apronStartZ;
 
   if (apronDepth > 0) {
-    const apronWidth = 4.8;
+    const apronWidth = right - left + 4.8;
     const apronCenterZ = apronStartZ + apronDepth / 2;
 
-    addSlab(floor, x, apronCenterZ, apronWidth, apronDepth);
-    addWarehouseBox(floor, 'plaza', [x, -0.012, apronCenterZ], [apronWidth, 0.024, apronDepth]);
+    addSlab(floor, centerX, apronCenterZ, apronWidth, apronDepth);
+    addWarehouseBox(floor, 'plaza', [centerX, -0.012, apronCenterZ], [apronWidth, 0.024, apronDepth]);
   }
 
-  addWarehouseBox(floor, 'road', [x, 0.01, laneCenterZ], [laneWidth, 0.02, laneLength]);
-  for (const side of [-1, 1]) {
-    const sideX = x + side * (laneWidth / 2 - 0.09);
+  addWarehouseBox(floor, 'road', [centerX, 0.01, laneCenterZ], [pavementWidth, 0.02, laneLength]);
+  const edgeInset = DOCK_LANE_WIDTH / 2 - 0.09;
+  for (const sideX of [left - edgeInset, right + edgeInset]) {
     addWarehouseBox(floor, 'sand', [sideX, 0.027, laneCenterZ], [0.064, 0.014, laneLength]);
   }
   for (let index = 0; index <= WAREHOUSE_YARD_PARKING_LIMIT; index += 1) {
     const lineZ = laneStartZ - index * spacing;
-    addWarehouseBox(floor, 'sand', [x, 0.028, lineZ], [laneWidth - 0.18, 0.014, 0.064]);
+    addWarehouseBox(floor, 'sand', [x, 0.028, lineZ], [DOCK_LANE_WIDTH - 0.18, 0.014, 0.064]);
   }
 };
 
@@ -126,7 +158,8 @@ export const buildWarehouseFloor = (
   padding: number,
 ): ReadonlyMap<WorldPaletteKeyValue, readonly WarehouseBoxValue[]> => {
   const floor: BoxLayersValue = new Map();
-  const dock = receiving?.dock;
+  const docks = receiving?.docks ?? [];
+  const dock = docks[0];
   const backWallZ = dock === undefined ? z : Math.max(z, Math.min(dock.z, z + depth));
   const indoorDepth = z + depth - backWallZ;
   const centerX = x + width / 2;
@@ -145,22 +178,12 @@ export const buildWarehouseFloor = (
     addWall(floor, x + 0.08, backWallZ + indoorDepth / 2, 0.16, indoorDepth);
   }
 
-  if (dock === undefined) {
-    addWall(floor, centerX, backWallZ, width, 0.16);
+  addFacade(floor, x, backWallZ, width, docks);
+  for (const point of docks) {
+    addDock(floor, point);
   }
-  else {
-    const dockGap = 1.12;
-    const leftWidth = dock.x - dockGap - x;
-    const rightStart = dock.x + dockGap;
-    const rightWidth = x + width - rightStart;
-    if (leftWidth > 0.18) {
-      addWall(floor, x + leftWidth / 2, backWallZ, leftWidth, 0.16);
-    }
-    if (rightWidth > 0.18) {
-      addWall(floor, rightStart + rightWidth / 2, backWallZ, rightWidth, 0.16);
-    }
-    addDock(floor, dock);
-    addParking(floor, dock, z);
+  if (dock !== undefined) {
+    addParking(floor, dock, docks, z);
   }
 
   if (receiving !== undefined) {

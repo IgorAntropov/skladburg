@@ -38,7 +38,9 @@ import {
 } from '../../router/engineRouter';
 import { paginate } from '../pagination';
 import {
+  assignAvailableInboundDocks,
   readInboundTask,
+  requireInboundDock,
   saveInboundTask,
 } from './inboundRecords';
 import { putAwayHandlingUnit } from './putAwayHandlingUnit';
@@ -126,10 +128,13 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
       const { finishInboundReceipt } = await import('../deals/dealReceipt');
       return runReceivingCommand(runtime, {
         allowedStatuses: [ReceivingTaskStatus.IN_PROGRESS],
-        handle: (transaction, _caller, task) => {
+        handle: (transaction, caller, task) => {
+          const tenantId = caller.organizationId;
+          requireInboundDock(transaction, errors, task, tenantId, method.finishReceivingTask.name);
           task.status = ReceivingTaskStatus.READY_FOR_RECONCILIATION;
           task.finishedAt = timestampFromMs(transaction.worldTimeMs);
           finishInboundReceipt(transaction, runtime, task);
+          assignAvailableInboundDocks(transaction, runtime, { ...task, tenantId }, task);
           return create(FinishReceivingTaskResponseSchema, { task });
         },
         headers: context.requestHeader,
@@ -169,6 +174,7 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
     receiveHandlingUnit: (request, context) => runReceivingCommand(runtime, {
       allowedStatuses: [ReceivingTaskStatus.IN_PROGRESS],
       handle: (transaction, caller, task) => {
+        requireInboundDock(transaction, errors, task, caller.organizationId, method.receiveHandlingUnit.name);
         receiveHandlingUnit(transaction, runtime, caller, task, request);
         return create(ReceiveHandlingUnitResponseSchema, { task });
       },

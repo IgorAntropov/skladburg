@@ -18,7 +18,9 @@ import {
   SeedUserId,
   SeedWarehouseId,
 } from './seedIds';
+import { addSeedReceivingDock } from './seedReceivingDocks';
 import { createSeedWarehouseTopology } from './seedWarehouseTopologies';
+import { SEED_WMS_RECEIVING_EXAMPLES_WAREHOUSE_ID } from './seedWarehouseWorkspaceConfig';
 
 interface ReceivingExamplesValue {
   routes: readonly HistoryRouteValue[];
@@ -28,7 +30,7 @@ interface ReceivingExamplesValue {
 const CUSTOMER = {
   organizationId: SeedOrganizationId.CUSTOMER_1,
   userId: SeedUserId.ADMIN_1,
-  warehouseId: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3,
+  warehouseId: SEED_WMS_RECEIVING_EXAMPLES_WAREHOUSE_ID,
 };
 const COTTAGE_LISTING_ID = 'd1020020-0000-4000-8000-000000000000';
 const YOGURT_LISTING_ID = 'd1020013-0000-4000-8000-000000000000';
@@ -36,6 +38,7 @@ const MARKED_LISTING_ID = 'd4010001-0000-4000-8000-000000000000';
 const MARKED_PRODUCT_ID = 'd4010002-0000-4000-8000-000000000000';
 const MARKED_GTIN = '2000002999911';
 const MARKED_QUANTITY = 3n;
+const COTTAGE_QUANTITY = 100_000n;
 
 const RECEIVING_ROUTES: readonly HistoryRouteValue[] = [
   {
@@ -58,7 +61,7 @@ const RECEIVING_ROUTES: readonly HistoryRouteValue[] = [
           },
         ],
       },
-      quantity: 100_000n,
+      quantity: COTTAGE_QUANTITY,
       submittedAtMs: Date.UTC(2026, 9, 5, 8),
     }, {
       listingId: MARKED_LISTING_ID,
@@ -77,6 +80,18 @@ const RECEIVING_ROUTES: readonly HistoryRouteValue[] = [
       },
       quantity: MARKED_QUANTITY,
       submittedAtMs: Date.UTC(2026, 9, 5, 8, 15),
+    }, {
+      listingId: COTTAGE_LISTING_ID,
+      manifest: {
+        sourceDocumentNumber: 'DEMO-WMS-04',
+        units: [{
+          batches: [{ batchNumber: 'DEMO-COTTAGE-3', listingId: COTTAGE_LISTING_ID, quantityBase: COTTAGE_QUANTITY }],
+          kind: HandlingUnitKind.PALLET,
+          sscc: '000000000000000031',
+        }],
+      },
+      quantity: COTTAGE_QUANTITY,
+      submittedAtMs: Date.UTC(2026, 9, 5, 8, 30),
     }],
     supplier: {
       organizationId: SeedOrganizationId.SUPPLIER_2,
@@ -123,11 +138,13 @@ export const createSeedReceivingExamples = (snapshot: EngineSnapshotValue): Rece
     listingId: markedListing.id,
     tiers: [{ ...tier, minQuantity: MARKED_QUANTITY }],
   });
-  const topology = encodeWarehouseTopology(createSeedWarehouseTopology({
+  const kazansTopology = createSeedWarehouseTopology({
     prefix: '8f000004',
     tenantId: CUSTOMER.organizationId,
     warehouseId: CUSTOMER.warehouseId,
-  }));
+  });
+  addSeedReceivingDock(kazansTopology);
+  const topology = encodeWarehouseTopology(kazansTopology);
 
   return {
     routes: RECEIVING_ROUTES,

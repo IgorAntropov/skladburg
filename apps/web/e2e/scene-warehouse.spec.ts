@@ -9,6 +9,7 @@ import type {
   Page,
   TestInfo,
 } from '@playwright/test';
+import type { ListReceivingTasksResponse } from '@skladburg/contracts/wms/v1/receiving';
 
 import {
   create,
@@ -108,7 +109,17 @@ const callReceiving = async <TInput extends DescMessage, TOutput extends DescMes
   return fromBinary(method.output, await worker.call(`${method.parent.typeName}/${method.name}`, body));
 };
 
-const readTruckCabRows = (page: Page, screenshot: Buffer): Promise<number[]> => page.evaluate(async (base64): Promise<number[]> => {
+interface TruckCabPositionValue {
+  x: number;
+  y: number;
+}
+
+const projectCabDepth = ({ x, y }: TruckCabPositionValue): number => y * Math.sqrt(3) - x;
+
+const readTruckCabPositions = (
+  page: Page,
+  screenshot: Buffer,
+): Promise<TruckCabPositionValue[]> => page.evaluate(async (base64): Promise<TruckCabPositionValue[]> => {
   const image = new Image();
   image.src = `data:image/png;base64,${base64}`;
   await image.decode();
@@ -132,17 +143,19 @@ const readTruckCabRows = (page: Page, screenshot: Buffer): Promise<number[]> => 
     cabPixels[pixel] = red - green >= 20 && blue - green >= 16 ? 1 : 0;
   }
 
-  const cabRows: number[] = [];
+  const cabs: TruckCabPositionValue[] = [];
   for (let pixel = 0; pixel < cabPixels.length; pixel += 1) {
     if (cabPixels[pixel] !== 1) {
       continue;
     }
     const component = [pixel];
     cabPixels[pixel] = 0;
-    let rowSum = 0;
+    let sumX = 0;
+    let sumY = 0;
     for (const current of component) {
-      rowSum += Math.floor(current / width);
       const column = current % width;
+      sumX += column;
+      sumY += Math.floor(current / width);
       for (const next of [
         current - width,
         current + width,
@@ -156,11 +169,11 @@ const readTruckCabRows = (page: Page, screenshot: Buffer): Promise<number[]> => 
       }
     }
     if (component.length >= 100) {
-      cabRows.push(rowSum / component.length);
+      cabs.push({ x: sumX / component.length, y: sumY / component.length });
     }
   }
 
-  return cabRows.sort((current, prev) => prev - current);
+  return cabs;
 }, screenshot.toString('base64'));
 
 test('renders the dock and the confirmed receiving movements, then returns to rest', async ({ context, page }, testInfo) => {
@@ -373,8 +386,8 @@ test('loads, transports and puts away the same pallet on an assigned warehouse t
   expect(storeScene.readPageErrors()).toEqual([]);
 });
 
-test('serves the warehouse queue in arrival order even when the waiting receipt is opened', async ({ context, page }, testInfo) => {
-  test.setTimeout(90_000);
+test('receives goods at two assigned docks and advances the waiting truck', async ({ context, page }, testInfo) => {
+  test.setTimeout(120_000);
   await page.addInitScript({ content: DRAW_COUNTER_INIT_SCRIPT });
   await page.addInitScript({ content: createStoreSystemThemeScript() });
   await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'no-preference' });
@@ -382,7 +395,7 @@ test('serves the warehouse queue in arrival order even when the waiting receipt 
   scene.watchPageErrors();
   await createPersonaRobot(page).openAsPersona(toObjectHash(toWarehouseRoute(KAZAN_WAREHOUSE_ID)), PERSONAS.freshCustomer.id);
   const receipts = page.getByTestId('warehouse-receiving-task');
-  await expect(receipts).toHaveCount(2);
+  await expect(receipts).toHaveCount(3);
   await scene.chooseGraphicsPreference('low');
   await scene.expectSceneState('ready');
   await scene.expectOneCanvas();
@@ -393,49 +406,90 @@ test('serves the warehouse queue in arrival order even when the waiting receipt 
   const workerPage = await context.newPage();
   const worker = await createEngineWorkerRobot(workerPage, DEAL_CUSTOMER);
   const { method } = WarehouseReceivingService;
+  const readReceipts = (): Promise<ListReceivingTasksResponse> =>
+    callReceiving(worker, method.listReceivingTasks, { warehouseId: KAZAN_WAREHOUSE_ID });
   const canvas = page.getByTestId('scene-viewport').locator('canvas');
   try {
-    const { tasks } = await callReceiving(worker, method.listReceivingTasks, { warehouseId: KAZAN_WAREHOUSE_ID });
-    expect(tasks.map(task => ({ sscc: task.expectedUnits[0]?.sscc, status: task.status }))).toEqual([
+    const { tasks } = await readReceipts();
+    expect(tasks).toHaveLength(3);
+    expect(tasks.slice(0, 2).map(task => ({ sscc: task.expectedUnits[0]?.sscc, status: task.status }))).toEqual([
       { sscc: COTTAGE_SSCC, status: ReceivingTaskStatus.OPEN },
       { sscc: YOGURT_SSCC, status: ReceivingTaskStatus.OPEN },
     ]);
-    const [firstArrival, secondArrival] = tasks;
-    if (firstArrival === undefined || secondArrival === undefined) {
-      throw new Error('Expected both Kazan arrivals');
+    const [firstArrival, secondArrival, waitingArrival] = tasks;
+    if (firstArrival?.unloadingPointId === undefined || secondArrival?.unloadingPointId === undefined || waitingArrival === undefined) {
+      throw new Error('Expected two assigned Kazan docks and a waiting receipt');
     }
+    expect(firstArrival.unloadingPointId).not.toBe(secondArrival.unloadingPointId);
+    expect(waitingArrival.status).toBe(ReceivingTaskStatus.OPEN);
+    expect(waitingArrival.unloadingPointId).toBeUndefined();
     const first = receipts.filter({ has: page.locator(`a[href="#/deals/${firstArrival.dealId}"]`) });
     const second = receipts.filter({ has: page.locator(`a[href="#/deals/${secondArrival.dealId}"]`) });
+    const waiting = receipts.filter({ has: page.locator(`a[href="#/deals/${waitingArrival.dealId}"]`) });
+    const firstDock = first.getByTestId('warehouse-receiving-dock');
+    const secondDock = second.getByTestId('warehouse-receiving-dock');
+    const waitingDock = waiting.getByTestId('warehouse-receiving-dock');
+    const waitingReceive = waiting.getByTestId('warehouse-enter-sscc');
+    await expect(firstDock).toContainText('D01');
+    await expect(secondDock).toContainText('D02');
+    const [firstDockLabel, secondDockLabel] = await Promise.all([firstDock.innerText(), secondDock.innerText()]);
+    await expect(waitingDock).toBeVisible();
+    await expect(waitingDock).not.toHaveText(/D0[12]/u);
 
     await page.bringToFront();
-    const before = await canvas.screenshot({ path: testInfo.outputPath('yard-queue-before.png'), style: CANVAS_ONLY_STYLE });
-    const cabRows = await readTruckCabRows(page, before);
-    expect(cabRows).toHaveLength(2);
-    const [dockCabRow, waitingCabRow] = cabRows;
-    if (dockCabRow === undefined || waitingCabRow === undefined) {
-      throw new Error('Expected separate dock and parking trucks');
-    }
-    expect(dockCabRow - waitingCabRow).toBeGreaterThan(20);
+    const before = await canvas.screenshot({ path: testInfo.outputPath('kazan-two-docks.png'), style: CANVAS_ONLY_STYLE });
+    const initialCabs = await readTruckCabPositions(page, before);
+    expect(initialCabs).toHaveLength(3);
+    const initialDockCabs = initialCabs.toSorted((first, second) => projectCabDepth(first) - projectCabDepth(second)).slice(1);
     await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
 
-    await first.getByTestId('warehouse-claim-receiving').click();
-    await expect(first.getByText(COTTAGE_SSCC, { exact: true })).toBeVisible();
+    const claimWaiting = waiting.getByTestId('warehouse-claim-receiving');
+    await claimWaiting.click();
+    await expect(claimWaiting).toHaveCount(0);
+    await expect(waitingReceive).toHaveCount(0);
     await second.getByTestId('warehouse-claim-receiving').click();
     await expect(second.getByText(YOGURT_SSCC, { exact: true })).toBeVisible();
-    await second.getByTestId('warehouse-enter-sscc').click();
-    const secondForm = second.getByTestId('warehouse-receive-form');
-    await expect(secondForm).toBeVisible();
-    await scene.waitForIdle();
-    await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
-    const withWaitingReceiptOpen = await canvas.screenshot({ style: CANVAS_ONLY_STYLE });
-    expect(withWaitingReceiptOpen.equals(before), 'Opening the waiting receipt moved a truck').toBe(true);
+    const firstReceive = await scanDeliveredPallet(first, COTTAGE_SSCC);
+    await expectDockTruckMotion(scene, canvas, async () => {
+      await firstReceive.click();
+      await expect(first.getByTestId('warehouse-placement')).toHaveCount(1);
+    }, testInfo, 'kazan-first-unload');
 
-    const { tasks: claimedTasks } = await callReceiving(worker, method.listReceivingTasks, { warehouseId: KAZAN_WAREHOUSE_ID });
-    const firstTask = claimedTasks.find(task => task.id === firstArrival.id);
-    const secondTask = claimedTasks.find(task => task.id === secondArrival.id);
-    if (firstTask === undefined || secondTask === undefined) {
-      throw new Error('Expected both Kazan receipts to be claimed');
+    const { tasks: startedTasks } = await readReceipts();
+    const markedTask = startedTasks.find(task => task.id === secondArrival.id);
+    const markedBatch = markedTask?.expectedUnits[0]?.batches[0];
+    if (markedTask === undefined || markedBatch === undefined) {
+      throw new Error('Expected the marked yogurt receipt');
     }
+    expect(markedBatch.markingCodes).toHaveLength(3);
+    await expectDockTruckMotion(scene, canvas, async () => {
+      const { task } = await callReceiving(worker, method.receiveHandlingUnit, {
+        batchEvidence: [{ batchIndex: 0, markingCodes: markedBatch.markingCodes, quantityBase: markedBatch.quantityBase }],
+        expectedVersion: markedTask.version,
+        idempotencyKey: randomUUID(),
+        taskId: markedTask.id,
+        unit: { case: 'sscc', value: YOGURT_SSCC },
+        warehouseId: KAZAN_WAREHOUSE_ID,
+      });
+      expect(task?.receivedUnits[0]?.batchFacts[0]?.markingCodes).toEqual(markedBatch.markingCodes);
+      await expect(second.getByTestId('warehouse-placement')).toHaveCount(1);
+    }, testInfo, 'kazan-second-unload');
+
+    const { tasks: acceptedTasks } = await readReceipts();
+    const firstTask = acceptedTasks.find(task => task.id === firstArrival.id);
+    const secondTask = acceptedTasks.find(task => task.id === secondArrival.id);
+    if (firstTask === undefined || secondTask === undefined) {
+      throw new Error('Expected both open Kazan receipts');
+    }
+    for (const [task, arrival, sscc] of [[firstTask, firstArrival, COTTAGE_SSCC], [secondTask, secondArrival, YOGURT_SSCC]] as const) {
+      expect(task.status).toBe(ReceivingTaskStatus.IN_PROGRESS);
+      expect(task.unloadingPointId).toBe(arrival.unloadingPointId);
+      expect(task.receivedUnits.map(unit => unit.balanceAtReceipt?.handlingUnit?.sscc)).toEqual([sscc]);
+    }
+    const waitingReceipt = acceptedTasks.find(task => task.id === waitingArrival.id);
+    expect(waitingReceipt?.status).toBe(ReceivingTaskStatus.IN_PROGRESS);
+    expect(waitingReceipt?.unloadingPointId).toBeUndefined();
+
     const { finishReceivingTask } = method;
     const finishReceipt = async (taskId: string, expectedVersion: number): Promise<void> => {
       const { task } = await callReceiving(worker, finishReceivingTask, {
@@ -446,19 +500,44 @@ test('serves the warehouse queue in arrival order even when the waiting receipt 
       });
       expect(task?.status).toBe(ReceivingTaskStatus.READY_FOR_RECONCILIATION);
     };
-    const promoted = await expectDockTruckMotion(scene, canvas, async () => {
-      await finishReceipt(firstTask.id, firstTask.version);
-    }, testInfo, 'yard-queue-handoff', MIN_YARD_HANDOFF_FRAMES);
-    const promotedCabs = await readTruckCabRows(page, promoted);
-    expect(promotedCabs).toHaveLength(1);
-    expect(promotedCabs[0]).toBeCloseTo(dockCabRow, -1);
-    await expect(secondForm).toBeVisible();
-
-    const emptyYard = await expectDockTruckMotion(scene, canvas, async () => {
+    const afterSecondDeparture = await expectDockTruckMotion(scene, canvas, async () => {
       await finishReceipt(secondTask.id, secondTask.version);
-      await expect(secondForm).toHaveCount(0);
-    }, testInfo, 'yard-queue-last-departure');
-    expect(await readTruckCabRows(page, emptyYard)).toHaveLength(0);
+    }, testInfo, 'kazan-d02-departure-and-queue-advance', MIN_YARD_HANDOFF_FRAMES);
+    const assignedCabs = await readTruckCabPositions(page, afterSecondDeparture);
+    expect(assignedCabs).toHaveLength(2);
+    expect(assignedCabs.every(cab => initialDockCabs.some(({ x, y }) => Math.hypot(x - cab.x, y - cab.y) < 5))).toBe(true);
+    const { tasks: remainingTasks } = await readReceipts();
+    const remainingReceipt = remainingTasks.find(task => task.id === firstTask.id);
+    expect(remainingReceipt).toMatchObject({
+      status: ReceivingTaskStatus.IN_PROGRESS,
+      unloadingPointId: firstArrival.unloadingPointId,
+      version: firstTask.version,
+    });
+    expect(remainingReceipt?.receivedUnits).toEqual(firstTask.receivedUnits);
+    expect(remainingTasks.find(task => task.id === waitingArrival.id)).toMatchObject({
+      status: ReceivingTaskStatus.IN_PROGRESS,
+      unloadingPointId: secondArrival.unloadingPointId,
+    });
+    await expect(firstDock).toHaveText(firstDockLabel);
+    await expect(waitingDock).toHaveText(secondDockLabel);
+    await expect(waitingReceive).toBeVisible();
+    await expect(first.getByTestId('warehouse-placement')).toHaveCount(1);
+
+    const afterFirstDeparture = await expectDockTruckMotion(scene, canvas, async () => {
+      await finishReceipt(firstTask.id, firstTask.version);
+    }, testInfo, 'kazan-d01-departure');
+    expect(await readTruckCabPositions(page, afterFirstDeparture)).toHaveLength(1);
+    await expect(waitingDock).toHaveText(secondDockLabel);
+
+    const { tasks: finalTasks } = await readReceipts();
+    const finalTask = finalTasks.find(task => task.id === waitingArrival.id);
+    if (finalTask === undefined) {
+      throw new Error('Expected the receipt promoted from parking');
+    }
+    const emptyYard = await expectDockTruckMotion(scene, canvas, async () => {
+      await finishReceipt(finalTask.id, finalTask.version);
+    }, testInfo, 'kazan-third-departure');
+    expect(await readTruckCabPositions(page, emptyYard)).toHaveLength(0);
     await expectNoAxeViolations(page);
     expect(scene.readPageErrors()).toEqual([]);
   }

@@ -81,6 +81,7 @@ import {
 import {
   SEED_WMS_INBOUND_WAREHOUSE_ID,
   SEED_WMS_OUTBOUND_WAREHOUSE_ID,
+  SEED_WMS_RECEIVING_EXAMPLES_WAREHOUSE_ID,
 } from '../seed/seedWarehouseWorkspaceConfig';
 import {
   createEngineState,
@@ -157,12 +158,19 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
 const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23];
 
 const prepareDemoWarehouse = async (options: CreateEngineOptionsValue, snapshot: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
-  if (options.isDemoWarehouseEnabled !== true || snapshot.collections.warehouseTopologies.has(SEED_WMS_OUTBOUND_WAREHOUSE_ID)) {
+  if (options.isDemoWarehouseEnabled !== true) {
     return snapshot;
+  }
+  const receiving = snapshot.collections.warehouseTopologies.has(SEED_WMS_RECEIVING_EXAMPLES_WAREHOUSE_ID)
+    ? await import('../seed/seedReceivingDocks')
+    : undefined;
+  const prepared = receiving?.prepareSeedReceivingDocks(snapshot) ?? snapshot;
+  if (prepared.collections.warehouseTopologies.has(SEED_WMS_OUTBOUND_WAREHOUSE_ID)) {
+    return prepared;
   }
 
   const { seedWarehouseWorkspace } = await import('../seed/seedWarehouseWorkspace');
-  return seedWarehouseWorkspace(snapshot);
+  return seedWarehouseWorkspace(prepared);
 };
 
 const selectOutboundWarehouses = async (

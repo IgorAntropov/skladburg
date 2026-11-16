@@ -136,12 +136,13 @@ export const advanceSystemDeal = (
   deal.status = transition.status;
   deal.updatedAt = at;
   deal.version++;
-  if (command === 'arrive' && transaction.get('warehouseInbound', deal.id) !== undefined) {
-    if (deal.deadlines !== undefined) {
-      deal.deadlines.acceptanceDueAt = undefined;
-    }
-    runtime.openInboundTask?.(transaction, runtime, deal.id);
+  const hasInbound = command === 'arrive' && transaction.get('warehouseInbound', deal.id) !== undefined;
+  if (hasInbound && deal.deadlines !== undefined) {
+    deal.deadlines.acceptanceDueAt = undefined;
   }
   transaction.put('deals', deal);
+  if (hasInbound) {
+    runtime.openInboundTask?.(transaction, runtime, deal.id);
+  }
   publishDealEffects(runtime, transaction, deal, notice, DealChange.STATUS, actingOrganizationId);
 };

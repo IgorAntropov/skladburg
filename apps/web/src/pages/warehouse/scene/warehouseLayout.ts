@@ -1,6 +1,7 @@
 import type {
   WarehouseFloorRect,
   WarehouseTopology,
+  WarehouseUnloadingPoint,
 } from '@skladburg/contracts/wms/v1/topology';
 
 import type {
@@ -24,6 +25,15 @@ export interface WarehouseBoxValue {
 export interface WarehouseCellVisualValue extends WarehouseBoxValue {
   id: string;
   rack: WarehouseAisleRectValue;
+}
+
+export interface WarehouseDockLayoutValue extends WarehouseDockPointValue {
+  id: string;
+}
+
+export interface WarehouseDockPointValue {
+  x: number;
+  z: number;
 }
 
 export interface WarehouseFloorValue {
@@ -57,7 +67,8 @@ export interface WarehouseRackLayoutValue {
 }
 
 export interface WarehouseReceivingLayoutValue extends WarehouseFloorValue {
-  dock: undefined | { x: number; z: number };
+  dock: undefined | WarehouseDockPointValue;
+  docks: readonly WarehouseDockLayoutValue[];
   id: string;
 }
 
@@ -65,6 +76,7 @@ type VectorValue = [number, number, number];
 
 const layouts = new WeakMap<WarehouseTopology, WarehouseLayoutValue>();
 const METER = 1000;
+const DOCK_MIN_SPACING_MM = 2660;
 export const WAREHOUSE_DOCK_RAMP_END = 0.505;
 export const WAREHOUSE_DOCK_HANDOFF_Z = 0.4;
 
@@ -76,7 +88,42 @@ const readFloor = (rect: undefined | WarehouseFloorRect): undefined | WarehouseF
   return { depth: rect.depthMm / METER, width: rect.widthMm / METER, x: rect.origin.xMm / METER, z: rect.origin.zMm / METER };
 };
 
-const buildTruck = ({ x, z }: NonNullable<WarehouseReceivingLayoutValue['dock']>): Map<WorldPaletteKeyValue, WarehouseBoxValue[]> => {
+const readDock = (point: undefined | WarehouseUnloadingPoint): undefined | WarehouseDockLayoutValue => {
+  const position = point?.position;
+  if (point === undefined || position === undefined
+    || !Number.isInteger(position.xMm) || position.xMm < 0 || !Number.isInteger(position.zMm) || position.zMm < 0) {
+    return undefined;
+  }
+
+  return { id: point.id, x: position.xMm / METER, z: position.zMm / METER };
+};
+
+const readDocks = (
+  primary: WarehouseDockLayoutValue,
+  points: readonly WarehouseUnloadingPoint[],
+  extraDocks: readonly WarehouseDockPointValue[],
+): readonly WarehouseDockLayoutValue[] => {
+  const docks = [primary];
+  const candidates = [
+    ...points.filter(point => point.id !== '').map(readDock),
+    ...extraDocks.map(point => ({ ...point, id: '' })),
+  ];
+
+  for (const point of candidates) {
+    if (point === undefined || !Number.isFinite(point.x) || point.z !== primary.z) {
+      continue;
+    }
+    const hasConflict = docks.some(dock => (point.id !== '' && dock.id === point.id)
+      || Math.abs(Math.round((point.x - dock.x) * METER)) < DOCK_MIN_SPACING_MM);
+    if (!hasConflict) {
+      docks.push(point);
+    }
+  }
+
+  return docks;
+};
+
+const buildTruck = ({ x, z }: WarehouseDockPointValue): Map<WorldPaletteKeyValue, WarehouseBoxValue[]> => {
   const boxes = new Map<WorldPaletteKeyValue, WarehouseBoxValue[]>();
   addWarehouseBox(boxes, 'road', [x, 0.36, z - 3.1], [1.36, 0.29, 5.8]);
   addWarehouseBox(boxes, 'warehouseWall', [x, 0.64, z - 2.16], [1.68, 0.2, 4.04]);
@@ -96,7 +143,10 @@ const buildTruck = ({ x, z }: NonNullable<WarehouseReceivingLayoutValue['dock']>
   return boxes;
 };
 
-const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue => {
+export const buildWarehouseLayout = (
+  topology: WarehouseTopology,
+  additionalDocks: readonly WarehouseDockPointValue[] = [],
+): WarehouseLayoutValue => {
   const cells: WarehouseCellVisualValue[] = [];
   const aisleMarks: WarehouseBoxValue[] = [];
   const decks: WarehouseBoxValue[] = [];
@@ -104,21 +154,35 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
   const frames: WarehouseBoxValue[] = [];
   const guards: WarehouseBoxValue[] = [];
   const obstacles: WarehouseAisleRectValue[] = [];
-  const floor = readFloor(topology.receivingArea?.footprint);
-  const point = topology.receivingArea?.unloadingPoint?.position;
-  const receiving = floor === undefined || topology.receivingArea === undefined
+  const area = topology.receivingArea;
+  const floor = readFloor(area?.footprint);
+  const point = floor === undefined ? undefined : readDock(area?.unloadingPoint);
+  const dock = point === undefined ? undefined : { x: point.x, z: point.z };
+  const docks = point === undefined ? [] : readDocks(point, area?.additionalUnloadingPoints ?? [], additionalDocks);
+  const receiving = floor === undefined || area === undefined
     ? undefined
     : {
         ...floor,
-        dock: point === undefined ? undefined : { x: point.xMm / METER, z: point.zMm / METER },
-        id: topology.receivingArea.id,
+        dock,
+        docks,
+        id: area.id,
       };
-  const dock = receiving?.dock;
-  let minX = Math.min(0, (dock?.x ?? 2) - 1.5);
-  let minZ = Math.min(0, (dock?.z ?? WAREHOUSE_DOCK_LANE_LENGTH) - WAREHOUSE_DOCK_LANE_LENGTH);
-  let maxX = Math.max(receiving === undefined ? 6 : receiving.x + receiving.width, (dock?.x ?? 0) + 1.5);
-  let maxZ = Math.max(receiving === undefined ? 4 : receiving.z + receiving.depth, dock?.z ?? 0);
+  let minX = 0;
+  let minZ = 0;
+  let maxX = receiving === undefined ? 6 : receiving.x + receiving.width;
+  let maxZ = receiving === undefined ? 4 : receiving.z + receiving.depth;
   let maxHeight = 2.4;
+
+  if (docks.length === 0) {
+    maxX = Math.max(maxX, 1.5);
+    maxZ = Math.max(maxZ, 0);
+  }
+  for (const { x, z } of docks) {
+    minX = Math.min(minX, x - 1.5);
+    minZ = Math.min(minZ, z - WAREHOUSE_DOCK_LANE_LENGTH);
+    maxX = Math.max(maxX, x + 1.5);
+    maxZ = Math.max(maxZ, z);
+  }
 
   for (const zone of topology.storageZones) {
     for (const row of zone.rows) {
@@ -191,13 +255,8 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
   const centerZ = (minZ + maxZ) / 2;
   const radius = Math.max(4.5, Math.hypot(width, depth) * 0.52);
   const padding = 18 + radius * 5;
-  if (dock !== undefined) {
-    obstacles.push({
-      maxX: dock.x + 0.93,
-      maxZ: dock.z + WAREHOUSE_DOCK_RAMP_END,
-      minX: dock.x - 0.93,
-      minZ: dock.z - 0.145,
-    });
+  for (const { x, z } of docks) {
+    obstacles.push({ maxX: x + 0.93, maxZ: z + WAREHOUSE_DOCK_RAMP_END, minX: x - 0.93, minZ: z - 0.145 });
   }
   const bounds = { maxX, maxZ, minX: minX + 0.19, minZ: (dock?.z ?? minZ) + 0.11 };
   return {

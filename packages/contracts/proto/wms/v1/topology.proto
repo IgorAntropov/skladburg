@@ -81,6 +81,7 @@ message WarehouseReceivingArea {
   }];
   WarehouseFloorRect footprint = 3 [(buf.validate.field).required = true];
   WarehouseUnloadingPoint unloading_point = 4;
+  repeated WarehouseUnloadingPoint additional_unloading_points = 5;
 }
 
 message WarehouseTopology {

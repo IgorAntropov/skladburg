@@ -1,7 +1,6 @@
 import type { ThreeEvent } from '@react-three/fiber';
 import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
 import type { ReactElement } from 'react';
-import type { Group } from 'three';
 
 import {
   useEffect,
@@ -20,26 +19,22 @@ import {
   useSceneCameraRig,
 } from '@/shared/3d';
 
-import type { WarehouseCargoValue } from '../model/warehouseSceneCargo';
 import type { WarehouseSceneInteractionValue } from '../model/warehouseSceneInteraction';
-import type { WarehouseForkliftRigValue } from './WarehouseForklift';
 import type {
   WarehouseBoxValue,
   WarehouseCellVisualValue,
 } from './warehouseLayout';
-import type { WarehouseYardParkingRigValue } from './WarehouseYardParkingLayer';
 
 import { createWarehouseGeometryKit } from './createWarehouseGeometryKit';
-import { WarehouseCargo } from './WarehouseCargo';
+import { createWarehouseYardTraffic } from './WarehouseCargo';
+import { splitWarehouseDockCargo } from './warehouseDockCargo';
+import { WarehouseDockLane } from './WarehouseDockLane';
 import { WarehouseFloor } from './WarehouseFloor';
-import { WarehouseForklift } from './WarehouseForklift';
 import { WarehouseInstances } from './WarehouseInstances';
 import { getWarehouseLayout } from './warehouseLayout';
 import { WarehouseRacks } from './WarehouseRacks';
-import { WarehouseYardParking } from './WarehouseYardParkingLayer';
 
 const TAP_SLOP_PX = 5;
-const EMPTY_CARGO: WarehouseCargoValue = { dockTaskId: undefined, hasDock: false, units: [] };
 
 export const prepare = (topology: WarehouseTopology): Promise<void> => {
   getWarehouseLayout(topology);
@@ -70,12 +65,13 @@ const WarehouseWorldScene = ({
   const layout = getWarehouseLayout(data);
   const geometry = useMemo(() => new BoxGeometry(1, 1, 1), []);
   const kit = useMemo(() => createWarehouseGeometryKit(), []);
-  const dockTruck = useRef<Group>(null);
-  const forklift = useRef<WarehouseForkliftRigValue>(null);
-  const yardParking = useRef<WarehouseYardParkingRigValue>(null);
+  const traffic = useMemo(() => createWarehouseYardTraffic(), []);
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const lastFocus = useRef<{ request: number; scan: WarehouseSceneInteractionValue['scannedCell'] }>(undefined);
   const { balances, cargo, focusRequest, onCellSelect, scannedCell, selectedCellId } = interaction;
+  const docks = layout.receiving?.docks;
+  const lanes = splitWarehouseDockCargo(cargo, balances, docks?.map(dock => dock.id) ?? []);
+  const hasAssignedDocks = (docks?.length ?? 0) > 1;
   const activeCellId = scannedCell?.cellId ?? selectedCellId;
   const selection = activeCellId === undefined ? undefined : layout.cellsById.get(activeCellId);
   const selectionBoxes = buildSelectionBoxes(selection);
@@ -113,29 +109,20 @@ const WarehouseWorldScene = ({
       {layout.cells.length > 0 && (
         <WarehouseInstances boxes={layout.cells} geometry={geometry} materialKey="buildingWall" onClick={handleCellClick} />
       )}
-      {cargo?.hasDock === true && (
-        <group name="warehouse-dock-truck" ref={dockTruck} visible={false}>
-          {[...layout.truck].map(([key, boxes]) => (
-            <WarehouseInstances boxes={boxes} geometry={geometry} key={key} materialKey={key} />
-          ))}
-        </group>
-      )}
-      <WarehouseForklift rig={forklift} />
-      {cargo?.hasDock === true && (
-        <WarehouseYardParking geometry={geometry} rig={yardParking} trucks={layout.truck} />
-      )}
-      <WarehouseCargo
-        balances={balances}
-        cargo={cargo ?? EMPTY_CARGO}
-        dockTruck={dockTruck}
-        forklift={forklift}
-        geometry={geometry}
-        hasShadows={hasShadows}
-        key={cargo === undefined ? 'stock' : 'receiving'}
-        kit={kit}
-        layout={layout}
-        yardParking={yardParking}
-      />
+      {lanes.map((lane, index) => (
+        <WarehouseDockLane
+          dock={docks?.[index] ?? layout.receiving?.dock}
+          geometry={geometry}
+          hasAssignedDocks={hasAssignedDocks}
+          hasShadows={hasShadows}
+          key={docks?.[index]?.id ?? 'warehouse'}
+          kit={kit}
+          lane={lane}
+          laneIndex={index}
+          layout={layout}
+          traffic={traffic}
+        />
+      ))}
       {selectionBoxes.length > 0 && <WarehouseInstances boxes={selectionBoxes} geometry={geometry} materialKey="lampGlow" />}
     </>
   );

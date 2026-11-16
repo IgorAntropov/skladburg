@@ -125,7 +125,6 @@ function WarehouseQuery<TData>({ children, empty, isEmpty, query, t }: Warehouse
   const { t: baseText } = useI18n();
 
   const handleRetry = (): void => {
-    console.log('> WarehouseQuery -> handleRetry:', {});
     void query.refetch();
   };
 
@@ -158,6 +157,13 @@ const WarehouseWorkspaceContent = ({
   const hasEditor = editingTaskId !== undefined && workspace.receiving.data?.some(task => task.id === editingTaskId
     && task.status === ReceivingTaskStatus.IN_PROGRESS) === true;
   const cells = readCells(workspace.topology.data);
+  const receivingArea = workspace.topology.data?.receivingArea;
+  const dockPoints = receivingArea?.additionalUnloadingPoints.length
+    ? [receivingArea.unloadingPoint, ...receivingArea.additionalUnloadingPoints]
+    : undefined;
+  const hasAssignedDocks = (workspace.topology.data === undefined || dockPoints !== undefined)
+    && workspace.receiving.data?.some(task => task.unloadingPointId !== undefined
+      && (task.status === ReceivingTaskStatus.OPEN || task.status === ReceivingTaskStatus.IN_PROGRESS)) === true;
   const productNames = new Map(workspace.receiving.data?.flatMap(task =>
     task.orderLines.map(({ productId, productName }) => [productId, productName] as const)));
   const tabs: TabsItemValue[] = [];
@@ -192,6 +198,8 @@ const WarehouseWorkspaceContent = ({
                   <WarehouseReceiving
                     canViewDeals={canViewDeals}
                     cells={cells}
+                    dockCode={dockPoints?.find(point => point?.id === task.unloadingPointId)?.code
+                      ?? (hasAssignedDocks && task.unloadingPointId === undefined ? null : undefined)}
                     editingTaskId={hasEditor ? editingTaskId : undefined}
                     key={task.id}
                     onCellSelect={onCellSelect}

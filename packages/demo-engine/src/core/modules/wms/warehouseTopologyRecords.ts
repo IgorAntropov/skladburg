@@ -1,6 +1,9 @@
 import type {
+  WarehouseFloorPoint,
   WarehouseFloorRect,
+  WarehouseReceivingArea,
   WarehouseTopology,
+  WarehouseUnloadingPoint,
 } from '@skladburg/contracts/wms/v1/topology';
 
 import { create } from '@bufbuild/protobuf';
@@ -24,6 +27,33 @@ import {
 } from './warehouseTopologyCodec';
 
 export { readWarehouseTopology } from './warehouseTopologyCodec';
+
+type PositionedWarehouseDockValue = WarehouseUnloadingPoint & { position: WarehouseFloorPoint };
+
+const DOCK_MIN_SPACING_MM = 2_660;
+
+const hasDockPosition = (point: undefined | WarehouseUnloadingPoint): point is PositionedWarehouseDockValue => {
+  const position = point?.position;
+  return position !== undefined && Number.isInteger(position.xMm) && position.xMm >= 0
+    && Number.isInteger(position.zMm) && position.zMm >= 0;
+};
+
+export const readEffectiveWarehouseDockIds = (area: WarehouseReceivingArea): string[] => {
+  const primary = area.unloadingPoint;
+  const footprint = area.footprint;
+  if (footprint?.origin === undefined || footprint.widthMm === 0 || footprint.depthMm === 0 || !hasDockPosition(primary)) {
+    return [];
+  }
+
+  const berths = [primary];
+  for (const point of area.additionalUnloadingPoints) {
+    if (point.id !== '' && hasDockPosition(point) && point.position.zMm === primary.position.zMm
+      && !berths.some(berth => berth.id === point.id || Math.abs(point.position.xMm - berth.position.xMm) < DOCK_MIN_SPACING_MM)) {
+      berths.push(point);
+    }
+  }
+  return berths.map(point => point.id);
+};
 
 const addUnique = (seen: Set<string>, key: string): void => {
   if (seen.has(key)) {
@@ -50,8 +80,14 @@ const checkTopology = (topology: WarehouseTopology): void => {
     addUnique(ids, receiving.id);
     getFootprintWidth(receiving.footprint);
 
-    if (receiving.unloadingPoint !== undefined) {
-      addUnique(ids, receiving.unloadingPoint.id);
+    for (const point of [receiving.unloadingPoint, ...receiving.additionalUnloadingPoints]) {
+      if (point !== undefined) {
+        addUnique(ids, point.id);
+      }
+    }
+    if (receiving.additionalUnloadingPoints.length > 0
+      && readEffectiveWarehouseDockIds(receiving).length !== receiving.additionalUnloadingPoints.length + 1) {
+      throw new Error('Warehouse unloading points require a primary point, a shared facade and 2660 mm spacing');
     }
   }
 

@@ -27,9 +27,13 @@ import {
   FORKLIFT_CLEARANCE,
   FORKLIFT_FORK_HEIGHT,
 } from './warehouseForkliftRoute';
-import { getWarehouseLayout } from './warehouseLayout';
+import { canAdvanceWarehouseForklift } from './warehouseForkliftTraffic';
+import {
+  buildWarehouseLayout,
+  getWarehouseLayout,
+} from './warehouseLayout';
 
-const layout = getWarehouseLayout(create(WarehouseTopologySchema, {
+const topology = create(WarehouseTopologySchema, {
   receivingArea: {
     footprint: { depthMm: 3000, origin: { xMm: 1000, zMm: 1000 }, widthMm: 2000 },
     id: 'receiving',
@@ -46,7 +50,19 @@ const layout = getWarehouseLayout(create(WarehouseTopologySchema, {
       }],
     }],
   }],
-}));
+});
+
+const layout = getWarehouseLayout(topology);
+const primary = { x: 1, z: 0 };
+const secondary = { x: 7.2, z: 0 };
+const wideLayout = buildWarehouseLayout(create(WarehouseTopologySchema, {
+  receivingArea: {
+    footprint: { depthMm: 3000, origin: { xMm: 1000, zMm: 1000 }, widthMm: 9000 },
+    id: 'receiving',
+    unloadingPoint: { position: { xMm: 1000, zMm: 0 } },
+  },
+  storageZones: topology.storageZones,
+}), [secondary]);
 
 const expectedUnit = {
   cellId: undefined, expectedUnitId: 'planned', id: 'planned', location: 'truck', slot: 0, taskId: 'receiving-task', truckSlot: 0,
@@ -86,6 +102,91 @@ const picked = { dockTaskId: 'dispatch', dockTripId: 'trip', hasDock: true, unit
 const packed = { ...picked, shippedUnitIds: new Set(['pallet']), units: [packedOutbound] } satisfies WarehouseCargoValue;
 
 describe('warehouse forklift jobs', () => {
+  it('plans concurrent unloads using each truck ramp and an independent forklift', () => {
+    const secondTask = { ...expectedUnit, expectedUnitId: 'second-pallet', id: 'second-pallet', taskId: 'second-task' };
+    const secondTruck = { ...truck, dockTaskId: secondTask.taskId, units: [secondTask] };
+    const secondReceipt = { ...secondTruck, units: [{ ...secondTask, location: 'staging', slot: 10 }] } satisfies WarehouseCargoValue;
+    const firstJobs = buildWarehouseCargoTransfers(wideLayout, truck, staging);
+    const secondJobs = buildWarehouseCargoTransfers(wideLayout, secondTruck, secondReceipt, secondTask.taskId, secondary);
+    const firstForklift = createWarehouseForkliftPlayback(wideLayout, primary);
+    const secondForklift = createWarehouseForkliftPlayback(wideLayout, secondary);
+
+    queueWarehouseForkliftJobs(firstForklift, wideLayout, firstJobs);
+    queueWarehouseForkliftJobs(secondForklift, wideLayout, secondJobs);
+    const lanes = [firstForklift, secondForklift];
+    expect(canAdvanceWarehouseForklift(lanes, 0)).toBe(true);
+    expect(canAdvanceWarehouseForklift(lanes, 1)).toBe(true);
+    expect(firstForklift.jobs[0]?.phases.find(phase => phase.load === 'handoff')?.from.x).toBe(primary.x);
+    expect(secondForklift.jobs[0]?.phases.find(phase => phase.load === 'handoff')?.from.x).toBe(secondary.x);
+    expect(secondJobs[0]?.from.point[0]).toBeCloseTo(secondary.x - 0.36);
+    advanceWarehouseForklift(firstForklift, 0.04);
+    advanceWarehouseForklift(secondForklift, 0.04);
+    expect(firstForklift.elapsed).toBeGreaterThan(0);
+    expect(secondForklift.elapsed).toBeGreaterThan(0);
+  });
+
+  it('waits for a started local unload and holds a shared route until the forklift returns', () => {
+    const first = createWarehouseForkliftPlayback(wideLayout, primary);
+    const second = createWarehouseForkliftPlayback(wideLayout, secondary);
+    const lanes = [first, second];
+    const local = buildWarehouseCargoTransfers(wideLayout, truck, staging, undefined, secondary);
+    const firstShared = buildWarehouseCargoTransfers(wideLayout, staging, placed, undefined, primary);
+    const secondShared = buildWarehouseCargoTransfers(wideLayout, staging, placed, undefined, secondary);
+
+    queueWarehouseForkliftJobs(second, wideLayout, local);
+    expect(canAdvanceWarehouseForklift(lanes, 1)).toBe(true);
+    advanceWarehouseForklift(second, 0.04, true);
+    queueWarehouseForkliftJobs(first, wideLayout, firstShared);
+    queueWarehouseForkliftJobs(second, wideLayout, secondShared);
+    expect(first.jobs).toHaveLength(1);
+    expect(second.jobs).toHaveLength(2);
+    expect(canAdvanceWarehouseForklift(lanes, 0)).toBe(false);
+    expect(canAdvanceWarehouseForklift(lanes, 1)).toBe(true);
+
+    for (let frame = 0; frame < 500 && second.jobs.length > 1; frame += 1) {
+      advanceWarehouseForklift(second, 0.035, true);
+    }
+    expect(second.jobs).toHaveLength(1);
+    expect(second).toMatchObject({ elapsed: 0, phaseIndex: 0 });
+    expect(canAdvanceWarehouseForklift(lanes, 0)).toBe(true);
+    expect(canAdvanceWarehouseForklift(lanes, 1)).toBe(false);
+
+    advanceWarehouseForklift(first, 0.04, true);
+    expect(canAdvanceWarehouseForklift(lanes, 0)).toBe(true);
+    expect(canAdvanceWarehouseForklift(lanes, 1)).toBe(false);
+    for (let frame = 0; frame < 500 && first.jobs.length > 0; frame += 1) {
+      expect(canAdvanceWarehouseForklift(lanes, 1)).toBe(false);
+      advanceWarehouseForklift(first, 0.035, true);
+    }
+    expect(first.jobs).toHaveLength(0);
+    expect(first.pose?.x).toBeCloseTo(primary.x);
+    expect(canAdvanceWarehouseForklift(lanes, 1)).toBe(true);
+
+    advanceWarehouseForklift(second, 0.04, true);
+    queueWarehouseForkliftJobs(first, wideLayout, firstShared);
+    expect(canAdvanceWarehouseForklift(lanes, 0)).toBe(false);
+    expect(canAdvanceWarehouseForklift(lanes, 1)).toBe(true);
+  });
+
+  it('returns an unloaded forklift to its own dock after shared work while the pallet stays at the destination', () => {
+    const playback = createWarehouseForkliftPlayback(wideLayout, secondary);
+    const parking = { ...playback.pose };
+    const transfers = buildWarehouseCargoTransfers(wideLayout, staging, placed, undefined, secondary);
+    queueWarehouseForkliftJobs(playback, wideLayout, transfers);
+    const job = playback.jobs[0];
+    expect(job).toBeDefined();
+    expect(job?.finish).toMatchObject({ lift: 0, reach: 0, x: parking.x, z: parking.z });
+    const drop = job?.phases.findIndex(({ load }) => load === 'target') ?? -1;
+    const returnPhases = job?.phases.slice(drop) ?? [];
+    expect(drop).toBeGreaterThan(0);
+    expect(returnPhases[0]?.from.x).not.toBe(parking.x);
+    expect(returnPhases.every(({ load }) => load === 'target')).toBe(true);
+    const { bounds, obstacles } = wideLayout.navigation;
+    for (const { from, to } of returnPhases) {
+      expect(isWarehouseAisleSegmentOpen(bounds, obstacles, from, to, FORKLIFT_CLEARANCE)).toBe(true);
+    }
+  });
+
   it('collects a confirmed pallet from its upper cell and hands it into the assigned truck', () => {
     const transfers = buildWarehouseCargoTransfers(layout, picked, packed);
     const playback = createWarehouseForkliftPlayback(layout);

@@ -7,7 +7,10 @@ import type { ReactElement } from 'react';
 import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import { MarkingMode } from '@skladburg/contracts/catalog/v1/catalog';
 import { ReceivingTaskStatus } from '@skladburg/contracts/wms/v1/receiving';
-import { useState } from 'react';
+import {
+  Suspense,
+  useState,
+} from 'react';
 
 import {
   useCan,
@@ -17,6 +20,7 @@ import { useActingContext } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
 import {
   createCachedModuleLoader,
+  createLazyComponent,
   useChunkLoader,
 } from '@/shared/lib/module-loader';
 import {
@@ -41,11 +45,11 @@ import {
 } from '../../api/useWarehouseCommands';
 import { RECEIVING_TEXT } from './warehouseFormatting';
 import { WarehousePlacement } from './WarehousePlacement';
-import { WarehouseReceiptPrint } from './WarehouseReceiptPrint';
 
 interface WarehouseReceivingProps {
   canViewDeals: boolean;
   cells: ReadonlyMap<string, string>;
+  dockCode: null | string | undefined;
   editingTaskId: string | undefined;
   onCellSelect: (id: string, taskId: string) => void;
   onChanged: () => void;
@@ -55,9 +59,10 @@ interface WarehouseReceivingProps {
 }
 
 const loadReceiveForm = createCachedModuleLoader(() => import('./WarehouseReceiveForm'));
+const WarehouseReceiptPrint = createLazyComponent(createCachedModuleLoader(() => import('./WarehouseReceiptPrint')));
 
 export const WarehouseReceiving = ({
-  canViewDeals, cells, editingTaskId, onCellSelect, onChanged, onEditingChange, t, task,
+  canViewDeals, cells, dockCode, editingTaskId, onCellSelect, onChanged, onEditingChange, t, task,
 }: WarehouseReceivingProps): ReactElement => {
   const { userId } = useActingContext();
   const { t: baseText } = useI18n();
@@ -75,7 +80,8 @@ export const WarehouseReceiving = ({
   const isAssigned = task.assigneeUserId === userId;
   const isOpen = task.status === ReceivingTaskStatus.OPEN;
   const isReceiving = task.status === ReceivingTaskStatus.IN_PROGRESS;
-  const canReceive = isAssigned && isReceiving && (editingTaskId === undefined || editingTaskId === task.id);
+  const isWaitingDock = dockCode === null && (isOpen || isReceiving);
+  const canReceive = isAssigned && isReceiving && !isWaitingDock && (editingTaskId === undefined || editingTaskId === task.id);
   const canPlace = isAssigned && !isOpen && editingTaskId === undefined;
   const receivedIds = new Set(task.receivedUnits.map(unit => unit.expectedUnitId));
   const missing = task.expectedUnits.filter(unit => !receivedIds.has(unit.id));
@@ -85,16 +91,17 @@ export const WarehouseReceiving = ({
   const hasMarking = hasEvidence && selectedLine?.markingMode === MarkingMode.UNIT;
   const placedCount = task.receivedUnits.filter(unit => unit.putAwayCellId !== undefined).length;
   const Form = state.kind === 'loaded' ? state.module.WarehouseReceiveForm : undefined;
+  const dockLabel = isWaitingDock
+    ? t('warehouseWork.waitingDock')
+    : typeof dockCode === 'string' ? t('warehouseWork.dock', { code: dockCode }) : undefined;
 
   const handleManual = (): void => {
-    console.log('> WarehouseReceiving -> handleManual:', {});
     onEditingChange(task.id);
     setSelected({ kind: 'labelled' });
     load();
   };
 
   const handleSelect = (unit: ExpectedReceivingUnit): void => {
-    console.log('> WarehouseReceiving -> handleSelect:', { hasLabel: unit.sscc !== undefined });
     const line = task.orderLines.find(candidate => candidate.dealLineId === unit.batches[0]?.dealLineId);
     onEditingChange(task.id);
     setSelected(unit.sscc === undefined
@@ -104,26 +111,21 @@ export const WarehouseReceiving = ({
   };
 
   const handleCancel = (): void => {
-    console.log('> WarehouseReceiving -> handleCancel:', {});
     setSelected(undefined);
     onEditingChange(undefined);
     requestFocus();
   };
 
   const handleReceived = (): void => {
-    setSelected(undefined);
-    onEditingChange(undefined);
-    requestFocus();
+    handleCancel();
     onChanged();
   };
 
   const handleFinishRequest = (): void => {
-    console.log('> WarehouseReceiving -> handleFinishRequest:', {});
     setIsFinishRequested(true);
   };
 
   const handleFinishCancel = (): void => {
-    console.log('> WarehouseReceiving -> handleFinishCancel:', {});
     setIsFinishRequested(false);
   };
 
@@ -133,6 +135,9 @@ export const WarehouseReceiving = ({
         <h3 className="font-semibold">{t('warehouseWork.receipt')}</h3>
         <p className="text-sm text-on-panel-muted">{t(RECEIVING_TEXT[task.status])}</p>
       </header>
+      {dockLabel !== undefined && (
+        <p aria-live="polite" className="text-sm text-on-panel-muted" data-testid="warehouse-receiving-dock">{dockLabel}</p>
+      )}
       {canViewDeals && (
         <TextLink size="sm" to={{ kind: 'object', object: { id: task.dealId, type: 'deal' } }}>{t('warehouseWork.deal')}</TextLink>
       )}
@@ -228,7 +233,11 @@ export const WarehouseReceiving = ({
             <li className="flex flex-col gap-1.5 py-2" key={unit.expectedUnitId}>
               <p className="font-medium tabular-nums wrap-anywhere">{handlingUnit.sscc}</p>
               {putAwayCellId !== undefined && <p className="text-sm">{cells.get(putAwayCellId) ?? t('warehouseWork.cell')}</p>}
-              {canViewInventory && <WarehouseReceiptPrint balance={balance} t={t} task={task} />}
+              {canViewInventory && (
+                <Suspense fallback={<Skeleton className="h-8 w-32" />}>
+                  <WarehouseReceiptPrint balance={balance} t={t} task={task} />
+                </Suspense>
+              )}
               {canPlaceUnit && (
                 <WarehousePlacement
                   cells={cells}

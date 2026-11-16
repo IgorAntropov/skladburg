@@ -7,6 +7,7 @@ export interface WarehouseCargoUnitValue {
   slot: number;
   taskId: string;
   truckSlot: number;
+  unloadingPointId?: string | undefined;
 }
 
 export interface WarehouseCargoValue {
@@ -22,8 +23,10 @@ export interface WarehouseCargoValue {
 export type WarehouseDockDepartureValue = 'received' | 'route' | 'self-pickup';
 
 export interface WarehouseDockVisitValue {
+  isOutbound?: boolean | undefined;
   taskId: string;
   tripId: string | undefined;
+  unloadingPointId?: string | undefined;
 }
 
 type CargoLocationValue = 'cell' | 'staging' | 'truck';

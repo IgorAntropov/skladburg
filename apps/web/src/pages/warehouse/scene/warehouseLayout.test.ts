@@ -80,6 +80,78 @@ describe('warehouse scene layout', () => {
     expect(layout.navigation.bounds.minZ).toBeCloseTo(5.11);
   });
 
+  it('opens bays from the topology and connects their separate lanes at the parking apron', () => {
+    const firstId = '8f000001-0000-4000-8000-000000000011';
+    const secondId = '8f000001-0000-4000-8000-000000000012';
+    const first = { x: 9.5, z: 5 };
+    const second = { x: 1, z: first.z };
+    const layout = getWarehouseLayout(create(WarehouseTopologySchema, {
+      receivingArea: {
+        additionalUnloadingPoints: [
+          { code: 'D02', id: secondId, position: { xMm: 1000, zMm: 5000 } },
+          { code: 'D03', id: '8f000001-0000-4000-8000-000000000013', position: { xMm: 8000, zMm: 5000 } },
+          { code: 'D04', id: '8f000001-0000-4000-8000-000000000014', position: { xMm: 15000, zMm: 6000 } },
+          { code: 'D05', id: secondId, position: { xMm: 20000, zMm: 5000 } },
+          { code: 'D06', id: '8f000001-0000-4000-8000-000000000016' },
+        ],
+        footprint: { depthMm: 3000, origin: { xMm: 9000, zMm: 6000 }, widthMm: 4000 },
+        id: 'receiving',
+        unloadingPoint: { code: 'D01', id: firstId, position: { xMm: 9500, zMm: 5000 } },
+      },
+    }));
+
+    const roads = layout.floor.get('road') ?? [];
+    const lanes = roads.filter(({ size }) => size[2] === WAREHOUSE_DOCK_LANE_LENGTH);
+    expect(lanes.map(({ position }) => position[0])).toEqual([first.x, second.x]);
+    const driven = lanes.map(({ position, size }) => ({ left: position[0] - size[0] / 2, right: position[0] + size[0] / 2 }));
+    expect(driven[1]?.right).toBeLessThan(driven[0]?.left ?? 0);
+    const crossings = roads.filter(({ position, size }) => position[1] === 0.01 && size[2] > WAREHOUSE_DOCK_LANE_LENGTH);
+    expect(crossings).toHaveLength(1);
+    const crossing = crossings[0];
+    if (crossing !== undefined) {
+      const [x, , z] = crossing.position;
+      const [width, , length] = crossing.size;
+      const halfTruckWidth = 0.94;
+      expect(x - width / 2).toBeLessThan(second.x - halfTruckWidth);
+      expect(x + width / 2).toBeGreaterThan(first.x + halfTruckWidth);
+      expect(z + length / 2).toBeCloseTo(first.z - WAREHOUSE_DOCK_LANE_LENGTH);
+
+      const body = [...layout.truck.values()].flat();
+      const marks = layout.floor.get('sand') ?? [];
+      const spaces = marks.filter(({ position, size }) => position[0] === first.x && size[0] > 2);
+      expect(spaces).toHaveLength(WAREHOUSE_YARD_PARKING_LIMIT + 1);
+      for (let slot = 0; slot < WAREHOUSE_YARD_PARKING_LIMIT; slot += 1) {
+        const far = Math.min(...body.map(({ position, size }) => position[2] - size[2] / 2)) + readWarehouseParkingOffset(slot);
+        const near = Math.max(...body.map(({ position, size }) => position[2] + size[2] / 2)) + readWarehouseParkingOffset(slot);
+        expect(z - length / 2).toBeLessThan(far);
+        expect(marks.some(({ position, size }) => position[0] - size[0] / 2 < first.x + halfTruckWidth
+          && position[0] + size[0] / 2 > second.x - halfTruckWidth
+          && position[2] - size[2] / 2 < near && position[2] + size[2] / 2 > far)).toBe(false);
+      }
+    }
+
+    const walls = layout.floor.get('warehouseWall') ?? [];
+    const facade = walls.filter(({ position }) => position[2] === first.z);
+    const indoors = walls.find(({ size }) => size[1] === 0.024);
+    expect(facade).toHaveLength(3);
+    expect(indoors).toBeDefined();
+
+    const ramps = (layout.floor.get('warehouseRoof') ?? []).filter(({ position }) => position[1] === 0.16);
+    expect(ramps.map(({ position }) => position[0])).toEqual([first.x, second.x]);
+    expect(layout.navigation.obstacles).toHaveLength(2);
+    for (const dock of [first, second]) {
+      expect(facade.some(({ position, size }) => Math.abs(position[0] - dock.x) - size[0] / 2 < 1.08)).toBe(false);
+      expect(layout.navigation.obstacles.some(({ maxX, maxZ, minX }) => minX < dock.x && maxX > dock.x && maxZ > dock.z)).toBe(true);
+      if (indoors !== undefined) {
+        expect(indoors.position[0] - indoors.size[0] / 2).toBeLessThan(dock.x - 1.25);
+        expect(indoors.position[0] + indoors.size[0] / 2).toBeGreaterThan(dock.x + 1.25);
+      }
+    }
+    expect(layout.receiving?.dock).toEqual(first);
+    expect(layout.receiving?.docks).toEqual([{ ...first, id: firstId }, { ...second, id: secondId }]);
+    expect(layout.truck.get('sideCarrier')?.[0]?.position[0]).toBe(first.x);
+  });
+
   it('fits three separated trucks into marked spaces behind the dock lane', () => {
     const dock = { x: 9.5, z: 5 };
     const layout = getWarehouseLayout(create(WarehouseTopologySchema, {

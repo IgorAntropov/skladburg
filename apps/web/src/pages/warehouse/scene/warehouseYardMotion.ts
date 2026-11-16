@@ -26,7 +26,7 @@ interface WarehouseParkingPositionValue {
   taskId: string;
 }
 
-const TRUCK_CLEARANCE = 6.35;
+export const WAREHOUSE_TRUCK_CLEARANCE = 6.35;
 const MAX_FRAME_DELTA = 0.05;
 
 const createSlotPool = (): WarehouseParkingPoseValue[] => Array.from(
@@ -51,7 +51,7 @@ const refreshVisibleParking = (yard: WarehouseYardMotionValue, dockOffsetZ: numb
   while (index < yard.parked.length) {
     const truck = yard.parked[index];
     index += 1;
-    if (truck !== undefined && frontZ - truck.offsetZ >= TRUCK_CLEARANCE) {
+    if (truck !== undefined && frontZ - truck.offsetZ >= WAREHOUSE_TRUCK_CLEARANCE) {
       yard.hasChanged ||= yard.visible[count] !== truck;
       yard.visible[count] = truck;
       count += 1;
@@ -76,6 +76,9 @@ const findTruckOffset = (parked: readonly WarehouseParkingPositionValue[], taskI
 
 export const readWarehouseYardTruckOffset = (yard: WarehouseYardMotionValue, taskId: string | undefined): number | undefined =>
   findTruckOffset(yard.visible, taskId);
+
+export const readPreviousWarehouseYardTruckOffset = (yard: WarehouseYardMotionValue, taskId: string | undefined): number | undefined =>
+  findTruckOffset(yard.previous, taskId);
 
 export const syncWarehouseYardMotion = (
   yard: WarehouseYardMotionValue,

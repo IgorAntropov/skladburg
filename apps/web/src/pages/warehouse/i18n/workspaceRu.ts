@@ -23,6 +23,7 @@ export const catalog = {
   'warehouseWork.deal': 'Открыть сделку',
   'warehouseWork.defective': 'Из них брак',
   'warehouseWork.defectiveCodes': 'Коды брака',
+  'warehouseWork.dock': 'Док {code}',
   'warehouseWork.emptyAddresses': 'Ячейки появятся после загрузки топологии склада.',
   'warehouseWork.emptyMovements': 'Движений по складу пока нет.',
   'warehouseWork.emptyStock': 'На складе пока нет остатков.',
@@ -102,5 +103,6 @@ export const catalog = {
   'warehouseWork.unitPiece': '{quantity} шт.',
   'warehouseWork.unitUnknown': '{quantity}',
   'warehouseWork.untake': 'Снять отметку',
+  'warehouseWork.waitingDock': 'Ожидает свободный док',
   'warehouseWork.workByOther': 'Задание взял другой сотрудник.',
 } as const satisfies CatalogShapeValue;

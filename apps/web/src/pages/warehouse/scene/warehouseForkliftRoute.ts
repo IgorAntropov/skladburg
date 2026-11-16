@@ -10,6 +10,7 @@ import {
   isWarehouseAislePointOpen,
   isWarehouseAisleSegmentOpen,
 } from './warehouseAislePath';
+import { readWarehouseDockSpan } from './warehouseCargoPositions';
 import {
   WAREHOUSE_DOCK_HANDOFF_Z,
   WAREHOUSE_DOCK_RAMP_END,
@@ -52,6 +53,11 @@ export interface WarehouseForkliftPoseValue extends WarehouseAislePointValue {
 
 type LoadPhaseValue = 'forks' | 'handoff' | 'source' | 'target';
 
+interface WarehouseForkliftReturnValue {
+  path: readonly WarehouseAislePointValue[];
+  pose: WarehouseForkliftPoseValue;
+}
+
 const createPose = (x: number, z: number, yaw: number): WarehouseForkliftPoseValue => ({
   lift: 0, reach: 0, x, yaw, z,
 });
@@ -62,22 +68,25 @@ const toHeading = (current: number, target: number): number =>
 const getDistance = (from: WarehouseAislePointValue, to: WarehouseAislePointValue): number =>
   Math.hypot(to.x - from.x, to.z - from.z);
 
-const readDockPose = (layout: WarehouseLayoutValue): undefined | WarehouseForkliftPoseValue => {
-  const dock = layout.receiving?.dock;
-  return dock === undefined
+const readDockPose = (dock: undefined | WarehouseAislePointValue): undefined | WarehouseForkliftPoseValue =>
+  dock === undefined
     ? undefined
     : createPose(dock.x, dock.z + WAREHOUSE_DOCK_RAMP_END + FORKLIFT_CLEARANCE + APPROACH_MARGIN, Math.PI);
-};
 
 const isOpen = (layout: WarehouseLayoutValue, point: WarehouseAislePointValue): boolean => {
   const { bounds, obstacles } = layout.navigation;
   return isWarehouseAislePointOpen(bounds, obstacles, point, FORKLIFT_CLEARANCE);
 };
 
-export const findWarehouseForkliftParking = (layout: WarehouseLayoutValue): undefined | WarehouseForkliftPoseValue => {
-  const dock = readDockPose(layout);
-  if (dock !== undefined && isOpen(layout, dock)) {
-    return dock;
+export const isWarehouseForkliftLocalTransfer = ({ from, to }: WarehouseCargoTransferValue): boolean =>
+  from.location === 'truck' && to.location === 'staging';
+
+export const findWarehouseForkliftParking = (
+  layout: WarehouseLayoutValue, dock = layout.receiving?.dock,
+): undefined | WarehouseForkliftPoseValue => {
+  const pose = readDockPose(dock);
+  if (pose !== undefined && isOpen(layout, pose)) {
+    return pose;
   }
 
   const receiving = layout.receiving;
@@ -85,7 +94,7 @@ export const findWarehouseForkliftParking = (layout: WarehouseLayoutValue): unde
     return undefined;
   }
 
-  const x = receiving.x + receiving.width / 2;
+  const x = receiving.docks.length > 1 && dock !== undefined ? dock.x : receiving.x + receiving.width / 2;
   const candidates = [0.5, 0.83, 0.17].map(fraction => createPose(x, receiving.z + receiving.depth * fraction, Math.PI));
   return candidates.find(point => isOpen(layout, point));
 };
@@ -97,7 +106,7 @@ const readStations = (
   const [x, y, z] = endpoint.point;
   const lift = Math.max(0, y - FORKLIFT_FORK_HEIGHT);
   if (endpoint.location === 'truck') {
-    const dock = readDockPose(layout);
+    const dock = readDockPose(endpoint.dock ?? layout.receiving?.dock);
     const reach = WAREHOUSE_DOCK_RAMP_END + FORKLIFT_CLEARANCE + APPROACH_MARGIN - FORKLIFT_PALLET_OFFSET - WAREHOUSE_DOCK_HANDOFF_Z;
     return dock !== undefined && isOpen(layout, dock) ? [{ ...dock, lift, reach }] : [];
   }
@@ -138,6 +147,7 @@ const createJob = (
   toPickup: readonly WarehouseAislePointValue[],
   toDropoff: readonly WarehouseAislePointValue[],
   transfer: WarehouseCargoTransferValue,
+  parking: undefined | WarehouseForkliftReturnValue,
 ): undefined | WarehouseForkliftJobValue => {
   const phases: WarehouseForkliftPhaseValue[] = [];
   let duration = 0;
@@ -187,6 +197,10 @@ const createJob = (
   }
   addPhase({ ...current, reach: 0 }, 'target', 0.14 + dropoff.reach * 0.15);
   addPhase({ ...current, lift: 0 }, 'target', 0.14 + dropoff.lift * 0.22);
+  if (parking !== undefined) {
+    drive(parking.path, 'target');
+    turn(parking.pose.yaw, 'target');
+  }
 
   return duration <= MAX_JOB_SECONDS ? { finish: current, phases, transfer } : undefined;
 };
@@ -195,23 +209,39 @@ export const planWarehouseForkliftJob = (
   layout: WarehouseLayoutValue,
   start: WarehouseForkliftPoseValue,
   transfer: WarehouseCargoTransferValue,
+  parking: undefined | WarehouseForkliftPoseValue,
 ): undefined | WarehouseForkliftJobValue => {
   const { bounds, obstacles } = layout.navigation;
+  const isLocal = isWarehouseForkliftLocalTransfer(transfer);
+  const pathBounds = isLocal
+    ? { ...bounds, ...readWarehouseDockSpan(layout, transfer.from.dock ?? layout.receiving?.dock) }
+    : bounds;
+  const returnTo = isLocal ? undefined : parking;
   const dropoffs = readStations(layout, transfer.to);
   const pickups = readStations(layout, transfer.from).sort((current, prev) => getDistance(start, current) - getDistance(start, prev));
   for (const pickup of pickups) {
-    const toPickup = findWarehouseAislePath(bounds, obstacles, start, pickup, FORKLIFT_CLEARANCE);
+    const toPickup = findWarehouseAislePath(pathBounds, obstacles, start, pickup, FORKLIFT_CLEARANCE);
     if (toPickup === undefined) {
       continue;
     }
 
     for (const dropoff of dropoffs) {
-      const toDropoff = findWarehouseAislePath(bounds, obstacles, pickup, dropoff, FORKLIFT_CLEARANCE);
-      if (toDropoff !== undefined) {
-        const job = createJob(start, pickup, dropoff, toPickup, toDropoff, transfer);
-        if (job !== undefined) {
-          return job;
+      const toDropoff = findWarehouseAislePath(pathBounds, obstacles, pickup, dropoff, FORKLIFT_CLEARANCE);
+      if (toDropoff === undefined) {
+        continue;
+      }
+
+      let parkingReturn: undefined | WarehouseForkliftReturnValue;
+      if (returnTo !== undefined) {
+        const path = findWarehouseAislePath(bounds, obstacles, dropoff, returnTo, FORKLIFT_CLEARANCE);
+        if (path === undefined) {
+          continue;
         }
+        parkingReturn = { path, pose: returnTo };
+      }
+      const job = createJob(start, pickup, dropoff, toPickup, toDropoff, transfer, parkingReturn);
+      if (job !== undefined) {
+        return job;
       }
     }
   }

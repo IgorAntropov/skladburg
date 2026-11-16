@@ -13,7 +13,7 @@ interface WarehouseReceiptPrintProps {
   task: ReceivingTask;
 }
 
-export const WarehouseReceiptPrint = ({ balance, t, task }: WarehouseReceiptPrintProps): ReactElement => {
+const WarehouseReceiptPrint = ({ balance, t, task }: WarehouseReceiptPrintProps): ReactElement => {
   const localizer = useI18n();
   return (
     <PrintLabels
@@ -28,3 +28,5 @@ export const WarehouseReceiptPrint = ({ balance, t, task }: WarehouseReceiptPrin
     />
   );
 };
+
+export default WarehouseReceiptPrint;

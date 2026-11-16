@@ -13,6 +13,7 @@ import {
 export interface WarehouseForkliftPlaybackValue {
   elapsed: number;
   jobs: WarehouseForkliftJobValue[];
+  parking: undefined | WarehouseForkliftPoseValue;
   phaseIndex: number;
   pose: undefined | WarehouseForkliftPoseValue;
 }
@@ -23,18 +24,25 @@ const MAX_FRAME_DELTA = 1 / 25;
 
 const interpolate = (from: number, to: number, progress: number): number => from + (to - from) * progress;
 
-export const createWarehouseForkliftPlayback = (layout: WarehouseLayoutValue): WarehouseForkliftPlaybackValue => ({
-  elapsed: 0,
-  jobs: [],
-  phaseIndex: 0,
-  pose: findWarehouseForkliftParking(layout),
-});
+export const createWarehouseForkliftPlayback = (
+  layout: WarehouseLayoutValue, dock = layout.receiving?.dock,
+): WarehouseForkliftPlaybackValue => {
+  const pose = findWarehouseForkliftParking(layout, dock);
+  const hasMultipleDocks = (layout.receiving?.docks.length ?? 0) > 1;
+
+  return {
+    elapsed: 0, jobs: [], parking: hasMultipleDocks && pose !== undefined ? { ...pose } : undefined, phaseIndex: 0, pose,
+  };
+};
 
 export const clearWarehouseForkliftJobs = (playback: WarehouseForkliftPlaybackValue): void => {
   playback.jobs.length = 0;
   playback.elapsed = 0;
   playback.phaseIndex = 0;
-  if (playback.pose !== undefined) {
+  if (playback.pose !== undefined && playback.parking !== undefined) {
+    Object.assign(playback.pose, playback.parking);
+  }
+  else if (playback.pose !== undefined) {
     playback.pose.lift = 0;
     playback.pose.reach = 0;
   }
@@ -52,7 +60,7 @@ export const queueWarehouseForkliftJobs = (
 
   for (const transfer of transfers) {
     const start = playback.jobs.at(-1)?.finish ?? playback.pose;
-    const job = start === undefined ? undefined : planWarehouseForkliftJob(layout, { ...start }, transfer);
+    const job = start === undefined ? undefined : planWarehouseForkliftJob(layout, { ...start }, transfer, playback.parking);
     if (job === undefined) {
       clearWarehouseForkliftJobs(playback);
       return;
@@ -61,7 +69,7 @@ export const queueWarehouseForkliftJobs = (
   }
 };
 
-export const advanceWarehouseForklift = (playback: WarehouseForkliftPlaybackValue, delta: number): void => {
+export const advanceWarehouseForklift = (playback: WarehouseForkliftPlaybackValue, delta: number, stopAfterJob = false): void => {
   const { pose } = playback;
   if (pose === undefined) {
     return;
@@ -73,6 +81,10 @@ export const advanceWarehouseForklift = (playback: WarehouseForkliftPlaybackValu
     if (phase === undefined) {
       playback.jobs.shift();
       playback.phaseIndex = 0;
+      if (stopAfterJob) {
+        playback.elapsed = 0;
+        return;
+      }
       continue;
     }
 

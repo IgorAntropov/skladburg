@@ -88,7 +88,9 @@ const appendOutboundCargo = (
   }
 
   return {
-    dockVisits: dockTasks.sort(compareOutboundVisits).map(task => ({ taskId: task.id, tripId: pickupTrips.get(task.dealId)?.id })),
+    dockVisits: dockTasks.sort(compareOutboundVisits).map(task => ({
+      isOutbound: true, taskId: task.id, tripId: pickupTrips.get(task.dealId)?.id,
+    })),
     shippedUnitIds,
   };
 };
@@ -131,6 +133,7 @@ export const projectWarehouseCargo = (
         slot: index,
         taskId: task.id,
         truckSlot: index,
+        unloadingPointId: task.unloadingPointId,
       });
     }
   }
@@ -154,7 +157,7 @@ export const projectWarehouseCargo = (
     ?.filter(trip => trip.delivery?.warehouseId === options.warehouseId && trip.status === TripStatus.ARRIVED)
     .map(trip => [trip.dealId, trip.id]));
   const dockVisits = [
-    ...arrived.map(task => ({ taskId: task.id, tripId: deliveryTrips.get(task.dealId) })),
+    ...arrived.map(task => ({ taskId: task.id, tripId: deliveryTrips.get(task.dealId), unloadingPointId: task.unloadingPointId })),
     ...(outbound?.dockVisits ?? []),
   ];
   const next = dockVisits[0];

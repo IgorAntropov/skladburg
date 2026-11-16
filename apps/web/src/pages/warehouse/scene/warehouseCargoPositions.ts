@@ -216,14 +216,15 @@ export const buildWarehouseCargoVisuals = (
   current: WarehouseCargoValue,
   balances: readonly StockBalance[] | undefined,
   activeDispatchId: string | undefined,
+  parkedTaskIds?: ReadonlySet<string>,
 ): WarehouseCargoVisualValue[] => {
   const result: WarehouseCargoVisualValue[] = [];
 
   for (const unit of current.units) {
-    const requiresActiveDispatch = current.dockTaskId === undefined && unit.isOutbound === true && unit.taskId === activeDispatchId;
+    const requiresActiveDispatch = current.dockTaskId !== unit.taskId && unit.isOutbound === true && unit.taskId === activeDispatchId;
     const isTruck = unit.location === 'truck';
     const isHiddenTruck = isTruck && (unit.truckSlot >= WAREHOUSE_TRUCK_SLOTS
-      || (unit.taskId !== current.dockTaskId && !requiresActiveDispatch));
+      || (unit.taskId !== current.dockTaskId && !requiresActiveDispatch && parkedTaskIds?.has(unit.taskId) !== true));
     if (isHiddenTruck || unit.location === 'cell') {
       continue;
     }

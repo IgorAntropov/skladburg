@@ -117,7 +117,6 @@ const WarehousePanelSlot = ({ children }: WarehousePanelSlotProps): ReactNode =>
 
 interface WarehouseWorkspaceContentProps extends Omit<WarehouseWorkspaceProps, 'renderLayout'> {
   onCellSelect: (id: string, taskId: string) => void;
-  onTaskSelect: (id: string) => void;
   t: WarehouseWorkTranslate;
   workspace: WarehouseWorkspaceValue;
 }
@@ -151,7 +150,7 @@ function WarehouseQuery<TData>({ children, empty, isEmpty, query, t }: Warehouse
 }
 
 const WarehouseWorkspaceContent = ({
-  focus, onCellSelect, onTaskSelect, t, warehouse, workspace,
+  focus, onCellSelect, t, warehouse, workspace,
 }: WarehouseWorkspaceContentProps): ReactElement => {
   const { t: baseText } = useI18n();
   const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
@@ -162,13 +161,6 @@ const WarehouseWorkspaceContent = ({
   const productNames = new Map(workspace.receiving.data?.flatMap(task =>
     task.orderLines.map(({ productId, productName }) => [productId, productName] as const)));
   const tabs: TabsItemValue[] = [];
-
-  const handleEditingChange = (id: string | undefined): void => {
-    setEditingTaskId(id);
-    if (id !== undefined) {
-      onTaskSelect(id);
-    }
-  };
 
   if (workspace.isSessionPending) {
     return <SkeletonGroup isFilled label={baseText('routing.section.loading')}><WarehouseSkeleton /></SkeletonGroup>;
@@ -204,7 +196,7 @@ const WarehouseWorkspaceContent = ({
                     key={task.id}
                     onCellSelect={onCellSelect}
                     onChanged={NO_CHANGE}
-                    onEditingChange={handleEditingChange}
+                    onEditingChange={setEditingTaskId}
                     t={t}
                     task={task}
                   />
@@ -324,12 +316,10 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
   const { retry, status, t } = useCatalogSection(warehouseWorkSection);
   const workspace = useWarehouseWorkspace(warehouse.id);
   const [scannedCell, setScannedCell] = useState<WarehouseSceneScanValue>();
-  const [preferredTaskId, setPreferredTaskId] = useState<string | undefined>();
   const focusId = focus?.id;
 
-  const handleCellSelect = useCallback((id: string, taskId: string): void => {
+  const handleCellSelect = useCallback((id: string): void => {
     setScannedCell({ cellId: id, focusId });
-    setPreferredTaskId(taskId);
   }, [focusId]);
 
   const topology = workspace.canViewTopology && !isReadAccessDenied(workspace.topology.error)
@@ -355,7 +345,6 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
         focus={focus}
         key={focusId}
         onCellSelect={handleCellSelect}
-        onTaskSelect={setPreferredTaskId}
         t={t}
         warehouse={warehouse}
         workspace={workspace}
@@ -369,7 +358,6 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
           isLoading={workspace.topology.isPending && workspace.canViewTopology}
           label={warehouse.name}
           picking={picking}
-          preferredTaskId={preferredTaskId}
           scannedCell={currentScan}
           selectedCellId={focusCellId}
           tasks={tasks}

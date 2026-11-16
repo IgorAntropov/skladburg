@@ -27,6 +27,7 @@ import type {
   WarehouseBoxValue,
   WarehouseCellVisualValue,
 } from './warehouseLayout';
+import type { WarehouseYardParkingRigValue } from './WarehouseYardParkingLayer';
 
 import { createWarehouseGeometryKit } from './createWarehouseGeometryKit';
 import { WarehouseCargo } from './WarehouseCargo';
@@ -35,6 +36,7 @@ import { WarehouseForklift } from './WarehouseForklift';
 import { WarehouseInstances } from './WarehouseInstances';
 import { getWarehouseLayout } from './warehouseLayout';
 import { WarehouseRacks } from './WarehouseRacks';
+import { WarehouseYardParking } from './WarehouseYardParkingLayer';
 
 const TAP_SLOP_PX = 5;
 const EMPTY_CARGO: WarehouseCargoValue = { dockTaskId: undefined, hasDock: false, units: [] };
@@ -70,6 +72,7 @@ const WarehouseWorldScene = ({
   const kit = useMemo(() => createWarehouseGeometryKit(), []);
   const dockTruck = useRef<Group>(null);
   const forklift = useRef<WarehouseForkliftRigValue>(null);
+  const yardParking = useRef<WarehouseYardParkingRigValue>(null);
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const lastFocus = useRef<{ request: number; scan: WarehouseSceneInteractionValue['scannedCell'] }>(undefined);
   const { balances, cargo, focusRequest, onCellSelect, scannedCell, selectedCellId } = interaction;
@@ -118,6 +121,9 @@ const WarehouseWorldScene = ({
         </group>
       )}
       <WarehouseForklift rig={forklift} />
+      {cargo?.hasDock === true && (
+        <WarehouseYardParking geometry={geometry} rig={yardParking} trucks={layout.truck} />
+      )}
       <WarehouseCargo
         balances={balances}
         cargo={cargo ?? EMPTY_CARGO}
@@ -128,6 +134,7 @@ const WarehouseWorldScene = ({
         key={cargo === undefined ? 'stock' : 'receiving'}
         kit={kit}
         layout={layout}
+        yardParking={yardParking}
       />
       {selectionBoxes.length > 0 && <WarehouseInstances boxes={selectionBoxes} geometry={geometry} materialKey="lampGlow" />}
     </>

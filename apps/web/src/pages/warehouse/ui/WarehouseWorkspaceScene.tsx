@@ -35,14 +35,13 @@ interface WarehouseWorkspaceSceneProps extends Omit<WarehouseSceneInteractionVal
   isLoading: boolean;
   label: string;
   picking: readonly PickingTask[] | undefined;
-  preferredTaskId: string | undefined;
   tasks: readonly ReceivingTask[] | undefined;
   topology: null | undefined | WarehouseTopology;
   warehouseId: string;
 }
 
 const WarehouseWorkspaceScene = ({
-  balances, isLoading, label, picking, preferredTaskId, scannedCell, selectedCellId, tasks, topology, warehouseId,
+  balances, isLoading, label, picking, scannedCell, selectedCellId, tasks, topology, warehouseId,
 }: WarehouseWorkspaceSceneProps): ReactElement => {
   const { createSectionTranslator, t } = useI18n();
   const navigate = useNavigate();
@@ -57,8 +56,8 @@ const WarehouseWorkspaceScene = ({
   const cargo = useMemo(
     () => isAwaitingTrips || (tasks === undefined && picking === undefined)
       ? undefined
-      : projectWarehouseCargo(tasks ?? [], areaId, hasDock, preferredTaskId, { picking, trips, warehouseId }),
-    [areaId, hasDock, isAwaitingTrips, picking, preferredTaskId, tasks, trips, warehouseId],
+      : projectWarehouseCargo(tasks ?? [], areaId, hasDock, { picking, trips, warehouseId }),
+    [areaId, hasDock, isAwaitingTrips, picking, tasks, trips, warehouseId],
   );
 
   const handleCellSelect = useCallback((id: string): void => {

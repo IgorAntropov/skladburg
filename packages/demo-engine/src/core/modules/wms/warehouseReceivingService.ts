@@ -9,9 +9,13 @@ import type {
 } from '@connectrpc/connect';
 
 import { create } from '@bufbuild/protobuf';
-import { timestampFromMs } from '@bufbuild/protobuf/wkt';
+import {
+  timestampFromMs,
+  timestampMs,
+} from '@bufbuild/protobuf/wkt';
 import { createFetchHandler } from '@connectrpc/connect/protocol';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
+import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
 import {
   ClaimReceivingTaskResponseSchema,
   FinishReceivingTaskResponseSchema,
@@ -139,8 +143,14 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
         .filter(record => record.lookupKey === caller.organizationId)
         .map(record => readInboundTask(record, errors))
         .filter(task => task.version > 0);
-      const { items, page } = paginate(tasks, task => task.id, request.page, errors);
-      return create(ListReceivingTasksResponseSchema, { page, tasks: items });
+      const arrived = tasks.map((task) => {
+        const deal = read.get('deals', task.dealId);
+        const arrivedAt = deal?.transitions.find(transition => transition.to === DealStatus.ARRIVED)?.at;
+        return { arrivedAt: arrivedAt === undefined ? 0 : timestampMs(arrivedAt), task };
+      });
+      arrived.sort((current, prev) => current.arrivedAt - prev.arrivedAt);
+      const { items, page } = paginate(arrived, ({ task }) => task.id, request.page, errors);
+      return create(ListReceivingTasksResponseSchema, { page, tasks: items.map(({ task }) => task) });
     },
     putAwayHandlingUnit: (request, context) => runReceivingCommand(runtime, {
       allowedStatuses: [

@@ -10,6 +10,7 @@ import type {
   WarehouseCargoUnitValue,
   WarehouseCargoValue,
   WarehouseDockDepartureValue,
+  WarehouseDockVisitValue,
 } from './warehouseSceneCargo';
 
 interface WarehouseCargoProjectionValue {
@@ -21,13 +22,21 @@ interface WarehouseCargoProjectionValue {
 const isAtDock = (task: ReceivingTask): boolean =>
   task.status === ReceivingTaskStatus.OPEN || task.status === ReceivingTaskStatus.IN_PROGRESS;
 
+const comparePickedAt = (current: PickingTask, prev: PickingTask): number => {
+  const seconds = (current.pickedAt?.seconds ?? 0n) - (prev.pickedAt?.seconds ?? 0n);
+  return seconds === 0n ? (current.pickedAt?.nanos ?? 0) - (prev.pickedAt?.nanos ?? 0) : seconds < 0n ? -1 : 1;
+};
+
+const compareOutboundVisits = (current: PickingTask, prev: PickingTask): number =>
+  Number(prev.status === PickingTaskStatus.SHIPPED) - Number(current.status === PickingTaskStatus.SHIPPED)
+  || comparePickedAt(current, prev);
+
 const appendOutboundCargo = (
   { picking, trips, warehouseId }: WarehouseCargoProjectionValue,
   units: WarehouseCargoUnitValue[],
   hasDock: boolean,
-  preferredTaskId: string | undefined,
   dockDepartures: Map<string, WarehouseDockDepartureValue>,
-): Pick<WarehouseCargoValue, 'dockTaskId' | 'dockTripId' | 'shippedUnitIds'> => {
+): { dockVisits: WarehouseDockVisitValue[]; shippedUnitIds: ReadonlySet<string> } => {
   const pickupTrips = new Map(trips?.filter(trip => trip.pickup?.warehouseId === warehouseId).map(trip => [trip.dealId, trip]));
   const dockTasks: PickingTask[] = [];
   const shippedUnitIds = new Set<string>();
@@ -78,11 +87,8 @@ const appendOutboundCargo = (
     }
   }
 
-  const dockTask = dockTasks.find(task => task.id === preferredTaskId)
-    ?? dockTasks.find(task => task.status === PickingTaskStatus.SHIPPED) ?? dockTasks[0];
   return {
-    dockTaskId: dockTask?.id,
-    dockTripId: dockTask === undefined ? undefined : pickupTrips.get(dockTask.dealId)?.id,
+    dockVisits: dockTasks.sort(compareOutboundVisits).map(task => ({ taskId: task.id, tripId: pickupTrips.get(task.dealId)?.id })),
     shippedUnitIds,
   };
 };
@@ -91,14 +97,11 @@ export const projectWarehouseCargo = (
   tasks: readonly ReceivingTask[],
   areaId: string | undefined,
   hasDock: boolean,
-  preferredTaskId: string | undefined,
   options?: WarehouseCargoProjectionValue,
 ): WarehouseCargoValue => {
   const localTasks = tasks.filter(task => task.receivingAreaId === areaId && task.status !== ReceivingTaskStatus.UNSPECIFIED
     && (options === undefined || task.warehouseId === options.warehouseId));
   const arrived = hasDock ? localTasks.filter(isAtDock) : [];
-  const dockTask = arrived.find(task => task.id === preferredTaskId)
-    ?? arrived.find(task => task.status === ReceivingTaskStatus.IN_PROGRESS) ?? arrived[0];
   const units: WarehouseCargoUnitValue[] = [];
   const dockDepartures = new Map<string, WarehouseDockDepartureValue>();
   const receiptOrder = new Map<string, { index: number; time: bigint }>();
@@ -146,13 +149,22 @@ export const projectWarehouseCargo = (
     unit.slot = slot;
   }
 
-  const outbound = options === undefined ? undefined : appendOutboundCargo(options, units, hasDock, preferredTaskId, dockDepartures);
-  const dockTripId = dockTask === undefined
-    ? outbound?.dockTripId
-    : options?.trips?.find(trip =>
-      trip.dealId === dockTask.dealId && trip.delivery?.warehouseId === options.warehouseId && trip.status === TripStatus.ARRIVED,
-    )?.id;
+  const outbound = options === undefined ? undefined : appendOutboundCargo(options, units, hasDock, dockDepartures);
+  const deliveryTrips = new Map(options?.trips
+    ?.filter(trip => trip.delivery?.warehouseId === options.warehouseId && trip.status === TripStatus.ARRIVED)
+    .map(trip => [trip.dealId, trip.id]));
+  const dockVisits = [
+    ...arrived.map(task => ({ taskId: task.id, tripId: deliveryTrips.get(task.dealId) })),
+    ...(outbound?.dockVisits ?? []),
+  ];
+  const next = dockVisits[0];
   return {
-    dockDepartures, dockTaskId: dockTask?.id ?? outbound?.dockTaskId, dockTripId, hasDock, shippedUnitIds: outbound?.shippedUnitIds, units,
+    dockDepartures,
+    dockTaskId: next?.taskId,
+    dockTripId: next?.tripId,
+    dockVisits,
+    hasDock,
+    shippedUnitIds: outbound?.shippedUnitIds,
+    units,
   };
 };

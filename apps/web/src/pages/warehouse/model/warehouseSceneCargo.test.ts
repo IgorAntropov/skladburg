@@ -22,7 +22,10 @@ import {
 } from 'vitest';
 
 import { projectWarehouseCargo } from './projectWarehouseCargo';
-import { readWarehouseCargoMoves } from './warehouseSceneCargo';
+import {
+  readWarehouseCargoMoves,
+  retainWarehouseDockOrder,
+} from './warehouseSceneCargo';
 
 const makeTask = (status: ReceivingTaskStatus, id = 'task', receivingAreaId = 'receiving'): ReceivingTask =>
   create(ReceivingTaskSchema, {
@@ -43,7 +46,7 @@ const makeTrip = (status: TripStatus): Trip => create(TripSchema, {
 });
 
 const projectPicking = (picking: PickingTask, trip?: Trip): ReturnType<typeof projectWarehouseCargo> =>
-  projectWarehouseCargo([], 'receiving', true, undefined, {
+  projectWarehouseCargo([], 'receiving', true, {
     picking: [picking], trips: trip === undefined ? undefined : [trip], warehouseId: 'source',
   });
 
@@ -56,9 +59,26 @@ describe('warehouse scene cargo', () => {
       makeTask(ReceivingTaskStatus.IN_PROGRESS, 'claimed'),
     ];
 
-    expect(projectWarehouseCargo(tasks, 'receiving', false, undefined).dockTaskId).toBeUndefined();
-    expect(projectWarehouseCargo(tasks, 'receiving', true, undefined).dockTaskId).toBe('claimed');
-    expect(projectWarehouseCargo(tasks, 'receiving', true, 'task').dockTaskId).toBe('task');
+    expect(projectWarehouseCargo(tasks, 'receiving', false).dockTaskId).toBeUndefined();
+    const projected = projectWarehouseCargo(tasks, 'receiving', true);
+    expect(projected.dockTaskId).toBe('task');
+    expect(projected.dockVisits?.map(visit => visit.taskId)).toEqual(['task', 'claimed']);
+  });
+
+  it('retains waiting order when a new arrival is listed first or a waiting receipt is claimed', () => {
+    const first = makeTask(ReceivingTaskStatus.OPEN, 'first');
+    const second = makeTask(ReceivingTaskStatus.OPEN, 'second');
+    const newcomer = makeTask(ReceivingTaskStatus.IN_PROGRESS, 'new');
+    const before = projectWarehouseCargo([first, second], 'receiving', true);
+    const claimed = { ...second, status: ReceivingTaskStatus.IN_PROGRESS };
+    const reordered = retainWarehouseDockOrder(before, projectWarehouseCargo([newcomer, claimed, first], 'receiving', true));
+
+    expect(reordered.dockTaskId).toBe('first');
+    expect(reordered.dockVisits?.map(visit => visit.taskId)).toEqual(['first', 'second', 'new']);
+    const finished = { ...first, status: ReceivingTaskStatus.READY_FOR_RECONCILIATION };
+    const released = retainWarehouseDockOrder(reordered, projectWarehouseCargo([newcomer, claimed, finished], 'receiving', true));
+    expect(released.dockTaskId).toBe('second');
+    expect(released.dockDepartures?.get('first')).toBe('received');
   });
 
   it('starts from a restored snapshot and animates only new confirmed facts', () => {
@@ -73,7 +93,7 @@ describe('warehouse scene cargo', () => {
       receivedUnits: [{ ...fact, putAwayCellId: 'cell' }],
     });
     const project = (task: typeof initial): ReturnType<typeof projectWarehouseCargo> =>
-      projectWarehouseCargo([task], 'receiving', true, undefined);
+      projectWarehouseCargo([task], 'receiving', true);
     const before = project(initial);
     const middle = project(received);
     const after = project(placed);
@@ -92,8 +112,8 @@ describe('warehouse scene cargo', () => {
       ...open,
       receivedUnits: [create(ReceivedHandlingUnitSchema, { expectedUnitId: 'expected' })],
     });
-    const before = projectWarehouseCargo([dock, open], 'receiving', true, undefined);
-    const after = projectWarehouseCargo([dock, received], 'receiving', true, undefined);
+    const before = projectWarehouseCargo([dock, open], 'receiving', true);
+    const after = projectWarehouseCargo([dock, received], 'receiving', true);
 
     expect(after.dockTaskId).toBe('claimed');
     expect(readWarehouseCargoMoves(before, after)).toMatchObject([{ id: 'expected', stops: ['truck', 'staging'] }]);
@@ -105,7 +125,7 @@ describe('warehouse scene cargo', () => {
     const firstReceipt = create(ReceivedHandlingUnitSchema, { expectedUnitId: 'second', receivedAt: { seconds: 1n } });
     const secondReceipt = create(ReceivedHandlingUnitSchema, { expectedUnitId: 'expected', receivedAt: { seconds: 1n } });
     const project = (receivedUnits: ReceivingTask['receivedUnits']): ReturnType<typeof projectWarehouseCargo> =>
-      projectWarehouseCargo([{ ...task, expectedUnits, receivedUnits }], 'receiving', true, undefined);
+      projectWarehouseCargo([{ ...task, expectedUnits, receivedUnits }], 'receiving', true);
 
     expect(project([firstReceipt]).units.find(unit => unit.id === 'second')?.slot).toBe(0);
     expect(project([firstReceipt, secondReceipt]).units.find(unit => unit.id === 'second')?.slot).toBe(0);
@@ -120,12 +140,12 @@ describe('warehouse scene cargo', () => {
         expectedUnitId: 'expected',
       })],
     });
-    const closed = projectWarehouseCargo([task], 'receiving', true, undefined);
+    const closed = projectWarehouseCargo([task], 'receiving', true);
 
     expect(closed.dockTaskId).toBeUndefined();
     expect(closed.dockDepartures?.get('task')).toBe('received');
     expect(closed.units).toMatchObject([{ id: 'actual', location: 'staging' }]);
-    expect(projectWarehouseCargo([task], 'receiving', false, undefined).units).toEqual(closed.units);
+    expect(projectWarehouseCargo([task], 'receiving', false).units).toEqual(closed.units);
   });
 
   it('loads a local pallet only after WMS confirms shipment', () => {
@@ -176,7 +196,7 @@ describe('warehouse scene cargo', () => {
   });
 
   it('keeps the confirmed removal from stock when the warehouse has no dock', () => {
-    const cargo = projectWarehouseCargo([], 'receiving', false, undefined, {
+    const cargo = projectWarehouseCargo([], 'receiving', false, {
       picking: [makePicking(PickingTaskStatus.SHIPPED)],
       trips: undefined,
       warehouseId: 'source',
@@ -200,10 +220,10 @@ describe('warehouse scene cargo', () => {
     const arrival = makeTrip(TripStatus.ARRIVED);
     const picking = makePicking(PickingTaskStatus.PICKED);
     const inbound = { ...makeTask(ReceivingTaskStatus.OPEN), dealId: 'deal', warehouseId: 'destination' };
-    const atDestination = projectWarehouseCargo([inbound], 'receiving', true, undefined, {
+    const atDestination = projectWarehouseCargo([inbound], 'receiving', true, {
       picking: [{ ...picking, warehouseId: 'destination' }], trips: [arrival], warehouseId: 'destination',
     });
-    const atSource = projectWarehouseCargo([{ ...inbound, dealId: 'other-deal', warehouseId: 'source' }], 'receiving', true, picking.id, {
+    const atSource = projectWarehouseCargo([{ ...inbound, dealId: 'other-deal', warehouseId: 'source' }], 'receiving', true, {
       picking: [picking], trips: [makeTrip(TripStatus.ASSIGNED)], warehouseId: 'source',
     });
 

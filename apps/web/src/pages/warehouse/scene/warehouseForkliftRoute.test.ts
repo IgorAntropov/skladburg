@@ -118,6 +118,11 @@ describe('warehouse forklift jobs', () => {
 
     expect(buildWarehouseCargoTransfers(layout, { ...picked, dockTripId: undefined }, local, 'dispatch')).toHaveLength(1);
     expect(buildWarehouseCargoTransfers(layout, { ...picked, dockTripId: undefined }, local, 'previous-truck')).toEqual([]);
+    const nextDock = {
+      ...local, dockDepartures: new Map([['dispatch', 'self-pickup']]), dockTaskId: 'next-truck', dockTripId: 'next-trip',
+    } satisfies WarehouseCargoValue;
+    expect(buildWarehouseCargoTransfers(layout, { ...picked, dockTripId: undefined }, nextDock, 'dispatch'))
+      .toMatchObject([{ dockTaskId: 'dispatch', from: { location: 'cell' }, to: { location: 'truck' } }]);
     expect(buildWarehouseCargoVisuals(layout, packed, balances, undefined))
       .toMatchObject([{ id: 'pallet', requiresActiveDispatch: false, size: 0.6 * 0.78 }]);
     expect(buildWarehouseCargoVisuals(layout, local, balances, 'dispatch')).toMatchObject([{ id: 'pallet', requiresActiveDispatch: true }]);

@@ -1,0 +1,16 @@
+Route truck models
+
+CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/
+
+The tractor and semitrailer are adapted from Long-Haul Trucking and Truck Stop by 3DAssets.dev.
+
+Cab-over day cab tractor, asset 13945:
+https://3dassets.dev/assets/long-haul-trucking-and-truck-stop-cabover-day-cab-2da6af6b
+https://cdn.3dassets.dev/assets/13945/v1/model.glb
+
+Dry van semitrailer, asset 13950:
+https://3dassets.dev/assets/long-haul-trucking-and-truck-stop-dry-van-trailer-b8f9c5d8
+https://cdn.3dassets.dev/assets/13950/v1/model.glb
+
+Run from the repository root with the two downloaded GLB files to build route-truck.bin and route-truck-light.bin:
+node apps/web/build-models/convertNetworkTruck.ts cab.glb trailer.glb

@@ -126,4 +126,18 @@ export const INDUSTRIAL_YARD_MODEL = {
   sourceName: 'loading-yard',
 } satisfies WorldModelFileValue;
 
+export const NETWORK_TRUCK_MODEL = {
+  id: 'industrial/route-truck',
+  kit: 'industrial',
+  sourceName: 'route-truck',
+} satisfies WorldModelFileValue;
+
+export const NETWORK_TRUCK_LIGHT_MODEL = {
+  id: 'industrial/route-truck-light',
+  kit: 'industrial',
+  sourceName: 'route-truck-light',
+} satisfies WorldModelFileValue;
+
+export const WORLD_AUXILIARY_MODELS = [INDUSTRIAL_YARD_MODEL, NETWORK_TRUCK_MODEL, NETWORK_TRUCK_LIGHT_MODEL] as const;
+
 export const buildWorldModelPath = ({ kit, sourceName }: WorldModelFileValue): string => `models/${kit}/${sourceName}.bin`;

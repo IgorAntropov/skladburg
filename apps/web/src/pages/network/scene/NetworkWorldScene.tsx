@@ -12,6 +12,7 @@ import type {
   NetworkMapModelValue,
 } from '@/entities/network';
 import type {
+  QualityLevelValue,
   SceneContentProps,
   SceneWorldValue,
 } from '@/shared/3d';
@@ -72,12 +73,13 @@ import { placeIndustrialYard } from './yard/placeIndustrialYard';
 
 interface NetworkTripActorSlotProps {
   layout: NetworkSceneLayoutValue;
+  level: QualityLevelValue;
   tracks: NetworkTripActorsValue;
 }
 
 const loadTripActors = createCachedModuleLoader(() => import('./trips/NetworkTripActors'));
 
-const NetworkTripActorSlot = ({ layout, tracks }: NetworkTripActorSlotProps): null | ReactElement => {
+const NetworkTripActorSlot = ({ layout, level, tracks }: NetworkTripActorSlotProps): null | ReactElement => {
   const { state } = useLoadedModule(loadTripActors);
 
   if (state.kind !== 'loaded') {
@@ -86,7 +88,7 @@ const NetworkTripActorSlot = ({ layout, tracks }: NetworkTripActorSlotProps): nu
 
   const { NetworkTripActors } = state.module;
 
-  return <NetworkTripActors layout={layout} tracks={tracks} />;
+  return <NetworkTripActors layout={layout} level={level} tracks={tracks} />;
 };
 
 const createTerrainParams = (layout: NetworkSceneLayoutValue): Parameters<typeof loadWorldTerrain>[0] => ({
@@ -193,7 +195,7 @@ const NetworkWorldScene = ({
     <>
       <NetworkLandscape level={level} terrain={terrain} />
       <NetworkRoads hasShadowReceive={hasShadows} roads={layout.roads} />
-      {tracks !== undefined && tracks.actors.length > 0 && <NetworkTripActorSlot layout={layout} tracks={tracks} />}
+      {tracks !== undefined && tracks.actors.length > 0 && <NetworkTripActorSlot layout={layout} level={level} tracks={tracks} />}
       <NetworkStreetLamps boxGeometry={boxGeometry} lamps={lamps} level={level} />
       <NetworkCityPlazas cities={layout.cities} hasShadowReceive={hasShadows} />
       <NetworkShadowBlobs buildings={layout.buildings} level={level} terrain={terrain} />

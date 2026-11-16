@@ -42,6 +42,18 @@ const UV_INSET = 1 / CELL_SIZE_PX;
 const FRONT_Y = 0.38;
 const SURFACE_CLEARANCE_METERS = 0.008;
 
+const PROCEDURAL_MOUNTS = {
+  front: { width: 0.57, y: FRONT_Y, z: TRUCK_CAB.z + TRUCK_CAB.depth / 2 + SURFACE_CLEARANCE_METERS },
+  rear: { width: 0.57, y: FRONT_Y, z: TRUCK_BOX.z - TRUCK_BOX.depth / 2 - SURFACE_CLEARANCE_METERS },
+  side: { width: 1, x: TRUCK_BOX.width / 2 + SURFACE_CLEARANCE_METERS, y: TRUCK_BOX.y + TRUCK_BOX.height / 2, z: TRUCK_BOX.z },
+};
+
+const MODEL_MOUNTS = {
+  front: { width: 0.4, y: 0.302, z: 1.013 },
+  rear: { width: 0.26, y: 0.396, z: -1.0615 },
+  side: { width: 1, x: 0.424, y: 0.627, z: -0.194 },
+};
+
 const createDecalFace = (width: number, height: number, isBrand: boolean): PlaneGeometry => {
   const geometry = new PlaneGeometry(width, height);
   const uv = geometry.getAttribute('uv');
@@ -56,16 +68,13 @@ const createDecalFace = (width: number, height: number, isBrand: boolean): Plane
   return geometry;
 };
 
-const createDecalGeometry = (columns: number, rows: number, count: number): BufferGeometry => {
-  const sideX = TRUCK_BOX.width / 2 + SURFACE_CLEARANCE_METERS;
-  const sideY = TRUCK_BOX.y + TRUCK_BOX.height / 2;
-  const frontZ = TRUCK_CAB.z + TRUCK_CAB.depth / 2 + SURFACE_CLEARANCE_METERS;
-  const rearZ = TRUCK_BOX.z - TRUCK_BOX.depth / 2 - SURFACE_CLEARANCE_METERS;
+const createDecalGeometry = (columns: number, rows: number, count: number, hasModel: boolean): BufferGeometry => {
+  const { front, rear, side } = hasModel ? MODEL_MOUNTS : PROCEDURAL_MOUNTS;
   const faces = [
-    createDecalFace(1, 0.5, true).rotateY(Math.PI / 2).translate(sideX, sideY, TRUCK_BOX.z),
-    createDecalFace(1, 0.5, true).rotateY(-Math.PI / 2).translate(-sideX, sideY, TRUCK_BOX.z),
-    createDecalFace(0.57, 0.285, false).translate(0, FRONT_Y, frontZ),
-    createDecalFace(0.57, 0.285, false).rotateY(Math.PI).translate(0, FRONT_Y, rearZ),
+    createDecalFace(side.width, side.width / 2, true).rotateY(Math.PI / 2).translate(side.x, side.y, side.z),
+    createDecalFace(side.width, side.width / 2, true).rotateY(-Math.PI / 2).translate(-side.x, side.y, side.z),
+    createDecalFace(front.width, front.width / 2, false).translate(0, front.y, front.z),
+    createDecalFace(rear.width, rear.width / 2, false).rotateY(Math.PI).translate(0, rear.y, rear.z),
   ];
   const geometry = mergeGeometries(faces);
   const offsets = new Float32Array(count * 2);
@@ -111,6 +120,7 @@ const drawRegistrationNumber = (context: CanvasRenderingContext2D, number: strin
 export const createNetworkTruckDecals = (
   actors: readonly NetworkTripActorValue[],
   colors: SiteBannerColorsValue,
+  hasModel: boolean,
 ): NetworkTruckDecalsValue | undefined => {
   const columns = Math.ceil(Math.sqrt(actors.length));
   const rows = Math.ceil(actors.length / columns);
@@ -134,7 +144,7 @@ export const createNetworkTruckDecals = (
   texture.generateMipmaps = false;
   texture.minFilter = LinearFilter;
   const material = new MeshBasicMaterial({ alphaTest: 0.5, map: texture, toneMapped: false });
-  const geometry = createDecalGeometry(columns, rows, actors.length);
+  const geometry = createDecalGeometry(columns, rows, actors.length, hasModel);
   material.onBeforeCompile = (shader): void => {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\nattribute vec2 ${DECAL_OFFSET};`)

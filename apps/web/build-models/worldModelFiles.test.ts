@@ -37,6 +37,9 @@ import {
   buildWorldModelPath,
   COMPANY_WAREHOUSE_MODEL_ID,
   INDUSTRIAL_YARD_MODEL,
+  NETWORK_TRUCK_LIGHT_MODEL,
+  NETWORK_TRUCK_MODEL,
+  WORLD_AUXILIARY_MODELS,
   WORLD_MODEL_CATALOG,
 } from '../src/pages/network/scene/models/worldModelCatalog.ts';
 import {
@@ -222,11 +225,31 @@ describe('world model files', () => {
   });
 
   it('has no other .bin files than the catalog', () => {
-    const expected = [...WORLD_MODEL_CATALOG, INDUSTRIAL_YARD_MODEL].map(
+    const expected = [...WORLD_MODEL_CATALOG, ...WORLD_AUXILIARY_MODELS].map(
       entry => join(appRoot, 'public', buildWorldModelPath(entry)),
     ).toSorted();
 
     expect(listBinFiles().toSorted()).toEqual(expected);
+  });
+
+  it.each([
+    { entry: NETWORK_TRUCK_MODEL, maxBytes: 40_000, maxTriangles: 2200 },
+    { entry: NETWORK_TRUCK_LIGHT_MODEL, maxBytes: 14_000, maxTriangles: 624 },
+  ])('keeps $entry.id within its road and scene budgets', ({ entry, maxBytes, maxTriangles }) => {
+    const path = join(appRoot, 'public', buildWorldModelPath(entry));
+    const bytes = Uint8Array.from(readFileSync(path));
+    const { bounds, roles, triangleCount } = readWorldModel(bytes.buffer);
+    expect(bytes.byteLength).toBeLessThanOrEqual(maxBytes);
+    expect(triangleCount).toBeLessThanOrEqual(maxTriangles);
+    expect(bounds.min[0]).toBeGreaterThanOrEqual(-0.506);
+    expect(bounds.min[1]).toBe(0);
+    expect(bounds.min[2]).toBeGreaterThanOrEqual(-1.081);
+    expect(bounds.max[0]).toBeLessThanOrEqual(0.506);
+    expect(bounds.max[1]).toBeLessThanOrEqual(0.981);
+    expect(bounds.max[2]).toBeLessThanOrEqual(1.041);
+    expect([...new Set(roles)].map(role => WORLD_MODEL_ROLES[role])).toEqual(
+      expect.arrayContaining(['dark', 'glass', 'light', 'mid']),
+    );
   });
 
   it('keeps the loading yard inside the lot used for placement and gives its props palette roles', () => {

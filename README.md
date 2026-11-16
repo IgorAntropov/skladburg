@@ -40,6 +40,7 @@ pnpm dev
 | `pnpm --filter @skladburg/web models -- --commercial <папка> --industrial <папка>` | конвертация выбранных моделей Kenney в формат карты (`apps/web/public/models`); наборы City Kit Commercial и Industrial скачиваются с kenney.nl и в git не кладутся. Для пересборки двора добавь `--yard-container <GLB>` и `--yard-dock <GLB>` из [списка источников](apps/web/public/models/industrial/loading-yard-sources.txt). |
 | `node apps/web/build-models/convertWarehouseKit.ts <upright.glb> <deck.glb> <pallet.glb>` | пересборка облегчённых модулей склада из [CC0-моделей](apps/web/build-models/warehouse-kit-sources.txt) |
 | `node apps/web/build-models/convertWarehouseForklift.ts <forklift.glb>` | пересборка модели погрузчика с подвижными вилами из [Parcel Depot](apps/web/build-models/warehouse-kit-sources.txt) |
+| `node apps/web/build-models/convertNetworkTruck.ts <cab.glb> <trailer.glb>` | пересборка модели фуры из [Long-Haul Trucking and Truck Stop](apps/web/public/models/industrial/route-truck-sources.txt) |
 
 ## Сквозные тесты
 

@@ -4,7 +4,7 @@ import type { WorldModelFileValue } from './worldModelCatalog';
 import { readWorldModel } from './format/worldModelFormat';
 import {
   buildWorldModelPath,
-  INDUSTRIAL_YARD_MODEL,
+  WORLD_AUXILIARY_MODELS,
   WORLD_MODEL_CATALOG,
 } from './worldModelCatalog';
 
@@ -22,7 +22,7 @@ const roundKiloBytes = (bytes: number): number => Math.round((bytes / BYTES_IN_K
 
 export const createWorldModelLoader = (fetchBuffer: FetchWorldModelBuffer): IWorldModelLoader => {
   const entriesById = new Map<string, WorldModelFileValue>(
-    [...WORLD_MODEL_CATALOG, INDUSTRIAL_YARD_MODEL].map(entry => [entry.id, entry]),
+    [...WORLD_MODEL_CATALOG, ...WORLD_AUXILIARY_MODELS].map(entry => [entry.id, entry]),
   );
   const modelCache = new Map<string, Promise<WorldModelDataValue>>();
   const loadedModels = new Map<string, WorldModelDataValue>();

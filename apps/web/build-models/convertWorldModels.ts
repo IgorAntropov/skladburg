@@ -18,6 +18,7 @@ import type { ModelReportValue } from './convertModel.ts';
 import {
   buildWorldModelPath,
   INDUSTRIAL_YARD_MODEL,
+  WORLD_AUXILIARY_MODELS,
   WORLD_MODEL_CATALOG,
 } from '../src/pages/network/scene/models/worldModelCatalog.ts';
 import { convertIndustrialYard } from './convertIndustrialYard.ts';
@@ -113,9 +114,12 @@ const convert = async (): Promise<void> => {
     writeFileSync(yardPath, bytes);
   }
 
-  if (existsSync(yardPath)) {
-    expectedFiles.add(yardPath);
-    totalBytes += readFileSync(yardPath).length;
+  for (const model of WORLD_AUXILIARY_MODELS) {
+    const path = join(appRoot, 'public', buildWorldModelPath(model));
+    if (existsSync(path)) {
+      expectedFiles.add(path);
+      totalBytes += readFileSync(path).length;
+    }
   }
 
   const removedFiles = listBinFiles(OUTPUT_DIRECTORY).filter(path => !expectedFiles.has(path));

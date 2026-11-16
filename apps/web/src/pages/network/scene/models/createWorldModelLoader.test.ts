@@ -6,7 +6,10 @@ import {
 } from 'vitest';
 
 import { createWorldModelLoader } from './createWorldModelLoader';
-import { COMPANY_WAREHOUSE_MODEL_ID } from './worldModelCatalog';
+import {
+  COMPANY_WAREHOUSE_MODEL_ID,
+  NETWORK_TRUCK_MODEL,
+} from './worldModelCatalog';
 import { createTestWorldModelBytes } from './worldModelTestSupport';
 
 const OTHER_MODEL_ID = 'commercial/building-a';
@@ -19,6 +22,21 @@ describe('createWorldModelLoader', () => {
     await load([COMPANY_WAREHOUSE_MODEL_ID]);
 
     expect(fetchBuffer).toHaveBeenCalledExactlyOnceWith(`${import.meta.env.BASE_URL}models/industrial/building-k.bin`);
+  });
+
+  it('loads the route truck on demand and shares the parsed asset across requests', async () => {
+    const fetchBuffer = vi.fn(() => Promise.resolve(createTestWorldModelBytes()));
+    const load = createWorldModelLoader(fetchBuffer);
+
+    await load([COMPANY_WAREHOUSE_MODEL_ID]);
+    expect(load.peek(NETWORK_TRUCK_MODEL.id)).toBeUndefined();
+
+    const requests = [load([NETWORK_TRUCK_MODEL.id]), load([NETWORK_TRUCK_MODEL.id])];
+    const [first, second] = await Promise.all(requests);
+    expect(first?.get(NETWORK_TRUCK_MODEL.id)).toBeDefined();
+    expect(second?.get(NETWORK_TRUCK_MODEL.id)).toBe(first?.get(NETWORK_TRUCK_MODEL.id));
+    expect(fetchBuffer).toHaveBeenCalledTimes(2);
+    expect(fetchBuffer).toHaveBeenLastCalledWith(`${import.meta.env.BASE_URL}models/industrial/route-truck.bin`);
   });
 
   it('returns the parsed models by id', async () => {

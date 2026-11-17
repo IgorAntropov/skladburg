@@ -4,7 +4,10 @@ import type { ReceivingTask } from '@skladburg/contracts/wms/v1/receiving';
 
 import { TripStatus } from '@skladburg/contracts/logistics/v1/trip_records';
 import { PickingTaskStatus } from '@skladburg/contracts/wms/v1/picking';
-import { ReceivingTaskStatus } from '@skladburg/contracts/wms/v1/receiving';
+import {
+  ReceivingTaskStatus,
+  YardAdmissionStatus,
+} from '@skladburg/contracts/wms/v1/receiving';
 
 import type {
   WarehouseActiveVisitPhaseValue,
@@ -14,15 +17,25 @@ import type {
 
 export const isWarehouseVisitActive = (visit: undefined | WarehouseYardVisitValue): visit is WarehouseDockVisitValue & {
   phase: WarehouseActiveVisitPhaseValue;
-} => visit !== undefined && !('departure' in visit) && visit.phase !== 'awaiting-shipment' && visit.phase !== 'cancelled';
+} => visit !== undefined && !('departure' in visit) && visit.phase !== 'awaiting-shipment'
+  && visit.phase !== 'cancelled' && visit.phase !== 'pass-rejected';
 
 export const projectInboundYardVisit = (task: ReceivingTask, tripId: string | undefined): undefined | WarehouseYardVisitValue => {
-  const { id: taskId, receivedUnits, status, unloadingPointId } = task;
+  const { id: taskId, receivedUnits, status, unloadingPointId, yardAdmissionStatus } = task;
   const visit = { taskId, tripId, unloadingPointId };
   if (status === ReceivingTaskStatus.READY_FOR_RECONCILIATION || status === ReceivingTaskStatus.RECONCILED) {
     return { ...visit, departure: 'received', phase: 'released' };
   }
   if (status === ReceivingTaskStatus.OPEN || status === ReceivingTaskStatus.IN_PROGRESS) {
+    if (yardAdmissionStatus === YardAdmissionStatus.PASS_REJECTED) {
+      return { ...visit, phase: 'pass-rejected' };
+    }
+    if (yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCUMENTS) {
+      return { ...visit, isWaitingInYard: true, phase: 'waiting-documents', unloadingPointId: undefined };
+    }
+    if (yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCK) {
+      return { ...visit, isWaitingInYard: true, phase: 'queued', unloadingPointId: undefined };
+    }
     const phase = receivedUnits.length > 0 ? 'unloading' : unloadingPointId === undefined ? 'queued' : 'assigned';
     return { ...visit, phase };
   }

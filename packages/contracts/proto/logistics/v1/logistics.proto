@@ -145,6 +145,7 @@ message Trip {
   TripTemperatureReading body_temperature = 14;
   TripMapTrack map_track = 15;
   TripReceiptDocuments receipt_documents = 16;
+  optional bool carrier_title_submitted = 17;
 }
 
 message GetTripRequest {

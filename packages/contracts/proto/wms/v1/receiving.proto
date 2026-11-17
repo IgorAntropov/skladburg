@@ -18,6 +18,14 @@ enum ReceivingTaskStatus {
   RECEIVING_TASK_STATUS_RECONCILED = 4;
 }
 
+enum YardAdmissionStatus {
+  YARD_ADMISSION_STATUS_UNSPECIFIED = 0;
+  YARD_ADMISSION_STATUS_PASS_REJECTED = 1;
+  YARD_ADMISSION_STATUS_WAITING_DOCUMENTS = 2;
+  YARD_ADMISSION_STATUS_ADMITTED = 3;
+  YARD_ADMISSION_STATUS_WAITING_DOCK = 4;
+}
+
 message ReceivingOrderLine {
   string deal_line_id = 1;
   string product_id = 2;
@@ -75,6 +83,7 @@ message ReceivingTask {
   google.protobuf.Timestamp finished_at = 12;
   optional string upd_document_id = 13;
   optional string unloading_point_id = 14;
+  YardAdmissionStatus yard_admission_status = 15;
 }
 
 message ListReceivingTasksRequest {

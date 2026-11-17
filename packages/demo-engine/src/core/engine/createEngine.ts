@@ -374,6 +374,8 @@ export const createEngineWithTasks = async (
 
   const logisticsHandler = deferEngineHandler(async () =>
     (await import('../modules/logistics/index')).createLogisticsHandler(runtime, supportAudit));
+  const tripDocumentsHandler = deferEngineHandler(async () =>
+    (await import('../modules/logistics/tripDocumentsService')).createTripDocumentsHandler(runtime, supportAudit));
   const warehousePickingHandler = deferEngineHandler(async () =>
     (await import('../modules/wms/warehousePickingService')).createWarehousePickingHandler(runtime, supportAudit));
   const warehouseReceivingHandler = deferEngineHandler(async () =>
@@ -399,6 +401,10 @@ export const createEngineWithTasks = async (
 
     if (pathname.startsWith('/wms.v1.')) {
       return warehouseTopologyHandler(request);
+    }
+
+    if (pathname.startsWith('/logistics.v1.TripDocumentsService/')) {
+      return tripDocumentsHandler(request);
     }
 
     return pathname.startsWith('/logistics.v1.LogisticsService/') ? logisticsHandler(request) : handler(request);

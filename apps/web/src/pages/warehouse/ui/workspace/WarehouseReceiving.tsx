@@ -6,7 +6,10 @@ import type { ReactElement } from 'react';
 
 import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import { MarkingMode } from '@skladburg/contracts/catalog/v1/catalog';
-import { ReceivingTaskStatus } from '@skladburg/contracts/wms/v1/receiving';
+import {
+  ReceivingTaskStatus,
+  YardAdmissionStatus,
+} from '@skladburg/contracts/wms/v1/receiving';
 import {
   Suspense,
   useState,
@@ -80,8 +83,12 @@ export const WarehouseReceiving = ({
   const isAssigned = task.assigneeUserId === userId;
   const isOpen = task.status === ReceivingTaskStatus.OPEN;
   const isReceiving = task.status === ReceivingTaskStatus.IN_PROGRESS;
-  const isWaitingDock = dockCode === null && (isOpen || isReceiving);
-  const canReceive = isAssigned && isReceiving && !isWaitingDock && (editingTaskId === undefined || editingTaskId === task.id);
+  const isWaitingDock = (isOpen || isReceiving) && (dockCode === null || task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCK);
+  const isWaitingForDocuments = (isOpen || isReceiving) && task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCUMENTS;
+  const isPassRejected = (isOpen || isReceiving) && task.yardAdmissionStatus === YardAdmissionStatus.PASS_REJECTED;
+  const isYardAdmitted = (isOpen || isReceiving) && task.yardAdmissionStatus === YardAdmissionStatus.ADMITTED && dockCode === undefined;
+  const canReceive = isAssigned && isReceiving && !isWaitingDock && !isWaitingForDocuments && !isPassRejected
+    && (editingTaskId === undefined || editingTaskId === task.id);
   const canPlace = isAssigned && !isOpen && editingTaskId === undefined;
   const receivedIds = new Set(task.receivedUnits.map(unit => unit.expectedUnitId));
   const missing = task.expectedUnits.filter(unit => !receivedIds.has(unit.id));
@@ -91,9 +98,15 @@ export const WarehouseReceiving = ({
   const hasMarking = hasEvidence && selectedLine?.markingMode === MarkingMode.UNIT;
   const placedCount = task.receivedUnits.filter(unit => unit.putAwayCellId !== undefined).length;
   const Form = state.kind === 'loaded' ? state.module.WarehouseReceiveForm : undefined;
-  const dockLabel = isWaitingDock
-    ? t('warehouseWork.waitingDock')
-    : typeof dockCode === 'string' ? t('warehouseWork.dock', { code: dockCode }) : undefined;
+  const dockLabel = isWaitingForDocuments
+    ? t('warehouseWork.waitingYardDocuments')
+    : isPassRejected
+      ? t('warehouseWork.yardPassRejected')
+      : isWaitingDock
+        ? t('warehouseWork.waitingDock')
+        : typeof dockCode === 'string'
+          ? t('warehouseWork.dock', { code: dockCode })
+          : isYardAdmitted ? t('warehouseWork.yardAdmitted') : undefined;
 
   const handleManual = (): void => {
     onEditingChange(task.id);
@@ -136,7 +149,9 @@ export const WarehouseReceiving = ({
         <p className="text-sm text-on-panel-muted">{t(RECEIVING_TEXT[task.status])}</p>
       </header>
       {dockLabel !== undefined && (
-        <p aria-live="polite" className="text-sm text-on-panel-muted" data-testid="warehouse-receiving-dock">{dockLabel}</p>
+        <p aria-live="polite" className="text-sm text-on-panel-muted" data-testid="warehouse-receiving-dock">
+          {dockLabel}
+        </p>
       )}
       {canViewDeals && (
         <TextLink size="sm" to={{ kind: 'object', object: { id: task.dealId, type: 'deal' } }}>{t('warehouseWork.deal')}</TextLink>

@@ -57,6 +57,11 @@ message TripTransition {
   string actor_user_id = 4;
 }
 
+message CarrierTitleSubmission {
+  google.protobuf.Timestamp submitted_at = 1;
+  string submitted_by_user_id = 2;
+}
+
 message TripRecord {
   string id = 1;
   string deal_id = 2;
@@ -70,4 +75,5 @@ message TripRecord {
   google.protobuf.Timestamp departed_at = 10;
   google.protobuf.Timestamp arrived_at = 11;
   repeated TripTransition transitions = 12;
+  CarrierTitleSubmission carrier_title = 13;
 }

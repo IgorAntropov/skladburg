@@ -51,8 +51,10 @@ export const scanTripPallet = async (picking: Locator): Promise<ScannedTripPalle
   };
 };
 
-export const scanDeliveredPallet = async (receiving: Locator, sscc: string): Promise<Locator> => {
-  await receiving.getByTestId('warehouse-claim-receiving').click();
+export const scanDeliveredPallet = async (receiving: Locator, sscc: string, isAlreadyClaimed = false): Promise<Locator> => {
+  if (!isAlreadyClaimed) {
+    await receiving.getByTestId('warehouse-claim-receiving').click();
+  }
   await expect(receiving.getByText(sscc, { exact: true })).toBeVisible();
   await receiving.getByTestId('warehouse-enter-sscc').click();
   const form = receiving.getByTestId('warehouse-receive-form');

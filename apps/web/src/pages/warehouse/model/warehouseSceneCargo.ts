@@ -1,4 +1,4 @@
-export type WarehouseActiveVisitPhaseValue = 'assigned' | 'awaiting-load' | 'loaded' | 'queued' | 'unloading';
+export type WarehouseActiveVisitPhaseValue = 'assigned' | 'awaiting-load' | 'loaded' | 'queued' | 'unloading' | 'waiting-documents';
 
 export interface WarehouseCargoUnitValue {
   cellId: string | undefined;
@@ -26,6 +26,7 @@ export type WarehouseDockDepartureValue = 'received' | 'route' | 'self-pickup';
 
 export interface WarehouseDockVisitValue {
   isOutbound?: boolean | undefined;
+  isWaitingInYard?: boolean | undefined;
   taskId: string;
   tripId: string | undefined;
   unloadingPointId?: string | undefined;
@@ -34,7 +35,7 @@ export interface WarehouseDockVisitValue {
 export type WarehouseYardVisitValue = WarehouseDockVisitValue & (
   { departure: 'received'; phase: 'released' }
   | { departure: 'route' | 'self-pickup'; phase: 'departed' }
-  | { phase: 'awaiting-shipment' | 'cancelled' }
+  | { phase: 'awaiting-shipment' | 'cancelled' | 'pass-rejected' }
   | { phase: WarehouseActiveVisitPhaseValue }
 );
 
@@ -70,7 +71,9 @@ export const retainWarehouseDockOrder = (prev: undefined | WarehouseCargoValue, 
     }
   }
   dockVisits.push(...incoming.values());
-  const next = dockVisits[0];
+  const previous = dockVisits.find(visit => visit.taskId === prev.dockTaskId && visit.isWaitingInYard !== true);
+  const assigned = dockVisits.find(visit => visit.unloadingPointId !== undefined);
+  const next = previous?.isOutbound === true ? previous : assigned ?? previous ?? dockVisits.find(visit => visit.isWaitingInYard !== true);
   return { ...current, dockTaskId: next?.taskId, dockTripId: next?.tripId, dockVisits };
 };
 

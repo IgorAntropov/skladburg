@@ -27,9 +27,14 @@ import type { TransportTranslate } from '../i18n/transportSection';
 import { useRefreshOnVersionConflict } from '../api/useRefreshOnVersionConflict';
 import {
   transportMethods,
-  useConfirmTransportOrder,
+  tripStepMethods,
+  useConfirmTripStep,
 } from '../api/useTransportWorkspaceCommands';
 import { useTransportEditorSlot } from './TransportEditorSlot';
+
+interface ConfirmTripStepProps extends TransportTripActionsProps {
+  method: Parameters<typeof useConfirmTripStep>[0];
+}
 
 interface TransportTripActionsProps {
   onStatusFocus: () => void;
@@ -37,20 +42,21 @@ interface TransportTripActionsProps {
   trip: Trip;
 }
 
-const ConfirmOrder = ({ onStatusFocus, t, trip }: TransportTripActionsProps): ReactElement => {
-  const access = useCommandAccess(transportMethods.confirmTransportOrder, { kind: 'organization' });
+const ConfirmTripStep = ({ method, onStatusFocus, t, trip }: ConfirmTripStepProps): ReactElement => {
+  const access = useCommandAccess(tripStepMethods[method], { kind: 'organization' });
   const announce = useAnnounce();
   const refresh = useRefreshTransport();
   const commandRef = useRef<HTMLDivElement>(null);
+  const isCarrierTitle = method === 'submitCarrierTitle';
 
   const handleSaved = (): void => {
-    announce(t('transport.trips.confirmedNotice'));
+    announce(t(isCarrierTitle ? 'transport.trips.carrierTitleSubmitted' : 'transport.trips.confirmedNotice'));
     if (commandRef.current?.contains(document.activeElement) === true) {
       onStatusFocus();
     }
     void refresh();
   };
-  const command = useConfirmTransportOrder(trip.id, trip.version, handleSaved);
+  const command = useConfirmTripStep(method, trip.id, trip.version, handleSaved);
 
   const isConflict = command.apiError?.code === ErrorCode.VERSION_CONFLICT;
   const handleRefresh = (): void => {
@@ -61,8 +67,13 @@ const ConfirmOrder = ({ onStatusFocus, t, trip }: TransportTripActionsProps): Re
 
   return (
     <div className="flex flex-col gap-2" ref={commandRef}>
-      <ActionButton access={access} command={command} data-testid="transport-order-confirm" isDisabled={isConflict}>
-        {t('transport.trips.confirm')}
+      <ActionButton
+        access={access}
+        command={command}
+        data-testid={isCarrierTitle ? 'transport-carrier-title-submit' : 'transport-order-confirm'}
+        isDisabled={isConflict}
+      >
+        {t(isCarrierTitle ? 'transport.trips.submitCarrierTitle' : 'transport.trips.confirm')}
       </ActionButton>
       {isConflict && <Button className="self-start" onClick={handleRefresh} variant="secondary">{t('transport.form.refresh')}</Button>}
     </div>
@@ -78,6 +89,8 @@ export const TransportTripActions = ({ onStatusFocus, t, trip }: TransportTripAc
   const [isEditorOpen, setIsEditorOpen] = useState(false);
 
   const isAssignable = trip.status === TripStatus.CONFIRMED || trip.status === TripStatus.ASSIGNED;
+  const canSubmitCarrierTitle = trip.carrierTitleSubmitted === false
+    && (trip.status === TripStatus.LOADED || trip.status === TripStatus.IN_TRANSIT || trip.status === TripStatus.ARRIVED);
   const handleClose = (): void => {
     shouldReturnFocus.current = true;
     setIsEditorOpen(false);
@@ -121,7 +134,13 @@ export const TransportTripActions = ({ onStatusFocus, t, trip }: TransportTripAc
   }
 
   if (trip.status === TripStatus.AWAITING_CONFIRMATION) {
-    return <ConfirmOrder key={trip.version} onStatusFocus={onStatusFocus} t={t} trip={trip} />;
+    return (
+      <ConfirmTripStep key={trip.version} method="confirmTransportOrder" onStatusFocus={onStatusFocus} t={t} trip={trip} />
+    );
+  }
+
+  if (canSubmitCarrierTitle) {
+    return <ConfirmTripStep key={trip.version} method="submitCarrierTitle" onStatusFocus={onStatusFocus} t={t} trip={trip} />;
   }
 
   if (!isAssignable) {

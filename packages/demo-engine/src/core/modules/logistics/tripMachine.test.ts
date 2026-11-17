@@ -27,6 +27,9 @@ const expectedRows = [
   { command: 'confirm', from: TripStatus.AWAITING_CONFIRMATION, to: TripStatus.CONFIRMED },
   { command: 'depart', from: TripStatus.LOADED, to: TripStatus.IN_TRANSIT },
   { command: 'load', from: TripStatus.ASSIGNED, to: TripStatus.LOADED },
+  { command: 'submitCarrierTitle', from: TripStatus.ARRIVED, to: TripStatus.ARRIVED },
+  { command: 'submitCarrierTitle', from: TripStatus.IN_TRANSIT, to: TripStatus.IN_TRANSIT },
+  { command: 'submitCarrierTitle', from: TripStatus.LOADED, to: TripStatus.LOADED },
 ] satisfies { command: TripCommand; from: TripStatus; to: TripStatus }[];
 const commands = [...new Set(expectedRows.map(row => row.command))];
 

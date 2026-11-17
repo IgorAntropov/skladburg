@@ -14,6 +14,7 @@ import {
   ReceivedHandlingUnitSchema,
   ReceivingTaskSchema,
   ReceivingTaskStatus,
+  YardAdmissionStatus,
 } from '@skladburg/contracts/wms/v1/receiving';
 import {
   describe,
@@ -104,6 +105,41 @@ describe('warehouse scene cargo', () => {
     expect(completed.yardVisits?.get('task')).toMatchObject({ departure: 'received', phase: 'released', tripId: 'trip' });
     expect(project([{ ...released, status: ReceivingTaskStatus.RECONCILED }], TripStatus.CLOSED).yardVisits)
       .toEqual(completed.yardVisits);
+  });
+
+  it('parks a truck awaiting documents and retains the first admitted truck at a single dock', () => {
+    const waiting = {
+      ...makeTask(ReceivingTaskStatus.OPEN, 'waiting'),
+      yardAdmissionStatus: YardAdmissionStatus.WAITING_DOCUMENTS,
+    };
+    const denied = { ...makeTask(ReceivingTaskStatus.OPEN, 'denied'), yardAdmissionStatus: YardAdmissionStatus.PASS_REJECTED };
+    const ready = { ...makeTask(ReceivingTaskStatus.OPEN, 'ready'), unloadingPointId: 'D01' };
+    const onlyWaiting = projectWarehouseCargo([waiting, denied], 'receiving', true);
+    expect(onlyWaiting.dockTaskId).toBeUndefined();
+    expect(onlyWaiting.dockVisits?.map(visit => visit.taskId)).toEqual(['waiting']);
+    expect(onlyWaiting.yardVisits?.get('waiting')?.phase).toBe('waiting-documents');
+
+    const withReadyTruck = projectWarehouseCargo([waiting, ready], 'receiving', true);
+    expect(withReadyTruck.dockTaskId).toBe(ready.id);
+    const queued = { ...waiting, yardAdmissionStatus: YardAdmissionStatus.WAITING_DOCK };
+    const afterAdmission = projectWarehouseCargo([queued, ready], 'receiving', true);
+    expect(retainWarehouseDockOrder(withReadyTruck, afterAdmission).dockTaskId).toBe(ready.id);
+    const admitted = { ...waiting, unloadingPointId: 'D01', yardAdmissionStatus: YardAdmissionStatus.ADMITTED };
+    const finish = { ...ready, status: ReceivingTaskStatus.READY_FOR_RECONCILIATION };
+    expect(retainWarehouseDockOrder(withReadyTruck, projectWarehouseCargo([admitted, finish], 'receiving', true)).dockTaskId)
+      .toBe(waiting.id);
+  });
+
+  it('preserves an outbound truck already at the dock until its confirmed departure', () => {
+    const picking = makePicking(PickingTaskStatus.PICKED);
+    const trip = makeTrip(TripStatus.ASSIGNED);
+    const before = projectPicking(picking, trip);
+    const inbound = { ...makeTask(ReceivingTaskStatus.OPEN, 'ready'), unloadingPointId: 'D01' };
+    const simultaneous = projectWarehouseCargo([inbound], 'receiving', true, {
+      picking: [picking], trips: [trip], warehouseId: 'source',
+    });
+    expect(retainWarehouseDockOrder(before, simultaneous).dockTaskId).toBe(picking.id);
+    expect(retainWarehouseDockOrder(before, projectWarehouseCargo([inbound], 'receiving', true)).dockTaskId).toBe(inbound.id);
   });
 
   it('starts from a restored snapshot and animates only new confirmed facts', () => {

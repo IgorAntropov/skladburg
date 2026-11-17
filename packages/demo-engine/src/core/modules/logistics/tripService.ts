@@ -16,14 +16,11 @@ import {
   TripSchema,
 } from '@skladburg/contracts/logistics/v1/logistics';
 import { DealNotice } from '@skladburg/contracts/notification/v1/notification';
-import { ProfileKind } from '@skladburg/contracts/organization/v1/organization';
 
-import type { IDomainErrors } from '../../errors/index';
 import type { IStateReader } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 import type { ReadTripMapTrack } from './tripMapTrack';
 
-import { isProfileVerified } from '../../visibility/index';
 import { requireDealPartyProfiles } from '../deals/dealAccess';
 import { advanceSystemDeal } from '../deals/dealEffects';
 import { rub } from '../deals/dealRules';
@@ -34,6 +31,7 @@ import {
   readCarrierTripPayment,
 } from '../payments/transportSettlement';
 import { publishTripChanges } from './transportEvents';
+import { readCarrierTrip } from './tripAccess';
 import {
   advanceTrip,
   requireTripTransition,
@@ -41,7 +39,10 @@ import {
 import { createTripMapTrackReader } from './tripMapTrack';
 import { readTripBodyTemperature } from './tripTemperature';
 
-type TripServiceValue = Pick<ServiceImpl<typeof LogisticsService>, 'assignTrip' | 'confirmTransportOrder' | 'getTrip' | 'listTrips'>;
+type TripServiceValue = Pick<
+  ServiceImpl<typeof LogisticsService>,
+  'assignTrip' | 'confirmTransportOrder' | 'getTrip' | 'listTrips'
+>;
 
 const readReceiptDocuments = (read: IStateReader, dealId: string): TripReceiptDocuments | undefined => {
   const documents = read.listBy('documents', 'dealId', dealId).filter(document => document.displayNumber !== '');
@@ -82,6 +83,7 @@ const projectTrip = (
     arrivedAt: trip.arrivedAt,
     bodyTemperature: readTripBodyTemperature(trip, worldTimeMs),
     carrierPayment: isCarrier ? readCarrierTripPayment(read, trip) : undefined,
+    carrierTitleSubmitted: isCarrier && trip.carrierTitle !== undefined ? trip.carrierTitle.submittedAt !== undefined : undefined,
     dealId: trip.dealId,
     delivery: order.delivery,
     departedAt: trip.departedAt,
@@ -98,22 +100,6 @@ const projectTrip = (
       : undefined,
     version: trip.version,
   });
-};
-
-const readCarrierTrip = (
-  errors: IDomainErrors,
-  read: IStateReader,
-  tripId: string,
-  organizationId: string,
-): TripRecord => {
-  const trip = read.get('trips', tripId);
-  const organization = read.get('organizations', organizationId);
-  if (trip?.transportOrder?.carrierOrganizationId !== organizationId
-    || organization === undefined || !isProfileVerified(organization, ProfileKind.CARRIER)) {
-    throw errors.notFound(EntityKind.TRIP);
-  }
-
-  return trip;
 };
 
 export const createTripService = (runtime: IModuleRuntime): TripServiceValue => {

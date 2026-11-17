@@ -158,7 +158,7 @@ const WarehouseWorkspaceContent = ({
     && task.status === ReceivingTaskStatus.IN_PROGRESS) === true;
   const cells = readCells(workspace.topology.data);
   const receivingArea = workspace.topology.data?.receivingArea;
-  const dockPoints = receivingArea?.additionalUnloadingPoints.length
+  const dockPoints = receivingArea
     ? [receivingArea.unloadingPoint, ...receivingArea.additionalUnloadingPoints]
     : undefined;
   const hasAssignedDocks = (workspace.topology.data === undefined || dockPoints !== undefined)

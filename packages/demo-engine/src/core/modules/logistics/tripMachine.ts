@@ -32,6 +32,11 @@ const transitions = {
   confirm: { [TripStatus.AWAITING_CONFIRMATION]: target(TripStatus.CONFIRMED) },
   depart: { [TripStatus.LOADED]: target(TripStatus.IN_TRANSIT) },
   load: { [TripStatus.ASSIGNED]: target(TripStatus.LOADED) },
+  submitCarrierTitle: {
+    [TripStatus.ARRIVED]: target(TripStatus.ARRIVED),
+    [TripStatus.IN_TRANSIT]: target(TripStatus.IN_TRANSIT),
+    [TripStatus.LOADED]: target(TripStatus.LOADED),
+  },
 };
 
 export type TripCommand = keyof typeof transitions;
@@ -47,6 +52,7 @@ const tripMachine = createStateMachine<TripCommand, TripStatus, { status: TripSt
     confirm: TripStatus.CONFIRMED,
     depart: TripStatus.IN_TRANSIT,
     load: TripStatus.LOADED,
+    submitCarrierTitle: TripStatus.ARRIVED,
   },
   statusName: status => TripStatus[status],
   transitions,

@@ -323,6 +323,11 @@ test('loads, transports and puts away the same pallet on an assigned warehouse t
   await expect(storePage.getByTestId('warehouse-workspace')).toBeVisible();
   await storeScene.expectSceneState('ready');
   await storeScene.expectOneCanvas();
+  await storeScene.waitForCameraControls();
+  await storeScene.pressCameraButton('zoom-out');
+  await storeScene.waitForIdle();
+  await storeScene.pressCameraButton('zoom-out');
+  await storeScene.waitForIdle();
   const receiving = storePage.getByTestId('warehouse-receiving-task');
   const storeCanvas = storePage.getByTestId('scene-viewport').locator('canvas');
   await expect(receiving).toHaveCount(0);
@@ -340,10 +345,18 @@ test('loads, transports and puts away the same pallet on an assigned warehouse t
   await page.getByTestId('scene-viewport').locator('canvas').screenshot({ path: testInfo.outputPath('warehouse-trip-in-transit.png') });
 
   await storePage.bringToFront();
-  await expectDockTruckMotion(storeScene, storeCanvas, async () => {
+  const yardStatus = receiving.getByTestId('warehouse-receiving-dock');
+  const parked = await expectDockTruckMotion(storeScene, storeCanvas, async () => {
     await advanceClock(TRIP_ARRIVAL_ADVANCE_MS);
-    await expect(receiving.getByTestId('warehouse-claim-receiving')).toBeVisible();
-  }, testInfo, 'recipient-dock-approach');
+    await expect(yardStatus).toHaveText('На парковке, ждёт документов');
+  }, testInfo, 'recipient-parking-waiting-documents');
+  const parkedCabs = await readTruckCabPositions(storePage, parked);
+  expect(parkedCabs).toHaveLength(1);
+
+  const claim = receiving.getByTestId('warehouse-claim-receiving');
+  await claim.click();
+  await expect(claim).toHaveCount(0);
+  await expect(receiving.getByTestId('warehouse-enter-sscc')).toHaveCount(0);
 
   await page.bringToFront();
   await networkTrips.expectStatus(tripAddress, TripStatus.ARRIVED);
@@ -352,7 +365,20 @@ test('loads, transports and puts away the same pallet on an assigned warehouse t
   await networkScene.expectNoDrawFramesFor(REST_PERIOD_MS);
 
   await storePage.bringToFront();
-  const receive = await scanDeliveredPallet(receiving, sscc);
+  const submitTitle = carrierPage.getByTestId('transport-carrier-title-submit');
+  const docked = await expectDockTruckMotion(storeScene, storeCanvas, async () => {
+    await carrierPage.bringToFront();
+    await submitTitle.click();
+    await expect(submitTitle).toHaveCount(0);
+    await storePage.bringToFront();
+    await expect(yardStatus).toHaveText('Док D01');
+    await expect(receiving.getByTestId('warehouse-enter-sscc')).toBeVisible();
+  }, testInfo, 'recipient-dock-approach');
+  const dockedCabs = await readTruckCabPositions(storePage, docked);
+  expect(dockedCabs).toHaveLength(1);
+  expect(projectCabDepth(dockedCabs[0] ?? { x: 0, y: 0 })).toBeGreaterThan(projectCabDepth(parkedCabs[0] ?? { x: 0, y: 0 }));
+
+  const receive = await scanDeliveredPallet(receiving, sscc, true);
   await storeScene.waitForIdle();
   const beforeUnload = await storeScene.readDrawFrames();
   await receive.click();

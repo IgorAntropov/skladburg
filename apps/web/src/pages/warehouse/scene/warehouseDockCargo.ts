@@ -25,7 +25,7 @@ export const splitWarehouseDockCargo = (
   let outbound: undefined | WarehouseDockVisitValue;
   for (const visit of cargo.dockVisits ?? []) {
     const { unloadingPointId } = visit;
-    if (unloadingPointId !== undefined && configuredIds.has(unloadingPointId)) {
+    if (visit.isWaitingInYard !== true && unloadingPointId !== undefined && configuredIds.has(unloadingPointId)) {
       if (!nextByDock.has(unloadingPointId)) {
         nextByDock.set(unloadingPointId, visit);
       }

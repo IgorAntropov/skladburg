@@ -1,5 +1,8 @@
 import type { Deal } from '@skladburg/contracts/deal/v1/deal';
 
+import { create } from '@bufbuild/protobuf';
+import { CarrierTitleSubmissionSchema } from '@skladburg/contracts/logistics/v1/trip_records';
+
 import type { IStateTransaction } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
@@ -18,6 +21,9 @@ export const markTripShipped = (runtime: IModuleRuntime, transaction: IStateTran
     throw runtime.errors.internal();
   }
   trip.assignment = buildTripAssignment(runtime.errors, transaction, trip, trip.assignment);
+  if (transaction.get('warehouseInbound', deal.id) !== undefined) {
+    trip.carrierTitle = create(CarrierTitleSubmissionSchema);
+  }
   advanceTrip(runtime, transaction, trip, 'load');
   publishTripChanges(runtime, transaction, trip);
 };

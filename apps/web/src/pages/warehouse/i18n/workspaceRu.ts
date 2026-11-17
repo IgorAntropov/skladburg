@@ -104,5 +104,8 @@ export const catalog = {
   'warehouseWork.unitUnknown': '{quantity}',
   'warehouseWork.untake': 'Снять отметку',
   'warehouseWork.waitingDock': 'Ожидает свободный док',
+  'warehouseWork.waitingYardDocuments': 'На парковке, ждёт документов',
   'warehouseWork.workByOther': 'Задание взял другой сотрудник.',
+  'warehouseWork.yardAdmitted': 'Допущена к доку',
+  'warehouseWork.yardPassRejected': 'Пропуск не прошёл проверку',
 } as const satisfies CatalogShapeValue;

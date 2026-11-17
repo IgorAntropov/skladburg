@@ -11,6 +11,7 @@ import {
   type ReceivingTask,
   ReceivingTaskSchema,
   ReceivingTaskStatus,
+  YardAdmissionStatus,
 } from '@skladburg/contracts/wms/v1/receiving';
 import { ReceivingTasksChangedSchema } from '@skladburg/contracts/wms/v1/receiving_events';
 
@@ -23,6 +24,10 @@ import type { WarehouseStockRecordValue } from '../../state/records';
 import type { IModuleRuntime } from '../moduleRuntime';
 
 import { compareIds } from '../../state/index';
+import {
+  isInboundYardBlocked,
+  readInboundYardGate,
+} from './inboundYardGate';
 import {
   readEffectiveWarehouseDockIds,
   readOwnedWarehouseTopology,
@@ -40,11 +45,14 @@ const readDockIds = (
   { receivingAreaId, tenantId, warehouseId }: InboundDockScopeValue,
 ): Set<string> => {
   const area = readOwnedWarehouseTopology(reader, errors, warehouseId, tenantId)?.receivingArea;
-  if (area?.id !== receivingAreaId || area.additionalUnloadingPoints.length === 0) {
+  if (area?.id !== receivingAreaId) {
     return new Set();
   }
   return new Set(readEffectiveWarehouseDockIds(area));
 };
+
+const isActiveInboundTask = (task: ReceivingTask, receivingAreaId: string): boolean =>
+  task.receivingAreaId === receivingAreaId && (task.status === ReceivingTaskStatus.OPEN || task.status === ReceivingTaskStatus.IN_PROGRESS);
 
 export const requireInboundDock = (
   reader: IStateReader,
@@ -54,7 +62,18 @@ export const requireInboundDock = (
   command: string,
 ): void => {
   const ids = readDockIds(reader, errors, { ...task, tenantId });
-  if (ids.size > 1 && (task.unloadingPointId === undefined || !ids.has(task.unloadingPointId))) {
+  const hasDockAssignment = task.unloadingPointId !== undefined && ids.has(task.unloadingPointId);
+  const isSingleDockOccupied = ids.size === 1 && !hasDockAssignment
+    && reader.listBy('warehouseInbound', 'scopeId', task.warehouseId).some((record) => {
+      if (record.id === task.id || record.lookupKey !== tenantId) {
+        return false;
+      }
+      const other = readInboundTask(record, errors);
+      return isActiveInboundTask(other, task.receivingAreaId) && other.unloadingPointId !== undefined && ids.has(other.unloadingPointId);
+    });
+  const isWaitingDock = task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCK
+    || (!hasDockAssignment && (ids.size > 1 || isSingleDockOccupied));
+  if (isWaitingDock || isInboundYardBlocked(readInboundYardGate(reader, task, tenantId))) {
     throw errors.invalidTransition(EntityKind.RECEIVING_TASK, ReceivingTaskStatus[task.status], command);
   }
 };
@@ -97,8 +116,12 @@ export const assignAvailableInboundDocks = (
   updatedTask?: ReceivingTask,
 ): void => {
   const dockIds = readDockIds(transaction, runtime.errors, scope);
-  if (dockIds.size < 2) {
+  if (dockIds.size === 0) {
     return;
+  }
+  if (updatedTask?.yardAdmissionStatus === YardAdmissionStatus.ADMITTED
+    && (updatedTask.unloadingPointId === undefined || !dockIds.has(updatedTask.unloadingPointId))) {
+    updatedTask.yardAdmissionStatus = YardAdmissionStatus.WAITING_DOCK;
   }
   const available = new Set(dockIds);
   const waiting: { arrivedAt: number; task: ReceivingTask }[] = [];
@@ -107,8 +130,7 @@ export const assignAvailableInboundDocks = (
       continue;
     }
     const task = record.id === updatedTask?.id ? updatedTask : readInboundTask(record, runtime.errors);
-    if (task.receivingAreaId !== scope.receivingAreaId
-      || (task.status !== ReceivingTaskStatus.OPEN && task.status !== ReceivingTaskStatus.IN_PROGRESS)) {
+    if (!isActiveInboundTask(task, scope.receivingAreaId) || isInboundYardBlocked(readInboundYardGate(transaction, task, scope.tenantId))) {
       continue;
     }
     if (task.unloadingPointId !== undefined && dockIds.has(task.unloadingPointId)) {
@@ -120,7 +142,11 @@ export const assignAvailableInboundDocks = (
     }
   }
 
-  waiting.sort((current, prev) => current.arrivedAt - prev.arrivedAt || compareIds(current.task.id, prev.task.id));
+  waiting.sort((current, prev) => {
+    const hasReceipt = current.task.receivedUnits.length > 0;
+    const hadReceipt = prev.task.receivedUnits.length > 0;
+    return Number(hadReceipt) - Number(hasReceipt) || current.arrivedAt - prev.arrivedAt || compareIds(current.task.id, prev.task.id);
+  });
   let index = 0;
   for (const dockId of available) {
     const assignment = waiting[index++];
@@ -128,6 +154,9 @@ export const assignAvailableInboundDocks = (
       break;
     }
     assignment.task.unloadingPointId = dockId;
+    if (assignment.task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCK) {
+      assignment.task.yardAdmissionStatus = YardAdmissionStatus.ADMITTED;
+    }
     if (assignment.task !== updatedTask) {
       assignment.task.version += 1;
       saveInboundTask(transaction, runtime, assignment.task, scope.tenantId);
@@ -147,6 +176,32 @@ export const openInboundTask = (transaction: IStateTransaction, runtime: IModule
 
   task.status = ReceivingTaskStatus.OPEN;
   task.version = 1;
+  task.yardAdmissionStatus = readInboundYardGate(transaction, task, record.lookupKey);
+  assignAvailableInboundDocks(transaction, runtime, { ...task, tenantId: record.lookupKey }, task);
+  saveInboundTask(transaction, runtime, task, record.lookupKey);
+};
+
+export const refreshInboundYardAdmission = (transaction: IStateTransaction, runtime: IModuleRuntime, dealId: string): void => {
+  const record = transaction.get('warehouseInbound', dealId);
+  if (record === undefined) {
+    return;
+  }
+
+  const task = readInboundTask(record, runtime.errors);
+  if (task.status !== ReceivingTaskStatus.OPEN && task.status !== ReceivingTaskStatus.IN_PROGRESS) {
+    return;
+  }
+
+  const status = readInboundYardGate(transaction, task, record.lookupKey);
+  if (status === task.yardAdmissionStatus) {
+    return;
+  }
+  if (task.version >= 2_147_483_647) {
+    throw runtime.errors.unavailable();
+  }
+
+  task.version += 1;
+  task.yardAdmissionStatus = status;
   assignAvailableInboundDocks(transaction, runtime, { ...task, tenantId: record.lookupKey }, task);
   saveInboundTask(transaction, runtime, task, record.lookupKey);
 };

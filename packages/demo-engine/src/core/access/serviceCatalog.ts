@@ -10,6 +10,7 @@ import { DocumentService } from '@skladburg/contracts/document/v1/document';
 import { FleetService } from '@skladburg/contracts/fleet/v1/fleet';
 import { ImportService } from '@skladburg/contracts/import/v1/import';
 import { LogisticsService } from '@skladburg/contracts/logistics/v1/logistics';
+import { TripDocumentsService } from '@skladburg/contracts/logistics/v1/trip_documents';
 import { NetworkService } from '@skladburg/contracts/network/v1/network';
 import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
 import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
@@ -41,6 +42,7 @@ export const ENGINE_SERVICES: readonly DescService[] = [
   PaymentService,
   SupportAccessService,
   SupportTicketService,
+  TripDocumentsService,
   UserProfileService,
   WarehousePickingService,
   WarehouseReceivingService,

@@ -140,7 +140,7 @@ export const projectWarehouseCargo = (
         slot: index,
         taskId: task.id,
         truckSlot: index,
-        unloadingPointId: task.unloadingPointId,
+        unloadingPointId: visit?.isWaitingInYard === true ? undefined : task.unloadingPointId,
       });
     }
   }
@@ -163,7 +163,8 @@ export const projectWarehouseCargo = (
   if (outbound !== undefined) {
     dockVisits.push(...outbound.dockVisits);
   }
-  const next = dockVisits[0];
+  const next = dockVisits.find(visit => visit.unloadingPointId !== undefined)
+    ?? dockVisits.find(visit => visit.isWaitingInYard !== true);
   return {
     dockTaskId: next?.taskId,
     dockTripId: next?.tripId,

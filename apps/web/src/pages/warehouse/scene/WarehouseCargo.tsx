@@ -51,7 +51,11 @@ import type {
   WarehouseYardTrafficValue,
 } from './warehouseYardTraffic';
 
-import { retainWarehouseDockOrder } from '../model/warehouseSceneCargo';
+import {
+  readWarehouseDockDeparture,
+  retainWarehouseDockDuringShipment,
+  retainWarehouseDockOrder,
+} from '../model/warehouseSceneCargo';
 import {
   buildWarehouseCargoTransfers,
   buildWarehouseCargoVisuals,
@@ -100,7 +104,6 @@ interface CargoSceneValue {
   departureCargo: readonly WarehouseDeparturePalletValue[];
   dock: undefined | WarehouseDockPointValue;
   dockTaskId: string | undefined;
-  dockTripId: string | undefined;
   dockTruck: Group | null;
   hasShadows: boolean;
   isTruckShadowed: boolean;
@@ -110,6 +113,8 @@ interface CargoSceneValue {
   playback: WarehouseForkliftPlaybackValue;
   refreshShadowMap: () => void;
   truck: WarehouseDockTruckValue;
+  truckTaskId: string | undefined;
+  truckTripId: string | undefined;
   yard: WarehouseYardMotionValue;
   yardParking: null | WarehouseYardParkingRigValue;
 }
@@ -393,7 +398,10 @@ export const WarehouseCargo = ({
 
     const prior = scene.current;
     const isSameLayout = prior?.layout === layout;
-    const cargo = hasAssignedDocks ? cargoSnapshot : retainWarehouseDockOrder(isSameLayout ? prev.current : undefined, cargoSnapshot);
+    const previousCargo = isSameLayout ? prev.current : undefined;
+    const orderedCargo = hasAssignedDocks ? cargoSnapshot : retainWarehouseDockOrder(previousCargo, cargoSnapshot);
+    const displayedTruckId = isSameLayout && prior.truck.phase !== 'departing' ? prior.truck.taskId : undefined;
+    const cargo = retainWarehouseDockDuringShipment(previousCargo, orderedCargo, displayedTruckId);
     const playback = isSameLayout ? prior.playback : createWarehouseForkliftPlayback(layout, dock);
     const truck = isSameLayout ? prior.truck : createWarehouseDockTruck(cargo.dockTaskId);
     const { yard } = traffic;
@@ -408,9 +416,12 @@ export const WarehouseCargo = ({
           truck,
         };
     setWarehouseYardLane(traffic, laneIndex, lane);
-    const reportedDeparture = truck.taskId === undefined ? undefined : cargo.dockDepartures?.get(truck.taskId);
-    const previousTripId = isSameLayout && prev.current?.dockTaskId === truck.taskId ? prior.dockTripId : undefined;
-    const departure = reportedDeparture === 'self-pickup' && previousTripId !== undefined ? undefined : reportedDeparture;
+    const { taskId: truckTaskId } = truck;
+    const previousTripId = !isSameLayout || truckTaskId === undefined
+      ? undefined
+      : prior.truckTaskId === truckTaskId ? prior.truckTripId : prev.current?.yardVisits?.get(truckTaskId)?.tripId;
+    const truckTripId = previousTripId ?? (truckTaskId === undefined ? undefined : cargo.yardVisits?.get(truckTaskId)?.tripId);
+    const departure = readWarehouseDockDeparture(cargo, truckTaskId, previousTripId);
     const meshes = {
       boards: hasDetailedPallets ? boards.current ?? undefined : undefined,
       body: body.current,
@@ -449,7 +460,6 @@ export const WarehouseCargo = ({
       departureCargo,
       dock,
       dockTaskId: cargo.dockTaskId,
-      dockTripId: cargo.dockTripId ?? previousTripId,
       dockTruck: dockTruck.current,
       hasShadows,
       isTruckShadowed: prior?.dockTruck === dockTruck.current && prior.isTruckShadowed,
@@ -467,6 +477,8 @@ export const WarehouseCargo = ({
       playback,
       refreshShadowMap,
       truck,
+      truckTaskId,
+      truckTripId,
       yard,
       yardParking: yardParking.current,
     };

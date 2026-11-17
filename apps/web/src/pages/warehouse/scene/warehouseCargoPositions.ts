@@ -7,7 +7,10 @@ import type {
 import type { WarehouseAislePointValue } from './warehouseAislePath';
 import type { getWarehouseLayout } from './warehouseLayout';
 
-import { readWarehouseCargoMoves } from '../model/warehouseSceneCargo';
+import {
+  readWarehouseCargoMoves,
+  readWarehouseDockDeparture,
+} from '../model/warehouseSceneCargo';
 import {
   isWarehouseAislePointOpen,
   isWarehouseAisleSegmentOpen,
@@ -211,7 +214,10 @@ export const buildWarehouseCargoTransfers = (
       continue;
     }
     const isTruckPickup = previous.location === 'truck' && current.hasDock;
-    const isClosingReceipt = displayedDockTaskId === previous.taskId && current.dockDepartures?.get(previous.taskId) === 'received';
+    const departure = displayedDockTaskId === previous.taskId
+      ? readWarehouseDockDeparture(current, previous.taskId, prev?.dockTripId)
+      : undefined;
+    const isClosingReceipt = departure === 'received';
     const isSameDockTask = prev?.dockTaskId === previous.taskId && (current.dockTaskId === previous.taskId || isClosingReceipt);
     const hasConfirmedHandoff = isTruckPickup && (isSameTruck || isClosingReceipt) && isSameDockTask
       && previous.truckSlot < WAREHOUSE_TRUCK_SLOTS && canReachDockHandoff(dock, previous, truckUnits);
@@ -220,7 +226,8 @@ export const buildWarehouseCargoTransfers = (
     }
     const isDispatch = unit.isOutbound === true && unit.location === 'truck';
     const hasDispatchTruck = current.dockTaskId === unit.taskId || displayedDockTaskId === unit.taskId;
-    if (isDispatch && (!hasDispatchTruck || !isSameTruck || unit.truckSlot >= WAREHOUSE_TRUCK_SLOTS
+    const isDepartingOnRoute = departure === 'route';
+    if (isDispatch && (!hasDispatchTruck || (!isSameTruck && !isDepartingOnRoute) || unit.truckSlot >= WAREHOUSE_TRUCK_SLOTS
       || !canReachDockHandoff(dock, unit, truckUnits))) {
       continue;
     }

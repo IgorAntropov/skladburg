@@ -214,13 +214,20 @@ describe('warehouse forklift jobs', () => {
   });
 
   it('keeps local cargo at the dock only during handling and hides the stale cell balance', () => {
-    const local = { ...packed, dockTaskId: undefined, dockTripId: undefined };
+    const local = {
+      ...packed,
+      dockTaskId: undefined,
+      dockTripId: undefined,
+      yardVisits: new Map([['dispatch', { departure: 'self-pickup', phase: 'departed', taskId: 'dispatch', tripId: undefined }]]),
+    } satisfies WarehouseCargoValue;
     const balances = [create(StockBalanceSchema, { cellId: 'upper-cell', handlingUnit: { id: 'pallet' } })];
 
     expect(buildWarehouseCargoTransfers(layout, { ...picked, dockTripId: undefined }, local, 'dispatch')).toHaveLength(1);
     expect(buildWarehouseCargoTransfers(layout, { ...picked, dockTripId: undefined }, local, 'previous-truck')).toEqual([]);
     const nextDock = {
-      ...local, dockDepartures: new Map([['dispatch', 'self-pickup']]), dockTaskId: 'next-truck', dockTripId: 'next-trip',
+      ...local,
+      dockTaskId: 'next-truck',
+      dockTripId: 'next-trip',
     } satisfies WarehouseCargoValue;
     expect(buildWarehouseCargoTransfers(layout, { ...picked, dockTripId: undefined }, nextDock, 'dispatch'))
       .toMatchObject([{ dockTaskId: 'dispatch', from: { location: 'cell' }, to: { location: 'truck' } }]);
@@ -229,6 +236,20 @@ describe('warehouse forklift jobs', () => {
     expect(buildWarehouseCargoVisuals(layout, local, balances, 'dispatch')).toMatchObject([{ id: 'pallet', requiresActiveDispatch: true }]);
     expect(buildWarehouseCargoVisuals(layout, local, balances, undefined)).toEqual([]);
     expect(buildWarehouseCargoVisuals(layout, { ...local, units: [] }, balances, undefined)).toEqual([]);
+  });
+
+  it('keeps packing the departing trip ahead of a different truck already assigned to the dock', () => {
+    const departure = {
+      ...packed,
+      dockTaskId: 'next-task',
+      dockTripId: 'next-trip',
+      units: [],
+      yardVisits: new Map([['dispatch', { departure: 'route', phase: 'departed', taskId: 'dispatch', tripId: picked.dockTripId }]]),
+    } satisfies WarehouseCargoValue;
+
+    expect(buildWarehouseCargoTransfers(layout, picked, departure, 'dispatch'))
+      .toMatchObject([{ dockTaskId: 'dispatch', from: { location: 'cell' }, id: 'pallet', to: { location: 'truck' } }]);
+    expect(buildWarehouseCargoTransfers(layout, picked, departure, 'next-task')).toEqual([]);
   });
 
   it('keeps the confirmed outbound pallet in its truck slot as the truck departs', () => {
@@ -244,9 +265,11 @@ describe('warehouse forklift jobs', () => {
   it('preserves the final unload if receipt and dock release arrive together', () => {
     const closed = {
       ...staging,
-      dockDepartures: new Map([['receiving-task', 'received']]),
       dockTaskId: 'next-task',
       dockTripId: 'next-trip',
+      yardVisits: new Map([['receiving-task', {
+        departure: 'received', phase: 'released', taskId: 'receiving-task', tripId: 'previous-trip',
+      }]]),
     } satisfies WarehouseCargoValue;
     const prev = { ...truck, dockTripId: 'previous-trip' };
     expect(buildWarehouseCargoTransfers(layout, prev, closed, 'receiving-task'))

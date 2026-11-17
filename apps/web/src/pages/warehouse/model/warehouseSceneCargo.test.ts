@@ -24,6 +24,8 @@ import {
 import { projectWarehouseCargo } from './projectWarehouseCargo';
 import {
   readWarehouseCargoMoves,
+  readWarehouseDockDeparture,
+  retainWarehouseDockDuringShipment,
   retainWarehouseDockOrder,
 } from './warehouseSceneCargo';
 
@@ -78,7 +80,30 @@ describe('warehouse scene cargo', () => {
     const finished = { ...first, status: ReceivingTaskStatus.READY_FOR_RECONCILIATION };
     const released = retainWarehouseDockOrder(reordered, projectWarehouseCargo([newcomer, claimed, finished], 'receiving', true));
     expect(released.dockTaskId).toBe('second');
-    expect(released.dockDepartures?.get('first')).toBe('received');
+    expect(readWarehouseDockDeparture(released, 'first')).toBe('received');
+  });
+
+  it('links arrival, waiting, dock assignment, scan and release to the same receiving visit', () => {
+    const waiting = { ...makeTask(ReceivingTaskStatus.OPEN), dealId: 'deal', warehouseId: 'destination' };
+    const assigned = { ...waiting, status: ReceivingTaskStatus.IN_PROGRESS, unloadingPointId: 'D02' };
+    const unloading = {
+      ...assigned,
+      receivedUnits: [create(ReceivedHandlingUnitSchema, { expectedUnitId: 'expected' })],
+    };
+    const released = { ...unloading, status: ReceivingTaskStatus.READY_FOR_RECONCILIATION };
+    const project = (tasks: readonly ReceivingTask[], trip: TripStatus): ReturnType<typeof projectWarehouseCargo> =>
+      projectWarehouseCargo(tasks, 'receiving', true, { picking: undefined, trips: [makeTrip(trip)], warehouseId: 'destination' });
+
+    expect(project([], TripStatus.ARRIVED).dockVisits).toEqual([]);
+    expect(project([waiting], TripStatus.IN_TRANSIT).yardVisits?.get('task')).toMatchObject({ phase: 'queued', tripId: 'trip' });
+    expect(project([assigned], TripStatus.ARRIVED).yardVisits?.get('task'))
+      .toMatchObject({ phase: 'assigned', tripId: 'trip', unloadingPointId: 'D02' });
+    expect(project([unloading], TripStatus.ARRIVED).yardVisits?.get('task')).toMatchObject({ phase: 'unloading', tripId: 'trip' });
+    const completed = project([released], TripStatus.ARRIVED);
+    expect(completed.dockVisits).toEqual([]);
+    expect(completed.yardVisits?.get('task')).toMatchObject({ departure: 'received', phase: 'released', tripId: 'trip' });
+    expect(project([{ ...released, status: ReceivingTaskStatus.RECONCILED }], TripStatus.CLOSED).yardVisits)
+      .toEqual(completed.yardVisits);
   });
 
   it('starts from a restored snapshot and animates only new confirmed facts', () => {
@@ -143,7 +168,7 @@ describe('warehouse scene cargo', () => {
     const closed = projectWarehouseCargo([task], 'receiving', true);
 
     expect(closed.dockTaskId).toBeUndefined();
-    expect(closed.dockDepartures?.get('task')).toBe('received');
+    expect(readWarehouseDockDeparture(closed, 'task')).toBe('received');
     expect(closed.units).toMatchObject([{ id: 'actual', location: 'staging' }]);
     expect(projectWarehouseCargo([task], 'receiving', false).units).toEqual(closed.units);
   });
@@ -171,6 +196,28 @@ describe('warehouse scene cargo', () => {
     });
   });
 
+  it('preserves the loading handoff when the trip leaves before the shipment snapshot arrives', () => {
+    const ready = makePicking(PickingTaskStatus.PICKED);
+    const picked = projectPicking(ready, makeTrip(TripStatus.ASSIGNED));
+    const fresh = projectPicking(ready, makeTrip(TripStatus.IN_TRANSIT));
+    const tripFirst = retainWarehouseDockDuringShipment(picked, fresh, 'picking');
+    const shipment = projectPicking(makePicking(PickingTaskStatus.SHIPPED), makeTrip(TripStatus.IN_TRANSIT));
+
+    expect(fresh.dockTaskId).toBeUndefined();
+    expect(fresh.yardVisits?.get('picking')).toMatchObject({ phase: 'awaiting-shipment', tripId: 'trip' });
+    expect(retainWarehouseDockDuringShipment(undefined, fresh, undefined)).toBe(fresh);
+    expect(retainWarehouseDockDuringShipment(picked, fresh, 'another-truck')).toBe(fresh);
+    expect(tripFirst.dockTaskId).toBe(picked.dockTaskId);
+    expect(readWarehouseCargoMoves(picked, tripFirst)).toEqual([]);
+    expect(shipment.dockTaskId).toBeUndefined();
+    expect(shipment.yardVisits?.get('picking')).toMatchObject({ departure: 'route', phase: 'departed', tripId: 'trip' });
+    expect(readWarehouseCargoMoves(tripFirst, shipment)).toMatchObject([{ id: 'local-pallet', stops: ['cell', 'truck'] }]);
+    expect(readWarehouseCargoMoves(picked, shipment)).toMatchObject([{ id: 'local-pallet', stops: ['cell', 'truck'] }]);
+    expect(readWarehouseCargoMoves(shipment, shipment)).toEqual([]);
+    const anotherTrip = projectPicking(makePicking(PickingTaskStatus.SHIPPED), { ...makeTrip(TripStatus.IN_TRANSIT), id: 'other-trip' });
+    expect(readWarehouseCargoMoves(picked, anotherTrip)).toEqual([]);
+  });
+
   it.each([TripStatus.IN_TRANSIT, TripStatus.ARRIVED, TripStatus.DELIVERED, TripStatus.CLOSED, TripStatus.CANCELLED])(
     'clears the source dock and truck units when the related trip is in status %s',
     (status) => {
@@ -178,7 +225,7 @@ describe('warehouse scene cargo', () => {
 
       expect(cargo.dockTaskId).toBeUndefined();
       expect(cargo.dockTripId).toBeUndefined();
-      expect(cargo.dockDepartures?.get('picking')).toBe(status === TripStatus.CANCELLED ? undefined : 'route');
+      expect(readWarehouseDockDeparture(cargo, 'picking')).toBe(status === TripStatus.CANCELLED ? undefined : 'route');
       expect(cargo.shippedUnitIds).toEqual(new Set(['local-pallet']));
       expect(cargo.units).toEqual([]);
     },
@@ -191,8 +238,15 @@ describe('warehouse scene cargo', () => {
     expect(picked.dockTaskId).toBe('picking');
     expect(shipped.dockTaskId).toBeUndefined();
     expect(shipped.dockTripId).toBeUndefined();
-    expect(shipped.dockDepartures?.get('picking')).toBe('self-pickup');
+    expect(readWarehouseDockDeparture(shipped, 'picking')).toBe('self-pickup');
     expect(readWarehouseCargoMoves(picked, shipped)).toMatchObject([{ id: 'local-pallet', stops: ['cell', 'truck'] }]);
+  });
+
+  it('does not reclassify a known trip as self-pickup when trip data is unavailable', () => {
+    const routed = projectPicking(makePicking(PickingTaskStatus.PICKED), makeTrip(TripStatus.ASSIGNED));
+    const withoutTrip = projectPicking(makePicking(PickingTaskStatus.SHIPPED));
+    expect(readWarehouseDockDeparture(withoutTrip, routed.dockTaskId, routed.dockTripId)).toBeUndefined();
+    expect(readWarehouseCargoMoves(routed, withoutTrip)).toEqual([]);
   });
 
   it('keeps the confirmed removal from stock when the warehouse has no dock', () => {

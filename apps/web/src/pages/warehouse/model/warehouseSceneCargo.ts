@@ -1,3 +1,5 @@
+export type WarehouseActiveVisitPhaseValue = 'assigned' | 'awaiting-load' | 'loaded' | 'queued' | 'unloading';
+
 export interface WarehouseCargoUnitValue {
   cellId: string | undefined;
   expectedUnitId: string;
@@ -11,13 +13,13 @@ export interface WarehouseCargoUnitValue {
 }
 
 export interface WarehouseCargoValue {
-  dockDepartures?: ReadonlyMap<string, WarehouseDockDepartureValue> | undefined;
   dockTaskId: string | undefined;
   dockTripId?: string | undefined;
   dockVisits?: readonly WarehouseDockVisitValue[] | undefined;
   hasDock: boolean;
   shippedUnitIds?: ReadonlySet<string> | undefined;
   units: readonly WarehouseCargoUnitValue[];
+  yardVisits?: ReadonlyMap<string, WarehouseYardVisitValue> | undefined;
 }
 
 export type WarehouseDockDepartureValue = 'received' | 'route' | 'self-pickup';
@@ -28,6 +30,25 @@ export interface WarehouseDockVisitValue {
   tripId: string | undefined;
   unloadingPointId?: string | undefined;
 }
+
+export type WarehouseYardVisitValue = WarehouseDockVisitValue & (
+  { departure: 'received'; phase: 'released' }
+  | { departure: 'route' | 'self-pickup'; phase: 'departed' }
+  | { phase: 'awaiting-shipment' | 'cancelled' }
+  | { phase: WarehouseActiveVisitPhaseValue }
+);
+
+export const readWarehouseDockDeparture = (
+  cargo: WarehouseCargoValue,
+  taskId: string | undefined,
+  previousTripId?: string,
+): undefined | WarehouseDockDepartureValue => {
+  const visit = taskId === undefined ? undefined : cargo.yardVisits?.get(taskId);
+  if (visit?.phase === 'released') {
+    return visit.departure;
+  }
+  return visit?.phase === 'departed' && (previousTripId === undefined || visit.tripId === previousTripId) ? visit.departure : undefined;
+};
 
 type CargoLocationValue = 'cell' | 'staging' | 'truck';
 
@@ -53,6 +74,21 @@ export const retainWarehouseDockOrder = (prev: undefined | WarehouseCargoValue, 
   return { ...current, dockTaskId: next?.taskId, dockTripId: next?.tripId, dockVisits };
 };
 
+export const retainWarehouseDockDuringShipment = (
+  prev: undefined | WarehouseCargoValue,
+  current: WarehouseCargoValue,
+  truckTaskId: string | undefined,
+): WarehouseCargoValue => {
+  if (truckTaskId === undefined || truckTaskId !== prev?.dockTaskId || prev.dockTripId === undefined) {
+    return current;
+  }
+
+  const visit = current.yardVisits?.get(truckTaskId);
+  return visit?.phase === 'awaiting-shipment' && visit.tripId === prev.dockTripId
+    ? { ...current, dockTaskId: truckTaskId, dockTripId: visit.tripId }
+    : current;
+};
+
 export const readWarehouseCargoMoves = (
   prev: undefined | WarehouseCargoValue,
   current: WarehouseCargoValue,
@@ -63,13 +99,13 @@ export const readWarehouseCargoMoves = (
 
   const before = new Map(prev.units.map(unit => [unit.expectedUnitId, unit] as const));
   const moves: WarehouseCargoMoveValue[] = [];
+  const leaving = readWarehouseDockDeparture(current, prev.dockTaskId, prev.dockTripId);
   for (const unit of current.units) {
     const previous = before.get(unit.expectedUnitId);
     if (unit.isOutbound === true) {
       if (prev.hasDock && current.hasDock && previous?.isOutbound === true && previous.taskId === unit.taskId
         && previous.location === 'cell' && unit.location === 'truck' && prev.dockTaskId === unit.taskId
-        && (current.dockTaskId === unit.taskId || current.dockTaskId === undefined
-          || current.dockDepartures?.get(unit.taskId) === 'self-pickup')) {
+        && (current.dockTaskId === unit.taskId || leaving === 'self-pickup')) {
         moves.push({ ...unit, stops: ['cell', 'truck'] });
       }
       continue;
@@ -89,5 +125,12 @@ export const readWarehouseCargoMoves = (
     }
   }
 
+  if (prev.hasDock && current.hasDock && leaving === 'route') {
+    for (const unit of prev.units) {
+      if (unit.taskId === prev.dockTaskId && unit.isOutbound === true && unit.location === 'cell' && current.shippedUnitIds?.has(unit.id)) {
+        moves.push({ ...unit, location: 'truck', stops: ['cell', 'truck'] });
+      }
+    }
+  }
   return moves;
 };

@@ -9,18 +9,21 @@ import { ReceivingTaskStatus } from '@skladburg/contracts/wms/v1/receiving';
 import type {
   WarehouseCargoUnitValue,
   WarehouseCargoValue,
-  WarehouseDockDepartureValue,
   WarehouseDockVisitValue,
+  WarehouseYardVisitValue,
 } from './warehouseSceneCargo';
+
+import {
+  isWarehouseVisitActive,
+  projectInboundYardVisit,
+  projectOutboundYardVisit,
+} from './projectWarehouseYardVisit';
 
 interface WarehouseCargoProjectionValue {
   picking: readonly PickingTask[] | undefined;
   trips: readonly Trip[] | undefined;
   warehouseId: string;
 }
-
-const isAtDock = (task: ReceivingTask): boolean =>
-  task.status === ReceivingTaskStatus.OPEN || task.status === ReceivingTaskStatus.IN_PROGRESS;
 
 const comparePickedAt = (current: PickingTask, prev: PickingTask): number => {
   const seconds = (current.pickedAt?.seconds ?? 0n) - (prev.pickedAt?.seconds ?? 0n);
@@ -35,28 +38,26 @@ const appendOutboundCargo = (
   { picking, trips, warehouseId }: WarehouseCargoProjectionValue,
   units: WarehouseCargoUnitValue[],
   hasDock: boolean,
-  dockDepartures: Map<string, WarehouseDockDepartureValue>,
+  yardVisits: Map<string, WarehouseYardVisitValue>,
 ): { dockVisits: WarehouseDockVisitValue[]; shippedUnitIds: ReadonlySet<string> } => {
   const pickupTrips = new Map(trips?.filter(trip => trip.pickup?.warehouseId === warehouseId).map(trip => [trip.dealId, trip]));
-  const dockTasks: PickingTask[] = [];
+  const dockTasks: { task: PickingTask; visit: WarehouseDockVisitValue }[] = [];
   const shippedUnitIds = new Set<string>();
 
   for (const task of picking ?? []) {
     const isShipped = task.status === PickingTaskStatus.SHIPPED;
-    if (task.warehouseId !== warehouseId || (!isShipped && task.status !== PickingTaskStatus.PICKED)) {
+    if (task.warehouseId !== warehouseId) {
       continue;
     }
-
-    const trip = pickupTrips.get(task.dealId);
-    const isAtSource = trip === undefined || trip.status === TripStatus.ASSIGNED || trip.status === TripStatus.LOADED;
-    if (hasDock && isShipped) {
-      if (trip === undefined) {
-        dockDepartures.set(task.id, 'self-pickup');
-      }
-      else if (trip.status === TripStatus.IN_TRANSIT || trip.status === TripStatus.ARRIVED
-        || trip.status === TripStatus.DELIVERED || trip.status === TripStatus.CLOSED) {
-        dockDepartures.set(task.id, 'route');
-      }
+    const visit = projectOutboundYardVisit(task, pickupTrips.get(task.dealId));
+    const isActive = isWarehouseVisitActive(visit);
+    const isSelfPickup = visit?.phase === 'departed' && visit.departure === 'self-pickup';
+    const isAwaitingShipment = visit?.phase === 'awaiting-shipment';
+    if (hasDock && visit !== undefined) {
+      yardVisits.set(task.id, visit);
+    }
+    if (!isShipped && !isActive && !isAwaitingShipment) {
+      continue;
     }
 
     const before = units.length;
@@ -68,7 +69,7 @@ const appendOutboundCargo = (
       if (isShipped) {
         shippedUnitIds.add(id);
       }
-      if (!hasDock || !isAtSource) {
+      if (!hasDock || (!isActive && !isSelfPickup && !isAwaitingShipment)) {
         continue;
       }
       units.push({
@@ -82,15 +83,13 @@ const appendOutboundCargo = (
         truckSlot: index,
       });
     }
-    if (units.length > before && (!isShipped || trip !== undefined)) {
-      dockTasks.push(task);
+    if (units.length > before && isActive) {
+      dockTasks.push({ task, visit });
     }
   }
 
   return {
-    dockVisits: dockTasks.sort(compareOutboundVisits).map(task => ({
-      isOutbound: true, taskId: task.id, tripId: pickupTrips.get(task.dealId)?.id,
-    })),
+    dockVisits: dockTasks.sort((current, prev) => compareOutboundVisits(current.task, prev.task)).map(({ visit }) => visit),
     shippedUnitIds,
   };
 };
@@ -103,14 +102,22 @@ export const projectWarehouseCargo = (
 ): WarehouseCargoValue => {
   const localTasks = tasks.filter(task => task.receivingAreaId === areaId && task.status !== ReceivingTaskStatus.UNSPECIFIED
     && (options === undefined || task.warehouseId === options.warehouseId));
-  const arrived = hasDock ? localTasks.filter(isAtDock) : [];
+  const deliveryTrips = new Map(options?.trips
+    ?.filter(trip => trip.delivery?.warehouseId === options.warehouseId && trip.status !== TripStatus.CANCELLED)
+    .map(trip => [trip.dealId, trip.id]));
+  const dockVisits: WarehouseDockVisitValue[] = [];
   const units: WarehouseCargoUnitValue[] = [];
-  const dockDepartures = new Map<string, WarehouseDockDepartureValue>();
+  const yardVisits = new Map<string, WarehouseYardVisitValue>();
   const receiptOrder = new Map<string, { index: number; time: bigint }>();
 
   for (const task of localTasks) {
-    if (hasDock && (task.status === ReceivingTaskStatus.READY_FOR_RECONCILIATION || task.status === ReceivingTaskStatus.RECONCILED)) {
-      dockDepartures.set(task.id, 'received');
+    const visit = projectInboundYardVisit(task, deliveryTrips.get(task.dealId));
+    const isActive = isWarehouseVisitActive(visit);
+    if (hasDock && visit !== undefined) {
+      yardVisits.set(task.id, visit);
+      if (isActive) {
+        dockVisits.push(visit);
+      }
     }
     const receipts = new Map(task.receivedUnits.map((unit, index) => {
       const timestamp = unit.receivedAt;
@@ -119,7 +126,7 @@ export const projectWarehouseCargo = (
     }));
     for (const [index, expected] of task.expectedUnits.entries()) {
       const received = receipts.get(expected.id);
-      if (received === undefined && !isAtDock(task)) {
+      if (received === undefined && !isActive) {
         continue;
       }
 
@@ -152,22 +159,18 @@ export const projectWarehouseCargo = (
     unit.slot = slot;
   }
 
-  const outbound = options === undefined ? undefined : appendOutboundCargo(options, units, hasDock, dockDepartures);
-  const deliveryTrips = new Map(options?.trips
-    ?.filter(trip => trip.delivery?.warehouseId === options.warehouseId && trip.status === TripStatus.ARRIVED)
-    .map(trip => [trip.dealId, trip.id]));
-  const dockVisits = [
-    ...arrived.map(task => ({ taskId: task.id, tripId: deliveryTrips.get(task.dealId), unloadingPointId: task.unloadingPointId })),
-    ...(outbound?.dockVisits ?? []),
-  ];
+  const outbound = options === undefined ? undefined : appendOutboundCargo(options, units, hasDock, yardVisits);
+  if (outbound !== undefined) {
+    dockVisits.push(...outbound.dockVisits);
+  }
   const next = dockVisits[0];
   return {
-    dockDepartures,
     dockTaskId: next?.taskId,
     dockTripId: next?.tripId,
     dockVisits,
     hasDock,
     shippedUnitIds: outbound?.shippedUnitIds,
     units,
+    yardVisits,
   };
 };

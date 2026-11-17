@@ -3,6 +3,10 @@ import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
 import type { ReactElement } from 'react';
 
 import {
+  useFrame,
+  useThree,
+} from '@react-three/fiber';
+import {
   useEffect,
   useMemo,
   useRef,
@@ -26,13 +30,16 @@ import type {
 } from './warehouseLayout';
 
 import { createWarehouseGeometryKit } from './createWarehouseGeometryKit';
-import { createWarehouseYardTraffic } from './WarehouseCargo';
 import { splitWarehouseDockCargo } from './warehouseDockCargo';
 import { WarehouseDockLane } from './WarehouseDockLane';
 import { WarehouseFloor } from './WarehouseFloor';
 import { WarehouseInstances } from './WarehouseInstances';
 import { getWarehouseLayout } from './warehouseLayout';
 import { WarehouseRacks } from './WarehouseRacks';
+import {
+  advanceWarehouseYardTraffic,
+  createWarehouseYardTraffic,
+} from './warehouseYardTraffic';
 
 const TAP_SLOP_PX = 5;
 
@@ -62,10 +69,12 @@ const WarehouseWorldScene = ({
   data, interaction, level,
 }: SceneContentProps<WarehouseTopology, WarehouseSceneInteractionValue>): ReactElement => {
   const rig = useSceneCameraRig();
+  const invalidate = useThree(state => state.invalidate);
+  const motion = useRef<MediaQueryList | undefined>(undefined);
   const layout = getWarehouseLayout(data);
   const geometry = useMemo(() => new BoxGeometry(1, 1, 1), []);
   const kit = useMemo(() => createWarehouseGeometryKit(), []);
-  const traffic = useMemo(() => createWarehouseYardTraffic(), []);
+  const traffic = useMemo(() => createWarehouseYardTraffic(layout.yard), [layout.yard]);
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const lastFocus = useRef<{ request: number; scan: WarehouseSceneInteractionValue['scannedCell'] }>(undefined);
   const { balances, cargo, focusRequest, onCellSelect, scannedCell, selectedCellId } = interaction;
@@ -92,6 +101,19 @@ const WarehouseWorldScene = ({
   }, [geometry, kit]);
 
   useEffect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handleMotionChange = (): void => {
+      invalidate();
+    };
+    motion.current = query;
+    query.addEventListener('change', handleMotionChange);
+    invalidate();
+    return () => {
+      query.removeEventListener('change', handleMotionChange);
+    };
+  }, [invalidate]);
+
+  useEffect(() => {
     const prev = lastFocus.current;
     const isRequested = prev?.request !== focusRequest || (scannedCell !== undefined && prev.scan !== scannedCell);
     lastFocus.current = { request: focusRequest, scan: scannedCell };
@@ -101,6 +123,12 @@ const WarehouseWorldScene = ({
       rig.current?.flyTo({ x, y, z });
     }
   }, [focusRequest, rig, scannedCell, selection]);
+
+  useFrame((_, delta) => {
+    if (advanceWarehouseYardTraffic(traffic, delta, motion.current?.matches === true)) {
+      invalidate();
+    }
+  }, -1);
 
   return (
     <>

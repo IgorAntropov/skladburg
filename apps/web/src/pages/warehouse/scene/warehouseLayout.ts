@@ -10,12 +10,14 @@ import type {
 } from '@/shared/3d';
 
 import type { WarehouseAisleRectValue } from './warehouseAislePath';
+import type { WarehouseYardRoadsValue } from './warehouseYardRoads';
 
 import {
   addWarehouseBox,
   buildWarehouseFloor,
   WAREHOUSE_DOCK_LANE_LENGTH,
 } from './warehouseFloorLayout';
+import { buildWarehouseYardRoads } from './warehouseYardRoads';
 
 export interface WarehouseBoxValue {
   position: VectorValue;
@@ -52,6 +54,7 @@ export interface WarehouseLayoutValue {
   receiving: undefined | WarehouseReceivingLayoutValue;
   truck: ReadonlyMap<WorldPaletteKeyValue, readonly WarehouseBoxValue[]>;
   world: SceneWorldValue;
+  yard: undefined | WarehouseYardRoadsValue;
 }
 
 export interface WarehouseNavigationValue {
@@ -259,10 +262,11 @@ export const buildWarehouseLayout = (
     obstacles.push({ maxX: x + 0.93, maxZ: z + WAREHOUSE_DOCK_RAMP_END, minX: x - 0.93, minZ: z - 0.145 });
   }
   const bounds = { maxX, maxZ, minX: minX + 0.19, minZ: (dock?.z ?? minZ) + 0.11 };
+  const yard = buildWarehouseYardRoads(docks);
   return {
     cells,
     cellsById: new Map(cells.map(cell => [cell.id, cell])),
-    floor: buildWarehouseFloor({ depth, width, x: minX, z: minZ }, receiving, aisleMarks, padding),
+    floor: buildWarehouseFloor({ depth, width, x: minX, z: minZ }, receiving, yard, aisleMarks, padding),
     navigation: { bounds, obstacles },
     racks: { decks, dividers, frames, guards },
     receiving,
@@ -272,6 +276,7 @@ export const buildWarehouseLayout = (
       home: { centerX, centerZ, radius },
       maxHeight,
     },
+    yard,
   };
 };
 

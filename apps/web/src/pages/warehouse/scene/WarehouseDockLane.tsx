@@ -7,7 +7,6 @@ import type {
 import { useRef } from 'react';
 
 import type { WarehouseGeometryKitValue } from './createWarehouseGeometryKit';
-import type { WarehouseYardTrafficValue } from './WarehouseCargo';
 import type { WarehouseDockCargoValue } from './warehouseDockCargo';
 import type { WarehouseForkliftRigValue } from './WarehouseForklift';
 import type {
@@ -15,11 +14,13 @@ import type {
   WarehouseLayoutValue,
 } from './warehouseLayout';
 import type { WarehouseYardParkingRigValue } from './WarehouseYardParkingLayer';
+import type { WarehouseYardTrafficValue } from './warehouseYardTraffic';
 
 import { WarehouseCargo } from './WarehouseCargo';
 import { WarehouseForklift } from './WarehouseForklift';
 import { WarehouseInstances } from './WarehouseInstances';
 import { WarehouseYardParking } from './WarehouseYardParkingLayer';
+import { WAREHOUSE_TRUCK_CENTER_Z } from './warehouseYardRoads';
 
 interface WarehouseDockLaneProps {
   dock: undefined | WarehouseDockPointValue;
@@ -42,16 +43,19 @@ export const WarehouseDockLane = ({
   const forklift = useRef<WarehouseForkliftRigValue>(null);
   const yardParking = useRef<WarehouseYardParkingRigValue>(null);
   const { balances, cargo } = lane;
-  const hasDock = cargo?.hasDock === true && dock !== undefined;
+  const primaryDock = layout.receiving?.dock;
+  const hasDock = cargo?.hasDock === true && dock !== undefined && primaryDock !== undefined;
   const hasParking = hasDock && laneIndex === 0;
 
   return (
     <>
       {hasDock && (
         <group name="warehouse-dock-truck" ref={dockTruck} visible={false}>
-          {[...layout.truck].map(([key, boxes]) => (
-            <WarehouseInstances boxes={boxes} geometry={geometry} key={key} materialKey={key} />
-          ))}
+          <group position={[-primaryDock.x, 0, -primaryDock.z - WAREHOUSE_TRUCK_CENTER_Z]}>
+            {[...layout.truck].map(([key, boxes]) => (
+              <WarehouseInstances boxes={boxes} geometry={geometry} key={key} materialKey={key} />
+            ))}
+          </group>
         </group>
       )}
       <WarehouseForklift rig={forklift} />

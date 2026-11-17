@@ -402,6 +402,8 @@ test('receives goods at two assigned docks and advances the waiting truck', asyn
   await scene.waitForCameraControls();
   await scene.pressCameraButton('zoom-out');
   await scene.waitForIdle();
+  await scene.pressCameraButton('zoom-out');
+  await scene.waitForIdle();
 
   const workerPage = await context.newPage();
   const worker = await createEngineWorkerRobot(workerPage, DEAL_CUSTOMER);

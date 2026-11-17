@@ -11,6 +11,7 @@ import { getWarehouseLayout } from './warehouseLayout';
 import {
   readWarehouseParkingOffset,
   WAREHOUSE_YARD_PARKING_LIMIT,
+  WAREHOUSE_YARD_PARKING_SPACING,
 } from './warehouseYardParking';
 
 describe('warehouse scene layout', () => {
@@ -105,7 +106,7 @@ describe('warehouse scene layout', () => {
     expect(lanes.map(({ position }) => position[0])).toEqual([first.x, second.x]);
     const driven = lanes.map(({ position, size }) => ({ left: position[0] - size[0] / 2, right: position[0] + size[0] / 2 }));
     expect(driven[1]?.right).toBeLessThan(driven[0]?.left ?? 0);
-    const crossings = roads.filter(({ position, size }) => position[1] === 0.01 && size[2] > WAREHOUSE_DOCK_LANE_LENGTH);
+    const crossings = roads.filter(({ position, size }) => position[1] === 0.01 && size[0] > first.x - second.x);
     expect(crossings).toHaveLength(1);
     const crossing = crossings[0];
     if (crossing !== undefined) {
@@ -113,6 +114,7 @@ describe('warehouse scene layout', () => {
       const [width, , length] = crossing.size;
       const halfTruckWidth = 0.94;
       expect(x - width / 2).toBeLessThan(second.x - halfTruckWidth);
+      expect(x - width / 2).toBeLessThan(first.x + (layout.yard?.entrance.x ?? 0) - halfTruckWidth);
       expect(x + width / 2).toBeGreaterThan(first.x + halfTruckWidth);
       expect(z + length / 2).toBeCloseTo(first.z - WAREHOUSE_DOCK_LANE_LENGTH);
 
@@ -123,8 +125,8 @@ describe('warehouse scene layout', () => {
       for (let slot = 0; slot < WAREHOUSE_YARD_PARKING_LIMIT; slot += 1) {
         const far = Math.min(...body.map(({ position, size }) => position[2] - size[2] / 2)) + readWarehouseParkingOffset(slot);
         const near = Math.max(...body.map(({ position, size }) => position[2] + size[2] / 2)) + readWarehouseParkingOffset(slot);
-        expect(z - length / 2).toBeLessThan(far);
-        expect(marks.some(({ position, size }) => position[0] - size[0] / 2 < first.x + halfTruckWidth
+        expect(z - length / 2).toBeGreaterThan(near);
+        expect(marks.some(({ position, size }) => size[0] > 2 && position[0] - size[0] / 2 < first.x + halfTruckWidth
           && position[0] + size[0] / 2 > second.x - halfTruckWidth
           && position[2] - size[2] / 2 < near && position[2] + size[2] / 2 > far)).toBe(false);
       }
@@ -163,7 +165,7 @@ describe('warehouse scene layout', () => {
     }));
     const approachEndZ = dock.z - WAREHOUSE_DOCK_LANE_LENGTH;
     const pavement = layout.floor.get('road')?.find(({ position, size }) => (
-      position[0] === dock.x && Math.abs(position[2] + size[2] / 2 - approachEndZ) < 0.001
+      position[0] === dock.x && size[2] === (WAREHOUSE_YARD_PARKING_LIMIT + 1) * WAREHOUSE_YARD_PARKING_SPACING
     ));
     expect(pavement).toBeDefined();
     if (pavement === undefined) {
@@ -178,7 +180,6 @@ describe('warehouse scene layout', () => {
     const body = [...layout.truck.values()].flat();
     expect(body.length).toBeGreaterThan(0);
     expect(WAREHOUSE_YARD_PARKING_LIMIT).toBe(3);
-    expect(readWarehouseParkingOffset(0)).toBe(-10.4);
     let previousFrontZ = approachEndZ;
     for (let index = 0; index < WAREHOUSE_YARD_PARKING_LIMIT; index += 1) {
       const offset = readWarehouseParkingOffset(index);

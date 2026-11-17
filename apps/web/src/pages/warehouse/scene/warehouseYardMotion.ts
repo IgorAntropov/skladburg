@@ -1,19 +1,17 @@
-import type { WarehouseDockVisitValue } from '../model/warehouseSceneCargo';
-
-import { WAREHOUSE_YARD_ADVANCE_SECONDS } from './warehouseDockTruckMotion';
 import {
   readWarehouseParkingOffset,
+  WAREHOUSE_YARD_PARKING_ENTRANCE,
   WAREHOUSE_YARD_PARKING_LIMIT,
 } from './warehouseYardParking';
 
 export interface WarehouseYardMotionValue {
   elapsed: number;
   hasChanged: boolean;
+  hasInitialized: boolean;
   isMoving: boolean;
   parked: WarehouseParkingPoseValue[];
   pool: readonly WarehouseParkingPoseValue[];
   previous: readonly WarehouseParkingPositionValue[];
-  visible: WarehouseParkingPoseValue[];
 }
 
 interface WarehouseParkingPoseValue extends WarehouseParkingPositionValue {
@@ -26,47 +24,23 @@ interface WarehouseParkingPositionValue {
   taskId: string;
 }
 
-export const WAREHOUSE_TRUCK_CLEARANCE = 6.35;
 const MAX_FRAME_DELTA = 0.05;
-
-const createSlotPool = (): WarehouseParkingPoseValue[] => Array.from(
-  { length: WAREHOUSE_YARD_PARKING_LIMIT },
-  (): WarehouseParkingPoseValue => ({ offsetZ: 0, startZ: 0, targetZ: 0, taskId: '' }),
-);
+const PARKING_ADVANCE_SECONDS = 2.8;
 
 export const createWarehouseYardMotion = (): WarehouseYardMotionValue => ({
   elapsed: 0,
   hasChanged: true,
+  hasInitialized: false,
   isMoving: false,
   parked: [],
-  pool: createSlotPool(),
+  pool: Array.from({ length: WAREHOUSE_YARD_PARKING_LIMIT }, (): WarehouseParkingPoseValue =>
+    ({ offsetZ: 0, startZ: 0, targetZ: 0, taskId: '' })),
   previous: Array.from({ length: WAREHOUSE_YARD_PARKING_LIMIT }, (): WarehouseParkingPositionValue => ({ offsetZ: 0, taskId: '' })),
-  visible: [],
 });
 
-const refreshVisibleParking = (yard: WarehouseYardMotionValue, dockOffsetZ: number | undefined): void => {
-  let frontZ = dockOffsetZ ?? Infinity;
-  let count = 0;
-  let index = 0;
-  while (index < yard.parked.length) {
-    const truck = yard.parked[index];
-    index += 1;
-    if (truck !== undefined && frontZ - truck.offsetZ >= WAREHOUSE_TRUCK_CLEARANCE) {
-      yard.hasChanged ||= yard.visible[count] !== truck;
-      yard.visible[count] = truck;
-      count += 1;
-      frontZ = truck.offsetZ;
-    }
-  }
-  yard.hasChanged ||= yard.visible.length !== count;
-  yard.visible.length = count;
-};
-
 const findTruckOffset = (parked: readonly WarehouseParkingPositionValue[], taskId: string | undefined): number | undefined => {
-  let index = 0;
-  while (taskId !== undefined && index < parked.length) {
+  for (let index = 0; taskId !== undefined && index < parked.length; index += 1) {
     const truck = parked[index];
-    index += 1;
     if (truck?.taskId === taskId) {
       return truck.offsetZ;
     }
@@ -75,31 +49,19 @@ const findTruckOffset = (parked: readonly WarehouseParkingPositionValue[], taskI
 };
 
 export const readWarehouseYardTruckOffset = (yard: WarehouseYardMotionValue, taskId: string | undefined): number | undefined =>
-  findTruckOffset(yard.visible, taskId);
-
-export const readPreviousWarehouseYardTruckOffset = (yard: WarehouseYardMotionValue, taskId: string | undefined): number | undefined =>
-  findTruckOffset(yard.previous, taskId);
+  findTruckOffset(yard.parked, taskId);
 
 export const syncWarehouseYardMotion = (
   yard: WarehouseYardMotionValue,
-  visits: readonly WarehouseDockVisitValue[],
-  dockTaskId: string | undefined,
+  taskIds: readonly string[],
   isReducedMotion: boolean,
-  dockOffsetZ?: number,
 ): void => {
-  let hasDifferentQueue = false;
-  let count = 0;
-  let index = 0;
-  while (index < visits.length && count < WAREHOUSE_YARD_PARKING_LIMIT) {
-    const taskId = visits[index]?.taskId;
-    index += 1;
-    if (taskId !== undefined && taskId !== dockTaskId) {
-      hasDifferentQueue ||= yard.parked[count]?.taskId !== taskId;
-      count += 1;
-    }
+  let hasDifferentQueue = yard.parked.length !== taskIds.length;
+  for (let index = 0; index < taskIds.length && !hasDifferentQueue; index += 1) {
+    hasDifferentQueue = yard.parked[index]?.taskId !== taskIds[index];
   }
-  if (!hasDifferentQueue && yard.parked.length === count && (!isReducedMotion || !yard.isMoving)) {
-    refreshVisibleParking(yard, dockOffsetZ);
+  if (!hasDifferentQueue && (!isReducedMotion || !yard.isMoving)) {
+    yard.hasInitialized = true;
     return;
   }
 
@@ -113,16 +75,16 @@ export const syncWarehouseYardMotion = (
   yard.elapsed = 0;
   yard.isMoving = false;
   yard.parked.length = 0;
-  index = 0;
-  while (index < visits.length && yard.parked.length < WAREHOUSE_YARD_PARKING_LIMIT) {
-    const taskId = visits[index]?.taskId;
-    index += 1;
-    const truck = yard.pool[yard.parked.length];
-    if (truck === undefined || taskId === undefined || taskId === dockTaskId) {
+  for (let index = 0; index < taskIds.length; index += 1) {
+    const taskId = taskIds[index];
+    const truck = yard.pool[index];
+    if (taskId === undefined || truck === undefined) {
       continue;
     }
-    const targetZ = readWarehouseParkingOffset(yard.parked.length);
-    const fromZ = isReducedMotion ? targetZ : findTruckOffset(yard.previous, taskId) ?? targetZ;
+    const targetZ = readWarehouseParkingOffset(index);
+    const fromZ = isReducedMotion || !yard.hasInitialized
+      ? targetZ
+      : findTruckOffset(yard.previous, taskId) ?? WAREHOUSE_YARD_PARKING_ENTRANCE;
     truck.offsetZ = fromZ;
     truck.startZ = fromZ;
     truck.targetZ = targetZ;
@@ -131,7 +93,7 @@ export const syncWarehouseYardMotion = (
     yard.parked.push(truck);
   }
   yard.hasChanged = true;
-  refreshVisibleParking(yard, dockOffsetZ);
+  yard.hasInitialized = true;
 };
 
 export const advanceWarehouseYardMotion = (yard: WarehouseYardMotionValue, delta: number): void => {
@@ -139,7 +101,7 @@ export const advanceWarehouseYardMotion = (yard: WarehouseYardMotionValue, delta
     return;
   }
   yard.elapsed += Math.min(delta, MAX_FRAME_DELTA);
-  const progress = Math.min(yard.elapsed / WAREHOUSE_YARD_ADVANCE_SECONDS, 1);
+  const progress = Math.min(yard.elapsed / PARKING_ADVANCE_SECONDS, 1);
   const eased = progress * progress * (3 - 2 * progress);
   let index = 0;
   while (index < yard.parked.length) {

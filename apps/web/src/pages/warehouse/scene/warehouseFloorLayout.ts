@@ -6,18 +6,21 @@ import type {
   WarehouseFloorValue,
   WarehouseReceivingLayoutValue,
 } from './warehouseLayout';
+import type { WarehouseYardRoadsValue } from './warehouseYardRoads';
 
-import { WAREHOUSE_TRUCK_RUNUP } from './warehouseDockTruckMotion';
 import {
-  readWarehouseParkingOffset,
   WAREHOUSE_YARD_PARKING_LIMIT,
+  WAREHOUSE_YARD_PARKING_SPACING,
 } from './warehouseYardParking';
+import { WAREHOUSE_TRUCK_RUNUP } from './warehouseYardRoads';
 
 type BoxLayersValue = Map<WorldPaletteKeyValue, WarehouseBoxValue[]>;
 type VectorValue = WarehouseBoxValue['position'];
 
 export const WAREHOUSE_DOCK_LANE_LENGTH = 6.44 + WAREHOUSE_TRUCK_RUNUP;
 const DOCK_LANE_WIDTH = 2.5;
+const TRUCK_LENGTH = 6.1;
+const TRANSFER_MARGIN = 2.7;
 
 export const addWarehouseBox = (
   layers: BoxLayersValue,
@@ -115,35 +118,41 @@ const addParking = (
   floor: BoxLayersValue,
   { x, z }: WarehouseDockPointValue,
   docks: readonly WarehouseDockPointValue[],
+  yard: WarehouseYardRoadsValue,
   slabStartZ: number,
 ): void => {
-  const spacing = readWarehouseParkingOffset(0) - readWarehouseParkingOffset(1);
-  const laneStartZ = z - WAREHOUSE_DOCK_LANE_LENGTH;
+  const spacing = WAREHOUSE_YARD_PARKING_SPACING;
+  const laneStartZ = z + yard.junctionZ - TRUCK_LENGTH;
   const laneLength = WAREHOUSE_YARD_PARKING_LIMIT * spacing;
-  const laneCenterZ = laneStartZ - laneLength / 2;
-  let left = x;
+  const entranceX = x + yard.entrance.x;
   let right = x;
   for (const dock of docks) {
-    left = Math.min(left, dock.x);
     right = Math.max(right, dock.x);
   }
-  const centerX = (left + right) / 2;
-  const pavementWidth = right - left + DOCK_LANE_WIDTH;
-  const apronStartZ = laneStartZ - laneLength - 0.65;
+  const centerX = (entranceX + right) / 2;
+  const pavementWidth = right - entranceX + TRANSFER_MARGIN * 2;
+  const apronStartZ = laneStartZ - laneLength - spacing;
   const apronDepth = slabStartZ - apronStartZ;
 
   if (apronDepth > 0) {
-    const apronWidth = right - left + 4.8;
+    const apronWidth = pavementWidth + 0.6;
     const apronCenterZ = apronStartZ + apronDepth / 2;
 
     addSlab(floor, centerX, apronCenterZ, apronWidth, apronDepth);
     addWarehouseBox(floor, 'plaza', [centerX, -0.012, apronCenterZ], [apronWidth, 0.024, apronDepth]);
   }
 
-  addWarehouseBox(floor, 'road', [centerX, 0.01, laneCenterZ], [pavementWidth, 0.02, laneLength]);
+  const transferEndZ = z - WAREHOUSE_DOCK_LANE_LENGTH;
+  const entranceStartZ = apronStartZ;
+  addWarehouseBox(floor, 'road', [x, 0.01, (apronStartZ + laneStartZ) / 2],
+    [DOCK_LANE_WIDTH, 0.02, laneLength + spacing]);
+  addWarehouseBox(floor, 'road', [entranceX, 0.01, (entranceStartZ + laneStartZ) / 2],
+    [DOCK_LANE_WIDTH, 0.02, laneStartZ - entranceStartZ]);
+  addWarehouseBox(floor, 'road', [centerX, 0.01, (laneStartZ + transferEndZ) / 2],
+    [pavementWidth, 0.02, transferEndZ - laneStartZ]);
   const edgeInset = DOCK_LANE_WIDTH / 2 - 0.09;
-  for (const sideX of [left - edgeInset, right + edgeInset]) {
-    addWarehouseBox(floor, 'sand', [sideX, 0.027, laneCenterZ], [0.064, 0.014, laneLength]);
+  for (const sideX of [x - edgeInset, x + edgeInset]) {
+    addWarehouseBox(floor, 'sand', [sideX, 0.027, laneStartZ - laneLength / 2], [0.064, 0.014, laneLength]);
   }
   for (let index = 0; index <= WAREHOUSE_YARD_PARKING_LIMIT; index += 1) {
     const lineZ = laneStartZ - index * spacing;
@@ -154,6 +163,7 @@ const addParking = (
 export const buildWarehouseFloor = (
   { depth, width, x, z }: WarehouseFloorValue,
   receiving: undefined | WarehouseReceivingLayoutValue,
+  yard: undefined | WarehouseYardRoadsValue,
   aisleMarks: readonly WarehouseBoxValue[],
   padding: number,
 ): ReadonlyMap<WorldPaletteKeyValue, readonly WarehouseBoxValue[]> => {
@@ -182,8 +192,8 @@ export const buildWarehouseFloor = (
   for (const point of docks) {
     addDock(floor, point);
   }
-  if (dock !== undefined) {
-    addParking(floor, dock, docks, z);
+  if (dock !== undefined && yard !== undefined) {
+    addParking(floor, dock, docks, yard, z);
   }
 
   if (receiving !== undefined) {

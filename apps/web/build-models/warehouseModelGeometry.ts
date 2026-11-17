@@ -65,9 +65,9 @@ export const readTriangles = (geometry: BufferGeometry, transform: Matrix4): Tri
 
 const isBufferGeometry = (geometry: unknown): geometry is BufferGeometry => geometry instanceof BufferGeometry;
 
-export const readWarehouseGlb = async (path: string): Promise<SourceMeshValue[]> => {
+export const readWarehouseGlb = async (path: string, loader = new GLTFLoader()): Promise<SourceMeshValue[]> => {
   const data = Uint8Array.from(await readFile(path));
-  const { scene } = await new GLTFLoader().parseAsync(data.buffer, '');
+  const { scene } = await loader.parseAsync(data.buffer, '');
   const meshes: SourceMeshValue[] = [];
 
   scene.updateMatrixWorld(true);

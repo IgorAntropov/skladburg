@@ -152,7 +152,7 @@ export const buildWarehouseLayout = (
   let minZ = 0;
   let maxX = receiving === undefined ? 6 : receiving.x + receiving.width;
   let maxZ = receiving === undefined ? 4 : receiving.z + receiving.depth;
-  let maxHeight = 2.4;
+  let maxHeight = 2.43;
 
   if (docks.length === 0) {
     maxX = Math.max(maxX, 1.5);

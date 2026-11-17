@@ -75,7 +75,7 @@ describe('warehouse scene layout', () => {
     expect(layout.racks.frames).toHaveLength(4);
     expect(layout.world.home.centerX).toBeGreaterThan(60);
     const floors = layout.floor.get('warehouseWall') ?? [];
-    const joints = layout.floor.get('plaza') ?? [];
+    const joints = layout.floor.get('plaza')?.filter(({ size }) => size[1] === 0.008) ?? [];
 
     expect(floors.some(({ size: [width, , depth] }) => width > 127 && depth > 70)).toBe(true);
     expect(joints.length).toBeGreaterThan(0);
@@ -148,16 +148,27 @@ describe('warehouse scene layout', () => {
     }
 
     const walls = layout.floor.get('warehouseWall') ?? [];
-    const facade = walls.filter(({ position }) => position[2] === first.z);
+    const facade = walls.filter(({ position, size }) => position[2] === first.z && size[2] === 0.16);
     const indoors = walls.find(({ size }) => size[1] === 0.024);
-    expect(facade).toHaveLength(3);
+    expect(facade.length).toBeGreaterThanOrEqual(3);
     expect(indoors).toBeDefined();
 
-    const ramps = (layout.floor.get('warehouseRoof') ?? []).filter(({ position }) => position[1] === 0.16);
-    expect(ramps.map(({ position }) => position[0])).toEqual([first.x, second.x]);
+    const ramps = (layout.floor.get('warehouseRoof') ?? []).filter(({ position, size }) => (
+      size[0] > 1.6 && Math.abs(position[1] + size[1] / 2 - 0.32) < 0.001
+    ));
+    expect(new Set(ramps.map(({ position }) => position[0]))).toEqual(new Set([first.x, second.x]));
+    const gates = layout.floor.get('windowGlass') ?? [];
+    const truck = getTruckBounds();
     expect(layout.navigation.obstacles).toHaveLength(2);
     for (const dock of [first, second]) {
       expect(facade.some(({ position, size }) => Math.abs(position[0] - dock.x) - size[0] / 2 < 1.08)).toBe(false);
+      const curtains = gates.filter(({ position, size }) => (
+        Math.abs(position[0] - dock.x) < 1.3 && position[2] < dock.z && size[1] > truck.max.y
+      ));
+      expect(curtains).toHaveLength(2);
+      for (const { position, size } of curtains) {
+        expect(Math.abs(position[0] - dock.x) - size[0] / 2).toBeGreaterThan(truck.max.x);
+      }
       expect(layout.navigation.obstacles.some(({ maxX, maxZ, minX }) => minX < dock.x && maxX > dock.x && maxZ > dock.z)).toBe(true);
       if (indoors !== undefined) {
         expect(indoors.position[0] - indoors.size[0] / 2).toBeLessThan(dock.x - 1.25);

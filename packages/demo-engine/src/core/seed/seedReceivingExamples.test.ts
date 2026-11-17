@@ -15,6 +15,7 @@ import {
   DealStatus,
 } from '@skladburg/contracts/deal/v1/deal';
 import { hasGs1CheckDigit } from '@skladburg/contracts/forms';
+import { WarehouseCapability } from '@skladburg/contracts/organization/v1/organization';
 import {
   PaymentService,
   SafeDealPaymentStatus,
@@ -174,7 +175,7 @@ it('keeps two parallel unloads independent and atomically promotes the waiting r
     .resolves.toMatchObject({ task: { receivedUnits: [{ putAwayCellId: CELL }], unloadingPointId: FIRST_DOCK } });
 });
 
-it('upgrades a saved Kazan topology and existing tasks without adding deals or changing stock', async () => {
+it.each([true, false])('upgrades the saved Kazan docks and tasks (missing second dock: %s)', async (isSecondDockMissing) => {
   const realTime = createFakeRealTime();
   const storage = createSpyStorage();
   const engine = await createEngine({ epoch: 'original', isDemoWarehouseEnabled: true, realTime, storage });
@@ -187,8 +188,17 @@ it('upgrades a saved Kazan topology and existing tasks without adding deals or c
     throw new Error('Missing saved receiving examples');
   }
 
-  topology.receivingArea.footprint.widthMm = 2_000;
-  topology.receivingArea.additionalUnloadingPoints = [];
+  const [coldDock] = topology.receivingArea.additionalUnloadingPoints;
+  if (coldDock === undefined) {
+    throw new Error('Missing second receiving dock');
+  }
+  if (isSecondDockMissing) {
+    topology.receivingArea.footprint.widthMm = 2_000;
+    topology.receivingArea.additionalUnloadingPoints = [];
+  }
+  else {
+    coldDock.capabilities = [];
+  }
   const warehouseTopologies = new Map(snapshot.collections.warehouseTopologies);
   warehouseTopologies.set(warehouseId, TABLE_DEFINITIONS.warehouseTopologies.encode(encodeWarehouseTopology(topology)));
   const warehouseInbound = new Map(snapshot.collections.warehouseInbound);
@@ -199,7 +209,7 @@ it('upgrades a saved Kazan topology and existing tasks without adding deals or c
       throw new Error('Missing saved receiving task');
     }
     const record = TABLE_DEFINITIONS.warehouseInbound.decode(stored);
-    record.bytes = toBinary(ReceivingTaskSchema, { ...task, unloadingPointId: undefined });
+    record.bytes = toBinary(ReceivingTaskSchema, { ...task, unloadingPointId: isSecondDockMissing ? undefined : task.unloadingPointId });
     warehouseInbound.set(task.id, TABLE_DEFINITIONS.warehouseInbound.encode(record));
   }
   const collections = { ...snapshot.collections, warehouseInbound, warehouseTopologies };
@@ -209,11 +219,17 @@ it('upgrades a saved Kazan topology and existing tasks without adding deals or c
     createEngineTransport(await createEngine({ epoch, isDemoWarehouseEnabled: true, realTime, storage }), true);
   const reopened = await reopen('upgraded');
   expect((await createClient(WarehouseTopologyService, reopened).getWarehouseTopology({ warehouseId }, CUSTOMER_CALL)).topology)
-    .toMatchObject({ receivingArea: { additionalUnloadingPoints: [{ id: SECOND_DOCK }], footprint: { widthMm: 8_000 } }, revision: 2 });
+    .toMatchObject({
+      receivingArea: {
+        additionalUnloadingPoints: [{ capabilities: [WarehouseCapability.COLD], id: SECOND_DOCK }],
+        footprint: { widthMm: 8_000 },
+      },
+      revision: 2,
+    });
   const assigned = await createClient(WarehouseReceivingService, reopened).listReceivingTasks({ warehouseId }, CUSTOMER_CALL);
   expect(assigned.tasks).toMatchObject([
-    { id: tasks[0]?.id, unloadingPointId: FIRST_DOCK, version: 2 },
-    { id: tasks[1]?.id, unloadingPointId: SECOND_DOCK, version: 2 },
+    { id: tasks[0]?.id, unloadingPointId: FIRST_DOCK, version: isSecondDockMissing ? 2 : 1 },
+    { id: tasks[1]?.id, unloadingPointId: SECOND_DOCK, version: isSecondDockMissing ? 2 : 1 },
   ]);
   const upgraded = await storage.load();
   expect(upgraded?.collections.deals).toEqual(collections.deals);

@@ -38,7 +38,7 @@ const hasDockPosition = (point: undefined | WarehouseUnloadingPoint): point is P
     && Number.isInteger(position.zMm) && position.zMm >= 0;
 };
 
-export const readEffectiveWarehouseDockIds = (area: WarehouseReceivingArea): string[] => {
+export const readEffectiveWarehouseDocks = (area: WarehouseReceivingArea): WarehouseUnloadingPoint[] => {
   const primary = area.unloadingPoint;
   const footprint = area.footprint;
   if (footprint?.origin === undefined || footprint.widthMm === 0 || footprint.depthMm === 0 || !hasDockPosition(primary)) {
@@ -52,8 +52,11 @@ export const readEffectiveWarehouseDockIds = (area: WarehouseReceivingArea): str
       berths.push(point);
     }
   }
-  return berths.map(point => point.id);
+  return berths;
 };
+
+export const readEffectiveWarehouseDockIds = (area: WarehouseReceivingArea): string[] =>
+  readEffectiveWarehouseDocks(area).map(point => point.id);
 
 const addUnique = (seen: Set<string>, key: string): void => {
   if (seen.has(key)) {

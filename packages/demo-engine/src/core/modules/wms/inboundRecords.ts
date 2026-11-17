@@ -1,3 +1,5 @@
+import type { TransportCargo } from '@skladburg/contracts/logistics/v1/logistics_records';
+
 import {
   create,
   fromBinary,
@@ -6,6 +8,8 @@ import {
 import { timestampMs } from '@bufbuild/protobuf/wkt';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
+import { VehicleCargoKind } from '@skladburg/contracts/fleet/v1/fleet';
+import { WarehouseCapability } from '@skladburg/contracts/organization/v1/organization';
 import { tasksChannel } from '@skladburg/contracts/runtime';
 import {
   type ReceivingTask,
@@ -22,16 +26,31 @@ import type {
 } from '../../state/index';
 import type { WarehouseStockRecordValue } from '../../state/records';
 import type { IModuleRuntime } from '../moduleRuntime';
+import type {
+  InboundCargoRequirementsValue,
+  InboundDockValue,
+} from './inboundDockQueue';
 
 import { compareIds } from '../../state/index';
+import { readTripForDeal } from '../logistics/tripRecords';
+import {
+  canUseInboundDock,
+  matchInboundDockQueue,
+} from './inboundDockQueue';
 import {
   isInboundYardBlocked,
   readInboundYardGate,
 } from './inboundYardGate';
 import {
-  readEffectiveWarehouseDockIds,
+  readEffectiveWarehouseDocks,
   readOwnedWarehouseTopology,
 } from './warehouseTopologyRecords';
+
+interface InboundDockCandidateValue extends InboundCargoRequirementsValue {
+  arrivedAt: number;
+  deliveryEndsAt: number;
+  task: ReceivingTask;
+}
 
 interface InboundDockScopeValue {
   receivingAreaId: string;
@@ -39,20 +58,38 @@ interface InboundDockScopeValue {
   warehouseId: string;
 }
 
-const readDockIds = (
+const readCargoRequirements = (cargo: TransportCargo | undefined): InboundCargoRequirementsValue => ({
+  hasColdCargo: cargo?.cargoKind === VehicleCargoKind.TEMPERATURE_CONTROLLED || cargo?.temperature !== undefined,
+  hasOversizeCargo: cargo?.cargoKind === VehicleCargoKind.OVERSIZE,
+});
+
+const readInboundDocks = (
   reader: IStateReader,
   errors: IDomainErrors,
   { receivingAreaId, tenantId, warehouseId }: InboundDockScopeValue,
-): Set<string> => {
+): InboundDockValue[] => {
   const area = readOwnedWarehouseTopology(reader, errors, warehouseId, tenantId)?.receivingArea;
   if (area?.id !== receivingAreaId) {
-    return new Set();
+    return [];
   }
-  return new Set(readEffectiveWarehouseDockIds(area));
+
+  const docks = readEffectiveWarehouseDocks(area);
+  const warehouseCapabilities = docks.length === 1 ? reader.get('warehouses', warehouseId)?.capabilities : undefined;
+  return docks.map(({ capabilities, id }) => {
+    const supported = capabilities.length === 0 ? warehouseCapabilities : capabilities;
+    return {
+      canHandleOversize: supported?.includes(WarehouseCapability.OVERSIZE) === true,
+      hasColdZone: supported?.includes(WarehouseCapability.COLD) === true,
+      id,
+    };
+  });
 };
 
 const isActiveInboundTask = (task: ReceivingTask, receivingAreaId: string): boolean =>
   task.receivingAreaId === receivingAreaId && (task.status === ReceivingTaskStatus.OPEN || task.status === ReceivingTaskStatus.IN_PROGRESS);
+
+const hasLegacyReceipts = (task: ReceivingTask): boolean =>
+  task.yardAdmissionStatus === YardAdmissionStatus.UNSPECIFIED && task.receivedUnits.length > 0;
 
 export const requireInboundDock = (
   reader: IStateReader,
@@ -61,18 +98,21 @@ export const requireInboundDock = (
   tenantId: string,
   command: string,
 ): void => {
-  const ids = readDockIds(reader, errors, { ...task, tenantId });
-  const hasDockAssignment = task.unloadingPointId !== undefined && ids.has(task.unloadingPointId);
-  const isSingleDockOccupied = ids.size === 1 && !hasDockAssignment
+  const docks = readInboundDocks(reader, errors, { ...task, tenantId });
+  const hasDockAssignment = docks.some(dock => dock.id === task.unloadingPointId);
+  const onlyDock = docks.length === 1 ? docks[0] : undefined;
+  const isSingleDockOccupied = onlyDock !== undefined && !hasDockAssignment
     && reader.listBy('warehouseInbound', 'scopeId', task.warehouseId).some((record) => {
       if (record.id === task.id || record.lookupKey !== tenantId) {
         return false;
       }
       const other = readInboundTask(record, errors);
-      return isActiveInboundTask(other, task.receivingAreaId) && other.unloadingPointId !== undefined && ids.has(other.unloadingPointId);
+      return isActiveInboundTask(other, task.receivingAreaId) && other.unloadingPointId === onlyDock.id;
     });
+  const isSingleDockIncompatible = onlyDock !== undefined && !hasDockAssignment && !hasLegacyReceipts(task)
+    && !canUseInboundDock(onlyDock, readCargoRequirements(readTripForDeal(reader, task.dealId)?.transportOrder?.cargo));
   const isWaitingDock = task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCK
-    || (!hasDockAssignment && (ids.size > 1 || isSingleDockOccupied));
+    || (!hasDockAssignment && (docks.length > 1 || isSingleDockOccupied || isSingleDockIncompatible));
   if (isWaitingDock || isInboundYardBlocked(readInboundYardGate(reader, task, tenantId))) {
     throw errors.invalidTransition(EntityKind.RECEIVING_TASK, ReceivingTaskStatus[task.status], command);
   }
@@ -115,16 +155,16 @@ export const assignAvailableInboundDocks = (
   scope: InboundDockScopeValue,
   updatedTask?: ReceivingTask,
 ): void => {
-  const dockIds = readDockIds(transaction, runtime.errors, scope);
-  if (dockIds.size === 0) {
+  const docks = readInboundDocks(transaction, runtime.errors, scope);
+  if (docks.length === 0) {
     return;
   }
+  const available = new Map(docks.map(dock => [dock.id, dock] as const));
   if (updatedTask?.yardAdmissionStatus === YardAdmissionStatus.ADMITTED
-    && (updatedTask.unloadingPointId === undefined || !dockIds.has(updatedTask.unloadingPointId))) {
+    && (updatedTask.unloadingPointId === undefined || !available.has(updatedTask.unloadingPointId))) {
     updatedTask.yardAdmissionStatus = YardAdmissionStatus.WAITING_DOCK;
   }
-  const available = new Set(dockIds);
-  const waiting: { arrivedAt: number; task: ReceivingTask }[] = [];
+  const waiting: InboundDockCandidateValue[] = [];
   for (const record of transaction.listBy('warehouseInbound', 'scopeId', scope.warehouseId)) {
     if (record.lookupKey !== scope.tenantId) {
       continue;
@@ -133,33 +173,41 @@ export const assignAvailableInboundDocks = (
     if (!isActiveInboundTask(task, scope.receivingAreaId) || isInboundYardBlocked(readInboundYardGate(transaction, task, scope.tenantId))) {
       continue;
     }
-    if (task.unloadingPointId !== undefined && dockIds.has(task.unloadingPointId)) {
+    if (task.unloadingPointId !== undefined && docks.some(dock => dock.id === task.unloadingPointId)) {
       available.delete(task.unloadingPointId);
     }
     else if (task.version < 2_147_483_647) {
-      const arrived = transaction.get('deals', task.dealId)?.transitions.find(transition => transition.to === DealStatus.ARRIVED)?.at;
-      waiting.push({ arrivedAt: arrived === undefined ? 0 : timestampMs(arrived), task });
+      const deal = transaction.get('deals', task.dealId);
+      const trip = readTripForDeal(transaction, task.dealId);
+      const order = trip?.transportOrder;
+      const arrived = trip?.arrivedAt ?? deal?.transitions.find(transition => transition.to === DealStatus.ARRIVED)?.at;
+      const deliveryEnd = order?.deliveryWindow?.endsAt;
+      waiting.push({
+        arrivedAt: arrived === undefined ? 0 : timestampMs(arrived),
+        deliveryEndsAt: deliveryEnd === undefined ? Number.MAX_SAFE_INTEGER : timestampMs(deliveryEnd),
+        ...readCargoRequirements(docks.length === 1 && hasLegacyReceipts(task) ? undefined : order?.cargo),
+        task,
+      });
     }
   }
 
   waiting.sort((current, prev) => {
     const hasReceipt = current.task.receivedUnits.length > 0;
     const hadReceipt = prev.task.receivedUnits.length > 0;
-    return Number(hadReceipt) - Number(hasReceipt) || current.arrivedAt - prev.arrivedAt || compareIds(current.task.id, prev.task.id);
+    return Number(hadReceipt) - Number(hasReceipt)
+      || Number(prev.hasColdCargo) - Number(current.hasColdCargo)
+      || current.deliveryEndsAt - prev.deliveryEndsAt
+      || current.arrivedAt - prev.arrivedAt
+      || compareIds(current.task.id, prev.task.id);
   });
-  let index = 0;
-  for (const dockId of available) {
-    const assignment = waiting[index++];
-    if (assignment === undefined) {
-      break;
+  for (const [dockId, { task }] of matchInboundDockQueue([...available.values()], waiting)) {
+    task.unloadingPointId = dockId;
+    if (task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCK) {
+      task.yardAdmissionStatus = YardAdmissionStatus.ADMITTED;
     }
-    assignment.task.unloadingPointId = dockId;
-    if (assignment.task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCK) {
-      assignment.task.yardAdmissionStatus = YardAdmissionStatus.ADMITTED;
-    }
-    if (assignment.task !== updatedTask) {
-      assignment.task.version += 1;
-      saveInboundTask(transaction, runtime, assignment.task, scope.tenantId);
+    if (task !== updatedTask) {
+      task.version += 1;
+      saveInboundTask(transaction, runtime, task, scope.tenantId);
     }
   }
 };

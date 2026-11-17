@@ -13,6 +13,7 @@ import {
   DocumentStatus,
   DocumentType,
 } from '@skladburg/contracts/document/v1/document';
+import { VehicleCargoKind } from '@skladburg/contracts/fleet/v1/fleet';
 import { LogisticsService } from '@skladburg/contracts/logistics/v1/logistics';
 import { TripDocumentsService } from '@skladburg/contracts/logistics/v1/trip_documents';
 import {
@@ -20,7 +21,9 @@ import {
   TripRecordSchema,
   TripStatus,
 } from '@skladburg/contracts/logistics/v1/trip_records';
+import { WarehouseCapability } from '@skladburg/contracts/organization/v1/organization';
 import {
+  ReceivedHandlingUnitSchema,
   ReceivingTaskSchema,
   ReceivingTaskStatus,
   YardAdmissionStatus,
@@ -62,9 +65,20 @@ const WAREHOUSE = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3;
 const AREA = '8f000004-0000-4000-8000-000000000010';
 const scope = { receivingAreaId: AREA, tenantId: TENANT, warehouseId: WAREHOUSE };
 
-const saveArrival = (transaction: IStateTransaction, runtime: IModuleRuntime, deliveryWarehouse: string): ReceivingTask => {
+interface InboundCargoValue {
+  arrivedAt: number;
+  cargoKind: VehicleCargoKind;
+  deliveryEndsAt: number;
+}
+
+const saveArrival = (
+  transaction: IStateTransaction,
+  runtime: IModuleRuntime,
+  deliveryWarehouse: string,
+  cargo?: InboundCargoValue,
+): ReceivingTask => {
   const id = nextUuid();
-  const at = timestampFromMs(transaction.worldTimeMs);
+  const at = timestampFromMs(cargo?.arrivedAt ?? transaction.worldTimeMs);
   transaction.put('deals', create(DealSchema, {
     customerOrganizationId: TENANT,
     deliveryMethod: DeliveryMethod.EXCHANGE,
@@ -83,9 +97,11 @@ const saveArrival = (transaction: IStateTransaction, runtime: IModuleRuntime, de
     status: TripStatus.ARRIVED,
     supplierOrganizationId: SUPPLIER,
     transportOrder: {
+      cargo: cargo === undefined ? undefined : { cargoKind: cargo.cargoKind },
       carrierOrganizationId: SeedOrganizationId.CARRIER_1,
       confirmedAt: at,
       delivery: { organizationId: TENANT, warehouseId: deliveryWarehouse },
+      deliveryWindow: cargo === undefined ? undefined : { endsAt: timestampFromMs(cargo.deliveryEndsAt) },
     },
     version: 6,
   }));
@@ -236,4 +252,133 @@ it('publishes the carrier title and queues the arrival atomically while the only
   expect(() => {
     requireInboundDock(runtime.read, runtime.errors, docked, TENANT, 'ReceiveHandlingUnit');
   }).not.toThrow();
+});
+
+it('assigns the waiting refrigerated load with the earliest delivery deadline ahead of older arrivals', async () => {
+  const { runtime } = createTestRuntime();
+  const { cold, first, urgent } = await runtime.command((transaction) => {
+    const topology = createSeedWarehouseTopology({ prefix: '8f000004', tenantId: TENANT, warehouseId: WAREHOUSE });
+    const dock = topology.receivingArea?.unloadingPoint;
+    if (dock === undefined) {
+      throw new Error('Missing warehouse dock');
+    }
+    dock.capabilities = [WarehouseCapability.COLD];
+    transaction.put('warehouseTopologies', encodeWarehouseTopology(topology));
+    const now = transaction.worldTimeMs;
+    const first = saveArrival(transaction, runtime, WAREHOUSE, {
+      arrivedAt: now - 180_000, cargoKind: VehicleCargoKind.GENERAL, deliveryEndsAt: now + 60_000,
+    });
+    const cold = saveArrival(transaction, runtime, WAREHOUSE, {
+      arrivedAt: now - 120_000, cargoKind: VehicleCargoKind.TEMPERATURE_CONTROLLED, deliveryEndsAt: now + 180_000,
+    });
+    const urgent = saveArrival(transaction, runtime, WAREHOUSE, {
+      arrivedAt: now - 60_000, cargoKind: VehicleCargoKind.TEMPERATURE_CONTROLLED, deliveryEndsAt: now + 120_000,
+    });
+    for (const task of [first, cold, urgent]) {
+      saveDispatchTitle(transaction, task);
+    }
+    assignAvailableInboundDocks(transaction, runtime, scope);
+
+    return { cold, first, urgent };
+  });
+
+  expect(requireStoredTask(runtime, first.id).unloadingPointId).toBeUndefined();
+  expect(requireStoredTask(runtime, cold.id).unloadingPointId).toBeUndefined();
+  expect(requireStoredTask(runtime, urgent.id).unloadingPointId).toBeDefined();
+});
+
+it('keeps both docks in use when general cargo can move to the cold dock and long cargo needs the wide dock', async () => {
+  const { runtime } = createTestRuntime();
+  const { coldDockId, generalId, wideDockId, wideId } = await runtime.command((transaction) => {
+    const topology = createSeedWarehouseTopology({ prefix: '8f000004', tenantId: TENANT, warehouseId: WAREHOUSE });
+    expect(addSeedReceivingDock(topology)).toBe(true);
+    const wideDock = topology.receivingArea?.unloadingPoint;
+    const coldDock = topology.receivingArea?.additionalUnloadingPoints[0];
+    if (wideDock === undefined || coldDock === undefined) {
+      throw new Error('Missing warehouse docks');
+    }
+    wideDock.capabilities = [WarehouseCapability.OVERSIZE];
+    coldDock.capabilities = [WarehouseCapability.COLD];
+    transaction.put('warehouseTopologies', encodeWarehouseTopology(topology));
+    const now = transaction.worldTimeMs;
+    const general = saveArrival(transaction, runtime, WAREHOUSE, {
+      arrivedAt: now - 120_000, cargoKind: VehicleCargoKind.GENERAL, deliveryEndsAt: now + 60_000,
+    });
+    const wide = saveArrival(transaction, runtime, WAREHOUSE, {
+      arrivedAt: now - 60_000, cargoKind: VehicleCargoKind.OVERSIZE, deliveryEndsAt: now + 180_000,
+    });
+    saveDispatchTitle(transaction, general);
+    saveDispatchTitle(transaction, wide);
+    assignAvailableInboundDocks(transaction, runtime, scope);
+    return { coldDockId: coldDock.id, generalId: general.id, wideDockId: wideDock.id, wideId: wide.id };
+  });
+
+  expect(requireStoredTask(runtime, generalId).unloadingPointId).toBe(coldDockId);
+  expect(requireStoredTask(runtime, wideId).unloadingPointId).toBe(wideDockId);
+});
+
+it('keeps incompatible cargo on the yard while a later ready load uses the only compatible dock', async () => {
+  const { runtime } = createTestRuntime();
+  const { coldId, dockId, generalId } = await runtime.command((transaction) => {
+    const topology = createSeedWarehouseTopology({ prefix: '8f000004', tenantId: TENANT, warehouseId: WAREHOUSE });
+    const dock = topology.receivingArea?.unloadingPoint;
+    if (dock === undefined) {
+      throw new Error('Missing warehouse dock');
+    }
+    dock.capabilities = [WarehouseCapability.RAMP];
+    transaction.put('warehouseTopologies', encodeWarehouseTopology(topology));
+    const now = transaction.worldTimeMs;
+    const cold = saveArrival(transaction, runtime, WAREHOUSE, {
+      arrivedAt: now - 120_000, cargoKind: VehicleCargoKind.TEMPERATURE_CONTROLLED, deliveryEndsAt: now + 60_000,
+    });
+    const general = saveArrival(transaction, runtime, WAREHOUSE, {
+      arrivedAt: now - 60_000, cargoKind: VehicleCargoKind.GENERAL, deliveryEndsAt: now + 180_000,
+    });
+    saveDispatchTitle(transaction, cold);
+    saveDispatchTitle(transaction, general);
+    cold.status = ReceivingTaskStatus.UNSPECIFIED;
+    cold.version = 0;
+    saveInboundTask(transaction, runtime, cold, TENANT);
+    openInboundTask(transaction, runtime, cold.dealId);
+    return { coldId: cold.id, dockId: dock.id, generalId: general.id };
+  });
+
+  const waiting = requireStoredTask(runtime, coldId);
+  expect(waiting.yardAdmissionStatus).toBe(YardAdmissionStatus.WAITING_DOCK);
+  expect(waiting.unloadingPointId).toBeUndefined();
+  expect(requireStoredTask(runtime, generalId).unloadingPointId).toBe(dockId);
+});
+
+it('keeps the only dock available to a saved receiving task with a posted scan and no old dock id', async () => {
+  const { runtime } = createTestRuntime();
+  const { dockId, legacyId, waitingId } = await runtime.command((transaction) => {
+    const topology = createSeedWarehouseTopology({ prefix: '8f000004', tenantId: TENANT, warehouseId: WAREHOUSE });
+    const dock = topology.receivingArea?.unloadingPoint;
+    if (dock === undefined) {
+      throw new Error('Missing warehouse dock');
+    }
+    dock.capabilities = [WarehouseCapability.RAMP];
+    transaction.put('warehouseTopologies', encodeWarehouseTopology(topology));
+    const now = transaction.worldTimeMs;
+    const legacy = saveArrival(transaction, runtime, WAREHOUSE, {
+      arrivedAt: now - 120_000, cargoKind: VehicleCargoKind.TEMPERATURE_CONTROLLED, deliveryEndsAt: now + 60_000,
+    });
+    legacy.status = ReceivingTaskStatus.IN_PROGRESS;
+    legacy.receivedUnits.push(create(ReceivedHandlingUnitSchema, { expectedUnitId: legacy.expectedUnits[0]?.id }));
+    saveInboundTask(transaction, runtime, legacy, TENANT);
+    saveDispatchTitle(transaction, legacy);
+    const waiting = saveArrival(transaction, runtime, WAREHOUSE);
+    saveDispatchTitle(transaction, waiting);
+
+    expect(function checkLegacyReceipt(): void {
+      requireInboundDock(transaction, runtime.errors, legacy, TENANT, 'FinishReceivingTask');
+    }).not.toThrow();
+    assignAvailableInboundDocks(transaction, runtime, scope);
+
+    return { dockId: dock.id, legacyId: legacy.id, waitingId: waiting.id };
+  });
+
+  expect(requireStoredTask(runtime, legacyId).unloadingPointId).toBe(dockId);
+  expect(requireStoredTask(runtime, legacyId).receivedUnits).toHaveLength(1);
+  expect(requireStoredTask(runtime, waitingId).unloadingPointId).toBeUndefined();
 });

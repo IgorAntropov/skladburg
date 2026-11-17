@@ -1,6 +1,7 @@
 import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
 
 import { create } from '@bufbuild/protobuf';
+import { WarehouseCapability } from '@skladburg/contracts/organization/v1/organization';
 import { WarehouseUnloadingPointSchema } from '@skladburg/contracts/wms/v1/topology';
 
 import type { EngineSnapshotValue } from '../ports/index';
@@ -41,7 +42,9 @@ export const addSeedReceivingDock = (topology: WarehouseTopology): boolean => {
   if (area?.id !== RECEIVING_AREA_ID || area.footprint === undefined || area.additionalUnloadingPoints.length > 0) {
     return false;
   }
-  const secondDock = create(WarehouseUnloadingPointSchema, { code: 'D02', id: SECOND_DOCK_ID, position: SECOND_DOCK_POSITION });
+  const secondDock = create(WarehouseUnloadingPointSchema, {
+    capabilities: [WarehouseCapability.COLD], code: 'D02', id: SECOND_DOCK_ID, position: SECOND_DOCK_POSITION,
+  });
   if (readEffectiveWarehouseDockIds({ ...area, additionalUnloadingPoints: [secondDock] }).length < 2 || hasRackInApproach(topology)) {
     return false;
   }
@@ -58,10 +61,18 @@ export const prepareSeedReceivingDocks = (snapshot: EngineSnapshotValue): Engine
     return snapshot;
   }
   const topology = readWarehouseTopology(TABLE_DEFINITIONS.warehouseTopologies.decode(stored));
+  const area = topology.receivingArea;
   if (topology.tenantId !== tenantId || topology.warehouseId !== warehouseId || topology.revision >= 4_294_967_295
-    || !addSeedReceivingDock(topology)) {
+    || area?.id !== RECEIVING_AREA_ID) {
     return snapshot;
   }
+
+  const hasAddedDock = addSeedReceivingDock(topology);
+  const secondDock = area.additionalUnloadingPoints.find(dock => dock.id === SECOND_DOCK_ID);
+  if (secondDock === undefined || (!hasAddedDock && secondDock.capabilities.length > 0)) {
+    return snapshot;
+  }
+  secondDock.capabilities = [WarehouseCapability.COLD];
   topology.revision += 1;
 
   const errors = createDomainErrors(createRandom(snapshot.meta.traceRandomState));

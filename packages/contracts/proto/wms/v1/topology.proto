@@ -4,6 +4,7 @@ package wms.v1;
 
 import "buf/validate/validate.proto";
 import "common/v1/method_options.proto";
+import "organization/v1/organization.proto";
 
 message WarehouseFloorPoint {
   uint32 x_mm = 1;
@@ -71,6 +72,7 @@ message WarehouseUnloadingPoint {
     max_len: 32
   }];
   WarehouseFloorPoint position = 3 [(buf.validate.field).required = true];
+  repeated organization.v1.WarehouseCapability capabilities = 4;
 }
 
 message WarehouseReceivingArea {

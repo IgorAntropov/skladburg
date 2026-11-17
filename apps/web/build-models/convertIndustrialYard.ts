@@ -19,6 +19,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 import type { WorldModelRoleValue } from '../src/pages/network/scene/models/format/worldModelFormat.ts';
 import type { VertexStyleValue } from './createVertexStyleResolver.ts';
+import type { PreparedModelValue } from './prepareModel.ts';
 
 import { encodeWorldModelShade } from '../src/pages/network/scene/models/format/worldModelFormat.ts';
 import {
@@ -28,20 +29,21 @@ import {
 import { prepareModel } from './prepareModel.ts';
 import { writeWorldModel } from './writeWorldModel.ts';
 
-type VectorValue = readonly [number, number, number];
-
-interface YardMeshValue {
+export interface IndustrialMeshValue {
   indices: number[];
   normals: number[];
   positions: number[];
   styles: VertexStyleValue[];
 }
 
-interface YardPartValue {
+interface IndustrialPartValue {
+  pitch?: number;
   position: VectorValue;
   size: VectorValue;
   yaw?: number;
 }
+
+type VectorValue = readonly [number, number, number];
 
 const DOCK_STYLES = new Map<string, VertexStyleValue>([
   ['charcoal', { role: 'dark', shadeByte: encodeWorldModelShade(0.76) }],
@@ -54,13 +56,13 @@ const UNIT = new BoxGeometry();
 const STEM = new CylinderGeometry(0.5, 0.5, 1, 6);
 const CROWN = new ConeGeometry(0.5, 1, 7);
 
-const composeTransform = ({ position, size, yaw = 0 }: YardPartValue): Matrix4 => new Matrix4().compose(
+const composeTransform = ({ pitch = 0, position, size, yaw = 0 }: IndustrialPartValue): Matrix4 => new Matrix4().compose(
   new Vector3(...position),
-  new Quaternion().setFromEuler(new Euler(0, yaw, 0)),
+  new Quaternion().setFromEuler(new Euler(pitch, yaw, 0)),
   new Vector3(...size),
 );
 
-const addGeometry = (yard: YardMeshValue, geometry: BufferGeometry, matrix: Matrix4, style: VertexStyleValue): void => {
+const addGeometry = (yard: IndustrialMeshValue, geometry: BufferGeometry, matrix: Matrix4, style: VertexStyleValue): void => {
   const position = geometry.getAttribute('position');
   const normal = geometry.getAttribute('normal');
   const vertexOffset = yard.styles.length;
@@ -84,10 +86,10 @@ const addGeometry = (yard: YardMeshValue, geometry: BufferGeometry, matrix: Matr
   }
 };
 
-const addPart = (
-  yard: YardMeshValue,
+export const addIndustrialPart = (
+  yard: IndustrialMeshValue,
   geometry: BufferGeometry,
-  part: YardPartValue,
+  part: IndustrialPartValue,
   role: WorldModelRoleValue,
   shade = 1,
 ): void => {
@@ -103,9 +105,9 @@ const readAsset = async (loader: GLTFLoader, path: string): Promise<Group> => {
 };
 
 const addAsset = (
-  yard: YardMeshValue,
+  yard: IndustrialMeshValue,
   model: Group,
-  part: YardPartValue,
+  part: IndustrialPartValue,
   getStyle: (materialName: string) => undefined | VertexStyleValue,
 ): void => {
   model.updateMatrixWorld(true);
@@ -138,42 +140,46 @@ const addAsset = (
   });
 };
 
-const addYardSurface = (yard: YardMeshValue): void => {
-  addPart(yard, UNIT, { position: [0, 0.004, 0], size: [INDUSTRIAL_YARD_WIDTH, 0.008, INDUSTRIAL_YARD_DEPTH] }, 'light', 0.91);
-  addPart(yard, UNIT, { position: [0, 0.008, 0], size: [1.06, 0.006, 1.43] }, 'dark', 1);
-  addPart(yard, UNIT, { position: [0.49, 0.012, 0], size: [0.14, 0.004, 1.43] }, 'mid', 0.95);
-  addPart(yard, UNIT, { position: [-0.415, 0.0125, -0.42], size: [0.21, 0.004, 0.58] }, 'green', 0.84);
+const addYardSurface = (yard: IndustrialMeshValue): void => {
+  addIndustrialPart(yard, UNIT, { position: [0, 0.004, 0], size: [INDUSTRIAL_YARD_WIDTH, 0.008, INDUSTRIAL_YARD_DEPTH] }, 'light', 0.91);
+  addIndustrialPart(yard, UNIT, { position: [0, 0.008, 0], size: [1.06, 0.006, 1.43] }, 'dark', 1);
+  addIndustrialPart(yard, UNIT, { position: [0.49, 0.012, 0], size: [0.14, 0.004, 1.43] }, 'mid', 0.95);
+  addIndustrialPart(yard, UNIT, { position: [-0.415, 0.0125, -0.42], size: [0.21, 0.004, 0.58] }, 'green', 0.84);
 
   for (const z of [-0.41, -0.145, 0.145, 0.41]) {
-    addPart(yard, UNIT, { position: [0.17, 0.0135, z], size: [0.53, 0.004, 0.017] }, 'light');
+    addIndustrialPart(yard, UNIT, { position: [0.17, 0.0135, z], size: [0.53, 0.004, 0.017] }, 'light');
   }
 
   for (const z of [-0.277, 0.277]) {
-    addPart(yard, UNIT, { position: [0.43, 0.016, z], size: [0.02, 0.003, 0.21] }, 'yellow');
+    addIndustrialPart(yard, UNIT, { position: [0.43, 0.016, z], size: [0.02, 0.003, 0.21] }, 'yellow');
   }
 
-  addPart(yard, UNIT, { position: [-0.29, 0.0135, 0.08], size: [0.022, 0.004, 0.31] }, 'light');
-  addPart(yard, UNIT, { position: [-0.319, 0.0135, -0.055], size: [0.024, 0.004, 0.095], yaw: -Math.PI / 4 }, 'light');
-  addPart(yard, UNIT, { position: [-0.261, 0.0135, -0.055], size: [0.024, 0.004, 0.095], yaw: Math.PI / 4 }, 'light');
+  addIndustrialPart(yard, UNIT, { position: [-0.29, 0.0135, 0.08], size: [0.022, 0.004, 0.31] }, 'light');
+  addIndustrialPart(yard, UNIT, { position: [-0.319, 0.0135, -0.055], size: [0.024, 0.004, 0.095], yaw: -Math.PI / 4 }, 'light');
+  addIndustrialPart(yard, UNIT, { position: [-0.261, 0.0135, -0.055], size: [0.024, 0.004, 0.095], yaw: Math.PI / 4 }, 'light');
 };
 
-const addConifers = (yard: YardMeshValue): void => {
+const addConifers = (yard: IndustrialMeshValue): void => {
   const x = -0.415;
 
   for (const [z, height] of [[-0.62, 0.27], [-0.42, 0.35], [-0.22, 0.23]] as const) {
-    addPart(yard, STEM, { position: [x, 0.079, z], size: [0.033, 0.13, 0.033] }, 'terracotta', 0.74);
+    addIndustrialPart(yard, STEM, { position: [x, 0.079, z], size: [0.033, 0.13, 0.033] }, 'terracotta', 0.74);
     const lowerWidth = height * 0.64;
     const upperWidth = height * 0.48;
 
-    addPart(yard, CROWN, { position: [x, 0.11 + height * 0.22, z], size: [lowerWidth, height * 0.67, lowerWidth] }, 'green', 0.76);
-    addPart(yard, CROWN, { position: [x, 0.11 + height * 0.53, z], size: [upperWidth, height * 0.56, upperWidth] }, 'green', 0.92);
+    addIndustrialPart(yard, CROWN, {
+      position: [x, 0.11 + height * 0.22, z], size: [lowerWidth, height * 0.67, lowerWidth],
+    }, 'green', 0.76);
+    addIndustrialPart(yard, CROWN, {
+      position: [x, 0.11 + height * 0.53, z], size: [upperWidth, height * 0.56, upperWidth],
+    }, 'green', 0.92);
   }
 };
 
 export const convertIndustrialYard = async (dockPath: string, containerPath: string): Promise<Uint8Array> => {
   const loader = new GLTFLoader();
   const [dock, container] = await Promise.all([readAsset(loader, dockPath), readAsset(loader, containerPath)]);
-  const yard: YardMeshValue = { indices: [], normals: [], positions: [], styles: [] };
+  const yard: IndustrialMeshValue = { indices: [], normals: [], positions: [], styles: [] };
 
   addYardSurface(yard);
   addConifers(yard);
@@ -191,21 +197,23 @@ export const convertIndustrialYard = async (dockPath: string, containerPath: str
     addAsset(yard, container, { position: [-0.38, base, z], size: [0.143, 0.157, 0.42] }, getStyle);
   }
 
-  const prepared = prepareModel({
-    indices: Uint32Array.from(yard.indices),
-    normals: Float32Array.from(yard.normals),
-    positions: Float32Array.from(yard.positions),
-    uvs: new Float32Array(yard.styles.length * 2),
-    vertexCount: yard.styles.length,
+  return writeWorldModel(prepareIndustrialModel(yard));
+};
+
+export const prepareIndustrialModel = (model: IndustrialMeshValue): PreparedModelValue => (
+  prepareModel({
+    indices: Uint32Array.from(model.indices),
+    normals: Float32Array.from(model.normals),
+    positions: Float32Array.from(model.positions),
+    uvs: new Float32Array(model.styles.length * 2),
+    vertexCount: model.styles.length,
   }, (_u, _v, vertexId) => {
-    const style = yard.styles[vertexId];
+    const style = model.styles[vertexId];
 
     if (style === undefined) {
-      throw new Error('Industrial yard: missing vertex style');
+      throw new Error('Industrial model: missing vertex style');
     }
 
     return style;
-  });
-
-  return writeWorldModel(prepared);
-};
+  })
+);

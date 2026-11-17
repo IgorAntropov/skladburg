@@ -17,12 +17,14 @@ import type { ModelReportValue } from './convertModel.ts';
 
 import {
   buildWorldModelPath,
+  COMPANY_WAREHOUSE_MODEL_ID,
   INDUSTRIAL_YARD_MODEL,
   WORLD_AUXILIARY_MODELS,
   WORLD_MODEL_CATALOG,
 } from '../src/pages/network/scene/models/worldModelCatalog.ts';
 import { convertIndustrialYard } from './convertIndustrialYard.ts';
 import { convertGlbToWorldModel } from './convertModel.ts';
+import { convertNetworkWarehouse } from './convertNetworkWarehouse.ts';
 import { decodePng } from './decodePng.ts';
 
 const appRoot = join(import.meta.dirname, '..');
@@ -94,9 +96,11 @@ const convert = async (): Promise<void> => {
     copyFileSync(join(kitDirectory, LICENSE_FILE), join(OUTPUT_DIRECTORY, kit, LICENSE_FILE));
 
     for (const entry of WORLD_MODEL_CATALOG.filter(item => item.kit === kit)) {
-      const glb = readFileSync(join(kitDirectory, GLB_DIRECTORY, `${entry.sourceName}.glb`));
-      const { bytes, report } = convertGlbToWorldModel(glb, colormap);
       const outputPath = join(appRoot, 'public', buildWorldModelPath(entry));
+
+      const { bytes, report } = entry.id === COMPANY_WAREHOUSE_MODEL_ID
+        ? convertNetworkWarehouse()
+        : convertGlbToWorldModel(readFileSync(join(kitDirectory, GLB_DIRECTORY, `${entry.sourceName}.glb`)), colormap);
 
       writeFileSync(outputPath, bytes);
       expectedFiles.add(outputPath);

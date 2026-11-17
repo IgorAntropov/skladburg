@@ -82,11 +82,13 @@ const thinParkTrees = (mesh: GlbMeshValue): GlbMeshValue => {
 
   for (let corner = 0; corner < mesh.indices.length; corner += 3) {
     const triangle = mesh.indices.slice(corner, corner + 3);
-    const isOnGrass = triangle.every(vertex => (mesh.positions[vertex * 3 + 1] ?? 0) < 0.075);
-    const centerX = triangle.reduce((sum, vertex) => sum + (mesh.positions[vertex * 3] ?? 0), 0);
-    const centerZ = triangle.reduce((sum, vertex) => sum + (mesh.positions[vertex * 3 + 2] ?? 0), 0);
+    const isGround = triangle.every(vertex => (mesh.positions[vertex * 3 + 1] ?? 0) < 0.051);
+    const isNorthEastTree = triangle.every(vertex => (mesh.positions[vertex * 3] ?? 0) > 0.04
+      && (mesh.positions[vertex * 3 + 2] ?? 0) < 0.055);
+    const isSouthWestTree = triangle.every(vertex => (mesh.positions[vertex * 3] ?? 0) < 0.02
+      && (mesh.positions[vertex * 3 + 2] ?? 0) > 0.08);
 
-    if (isOnGrass || centerX * centerZ > 0) {
+    if (isGround || isNorthEastTree || isSouthWestTree) {
       indices.push(...triangle);
     }
   }

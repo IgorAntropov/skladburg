@@ -49,18 +49,13 @@ const TALL_HOUSE_WALLS: WorldModelWallWindowsValue = { faces: FLUSH_WALL_FACES, 
 
 const WIDE_HOUSE_WALLS: WorldModelWallWindowsValue = { faces: FLUSH_WALL_FACES, heightShare: 0.9 };
 
-const WAREHOUSE_WALLS: WorldModelWallWindowsValue = {
-  faces: [
-    { doorClearance: 0, face: 'positiveX', inset: 0.058 },
-    { doorClearance: 0.125, face: 'positiveZ', inset: 0.05 },
-    { doorClearance: 0.125, face: 'negativeZ', inset: 0.064 },
-  ],
-  heightShare: 0.43,
-};
-
 const WAREHOUSE_FAR_WALLS: WorldModelWallWindowsValue = {
-  faces: WAREHOUSE_WALLS.faces.map(({ doorClearance, face }): WorldModelWallFaceValue => ({ doorClearance, face, inset: 0 })),
-  heightShare: WAREHOUSE_WALLS.heightShare,
+  faces: [
+    { doorClearance: 0.09, face: 'positiveX', inset: 0 },
+    { doorClearance: 0, face: 'positiveZ', inset: 0 },
+    { doorClearance: 0, face: 'negativeZ', inset: 0 },
+  ],
+  heightShare: 0.68,
 };
 
 const createGlassEntry = (
@@ -115,10 +110,10 @@ export const WORLD_MODEL_CATALOG: readonly WorldModelEntryValue[] = [
   createGlassEntry('commercial', 'building-i', 'office', [1.24, 1.3], COMMERCIAL_I_FAR_WALLS),
   createGlassEntry('commercial', 'building-k', 'office', [2.08, 0.94], COMMERCIAL_K_FAR_WALLS),
   createGlassEntry('commercial', 'building-l', 'office', [1.37, 1.4], COMMERCIAL_L_FAR_WALLS),
-  createWalledEntry('industrial', 'building-k', 'warehouse', 'full', [1.3, 0.91], WAREHOUSE_WALLS, WAREHOUSE_FAR_WALLS),
+  createGlassEntry('industrial', 'distribution-hall', 'warehouse', [1.3, 0.91], WAREHOUSE_FAR_WALLS),
 ];
 
-export const COMPANY_WAREHOUSE_MODEL_ID = 'industrial/building-k';
+export const COMPANY_WAREHOUSE_MODEL_ID = 'industrial/distribution-hall';
 
 export const INDUSTRIAL_YARD_MODEL = {
   id: 'industrial/loading-yard',

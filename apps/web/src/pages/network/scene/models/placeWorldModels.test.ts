@@ -27,7 +27,7 @@ const findEntry = (id: string): WorldModelEntryValue => {
   return entry;
 };
 
-const WAREHOUSE_ENTRY = findEntry('industrial/building-k');
+const WAREHOUSE_ENTRY = findEntry('industrial/distribution-hall');
 const HOUSE_ENTRY = findEntry('commercial/building-a');
 const SECOND_HOUSE_ENTRY = findEntry('commercial/building-b');
 

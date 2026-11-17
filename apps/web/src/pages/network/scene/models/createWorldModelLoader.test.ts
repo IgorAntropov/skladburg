@@ -21,7 +21,7 @@ describe('createWorldModelLoader', () => {
 
     await load([COMPANY_WAREHOUSE_MODEL_ID]);
 
-    expect(fetchBuffer).toHaveBeenCalledExactlyOnceWith(`${import.meta.env.BASE_URL}models/industrial/building-k.bin`);
+    expect(fetchBuffer).toHaveBeenCalledExactlyOnceWith(`${import.meta.env.BASE_URL}models/industrial/distribution-hall.bin`);
   });
 
   it('loads the route truck on demand and shares the parsed asset across requests', async () => {

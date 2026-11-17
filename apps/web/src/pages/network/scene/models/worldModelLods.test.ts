@@ -30,7 +30,7 @@ describe('listWorldModelsForLevel', () => {
   it('falls back to the full models for a group without light ones', () => {
     for (const level of ['high', 'medium', 'low'] as const) {
       expect(listWorldModelsForLevel('office', level).map(entry => entry.lod)).toEqual(['full', 'full', 'full', 'full', 'full']);
-      expect(listWorldModelsForLevel('warehouse', level).map(entry => entry.id)).toEqual(['industrial/building-k']);
+      expect(listWorldModelsForLevel('warehouse', level).map(entry => entry.id)).toEqual(['industrial/distribution-hall']);
     }
   });
 

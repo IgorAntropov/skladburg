@@ -155,12 +155,19 @@ const addDock = (floor: BoxLayersValue, { x, z }: WarehouseDockPointValue): void
   }
 };
 
+const addApron = (floor: BoxLayersValue, x: number, z: number, width: number, depth: number): void => {
+  if (width > 0 && depth > 0) {
+    addSlab(floor, x + width / 2, z + depth / 2, width, depth);
+    addWarehouseBox(floor, 'plaza', [x + width / 2, -0.012, z + depth / 2], [width, 0.024, depth]);
+  }
+};
+
 const addParking = (
   floor: BoxLayersValue,
   { x, z }: WarehouseDockPointValue,
   docks: readonly WarehouseDockPointValue[],
   yard: WarehouseYardRoadsValue,
-  slabStartZ: number,
+  slab: WarehouseFloorValue,
 ): void => {
   const spacing = WAREHOUSE_YARD_PARKING_SPACING;
   const laneStartZ = z + yard.junctionZ - TRUCK_LENGTH;
@@ -173,24 +180,26 @@ const addParking = (
   const centerX = (entranceX + right) / 2;
   const pavementWidth = right - entranceX + TRANSFER_MARGIN * 2;
   const apronStartZ = laneStartZ - laneLength - spacing;
-  const apronDepth = slabStartZ - apronStartZ;
-
-  if (apronDepth > 0) {
-    const apronWidth = pavementWidth + 0.6;
-    const apronCenterZ = apronStartZ + apronDepth / 2;
-
-    addSlab(floor, centerX, apronCenterZ, apronWidth, apronDepth);
-    addWarehouseBox(floor, 'plaza', [centerX, -0.012, apronCenterZ], [apronWidth, 0.024, apronDepth]);
-  }
-
+  const apronWidth = pavementWidth + 0.6;
+  const apronLeft = centerX - apronWidth / 2;
+  const apronRight = centerX + apronWidth / 2;
   const transferEndZ = z - WAREHOUSE_DOCK_LANE_LENGTH;
-  const entranceStartZ = apronStartZ;
-  addWarehouseBox(floor, 'road', [x, 0.01, (apronStartZ + laneStartZ) / 2],
-    [DOCK_LANE_WIDTH, 0.02, laneLength + spacing]);
-  addWarehouseBox(floor, 'road', [entranceX, 0.01, (entranceStartZ + laneStartZ) / 2],
-    [DOCK_LANE_WIDTH, 0.02, laneStartZ - entranceStartZ]);
+  const approachDepth = transferEndZ - slab.z;
+  addApron(floor, apronLeft, apronStartZ, apronWidth, slab.z - apronStartZ);
+  addApron(floor, apronLeft, slab.z, slab.x - apronLeft, approachDepth);
+  addApron(floor, slab.x + slab.width, slab.z, apronRight - slab.x - slab.width, approachDepth);
+  for (const laneX of [x, entranceX]) {
+    addWarehouseBox(floor, 'road', [laneX, 0.01, (apronStartZ + laneStartZ) / 2], [DOCK_LANE_WIDTH, 0.02, laneLength + spacing]);
+  }
   addWarehouseBox(floor, 'road', [centerX, 0.01, (laneStartZ + transferEndZ) / 2],
     [pavementWidth, 0.02, transferEndZ - laneStartZ]);
+  const curbLength = transferEndZ - apronStartZ - 0.2;
+  for (const curbX of [apronLeft + 0.11, apronRight - 0.11]) {
+    addWarehouseBox(floor, 'warehouseRoof', [curbX, 0.041, apronStartZ + 0.1 + curbLength / 2], [0.13, 0.082, curbLength]);
+  }
+  for (let markZ = apronStartZ + 0.9; markZ < laneStartZ - 0.6; markZ += 2.4) {
+    addWarehouseBox(floor, 'sand', [entranceX, 0.024, markZ], [0.051, 0.008, 0.76]);
+  }
   const edgeInset = DOCK_LANE_WIDTH / 2 - 0.09;
   for (const sideX of [x - edgeInset, x + edgeInset]) {
     addWarehouseBox(floor, 'sand', [sideX, 0.027, laneStartZ - laneLength / 2], [0.064, 0.014, laneLength]);
@@ -235,7 +244,7 @@ export const buildWarehouseFloor = (
     addDock(floor, point);
   }
   if (dock !== undefined && yard !== undefined) {
-    addParking(floor, dock, docks, yard, z);
+    addParking(floor, dock, docks, yard, { depth, width, x, z });
   }
 
   if (receiving !== undefined) {

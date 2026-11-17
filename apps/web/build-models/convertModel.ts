@@ -1,4 +1,5 @@
 import type { PngImageValue } from './decodePng.ts';
+import type { PreparedModelValue } from './prepareModel.ts';
 
 import {
   readWorldModel,
@@ -39,8 +40,7 @@ const measureSize = (positions: Float32Array): [number, number, number] => {
   return [(max[0] ?? 0) - (min[0] ?? 0), (max[1] ?? 0) - (min[1] ?? 0), (max[2] ?? 0) - (min[2] ?? 0)];
 };
 
-export const convertGlbToWorldModel = (glb: Uint8Array, colormap: PngImageValue): ConvertedModelValue => {
-  const prepared = prepareModel(parseGlb(glb), createVertexStyleResolver(colormap));
+export const encodeWorldModelWithReport = (prepared: PreparedModelValue): ConvertedModelValue => {
   const bytes = writeWorldModel(prepared);
   const written = readWorldModel(bytes.buffer);
   const roleHistogram = Object.fromEntries(WORLD_MODEL_ROLES.map(role => [role, 0]));
@@ -73,3 +73,7 @@ export const convertGlbToWorldModel = (glb: Uint8Array, colormap: PngImageValue)
     },
   };
 };
+
+export const convertGlbToWorldModel = (glb: Uint8Array, colormap: PngImageValue): ConvertedModelValue => (
+  encodeWorldModelWithReport(prepareModel(parseGlb(glb), createVertexStyleResolver(colormap)))
+);

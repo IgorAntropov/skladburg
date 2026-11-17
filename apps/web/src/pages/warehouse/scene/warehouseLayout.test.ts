@@ -132,6 +132,15 @@ describe('warehouse scene layout', () => {
       expect(x + width / 2).toBeGreaterThan(first.x + halfTruckWidth);
       expect(z + length / 2).toBeCloseTo(first.z - WAREHOUSE_DOCK_LANE_LENGTH);
 
+      const slabs = roads.filter(({ position }) => position[1] === -0.17);
+      for (const edgeX of [x - width / 2, x + width / 2]) {
+        for (const edgeZ of [z - length / 2 + 0.01, z + length / 2 - 0.01]) {
+          expect(slabs.some(({ position: [slabX, , slabZ], size: [slabWidth, , slabDepth] }) => (
+            Math.abs(edgeX - slabX) <= slabWidth / 2 && Math.abs(edgeZ - slabZ) <= slabDepth / 2
+          ))).toBe(true);
+        }
+      }
+
       const truck = getTruckBounds();
       const truckCenterZ = first.z + WAREHOUSE_TRUCK_CENTER_Z;
       const marks = layout.floor.get('sand') ?? [];

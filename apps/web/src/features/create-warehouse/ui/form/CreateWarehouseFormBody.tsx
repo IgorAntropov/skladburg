@@ -22,6 +22,7 @@ import {
 import type { WarehousePlacesValue } from '../../model/warehousePlacesTypes';
 
 import { useCreateWarehouseForm } from '../../api/form/useCreateWarehouseForm';
+import { WarehouseAddressField } from './WarehouseAddressField';
 
 const FIRST_FIELD_NAME = 'name';
 
@@ -42,6 +43,8 @@ export const CreateWarehouseFormBody = ({ onCancel, onCreated, places }: CreateW
   const formRef = useRef<HTMLFormElement>(null);
 
   const isCancelBlocked = form.command.isPending;
+  const cityId = form.watchField('cityId');
+  const cityName = places.cities.find(city => city.id === cityId)?.name;
 
   const handleCancelClick = (): void => {
     console.log('> CreateWarehouseFormBody -> handleCancelClick:', { isCancelBlocked });
@@ -84,7 +87,7 @@ export const CreateWarehouseFormBody = ({ onCancel, onCreated, places }: CreateW
         <option value="" />
         {places.cities.map(city => <option key={city.id} value={city.id}>{city.name}</option>)}
       </SelectField>
-      <TextField label={t('warehouse.create.address')} {...form.getFieldProps('address')} />
+      <WarehouseAddressField cityName={cityName} form={form} />
       <div className={ACTIONS_CLASS_NAME}>
         <ActionButton
           access={access}

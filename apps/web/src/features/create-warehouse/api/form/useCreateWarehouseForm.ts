@@ -19,6 +19,8 @@ export interface UseCreateWarehouseFormOptions {
   places: WarehousePlacesValue;
 }
 
+const WATCHED_FIELDS = ['address', 'cityId'] as const;
+
 export const useCreateWarehouseForm = ({
   onCreated,
   places,
@@ -48,5 +50,6 @@ export const useCreateWarehouseForm = ({
     method: OrganizationService.method.createWarehouse,
     onSuccess: onCreated,
     rules: CreateWarehouseRequestFormRules,
+    watchedFields: WATCHED_FIELDS,
   });
 };

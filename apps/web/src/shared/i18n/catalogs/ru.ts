@@ -355,6 +355,7 @@ export const catalog = {
   'verification.levelChecked.3': 'Счёт, руководитель и бенефициарные владельцы проверены',
   'verification.levelChecked.4': 'Закрытые сделки есть, открытых споров нет',
   'warehouse.create.address': 'Адрес',
+  'warehouse.create.address_suggestions': 'Вымышленные адреса',
   'warehouse.create.cancel': 'Отмена',
   'warehouse.create.cities_empty': 'Городов пока нет',
   'warehouse.create.cities_loading': 'Загружаем города…',

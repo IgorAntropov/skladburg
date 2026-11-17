@@ -17,6 +17,11 @@ const MIN_VISIBLE_REASON_WIDTH_PX = 40;
 
 export interface CreateWarehouseRobotValue {
   cancel: () => Promise<void>;
+  chooseAddressWithKeyboard: (index: number) => Promise<void>;
+  chooseAddressWithTap: (index: number) => Promise<void>;
+  dismissAddressOptions: () => Promise<void>;
+  expectAddressOptions: (addresses: string[]) => Promise<void>;
+  expectAddressValue: (address: string) => Promise<void>;
   expectAnnouncement: () => Promise<void>;
   expectButtonExpanded: () => Promise<void>;
   expectButtonFocused: () => Promise<void>;
@@ -28,18 +33,19 @@ export interface CreateWarehouseRobotValue {
   expectListsHidden: () => Promise<void>;
   expectListsShown: () => Promise<void>;
   expectNameFocused: () => Promise<void>;
+  expectNewWarehouseAddress: (address: string) => Promise<void>;
   expectNewWarehouseCount: (count: number) => Promise<void>;
   expectNoViolationsOfAccessibility: () => Promise<void>;
   expectPanelClosed: () => Promise<void>;
   expectPanelOpen: () => Promise<void>;
   expectWarehouseCount: (count: number) => Promise<void>;
-  fillAddress: () => Promise<void>;
+  fillAddress: (address?: string) => Promise<void>;
   fillName: () => Promise<void>;
   hoverButton: () => Promise<void>;
   openForm: () => Promise<void>;
   pressEnterInName: () => Promise<void>;
   pressOpenButton: () => Promise<void>;
-  selectCity: () => Promise<void>;
+  selectCity: (cityName?: string) => Promise<void>;
   submit: () => Promise<void>;
 }
 
@@ -53,6 +59,7 @@ export const createCreateWarehouseRobot = (page: Page): CreateWarehouseRobotValu
   const nameField = panel.locator('[name="name"]');
   const cityField = panel.locator('[name="cityId"]');
   const addressField = panel.locator('[name="address"]');
+  const addressOptions = panel.getByTestId('create-warehouse-address-option');
   const announcement = page.locator('[aria-live="polite"]:not([data-testid="assistant-announcer"])');
 
   const getDescribedByIds = async (locator: Locator): Promise<string[]> => {
@@ -72,6 +79,29 @@ export const createCreateWarehouseRobot = (page: Page): CreateWarehouseRobotValu
   return {
     async cancel(): Promise<void> {
       await cancelButton.click();
+    },
+    async chooseAddressWithKeyboard(index: number): Promise<void> {
+      await addressField.focus();
+
+      for (let position = 0; position <= index; position++) {
+        await page.keyboard.press('Tab');
+      }
+
+      await expect(addressOptions.nth(index)).toBeFocused();
+      await page.keyboard.press('Enter');
+      await expect(addressField).toBeFocused();
+    },
+    async chooseAddressWithTap(index: number): Promise<void> {
+      await addressOptions.nth(index).tap();
+    },
+    async dismissAddressOptions(): Promise<void> {
+      await addressField.press('Escape');
+    },
+    async expectAddressOptions(addresses: string[]): Promise<void> {
+      await expect(addressOptions).toHaveText(addresses);
+    },
+    async expectAddressValue(address: string): Promise<void> {
+      await expect(addressField).toHaveValue(address);
     },
     async expectAnnouncement(): Promise<void> {
       await expect(announcement).toContainText(NEW_WAREHOUSE.name);
@@ -120,6 +150,9 @@ export const createCreateWarehouseRobot = (page: Page): CreateWarehouseRobotValu
     async expectNameFocused(): Promise<void> {
       await expect(nameField).toBeFocused();
     },
+    async expectNewWarehouseAddress(address: string): Promise<void> {
+      await expect(newWarehouseItems).toContainText(address);
+    },
     async expectNewWarehouseCount(count: number): Promise<void> {
       await expect(newWarehouseItems).toHaveCount(count);
     },
@@ -137,8 +170,8 @@ export const createCreateWarehouseRobot = (page: Page): CreateWarehouseRobotValu
     async expectWarehouseCount(count: number): Promise<void> {
       await expect(warehouseItems).toHaveCount(count);
     },
-    async fillAddress(): Promise<void> {
-      await addressField.fill(NEW_WAREHOUSE.address);
+    async fillAddress(address: string = NEW_WAREHOUSE.address): Promise<void> {
+      await addressField.fill(address);
     },
     async fillName(): Promise<void> {
       await nameField.fill(NEW_WAREHOUSE.name);
@@ -157,8 +190,8 @@ export const createCreateWarehouseRobot = (page: Page): CreateWarehouseRobotValu
     async pressOpenButton(): Promise<void> {
       await openButton.click({ force: true });
     },
-    async selectCity(): Promise<void> {
-      await cityField.selectOption({ label: NEW_WAREHOUSE.cityName });
+    async selectCity(cityName: string = NEW_WAREHOUSE.cityName): Promise<void> {
+      await cityField.selectOption({ label: cityName });
     },
     async submit(): Promise<void> {
       await submitButton.click();

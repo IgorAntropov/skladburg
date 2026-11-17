@@ -42,6 +42,7 @@ import { listSelectedIds } from './geometry/selectionFrame';
 import { useNetworkCameraFocus } from './interaction/useNetworkCameraFocus';
 import { useNetworkPointerPicking } from './interaction/useNetworkPointerPicking';
 import { NetworkLandscape } from './landscape/NetworkLandscape';
+import { shapeNetworkTerrain } from './landscape/shapeNetworkTerrain';
 import { NetworkBeveledBuildings } from './layers/NetworkBeveledBuildings';
 import { NetworkBuildings } from './layers/NetworkBuildings';
 import { NetworkCityLabels } from './layers/NetworkCityLabels';
@@ -139,7 +140,7 @@ export const prepare = async (data: NetworkMapModelValue): Promise<void> => {
   const yard = placeIndustrialYard(layout.buildings, layout.cities);
 
   await Promise.all([
-    loadWorldTerrain(createTerrainParams(layout)),
+    loadWorldTerrain(createTerrainParams(layout)).then(shapeNetworkTerrain),
     loadCatalogModels(yard !== undefined),
     loadSiteBannerFonts(),
     loadSiteLogos(data),
@@ -154,7 +155,8 @@ const NetworkWorldScene = ({
   level,
 }: SceneContentProps<NetworkMapModelValue, NetworkSceneInteractionValue | undefined>): ReactElement => {
   const layout = buildNetworkSceneLayout(data);
-  const terrain = loadWorldTerrain.peek(createTerrainParams(layout));
+  const sourceTerrain = loadWorldTerrain.peek(createTerrainParams(layout));
+  const terrain = sourceTerrain === undefined ? undefined : shapeNetworkTerrain(sourceTerrain);
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const models = useLoadedWorldModels();
   const materials = useWorldModelMaterials();

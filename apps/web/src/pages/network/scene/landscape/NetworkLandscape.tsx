@@ -29,7 +29,9 @@ import type { WorldModelDataValue } from '../models/format/worldModelFormat';
 import { InstancedLayer } from '../layers/InstancedLayer';
 import { createWorldModelGeometry } from '../models/createWorldModelGeometry';
 import { createLandscapeGeometries } from './createLandscapeGeometries';
+import { NetworkFields } from './NetworkFields';
 import { NetworkWater } from './NetworkWater';
+import { selectNetworkLand } from './selectNetworkLand';
 
 interface LandscapeInstancesProps {
   count: number;
@@ -91,12 +93,13 @@ export const NetworkLandscape = ({ level, terrain, tree, treeMaterial }: Network
     return geometry.scale(FOREST_TREE_WIDTH_SCALE, FOREST_TREE_HEIGHT_SCALE, FOREST_TREE_WIDTH_SCALE);
   }, [tree]);
   const water = terrain.groundGroups.find(({ key }) => key === 'water');
+  const hasFields = terrain.groundGroups.some(({ key }) => key === 'field' || key === 'fieldAlt');
+  const land = useMemo(() => selectNetworkLand(terrain), [terrain]);
   const defaultTerrain = useMemo((): WorldTerrainValue => ({
     ...terrain,
+    ...land,
     decor: terrain.decor.filter(({ kind }) => kind === 'deciduous' && treeGeometry === undefined),
-    groundGroups: terrain.groundGroups.filter(({ key }) => key !== 'water'),
-    groundIndex: terrain.groundIndex.subarray(0, water?.start ?? terrain.groundIndex.length),
-  }), [terrain, treeGeometry, water]);
+  }), [land, terrain, treeGeometry]);
   const { decor } = terrain;
   const trees = decor.find(({ kind }) => kind === 'deciduous');
   const spruces = decor.find(({ kind }) => kind === 'conifer');
@@ -128,6 +131,7 @@ export const NetworkLandscape = ({ level, terrain, tree, treeMaterial }: Network
   return (
     <>
       <WorldTerrain level={level} terrain={defaultTerrain} />
+      {hasFields && <NetworkFields terrain={terrain} />}
       {water !== undefined && <NetworkWater count={water.count} firstIndex={water.start} terrain={terrain} />}
       {trees !== undefined && treeGeometry !== undefined && (
         <InstancedLayer

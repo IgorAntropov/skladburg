@@ -70,4 +70,15 @@ describe('buildRoadStrips', () => {
     expect(buildRoadStrips([{ from: { x: 3, z: 3 }, to: { x: 3, z: 3 } }], 2, 0.04).indices).toHaveLength(0);
     expect(buildRoadStrips([], 2, 0.04).positions).toHaveLength(0);
   });
+
+  it('covers the junction and slopes the ramp between its two surfaces', () => {
+    const { normals, positions } = buildRoadStrips([{ ...ROAD, endHeight: 0.04 }], 0.84, 0.1, 0.5);
+
+    expect(positions[0]).toBeCloseTo(-0.5);
+    expect(positions[1]).toBeCloseTo(0.1);
+    expect(positions[3]).toBeCloseTo(10.5);
+    expect(positions[4]).toBeCloseTo(0.04);
+    expect(normals[0]).toBeGreaterThan(0);
+    expect(Math.hypot(...normals.slice(0, 3))).toBeCloseTo(1);
+  });
 });

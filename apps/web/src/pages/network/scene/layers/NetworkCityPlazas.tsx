@@ -19,6 +19,7 @@ import {
 } from '../geometry/composeInstanceMatrix';
 import { createPlazaGeometry } from '../geometry/createPlazaGeometry';
 import { PLAZA_HEIGHT_METERS } from '../geometry/networkSceneMetrics';
+import { CITY_LOT_WIDTH_METERS } from '../layout/buildCityStreets';
 import { MINI_CITY_SLOT_PITCH_METERS } from '../layout/layoutConstants';
 import { getMiniCitySlots } from '../layout/miniCitySlots';
 import { createWorldModelGeometry } from '../models/createWorldModelGeometry';
@@ -71,7 +72,7 @@ const buildCityBlocks = (
     for (let index = 0; index < positions.length; index += 2) {
       writeInstanceMatrix(matrices, index / 2, {
         rotationY: (index % 8) * Math.PI / 4,
-        scale: [MINI_CITY_SLOT_PITCH_METERS, height, MINI_CITY_SLOT_PITCH_METERS],
+        scale: [CITY_LOT_WIDTH_METERS, height, CITY_LOT_WIDTH_METERS],
         x: positions[index] ?? 0,
         y: 0,
         z: positions[index + 1] ?? 0,

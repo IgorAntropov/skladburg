@@ -3,16 +3,19 @@ import {
   BufferGeometry,
 } from 'three';
 
-import type { NetworkSceneRoadValue } from '../layout';
-
 import { ROAD_WIDTH_METERS } from '../layout';
 import { buildRoadStrips } from './buildRoadStrips';
 import { ROAD_HEIGHT_METERS } from './networkSceneMetrics';
 
 const VECTOR_ITEM_SIZE = 3;
 
-export const createRoadGeometry = (roads: readonly NetworkSceneRoadValue[]): BufferGeometry => {
-  const { indices, normals, positions } = buildRoadStrips(roads, ROAD_WIDTH_METERS, ROAD_HEIGHT_METERS);
+export const createRoadGeometry = (
+  roads: Parameters<typeof buildRoadStrips>[0],
+  width = ROAD_WIDTH_METERS,
+  height = ROAD_HEIGHT_METERS,
+  endExtension = 0,
+): BufferGeometry => {
+  const { indices, normals, positions } = buildRoadStrips(roads, width, height, endExtension);
   const geometry = new BufferGeometry();
 
   geometry.setAttribute('position', new BufferAttribute(positions, VECTOR_ITEM_SIZE));

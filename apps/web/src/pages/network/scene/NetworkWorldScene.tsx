@@ -56,6 +56,7 @@ import { NetworkStreetLamps } from './layers/NetworkStreetLamps';
 import { NetworkWindows } from './layers/NetworkWindows';
 import { useGlowProgramWarmup } from './layers/useGlowProgramWarmup';
 import { buildNetworkSceneLayout } from './layout';
+import { buildCityStreets } from './layout/buildCityStreets';
 import { createModelWindowSources } from './mix/createModelWindowSources';
 import { partitionNetworkBuildings } from './mix/partitionNetworkBuildings';
 import { loadWorldModels } from './models/loadWorldModels';
@@ -157,6 +158,8 @@ const NetworkWorldScene = ({
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const models = useLoadedWorldModels();
   const materials = useWorldModelMaterials();
+  const pavement = models.get(NETWORK_PAVEMENT_MODEL.id);
+  const cityStreets = useMemo(() => pavement === undefined ? undefined : buildCityStreets(layout), [layout, pavement]);
   const yard = useMemo(() => placeIndustrialYard(layout.buildings, layout.cities), [layout.buildings, layout.cities]);
   const tierByCityId = useMemo(
     (): ReadonlyMap<string, NetworkCityTierValue> => new Map(layout.cities.map(city => [city.id, city.tier])),
@@ -203,6 +206,7 @@ const NetworkWorldScene = ({
     <>
       <NetworkLandscape level={level} terrain={terrain} tree={models.get(NETWORK_TREE_MODEL.id)} treeMaterial={materials.scenery} />
       <NetworkRoads
+        cityStreets={cityStreets}
         hasShadowReceive={hasShadows}
         model={models.get(NETWORK_ROAD_MODEL.id)}
         modelMaterial={materials.scenery}
@@ -221,7 +225,7 @@ const NetworkWorldScene = ({
         layout={layout}
         modelMaterial={materials.scenery}
         park={models.get(NETWORK_PARK_MODEL.id)}
-        pavement={models.get(NETWORK_PAVEMENT_MODEL.id)}
+        pavement={pavement}
         yard={yard}
       />
       <NetworkShadowBlobs buildings={layout.buildings} level={level} terrain={terrain} />

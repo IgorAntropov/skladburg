@@ -3,25 +3,40 @@ import type { Material } from 'three';
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
 } from 'react';
+import { Color } from 'three';
 
-import { useWorldMaterial } from '@/shared/3d';
+import {
+  useWorldMaterial,
+  useWorldPalette,
+} from '@/shared/3d';
 
 import type { NetworkSceneRoadValue } from '../layout';
+import type { CityStreetsValue } from '../layout/buildCityStreets';
 import type { WorldModelDataValue } from '../models/format/worldModelFormat';
 
+import { toCssColor } from '../banner/siteBannerColors';
 import {
   INSTANCE_MATRIX_ITEM_SIZE,
   writeInstanceMatrix,
 } from '../geometry/composeInstanceMatrix';
 import { createRoadGeometry } from '../geometry/createRoadGeometry';
-import { ROAD_HEIGHT_METERS } from '../geometry/networkSceneMetrics';
+import {
+  PLAZA_HEIGHT_METERS,
+  ROAD_HEIGHT_METERS,
+} from '../geometry/networkSceneMetrics';
 import { ROAD_WIDTH_METERS } from '../layout';
+import {
+  CITY_DRIVEWAY_WIDTH_METERS,
+  CITY_STREET_WIDTH_METERS,
+} from '../layout/buildCityStreets';
 import { createWorldModelGeometry } from '../models/createWorldModelGeometry';
 import { InstancedLayer } from './InstancedLayer';
 
 interface NetworkRoadsProps {
+  cityStreets: CityStreetsValue | undefined;
   hasShadowReceive: boolean;
   model: undefined | WorldModelDataValue;
   modelMaterial: Material;
@@ -31,6 +46,10 @@ interface NetworkRoadsProps {
 const ROAD_ASPHALT_SHARE = 0.65;
 const ROAD_TILE_LENGTH_METERS = 4.5;
 const SIDEWALK_HEIGHT_SCALE = 0.85;
+const CITY_STREET_HEIGHT = ROAD_HEIGHT_METERS + 0.002;
+const DRIVEWAY_HEIGHT = ROAD_HEIGHT_METERS + 0.004;
+const DRIVEWAY_LOT_HEIGHT = PLAZA_HEIGHT_METERS + 0.004;
+const CITY_STREET_PAVEMENT_SHARE = 0.14;
 
 const buildRoadModelMatrices = (roads: readonly NetworkSceneRoadValue[]): Float32Array => {
   const modules = roads.flatMap(({ from, to }) => {
@@ -55,10 +74,29 @@ const buildRoadModelMatrices = (roads: readonly NetworkSceneRoadValue[]): Float3
   return matrices;
 };
 
-export const NetworkRoads = ({ hasShadowReceive, model, modelMaterial, roads }: NetworkRoadsProps): null | ReactElement => {
+export const NetworkRoads = ({ cityStreets, hasShadowReceive, model, modelMaterial, roads }: NetworkRoadsProps): ReactElement => {
   const fallbackMaterial = useWorldMaterial('road');
-  const geometry = useMemo(() => model === undefined ? createRoadGeometry(roads) : createWorldModelGeometry(model), [model, roads]);
-  const matrices = useMemo(() => model === undefined ? undefined : buildRoadModelMatrices(roads), [model, roads]);
+  const drivewayMaterial = useWorldMaterial('plaza');
+  const palette = useWorldPalette();
+  const highways = cityStreets?.highways ?? roads;
+  const geometry = useMemo(() => model === undefined ? createRoadGeometry(highways) : createWorldModelGeometry(model), [highways, model]);
+  const matrices = useMemo(() => model === undefined ? undefined : buildRoadModelMatrices(highways), [highways, model]);
+  const streets = useMemo(() => cityStreets === undefined
+    ? undefined
+    : createRoadGeometry(cityStreets.streets, CITY_STREET_WIDTH_METERS, CITY_STREET_HEIGHT, CITY_STREET_WIDTH_METERS / 2), [cityStreets]);
+  const streetMaterial = useMemo(() => fallbackMaterial.clone(), [fallbackMaterial]);
+  const driveways = useMemo(() => {
+    if (cityStreets === undefined) {
+      return undefined;
+    }
+
+    const sections = cityStreets.driveways.flatMap(({ curb, from, to }) => [
+      { from, to: curb },
+      { endHeight: DRIVEWAY_HEIGHT, from: curb, to },
+    ]);
+
+    return createRoadGeometry(sections, CITY_DRIVEWAY_WIDTH_METERS, DRIVEWAY_LOT_HEIGHT);
+  }, [cityStreets]);
 
   useEffect(() => {
     return () => {
@@ -66,22 +104,37 @@ export const NetworkRoads = ({ hasShadowReceive, model, modelMaterial, roads }: 
     };
   }, [geometry]);
 
-  if (roads.length === 0) {
-    return null;
-  }
+  useEffect(() => () => {
+    streets?.dispose();
+  }, [streets]);
+  useEffect(() => () => {
+    driveways?.dispose();
+  }, [driveways]);
+  useEffect(() => () => {
+    streetMaterial.dispose();
+  }, [streetMaterial]);
+  useLayoutEffect(() => {
+    streetMaterial.color.setStyle(toCssColor(palette.road)).lerp(new Color(toCssColor(palette.plaza)), CITY_STREET_PAVEMENT_SHARE);
+  }, [palette.plaza, palette.road, streetMaterial]);
 
-  return matrices === undefined
-    ? <mesh frustumCulled={false} geometry={geometry} material={fallbackMaterial} receiveShadow={hasShadowReceive} />
-    : (
-        <InstancedLayer
-          count={matrices.length / INSTANCE_MATRIX_ITEM_SIZE}
-          delays={undefined}
-          geometry={geometry}
-          hasShadowCast={false}
-          hasShadowReceive={hasShadowReceive}
-          material={modelMaterial}
-          matrices={matrices}
-          tints={undefined}
-        />
-      );
+  return (
+    <>
+      {highways.length > 0 && (matrices === undefined
+        ? <mesh frustumCulled={false} geometry={geometry} material={fallbackMaterial} receiveShadow={hasShadowReceive} />
+        : (
+            <InstancedLayer
+              count={matrices.length / INSTANCE_MATRIX_ITEM_SIZE}
+              delays={undefined}
+              geometry={geometry}
+              hasShadowCast={false}
+              hasShadowReceive={hasShadowReceive}
+              material={modelMaterial}
+              matrices={matrices}
+              tints={undefined}
+            />
+          ))}
+      {streets !== undefined && <mesh geometry={streets} material={streetMaterial} receiveShadow={hasShadowReceive} />}
+      {driveways !== undefined && <mesh geometry={driveways} material={drivewayMaterial} receiveShadow={hasShadowReceive} />}
+    </>
+  );
 };

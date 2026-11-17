@@ -27,6 +27,7 @@ import {
   READ_SETTLE_OFFSET_SCRIPT,
   READ_THEME_CHANGE_DELAY_SCRIPT,
   READ_TRANSITION_LONG_TASK_DURATIONS_SCRIPT,
+  READ_TRIANGLES_SCRIPT,
   READ_WORLD_SETTLE_MS_SCRIPT,
 } from './scene-draw-counter.ts';
 
@@ -93,6 +94,7 @@ export interface SceneRobotValue {
   readSettleOffsetMs: () => Promise<number>;
   readThemeChangeDelayMs: () => Promise<number>;
   readTransitionLongTaskDurations: () => Promise<number[]>;
+  readTriangles: () => Promise<number>;
   readWorldSettleMs: () => Promise<number>;
   resizeWindow: (size: { height: number; width: number }) => Promise<void>;
   switchColorScheme: (colorScheme: ColorSchemeValue) => Promise<void>;
@@ -401,6 +403,9 @@ export const createSceneRobot = (page: Page): SceneRobotValue => {
     },
     async readTransitionLongTaskDurations(): Promise<number[]> {
       return page.evaluate<number[]>(READ_TRANSITION_LONG_TASK_DURATIONS_SCRIPT);
+    },
+    async readTriangles(): Promise<number> {
+      return page.evaluate<number>(READ_TRIANGLES_SCRIPT);
     },
     async readWorldSettleMs(): Promise<number> {
       return page.evaluate<number>(READ_WORLD_SETTLE_MS_SCRIPT);

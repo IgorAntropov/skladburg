@@ -10,7 +10,7 @@ import {
 
 import type { WorldPaletteValue } from '@/shared/3d';
 
-import type { WorldModelGroupValue } from './worldModelCatalog';
+import type { WorldModelMaterialGroupValue } from './worldModelRoleKeys';
 
 import { buildWorldModelPalettePixels } from './buildWorldModelPalettePixels';
 import { WORLD_MODEL_ROLES } from './format/worldModelFormat';
@@ -21,9 +21,9 @@ export interface IWorldModelMaterials {
   materials: WorldModelMaterialsValue;
 }
 
-export type WorldModelMaterialsValue = Readonly<Record<WorldModelGroupValue, MeshStandardMaterial>>;
+export type WorldModelMaterialsValue = Readonly<Record<WorldModelMaterialGroupValue, MeshStandardMaterial>>;
 
-export const WORLD_MODEL_GROUPS: readonly WorldModelGroupValue[] = ['house', 'office', 'warehouse'];
+export const WORLD_MODEL_GROUPS: readonly WorldModelMaterialGroupValue[] = ['house', 'office', 'scenery', 'warehouse'];
 
 interface GroupMaterialValue {
   material: MeshStandardMaterial;
@@ -31,7 +31,7 @@ interface GroupMaterialValue {
   texture: DataTexture;
 }
 
-const createGroupMaterial = (group: WorldModelGroupValue, palette: WorldPaletteValue): GroupMaterialValue => {
+const createGroupMaterial = (group: WorldModelMaterialGroupValue, palette: WorldPaletteValue): GroupMaterialValue => {
   const pixels = buildWorldModelPalettePixels(group, palette);
   const texture = new DataTexture(
     pixels,
@@ -64,6 +64,7 @@ export const createWorldModelMaterials = (initialPalette: WorldPaletteValue): IW
   const groupMaterials = {
     house: createGroupMaterial('house', initialPalette),
     office: createGroupMaterial('office', initialPalette),
+    scenery: createGroupMaterial('scenery', initialPalette),
     warehouse: createGroupMaterial('warehouse', initialPalette),
   };
 
@@ -89,6 +90,7 @@ export const createWorldModelMaterials = (initialPalette: WorldPaletteValue): IW
     materials: {
       house: groupMaterials.house.material,
       office: groupMaterials.office.material,
+      scenery: groupMaterials.scenery.material,
       warehouse: groupMaterials.warehouse.material,
     },
   };

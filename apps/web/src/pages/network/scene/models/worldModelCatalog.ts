@@ -138,6 +138,35 @@ export const NETWORK_TRUCK_LIGHT_MODEL = {
   sourceName: 'route-truck-light',
 } satisfies WorldModelFileValue;
 
-export const WORLD_AUXILIARY_MODELS = [INDUSTRIAL_YARD_MODEL, NETWORK_TRUCK_MODEL, NETWORK_TRUCK_LIGHT_MODEL] as const;
+const createWorldSceneryFile = (sourceName: string): WorldModelFileValue => ({
+  id: `industrial/${sourceName}`,
+  kit: 'industrial',
+  sourceName,
+});
+
+export const NETWORK_ROAD_MODEL = createWorldSceneryFile('network-road');
+
+export const NETWORK_LAMP_MODEL = createWorldSceneryFile('network-lamp');
+
+export const NETWORK_PARK_MODEL = createWorldSceneryFile('network-park');
+
+export const NETWORK_PAVEMENT_MODEL = createWorldSceneryFile('network-pavement');
+
+export const NETWORK_TREE_MODEL = createWorldSceneryFile('network-tree');
+
+export const NETWORK_SCENERY_MODELS = [
+  NETWORK_ROAD_MODEL,
+  NETWORK_LAMP_MODEL,
+  NETWORK_PARK_MODEL,
+  NETWORK_PAVEMENT_MODEL,
+  NETWORK_TREE_MODEL,
+] as const;
+
+export const WORLD_AUXILIARY_MODELS = [
+  INDUSTRIAL_YARD_MODEL,
+  NETWORK_TRUCK_MODEL,
+  NETWORK_TRUCK_LIGHT_MODEL,
+  ...NETWORK_SCENERY_MODELS,
+] as const;
 
 export const buildWorldModelPath = ({ kit, sourceName }: WorldModelFileValue): string => `models/${kit}/${sourceName}.bin`;

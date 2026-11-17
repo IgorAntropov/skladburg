@@ -35,6 +35,7 @@ const MIN_ROTATION_FRAMES = 10;
 const MAX_ROTATION_ANIMATION_MS = 1500;
 const MAX_DRAW_CALLS_PER_FRAME = 40;
 const MAX_HIGH_DRAW_CALLS_PER_FRAME = 50;
+const MAX_LOW_HOME_TRIANGLES = 140_000;
 const MIN_HOME_FRAMES = 2;
 const MAX_REDUCED_MOTION_FRAMES = 3;
 const MIN_REDUCED_MOTION_FRAMES = 1;
@@ -179,6 +180,10 @@ test.describe('camera motion', () => {
     const scene = createSceneRobot(page);
 
     await openReadyWorld(scene);
+    const homeTriangles = await scene.readTriangles();
+
+    expect(homeTriangles).toBeGreaterThan(0);
+    expect(homeTriangles).toBeLessThanOrEqual(MAX_LOW_HOME_TRIANGLES);
 
     const rotation = await measureRotation(
       scene,

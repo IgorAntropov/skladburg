@@ -1,6 +1,6 @@
 import type { WorldPaletteValue } from '@/shared/3d';
 
-import type { WorldModelGroupValue } from './worldModelCatalog';
+import type { WorldModelMaterialGroupValue } from './worldModelRoleKeys';
 
 import { WORLD_MODEL_ROLES } from './format/worldModelFormat';
 import { WORLD_MODEL_ROLE_KEYS } from './worldModelRoleKeys';
@@ -11,7 +11,7 @@ const OPAQUE_ALPHA = 255;
 
 const toByte = (channel: number): number => Math.min(OPAQUE_ALPHA, Math.max(0, Math.round(channel)));
 
-export const buildWorldModelPalettePixels = (group: WorldModelGroupValue, palette: WorldPaletteValue): Uint8Array => {
+export const buildWorldModelPalettePixels = (group: WorldModelMaterialGroupValue, palette: WorldPaletteValue): Uint8Array => {
   const pixels = new Uint8Array(WORLD_MODEL_ROLES.length * WORLD_MODEL_PALETTE_PIXEL_BYTES);
 
   for (const [index, role] of WORLD_MODEL_ROLES.entries()) {

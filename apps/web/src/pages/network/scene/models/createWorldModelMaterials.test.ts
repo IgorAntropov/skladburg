@@ -91,7 +91,7 @@ describe('createWorldModelMaterials', () => {
 
     registry.dispose();
 
-    expect(disposers).toHaveLength(6);
+    expect(disposers).toHaveLength(8);
 
     for (const disposer of disposers) {
       expect(disposer).toHaveBeenCalledOnce();

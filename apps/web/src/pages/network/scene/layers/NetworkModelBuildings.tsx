@@ -13,6 +13,7 @@ import {
   useShadowMapRefresh,
 } from '@/shared/3d';
 
+import type { WorldModelMaterialsValue } from '../models/createWorldModelMaterials';
 import type { WorldModelDataValue } from '../models/format/worldModelFormat';
 import type { WorldModelPlacementValue } from '../models/placeWorldModels';
 import type { IndustrialYardPlacementValue } from '../yard/placeIndustrialYard';
@@ -20,12 +21,12 @@ import type { IndustrialYardPlacementValue } from '../yard/placeIndustrialYard';
 import { PLAZA_HEIGHT_METERS } from '../geometry/networkSceneMetrics';
 import { getVisibleBuildingCount } from '../layout';
 import { createWorldModelGeometry } from '../models/createWorldModelGeometry';
-import { useWorldModelMaterials } from '../models/useWorldModelMaterials';
 import { INDUSTRIAL_YARD_MODEL } from '../models/worldModelCatalog';
 import { InstancedLayer } from './InstancedLayer';
 
 interface NetworkModelBuildingsProps {
   level: QualityLevelValue;
+  materials: WorldModelMaterialsValue;
   models: ReadonlyMap<string, WorldModelDataValue>;
   placements: readonly WorldModelPlacementValue[];
   yard: IndustrialYardPlacementValue | undefined;
@@ -42,10 +43,9 @@ const createGeometries = (
   }),
 );
 
-export const NetworkModelBuildings = ({ level, models, placements, yard }: NetworkModelBuildingsProps): ReactElement => {
+export const NetworkModelBuildings = ({ level, materials, models, placements, yard }: NetworkModelBuildingsProps): ReactElement => {
   const { decorDensity, hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const refreshShadowMap = useShadowMapRefresh();
-  const materials = useWorldModelMaterials();
 
   const hasYard = yard !== undefined;
   const geometries = useMemo(() => {

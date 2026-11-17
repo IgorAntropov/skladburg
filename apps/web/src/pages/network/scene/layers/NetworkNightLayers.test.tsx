@@ -75,6 +75,7 @@ interface CanvasHandleValue {
 const renderNight = async (level: QualityLevelValue): Promise<CanvasHandleValue> => {
   let latest: RootState | undefined;
   const boxGeometry = new BoxGeometry(1, 1, 1);
+  const modelMaterial = new MeshStandardMaterial();
   const Probe = (): null => {
     const get = useThree(current => current.get);
 
@@ -94,7 +95,7 @@ const renderNight = async (level: QualityLevelValue): Promise<CanvasHandleValue>
       <Probe />
       <WorldMaterialsProvider palette={PALETTE}>
         <NetworkWindows level={level} windows={WINDOWS} />
-        <NetworkStreetLamps boxGeometry={boxGeometry} lamps={LAMPS} level={level} />
+        <NetworkStreetLamps boxGeometry={boxGeometry} lamps={LAMPS} level={level} model={undefined} modelMaterial={modelMaterial} />
         <NetworkLampLight lamps={LAMPS} level={level} />
       </WorldMaterialsProvider>
     </Canvas>,
@@ -116,6 +117,7 @@ const renderNight = async (level: QualityLevelValue): Promise<CanvasHandleValue>
       act(() => {
         result.unmount();
       });
+      modelMaterial.dispose();
     },
   };
 };

@@ -12,23 +12,24 @@ export const DRAW_COUNTER_INIT_SCRIPT = `
     prevFrameAt: 0,
     simMs: 0,
     themeChangedAt: 0,
+    triangles: 0,
   };
   const maxFrameStepMs = 1000 / 30;
-  const methodNames = [
-    'drawArrays',
-    'drawArraysInstanced',
-    'drawArraysInstancedANGLE',
-    'drawElements',
-    'drawElementsInstanced',
-    'drawElementsInstancedANGLE',
-    'drawRangeElements',
+  const methods = [
+    ['drawArrays', 2],
+    ['drawArraysInstanced', 2, 3],
+    ['drawArraysInstancedANGLE', 2, 3],
+    ['drawElements', 1],
+    ['drawElementsInstanced', 1, 4],
+    ['drawElementsInstancedANGLE', 1, 4],
+    ['drawRangeElements', 3],
   ];
   const prototypes = [WebGLRenderingContext.prototype, WebGL2RenderingContext.prototype];
 
   window.__drawCounter = counter;
 
   for (const prototype of prototypes) {
-    for (const methodName of methodNames) {
+    for (const [methodName, countIndex, instanceCountIndex] of methods) {
       const original = prototype[methodName];
 
       if (typeof original === 'function') {
@@ -39,6 +40,7 @@ export const DRAW_COUNTER_INIT_SCRIPT = `
           if (!counter.isInFrame) {
             counter.isInFrame = true;
             counter.frames += 1;
+            counter.triangles = 0;
             counter.simMs += Math.min(counter.lastAt - counter.prevFrameAt, maxFrameStepMs);
             counter.prevFrameAt = counter.lastAt;
 
@@ -49,6 +51,11 @@ export const DRAW_COUNTER_INIT_SCRIPT = `
             queueMicrotask(() => {
               counter.isInFrame = false;
             });
+          }
+
+          if (args[0] === this.TRIANGLES) {
+            const instanceCount = instanceCountIndex === undefined ? 1 : args[instanceCountIndex];
+            counter.triangles += Math.floor(args[countIndex] / 3) * instanceCount;
           }
 
           return original.apply(this, args);
@@ -102,6 +109,8 @@ export const DRAW_COUNTER_INIT_SCRIPT = `
 export const READ_DRAW_CALLS_SCRIPT = 'window.__drawCounter ? window.__drawCounter.count : 0';
 
 export const READ_DRAW_FRAMES_SCRIPT = 'window.__drawCounter ? window.__drawCounter.frames : 0';
+
+export const READ_TRIANGLES_SCRIPT = 'window.__drawCounter ? window.__drawCounter.triangles : 0';
 
 export const MARK_MOTION_START_SCRIPT = `
 (() => {

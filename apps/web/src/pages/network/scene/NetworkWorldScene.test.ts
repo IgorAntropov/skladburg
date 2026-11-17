@@ -17,6 +17,8 @@ import { loadWorldModels } from './models/loadWorldModels';
 import {
   buildWorldModelPath,
   INDUSTRIAL_YARD_MODEL,
+  NETWORK_ROAD_MODEL,
+  NETWORK_SCENERY_MODELS,
   WORLD_MODEL_CATALOG,
 } from './models/worldModelCatalog';
 import { createTestWorldModelBytes } from './models/worldModelTestSupport';
@@ -26,10 +28,10 @@ import {
   resolveWorld,
 } from './NetworkWorldScene';
 
-const MODEL_FILES = [...WORLD_MODEL_CATALOG, INDUSTRIAL_YARD_MODEL];
+const MODEL_FILES = [...WORLD_MODEL_CATALOG, ...NETWORK_SCENERY_MODELS, INDUSTRIAL_YARD_MODEL];
 
-const FAILING_MODEL_ID = 'commercial/building-a';
-const FAILING_MODEL_PATH = 'models/commercial/building-a.bin';
+const FAILING_MODEL_ID = NETWORK_ROAD_MODEL.id;
+const FAILING_MODEL_PATH = buildWorldModelPath(NETWORK_ROAD_MODEL);
 
 const createModel = (): ReturnType<typeof createTestModel> => createTestModel(
   [createTestCity('a', 4, 2), createTestCity('b', 7, 3)],

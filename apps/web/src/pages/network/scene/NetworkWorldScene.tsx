@@ -60,8 +60,15 @@ import { createModelWindowSources } from './mix/createModelWindowSources';
 import { partitionNetworkBuildings } from './mix/partitionNetworkBuildings';
 import { loadWorldModels } from './models/loadWorldModels';
 import { useLoadedWorldModels } from './models/useLoadedWorldModels';
+import { useWorldModelMaterials } from './models/useWorldModelMaterials';
 import {
   INDUSTRIAL_YARD_MODEL,
+  NETWORK_LAMP_MODEL,
+  NETWORK_PARK_MODEL,
+  NETWORK_PAVEMENT_MODEL,
+  NETWORK_ROAD_MODEL,
+  NETWORK_SCENERY_MODELS,
+  NETWORK_TREE_MODEL,
   WORLD_MODEL_CATALOG,
 } from './models/worldModelCatalog';
 import { NETWORK_WORLD_SEED } from './networkWorldConstants';
@@ -98,7 +105,7 @@ const createTerrainParams = (layout: NetworkSceneLayoutValue): Parameters<typeof
 });
 
 const loadCatalogModels = async (hasIndustrialYard: boolean): Promise<void> => {
-  const ids = WORLD_MODEL_CATALOG.map(({ id }) => id);
+  const ids = [...WORLD_MODEL_CATALOG, ...NETWORK_SCENERY_MODELS].map(({ id }) => id);
 
   if (hasIndustrialYard) {
     ids.push(INDUSTRIAL_YARD_MODEL.id);
@@ -149,6 +156,7 @@ const NetworkWorldScene = ({
   const terrain = loadWorldTerrain.peek(createTerrainParams(layout));
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const models = useLoadedWorldModels();
+  const materials = useWorldModelMaterials();
   const yard = useMemo(() => placeIndustrialYard(layout.buildings, layout.cities), [layout.buildings, layout.cities]);
   const tierByCityId = useMemo(
     (): ReadonlyMap<string, NetworkCityTierValue> => new Map(layout.cities.map(city => [city.id, city.tier])),
@@ -193,15 +201,33 @@ const NetworkWorldScene = ({
 
   return (
     <>
-      <NetworkLandscape level={level} terrain={terrain} />
-      <NetworkRoads hasShadowReceive={hasShadows} roads={layout.roads} />
+      <NetworkLandscape level={level} terrain={terrain} tree={models.get(NETWORK_TREE_MODEL.id)} treeMaterial={materials.scenery} />
+      <NetworkRoads
+        hasShadowReceive={hasShadows}
+        model={models.get(NETWORK_ROAD_MODEL.id)}
+        modelMaterial={materials.scenery}
+        roads={layout.roads}
+      />
       {tracks !== undefined && tracks.actors.length > 0 && <NetworkTripActorSlot layout={layout} level={level} tracks={tracks} />}
-      <NetworkStreetLamps boxGeometry={boxGeometry} lamps={lamps} level={level} />
-      <NetworkCityPlazas cities={layout.cities} hasShadowReceive={hasShadows} />
+      <NetworkStreetLamps
+        boxGeometry={boxGeometry}
+        lamps={lamps}
+        level={level}
+        model={models.get(NETWORK_LAMP_MODEL.id)}
+        modelMaterial={materials.scenery}
+      />
+      <NetworkCityPlazas
+        hasShadowReceive={hasShadows}
+        layout={layout}
+        modelMaterial={materials.scenery}
+        park={models.get(NETWORK_PARK_MODEL.id)}
+        pavement={models.get(NETWORK_PAVEMENT_MODEL.id)}
+        yard={yard}
+      />
       <NetworkShadowBlobs buildings={layout.buildings} level={level} terrain={terrain} />
       <NetworkBuildings boxGeometry={boxGeometry} buildings={boxes} level={level} />
       <NetworkBeveledBuildings buildings={beveled} level={level} />
-      <NetworkModelBuildings level={level} models={models} placements={placements} yard={yard} />
+      <NetworkModelBuildings level={level} materials={materials} models={models} placements={placements} yard={yard} />
       <NetworkWindows level={level} windows={windows} />
       <NetworkSelectionCorners
         boxGeometry={boxGeometry}

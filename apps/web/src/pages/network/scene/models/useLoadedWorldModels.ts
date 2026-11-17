@@ -5,12 +5,13 @@ import type { WorldModelDataValue } from './format/worldModelFormat';
 import { loadWorldModels } from './loadWorldModels';
 import {
   INDUSTRIAL_YARD_MODEL,
+  NETWORK_SCENERY_MODELS,
   WORLD_MODEL_CATALOG,
 } from './worldModelCatalog';
 
 const ID_SEPARATOR = '|';
 
-const WORLD_MODEL_FILES = [...WORLD_MODEL_CATALOG, INDUSTRIAL_YARD_MODEL];
+const WORLD_MODEL_FILES = [...WORLD_MODEL_CATALOG, INDUSTRIAL_YARD_MODEL, ...NETWORK_SCENERY_MODELS];
 
 const readLoadedModels = (loadedKey: string): ReadonlyMap<string, WorldModelDataValue> => new Map(
   loadedKey === ''

@@ -7,6 +7,7 @@ import type {
 import { useRef } from 'react';
 
 import type { WarehouseGeometryKitValue } from './createWarehouseGeometryKit';
+import type { WarehouseTruckModelValue } from './useWarehouseTruckModel';
 import type { WarehouseDockCargoValue } from './warehouseDockCargo';
 import type { WarehouseForkliftRigValue } from './WarehouseForklift';
 import type {
@@ -18,9 +19,7 @@ import type { WarehouseYardTrafficValue } from './warehouseYardTraffic';
 
 import { WarehouseCargo } from './WarehouseCargo';
 import { WarehouseForklift } from './WarehouseForklift';
-import { WarehouseInstances } from './WarehouseInstances';
 import { WarehouseYardParking } from './WarehouseYardParkingLayer';
-import { WAREHOUSE_TRUCK_CENTER_Z } from './warehouseYardRoads';
 
 interface WarehouseDockLaneProps {
   dock: undefined | WarehouseDockPointValue;
@@ -32,12 +31,13 @@ interface WarehouseDockLaneProps {
   laneIndex: number;
   layout: WarehouseLayoutValue;
   traffic: WarehouseYardTrafficValue;
+  truckModel: WarehouseTruckModelValue;
 }
 
 const EMPTY_CARGO = { dockTaskId: undefined, hasDock: false, units: [] };
 
 export const WarehouseDockLane = ({
-  dock, geometry, hasAssignedDocks, hasShadows, kit, lane, laneIndex, layout, traffic,
+  dock, geometry, hasAssignedDocks, hasShadows, kit, lane, laneIndex, layout, traffic, truckModel,
 }: WarehouseDockLaneProps): ReactElement => {
   const dockTruck = useRef<Group>(null);
   const forklift = useRef<WarehouseForkliftRigValue>(null);
@@ -51,15 +51,13 @@ export const WarehouseDockLane = ({
     <>
       {hasDock && (
         <group name="warehouse-dock-truck" ref={dockTruck} visible={false}>
-          <group position={[-primaryDock.x, 0, -primaryDock.z - WAREHOUSE_TRUCK_CENTER_Z]}>
-            {[...layout.truck].map(([key, boxes]) => (
-              <WarehouseInstances boxes={boxes} geometry={geometry} key={key} materialKey={key} />
-            ))}
+          <group>
+            <mesh geometry={truckModel.geometry} material={truckModel.material} receiveShadow />
           </group>
         </group>
       )}
       <WarehouseForklift rig={forklift} />
-      {hasParking && <WarehouseYardParking geometry={geometry} rig={yardParking} trucks={layout.truck} />}
+      {hasParking && <WarehouseYardParking dock={primaryDock} model={truckModel} rig={yardParking} />}
       <WarehouseCargo
         balances={balances}
         cargo={cargo ?? EMPTY_CARGO}

@@ -13,7 +13,6 @@ import type { WarehouseAisleRectValue } from './warehouseAislePath';
 import type { WarehouseYardRoadsValue } from './warehouseYardRoads';
 
 import {
-  addWarehouseBox,
   buildWarehouseFloor,
   WAREHOUSE_DOCK_LANE_LENGTH,
 } from './warehouseFloorLayout';
@@ -52,7 +51,6 @@ export interface WarehouseLayoutValue {
   navigation: WarehouseNavigationValue;
   racks: WarehouseRackLayoutValue;
   receiving: undefined | WarehouseReceivingLayoutValue;
-  truck: ReadonlyMap<WorldPaletteKeyValue, readonly WarehouseBoxValue[]>;
   world: SceneWorldValue;
   yard: undefined | WarehouseYardRoadsValue;
 }
@@ -124,26 +122,6 @@ const readDocks = (
   }
 
   return docks;
-};
-
-const buildTruck = ({ x, z }: WarehouseDockPointValue): Map<WorldPaletteKeyValue, WarehouseBoxValue[]> => {
-  const boxes = new Map<WorldPaletteKeyValue, WarehouseBoxValue[]>();
-  addWarehouseBox(boxes, 'road', [x, 0.36, z - 3.1], [1.36, 0.29, 5.8]);
-  addWarehouseBox(boxes, 'warehouseWall', [x, 0.64, z - 2.16], [1.68, 0.2, 4.04]);
-  addWarehouseBox(boxes, 'warehouseRoof', [x, 1, z - 4.13], [1.68, 0.7, 0.12]);
-  addWarehouseBox(boxes, 'sideCarrier', [x, 0.91, z - 5.1], [1.59, 1.15, 1.58]);
-  addWarehouseBox(boxes, 'windowGlass', [x, 1.35, z - 5.89], [1.2, 0.35, 0.03]);
-  addWarehouseBox(boxes, 'sideRim', [x, 0.52, z - 5.92], [1.66, 0.14, 0.12]);
-  for (const offset of [-0.78, 0.78]) {
-    addWarehouseBox(boxes, 'warehouseRoof', [x + offset, 0.89, z - 2.17], [0.1, 0.36, 3.96]);
-    addWarehouseBox(boxes, 'windowGlass', [x + offset, 1.27, z - 5.19], [0.05, 0.35, 0.73]);
-    addWarehouseBox(boxes, 'windowGlow', [x + offset * 0.79, 0.67, z - 5.93], [0.22, 0.13, 0.04]);
-    for (const axle of [0.96, 1.58, 4.83, 5.63]) {
-      addWarehouseBox(boxes, 'road', [x + offset, 0.26, z - axle], [0.25, 0.52, 0.52]);
-      addWarehouseBox(boxes, 'sideRim', [x + offset * 1.17, 0.26, z - axle], [0.04, 0.2, 0.2]);
-    }
-  }
-  return boxes;
 };
 
 export const buildWarehouseLayout = (
@@ -270,7 +248,6 @@ export const buildWarehouseLayout = (
     navigation: { bounds, obstacles },
     racks: { decks, dividers, frames, guards },
     receiving,
-    truck: dock === undefined ? new Map() : buildTruck(dock),
     world: {
       bounds: { maxX: maxX + padding, maxZ: maxZ + padding, minX: minX - padding, minZ: minZ - padding },
       home: { centerX, centerZ, radius },

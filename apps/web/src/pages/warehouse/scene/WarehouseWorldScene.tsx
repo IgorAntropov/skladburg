@@ -30,6 +30,7 @@ import type {
 } from './warehouseLayout';
 
 import { createWarehouseGeometryKit } from './createWarehouseGeometryKit';
+import { useWarehouseTruckModel } from './useWarehouseTruckModel';
 import { splitWarehouseDockCargo } from './warehouseDockCargo';
 import { WarehouseDockLane } from './WarehouseDockLane';
 import { WarehouseFloor } from './WarehouseFloor';
@@ -74,6 +75,7 @@ const WarehouseWorldScene = ({
   const layout = getWarehouseLayout(data);
   const geometry = useMemo(() => new BoxGeometry(1, 1, 1), []);
   const kit = useMemo(() => createWarehouseGeometryKit(), []);
+  const truckModel = useWarehouseTruckModel();
   const traffic = useMemo(() => createWarehouseYardTraffic(layout.yard), [layout.yard]);
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const lastFocus = useRef<{ request: number; scan: WarehouseSceneInteractionValue['scannedCell'] }>(undefined);
@@ -149,6 +151,7 @@ const WarehouseWorldScene = ({
           laneIndex={index}
           layout={layout}
           traffic={traffic}
+          truckModel={truckModel}
         />
       ))}
       {selectionBoxes.length > 0 && <WarehouseInstances boxes={selectionBoxes} geometry={geometry} materialKey="lampGlow" />}

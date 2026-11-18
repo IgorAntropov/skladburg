@@ -47,7 +47,11 @@ import { ScenePlaceholder } from '@/widgets/scene-viewport';
 
 import type { WarehouseWorkspaceValue } from '../../api/useWarehouseWorkspace';
 import type { WarehouseWorkTranslate } from '../../i18n/workspaceSection';
-import type { WarehouseSceneScanValue } from '../../model/warehouseSceneInteraction';
+import type {
+  WarehouseConstructionChangeValue,
+  WarehouseConstructionPreviewValue,
+  WarehouseSceneScanValue,
+} from '../../model/warehouseSceneInteraction';
 
 import { useWarehouseWorkspace } from '../../api/useWarehouseWorkspace';
 import { warehouseWorkSection } from '../../i18n/workspaceSection';
@@ -96,6 +100,7 @@ const WarehouseSkeleton = (): ReactElement => (
 
 interface WarehouseWorkspaceContentProps extends Omit<WarehouseWorkspaceProps, 'renderLayout'> {
   onCellSelect: (id: string, taskId: string) => void;
+  onPreviewChange: WarehouseConstructionChangeValue;
   t: WarehouseWorkTranslate;
   workspace: WarehouseWorkspaceValue;
 }
@@ -152,11 +157,10 @@ function WarehouseQuery<TData>({ children, empty, isEmpty, query, t }: Warehouse
 }
 
 const WarehouseWorkspaceContent = ({
-  focus, onCellSelect, t, warehouse, workspace,
+  focus, onCellSelect, onPreviewChange, t, warehouse, workspace,
 }: WarehouseWorkspaceContentProps): ReactElement => {
   const { t: baseText } = useI18n();
   const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
-  const canEditLayout = useCan(PermissionCode.LAYOUT_EDIT, { kind: 'warehouse', warehouseId: warehouse.id });
   const [editingTaskId, setEditingTaskId] = useState<string | undefined>();
   const [isEditingLayout, setIsEditingLayout] = useState(false);
   const hasEditor = editingTaskId !== undefined && workspace.receiving.data?.some(task => task.id === editingTaskId
@@ -293,8 +297,8 @@ const WarehouseWorkspaceContent = ({
         <WarehousePanelSlot key="layout" loader={loadWarehouseRackPlacement}>
           {({ WarehouseRackPlacement }) => (
             <WarehouseRackPlacement
-              canEdit={canEditLayout}
               onEditingChange={setIsEditingLayout}
+              onPreviewChange={onPreviewChange}
               query={workspace.topology}
               t={t}
               warehouseId={warehouse.id}
@@ -348,6 +352,7 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
   const { t: baseText } = useI18n();
   const { retry, status, t } = useCatalogSection(warehouseWorkSection);
   const workspace = useWarehouseWorkspace(warehouse.id);
+  const [construction, setConstruction] = useState<WarehouseConstructionPreviewValue>();
   const [scannedCell, setScannedCell] = useState<WarehouseSceneScanValue>();
   const focusId = focus?.id;
 
@@ -378,6 +383,7 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
         focus={focus}
         key={focusId}
         onCellSelect={handleCellSelect}
+        onPreviewChange={setConstruction}
         t={t}
         warehouse={warehouse}
         workspace={workspace}
@@ -388,6 +394,7 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
       <Suspense fallback={<ScenePlaceholder isLoading label={baseText('routing.section.loading')} />}>
         <WarehouseWorkspaceScene
           balances={balances}
+          construction={construction}
           isLoading={workspace.topology.isPending && workspace.canViewTopology}
           label={warehouse.name}
           picking={picking}

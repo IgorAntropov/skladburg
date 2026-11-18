@@ -1,5 +1,4 @@
 import type {
-  WarehouseFloorRect,
   WarehouseTopology,
   WarehouseUnloadingPoint,
 } from '@skladburg/contracts/wms/v1/topology';
@@ -16,6 +15,15 @@ import {
   buildWarehouseFloor,
   WAREHOUSE_DOCK_LANE_LENGTH,
 } from './warehouseFloorLayout';
+import {
+  buildWarehouseRackDeck,
+  buildWarehouseRackFrame,
+  getWarehouseRackFrameWidth,
+  readWarehouseFloor,
+  WAREHOUSE_MM_PER_METER,
+  WAREHOUSE_RACK_HEADROOM,
+  WAREHOUSE_RACK_MIN_HEIGHT,
+} from './warehouseRackGeometry';
 import { buildWarehouseYardRoads } from './warehouseYardRoads';
 
 export interface WarehouseBoxValue {
@@ -76,18 +84,9 @@ export interface WarehouseReceivingLayoutValue extends WarehouseFloorValue {
 type VectorValue = [number, number, number];
 
 const layouts = new WeakMap<WarehouseTopology, WarehouseLayoutValue>();
-const METER = 1000;
 const DOCK_MIN_SPACING_MM = 2660;
 export const WAREHOUSE_DOCK_RAMP_END = 0.505;
 export const WAREHOUSE_DOCK_HANDOFF_Z = 0.4;
-
-const readFloor = (rect: undefined | WarehouseFloorRect): undefined | WarehouseFloorValue => {
-  if (rect?.origin === undefined || rect.widthMm === 0 || rect.depthMm === 0) {
-    return undefined;
-  }
-
-  return { depth: rect.depthMm / METER, width: rect.widthMm / METER, x: rect.origin.xMm / METER, z: rect.origin.zMm / METER };
-};
 
 const readDock = (point: undefined | WarehouseUnloadingPoint): undefined | WarehouseDockLayoutValue => {
   const position = point?.position;
@@ -96,7 +95,7 @@ const readDock = (point: undefined | WarehouseUnloadingPoint): undefined | Wareh
     return undefined;
   }
 
-  return { id: point.id, x: position.xMm / METER, z: position.zMm / METER };
+  return { id: point.id, x: position.xMm / WAREHOUSE_MM_PER_METER, z: position.zMm / WAREHOUSE_MM_PER_METER };
 };
 
 const readDocks = (
@@ -115,7 +114,7 @@ const readDocks = (
       continue;
     }
     const hasConflict = docks.some(dock => (point.id !== '' && dock.id === point.id)
-      || Math.abs(Math.round((point.x - dock.x) * METER)) < DOCK_MIN_SPACING_MM);
+      || Math.abs(Math.round((point.x - dock.x) * WAREHOUSE_MM_PER_METER)) < DOCK_MIN_SPACING_MM);
     if (!hasConflict) {
       docks.push(point);
     }
@@ -136,7 +135,7 @@ export const buildWarehouseLayout = (
   const guards: WarehouseBoxValue[] = [];
   const obstacles: WarehouseAisleRectValue[] = [];
   const area = topology.receivingArea;
-  const floor = readFloor(area?.footprint);
+  const floor = readWarehouseFloor(area?.footprint);
   const point = floor === undefined ? undefined : readDock(area?.unloadingPoint);
   const dock = point === undefined ? undefined : { x: point.x, z: point.z };
   const docks = point === undefined ? [] : readDocks(point, area?.additionalUnloadingPoints ?? [], additionalDocks);
@@ -168,7 +167,7 @@ export const buildWarehouseLayout = (
   for (const zone of topology.storageZones) {
     for (const row of zone.rows) {
       for (const rack of row.racks) {
-        const rect = readFloor(rack.footprint);
+        const rect = readWarehouseFloor(rack.footprint);
         if (rect === undefined) {
           continue;
         }
@@ -176,7 +175,7 @@ export const buildWarehouseLayout = (
         const { depth, width, x, z } = rect;
         const centerX = x + width / 2;
         const centerZ = z + depth / 2;
-        const frameWidth = Math.min(0.09, width * 0.14);
+        const frameWidth = getWarehouseRackFrameWidth(width);
         const guardDepth = Math.min(0.095, depth / 4);
         const footprint = {
           maxX: x + width + frameWidth * 0.675,
@@ -184,15 +183,15 @@ export const buildWarehouseLayout = (
           minX: x - frameWidth * 0.675,
           minZ: z,
         };
-        let height = 0.8;
+        let height = WAREHOUSE_RACK_MIN_HEIGHT;
 
         for (const tier of rack.tiers) {
-          const elevation = tier.elevationMm / METER;
-          height = Math.max(height, elevation + 0.75);
-          decks.push({ position: [centerX, elevation + 0.088, centerZ], size: [width, 0.15, depth] });
+          const elevation = tier.elevationMm / WAREHOUSE_MM_PER_METER;
+          height = Math.max(height, elevation + WAREHOUSE_RACK_HEADROOM);
+          decks.push(buildWarehouseRackDeck(centerX, centerZ, width, depth, elevation));
           for (const cell of tier.cells) {
-            const cellWidth = cell.widthMm / METER;
-            const start = x + cell.xOffsetMm / METER;
+            const cellWidth = cell.widthMm / WAREHOUSE_MM_PER_METER;
+            const start = x + cell.xOffsetMm / WAREHOUSE_MM_PER_METER;
             cells.push({
               id: cell.id,
               position: [start + cellWidth / 2, elevation + 0.147, centerZ],
@@ -208,7 +207,7 @@ export const buildWarehouseLayout = (
         }
 
         for (const sideX of [x, x + width]) {
-          frames.push({ position: [sideX, height / 2, centerZ], size: [frameWidth, height, depth] });
+          frames.push(buildWarehouseRackFrame(sideX, centerZ, frameWidth, depth, height));
           guards.push({
             position: [sideX, 0.15, z + depth + 0.026],
             size: [frameWidth * 1.35, 0.3, guardDepth],

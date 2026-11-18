@@ -18,7 +18,7 @@ import { useWorldMaterial } from '@/shared/3d';
 
 import type { WarehouseBoxValue } from './warehouseLayout';
 
-interface WarehouseInstancesProps {
+export interface WarehouseInstancesProps {
   boxes: readonly WarehouseBoxValue[];
   geometry: BufferGeometry;
   isShadowed?: boolean | undefined;

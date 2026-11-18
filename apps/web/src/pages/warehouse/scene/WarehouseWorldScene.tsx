@@ -79,7 +79,9 @@ const WarehouseWorldScene = ({
   const traffic = useMemo(() => createWarehouseYardTraffic(layout.yard), [layout.yard]);
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const lastFocus = useRef<{ request: number; scan: WarehouseSceneInteractionValue['scannedCell'] }>(undefined);
-  const { balances, cargo, focusRequest, onCellSelect, scannedCell, selectedCellId } = interaction;
+  const {
+    balances, cargo, construction, constructionLayer: ConstructionLayer, focusRequest, onCellSelect, scannedCell, selectedCellId,
+  } = interaction;
   const docks = layout.receiving?.docks;
   const lanes = splitWarehouseDockCargo(cargo, balances, docks?.map(dock => dock.id) ?? []);
   const hasAssignedDocks = (docks?.length ?? 0) > 1;
@@ -136,6 +138,9 @@ const WarehouseWorldScene = ({
     <>
       <WarehouseFloor batches={layout.floor} geometry={geometry} hasShadows={hasShadows} />
       <WarehouseRacks box={geometry} kit={kit} layout={layout.racks} level={level} />
+      {construction !== undefined && (
+        <ConstructionLayer construction={construction} geometry={geometry} instances={WarehouseInstances} topology={data} />
+      )}
       {layout.cells.length > 0 && (
         <WarehouseInstances boxes={layout.cells} geometry={geometry} materialKey="buildingWall" onClick={handleCellClick} />
       )}

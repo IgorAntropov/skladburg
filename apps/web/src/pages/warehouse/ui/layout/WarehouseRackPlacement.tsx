@@ -5,6 +5,7 @@ import type {
   ReactElement,
 } from 'react';
 
+import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import { Package } from 'lucide-react';
 import {
@@ -16,13 +17,18 @@ import {
 
 import type { PrintPageValue } from '@/features/print-labels';
 
-import { useCommandAccess } from '@/entities/session';
+import {
+  useCan,
+  useCommandAccess,
+} from '@/entities/session';
 import { PrintLabels } from '@/features/print-labels';
+import { useSceneSettingsStore } from '@/features/scene-settings';
 import {
   isReadAccessDenied,
   parseApiError,
 } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
+import { useViewportClass } from '@/shared/lib/viewport';
 import { useNavigationGuard } from '@/shared/routing';
 import {
   ActionButton,
@@ -43,6 +49,7 @@ import type {
   WarehouseRackPositionValue,
 } from '../../model/warehouseRackGrid';
 import type { WarehouseRackPlacementValue } from '../../model/warehouseRackPlacement';
+import type { WarehouseConstructionChangeValue } from '../../model/warehouseSceneInteraction';
 
 import { useAddWarehouseRack } from '../../api/useAddWarehouseRack';
 import { useWarehouseLayoutDrafts } from '../../api/useWarehouseLayoutDrafts';
@@ -56,6 +63,7 @@ import {
   createWarehouseRackPlacement,
   moveWarehouseRackPlacement,
 } from '../../model/warehouseRackPlacement';
+import { useWarehouseConstructionPreview } from './useWarehouseConstructionPreview';
 import { WarehouseLayoutObserver } from './WarehouseLayoutObserver';
 import { WarehouseRackGrid } from './WarehouseRackGrid';
 
@@ -73,17 +81,22 @@ interface RackSelectionValue {
 const suggestPlacement = (topology: WarehouseTopology, rowId: string): undefined | WarehouseRackPlacementValue =>
   createWarehouseRackPlacement(topology, rowId) ?? createWarehouseRackPlacement(topology, rowId, { xMm: 0, zMm: 0 });
 
-interface WarehouseRackEditorProps extends Omit<WarehouseRackPlacementProps, 'canEdit'> {
+interface WarehouseRackEditorProps extends WarehouseRackPlacementProps {
   topology: null | WarehouseTopology;
 }
 
 interface WarehouseRackPlacementProps {
-  canEdit: boolean;
   onEditingChange: (isEditing: boolean) => void;
+  onPreviewChange: WarehouseConstructionChangeValue;
   query: UseQueryResult<null | WarehouseTopology>;
   t: WarehouseWorkTranslate;
   warehouseId: string;
 }
+
+const COMPACT_LAYOUT = [
+  'max-h-[30dvh] overflow-y-auto overscroll-contain pr-2 pb-1 scroll-shadow-y [--warehouse-rack-grid-height:10rem]',
+  'xl:max-h-[34dvh] xl:[--warehouse-placement-columns:minmax(0,3fr)_minmax(0,2fr)]',
+].join(' ');
 
 const RackPreview = ({ draft, t }: RackPreviewProps): ReactElement => {
   const { formatNumber } = useI18n();
@@ -150,7 +163,9 @@ const RackSaved = ({ onNext, query, saved, t, topology }: RackSavedProps): React
   );
 };
 
-const WarehouseRackEditor = ({ onEditingChange, query, t, topology, warehouseId }: WarehouseRackEditorProps): ReactElement => {
+const WarehouseRackEditor = ({
+  onEditingChange, onPreviewChange, query, t, topology, warehouseId,
+}: WarehouseRackEditorProps): ReactElement => {
   const { t: baseText } = useI18n();
   const [requestedRowId, setRequestedRowId] = useState<string>();
   const [saved, setSaved] = useState<WarehouseRackSavedValue>();
@@ -201,6 +216,8 @@ const WarehouseRackEditor = ({ onEditingChange, query, t, topology, warehouseId 
   const isPlacementBlocked = !isAttemptActive && (isVersionConflict || isRowMissing || obstacle !== undefined || hasUnpublishedSelection);
   const isSaveBlocked = displayedDraft === undefined || isLeavePending || isLeaving || isPlacementBlocked;
   const canRetryDraft = selection !== undefined && !isGridReadOnly && obstacle === undefined;
+  const constructionPlacement = saved === undefined && !isRowMissing ? displayedDraft : undefined;
+  useWarehouseConstructionPreview(onPreviewChange, otherDrafts, constructionPlacement, obstacle !== undefined);
 
   const handleRowChange = (event: ChangeEvent<HTMLSelectElement>): void => {
     setRequestedRowId(event.currentTarget.value);
@@ -298,94 +315,100 @@ const WarehouseRackEditor = ({ onEditingChange, query, t, topology, warehouseId 
         ? (
             <>
               <h3 className="text-base font-semibold">{t('warehouseWork.rackTitle')}</h3>
-              <div className="max-w-96" data-testid="warehouse-rack-row">
-                <SelectField
-                  isReadOnly={isEditing || isRefreshing}
-                  label={t('warehouseWork.rackRow')}
-                  name="warehouse-rack-row"
-                  onChange={handleRowChange}
-                  value={displayedDraft?.rowId ?? rowId}
-                >
-                  {isRowMissing && <option value={displayedDraft.rowId}>{t('warehouseWork.rackGridRowRemoved')}</option>}
-                  {options.map(({ row, zone }) => (
-                    <option key={row.id} value={row.id}>{t('warehouseWork.rackRowOption', { row: row.code, zone: zone.code })}</option>
-                  ))}
-                </SelectField>
-              </div>
-              {displayedDraft !== undefined && grid !== undefined && (
-                <WarehouseRackGrid
-                  boardRef={boardRef}
-                  drafts={otherDrafts}
-                  footprint={displayedDraft.footprint}
-                  grid={grid}
-                  isReadOnly={isGridReadOnly}
-                  obstacle={obstacle}
-                  onMove={handleMove}
-                  t={t}
-                />
-              )}
-              {displayedDraft === undefined
-                ? <p role="status">{t('warehouseWork.rackNoPosition')}</p>
-                : <RackPreview draft={displayedDraft} t={t} />}
-              {live.error !== null && !hasPublishConflict && (
-                <ErrorNotice error={live.error} onRetry={canRetryDraft ? handleRetryDraft : undefined} />
-              )}
-              {live.isExpired && (
-                <div className="flex flex-wrap items-center gap-2" data-state="expired" data-testid="warehouse-rack-draft-status">
-                  <p className="text-sm" role="alert">{t('warehouseWork.rackDraftExpired')}</p>
-                  {canRetryDraft && <Button onClick={handleRetryDraft} variant="secondary">{baseText('common.retry')}</Button>}
+              <div className="grid gap-3 grid-cols-[var(--warehouse-placement-columns,minmax(0,1fr))]">
+                <div className="min-w-0 space-y-3">
+                  <div className="max-w-96" data-testid="warehouse-rack-row">
+                    <SelectField
+                      isReadOnly={isEditing || isRefreshing}
+                      label={t('warehouseWork.rackRow')}
+                      name="warehouse-rack-row"
+                      onChange={handleRowChange}
+                      value={displayedDraft?.rowId ?? rowId}
+                    >
+                      {isRowMissing && <option value={displayedDraft.rowId}>{t('warehouseWork.rackGridRowRemoved')}</option>}
+                      {options.map(({ row, zone }) => (
+                        <option key={row.id} value={row.id}>{t('warehouseWork.rackRowOption', { row: row.code, zone: zone.code })}</option>
+                      ))}
+                    </SelectField>
+                  </div>
+                  {displayedDraft !== undefined && grid !== undefined && (
+                    <WarehouseRackGrid
+                      boardRef={boardRef}
+                      drafts={otherDrafts}
+                      footprint={displayedDraft.footprint}
+                      grid={grid}
+                      isReadOnly={isGridReadOnly}
+                      obstacle={obstacle}
+                      onMove={handleMove}
+                      t={t}
+                    />
+                  )}
                 </div>
-              )}
-              {live.error === null && (live.isPublishing || live.published !== undefined) && (
-                <p
-                  className="text-sm text-on-panel-muted"
-                  data-state={live.isPublishing ? 'publishing' : 'published'}
-                  data-testid="warehouse-rack-draft-status"
-                  role="status"
-                >
-                  {t(live.isPublishing ? 'warehouseWork.rackDraftPublishing' : 'warehouseWork.rackDraftPublished')}
-                </p>
-              )}
-              {isRowMissing && <p className="text-sm" role="status">{t('warehouseWork.rackGridRowUnavailable')}</p>}
-              {isVersionConflict && !isAttemptActive && !isRowMissing && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm" role="status">{t('warehouseWork.rackGridChanged')}</p>
-                  <Button disabled={isRefreshing || isLeavePending} onClick={handleRefresh} variant="secondary">
-                    {t('warehouseWork.rackRefresh')}
-                  </Button>
+                <div className="min-w-0 space-y-3">
+                  {displayedDraft === undefined
+                    ? <p role="status">{t('warehouseWork.rackNoPosition')}</p>
+                    : <RackPreview draft={displayedDraft} t={t} />}
+                  {live.error !== null && !hasPublishConflict && (
+                    <ErrorNotice error={live.error} onRetry={canRetryDraft ? handleRetryDraft : undefined} />
+                  )}
+                  {live.isExpired && (
+                    <div className="flex flex-wrap items-center gap-2" data-state="expired" data-testid="warehouse-rack-draft-status">
+                      <p className="text-sm" role="alert">{t('warehouseWork.rackDraftExpired')}</p>
+                      {canRetryDraft && <Button onClick={handleRetryDraft} variant="secondary">{baseText('common.retry')}</Button>}
+                    </div>
+                  )}
+                  {live.error === null && (live.isPublishing || live.published !== undefined) && (
+                    <p
+                      className="text-sm text-on-panel-muted"
+                      data-state={live.isPublishing ? 'publishing' : 'published'}
+                      data-testid="warehouse-rack-draft-status"
+                      role="status"
+                    >
+                      {t(live.isPublishing ? 'warehouseWork.rackDraftPublishing' : 'warehouseWork.rackDraftPublished')}
+                    </p>
+                  )}
+                  {isRowMissing && <p className="text-sm" role="status">{t('warehouseWork.rackGridRowUnavailable')}</p>}
+                  {isVersionConflict && !isAttemptActive && !isRowMissing && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm" role="status">{t('warehouseWork.rackGridChanged')}</p>
+                      <Button disabled={isRefreshing || isLeavePending} onClick={handleRefresh} variant="secondary">
+                        {t('warehouseWork.rackRefresh')}
+                      </Button>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-start gap-2">
+                    <ActionButton
+                      access={access}
+                      command={command}
+                      data-testid="warehouse-rack-submit"
+                      errorPlacement={live.error === null ? 'below' : 'external'}
+                      isDisabled={isSaveBlocked}
+                    >
+                      {t('warehouseWork.rackSubmit')}
+                    </ActionButton>
+                    {isEditing && !command.isPending && (
+                      <Button
+                        data-testid="warehouse-rack-cancel"
+                        disabled={isRefreshing || isLeavePending}
+                        onClick={handleDiscard}
+                        variant="secondary"
+                      >
+                        {t('warehouseWork.cancel')}
+                      </Button>
+                    )}
+                  </div>
+                  {isLeavePending && (
+                    <LeaveConfirm
+                      data-testid="warehouse-rack-leave"
+                      leaveLabel={t('warehouseWork.leave')}
+                      message={t('warehouseWork.rackGridLeave')}
+                      onLeave={handleConfirmLeave}
+                      onStay={handleStay}
+                      stayLabel={t('warehouseWork.stay')}
+                    />
+                  )}
                 </div>
-              )}
-              <div className="flex flex-wrap items-start gap-2">
-                <ActionButton
-                  access={access}
-                  command={command}
-                  data-testid="warehouse-rack-submit"
-                  errorPlacement={live.error === null ? 'below' : 'external'}
-                  isDisabled={isSaveBlocked}
-                >
-                  {t('warehouseWork.rackSubmit')}
-                </ActionButton>
-                {isEditing && !command.isPending && (
-                  <Button
-                    data-testid="warehouse-rack-cancel"
-                    disabled={isRefreshing || isLeavePending}
-                    onClick={handleDiscard}
-                    variant="secondary"
-                  >
-                    {t('warehouseWork.cancel')}
-                  </Button>
-                )}
               </div>
-              {isLeavePending && (
-                <LeaveConfirm
-                  data-testid="warehouse-rack-leave"
-                  leaveLabel={t('warehouseWork.leave')}
-                  message={t('warehouseWork.rackGridLeave')}
-                  onLeave={handleConfirmLeave}
-                  onStay={handleStay}
-                  stayLabel={t('warehouseWork.stay')}
-                />
-              )}
             </>
           )
         : <RackSaved onNext={handleNext} query={query} saved={saved} t={t} topology={topology} />}
@@ -393,8 +416,14 @@ const WarehouseRackEditor = ({ onEditingChange, query, t, topology, warehouseId 
   );
 };
 
-export const WarehouseRackPlacement = ({ canEdit, onEditingChange, query, t, warehouseId }: WarehouseRackPlacementProps): ReactElement => {
+export const WarehouseRackPlacement = ({
+  onEditingChange, onPreviewChange, query, t, warehouseId,
+}: WarehouseRackPlacementProps): ReactElement => {
   const { t: baseText } = useI18n();
+  const canEdit = useCan(PermissionCode.LAYOUT_EDIT, { kind: 'warehouse', warehouseId });
+  const viewportClass = useViewportClass();
+  const canShowScene = useSceneSettingsStore(state => state.preference !== 'off' && !state.isSceneUnavailable);
+  const isCompact = canShowScene && viewportClass !== 'phone';
 
   const handleRetry = (): void => {
     void query.refetch();
@@ -405,19 +434,33 @@ export const WarehouseRackPlacement = ({ canEdit, onEditingChange, query, t, war
   }
 
   return (
-    <WidgetStates
-      data={query.data}
-      error={query.error}
-      isRetrying={query.isFetching}
-      loadingLabel={baseText('routing.section.loading')}
-      onRetry={handleRetry}
-      skeleton={<Skeleton className="h-28 w-full" />}
+    <div
+      aria-label={isCompact ? t('warehouseWork.layout') : undefined}
+      className={isCompact ? COMPACT_LAYOUT : undefined}
+      role={isCompact ? 'region' : undefined}
+      tabIndex={isCompact ? 0 : undefined}
     >
-      {topology => canEdit
-        ? (
-            <WarehouseRackEditor onEditingChange={onEditingChange} query={query} t={t} topology={topology} warehouseId={warehouseId} />
-          )
-        : <WarehouseLayoutObserver t={t} topology={topology} warehouseId={warehouseId} />}
-    </WidgetStates>
+      <WidgetStates
+        data={query.data}
+        error={query.error}
+        isRetrying={query.isFetching}
+        loadingLabel={baseText('routing.section.loading')}
+        onRetry={handleRetry}
+        skeleton={<Skeleton className="h-28 w-full" />}
+      >
+        {topology => canEdit
+          ? (
+              <WarehouseRackEditor
+                onEditingChange={onEditingChange}
+                onPreviewChange={onPreviewChange}
+                query={query}
+                t={t}
+                topology={topology}
+                warehouseId={warehouseId}
+              />
+            )
+          : <WarehouseLayoutObserver onPreviewChange={onPreviewChange} t={t} topology={topology} warehouseId={warehouseId} />}
+      </WidgetStates>
+    </div>
   );
 };

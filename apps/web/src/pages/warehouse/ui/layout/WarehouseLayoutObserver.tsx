@@ -12,12 +12,15 @@ import {
 
 import type { WarehouseWorkTranslate } from '../../i18n/workspaceSection';
 import type { WarehouseRackFootprintValue } from '../../model/warehouseRackGrid';
+import type { WarehouseConstructionChangeValue } from '../../model/warehouseSceneInteraction';
 
 import { useWarehouseLayoutDrafts } from '../../api/useWarehouseLayoutDrafts';
 import { createWarehouseRackGrid } from '../../model/warehouseRackGrid';
+import { useWarehouseConstructionPreview } from './useWarehouseConstructionPreview';
 import { WarehouseRackOverview } from './WarehouseRackGrid';
 
 interface WarehouseLayoutObserverProps {
+  onPreviewChange: WarehouseConstructionChangeValue;
   t: WarehouseWorkTranslate;
   topology: null | WarehouseTopology;
   warehouseId: string;
@@ -25,13 +28,14 @@ interface WarehouseLayoutObserverProps {
 
 const EMPTY_FOOTPRINT: WarehouseRackFootprintValue = { depthMm: 0, origin: { xMm: 0, zMm: 0 }, widthMm: 0 };
 
-export const WarehouseLayoutObserver = ({ t, topology, warehouseId }: WarehouseLayoutObserverProps): ReactElement => {
+export const WarehouseLayoutObserver = ({ onPreviewChange, t, topology, warehouseId }: WarehouseLayoutObserverProps): ReactElement => {
   const { formatNumber, t: baseText } = useI18n();
   const { drafts, error, isDenied, isLoading, isRetrying, retry } = useWarehouseLayoutDrafts(topology, warehouseId);
   const grid = useMemo(
     () => createWarehouseRackGrid(topology, EMPTY_FOOTPRINT, undefined, drafts.map(({ footprint }) => footprint)),
     [drafts, topology],
   );
+  useWarehouseConstructionPreview(onPreviewChange, drafts);
 
   if (isDenied) {
     return <EmptyState icon={Package} text={t('warehouseWork.noAccess')} />;

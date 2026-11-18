@@ -57,8 +57,8 @@ const Harness = (): ReactElement => {
 
   return (
     <WarehouseRackPlacement
-      canEdit
       onEditingChange={NO_CHANGE}
+      onPreviewChange={NO_CHANGE}
       query={query}
       t={(key, ..._params) => catalog[key]}
       warehouseId={WAREHOUSE_ID}
@@ -94,7 +94,7 @@ it.each([
     </RoutingProvider>,
   ));
 
-  const submit = screen.getByTestId('warehouse-rack-submit');
+  const submit = await screen.findByTestId('warehouse-rack-submit');
   await waitFor(() => {
     expect(submit.getAttribute('aria-disabled')).toBeNull();
   });

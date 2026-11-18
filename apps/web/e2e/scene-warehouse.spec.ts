@@ -71,6 +71,7 @@ test.use({ viewport: DESKTOP_VIEWPORT });
 
 const IN_TRANSIT_ADVANCE_MS = TRIP_DEPARTURE_ADVANCE_MS + 240 * MINUTE_MS;
 const REST_PERIOD_MS = 700;
+const RACK_GRID_STEP_MM = 100;
 const MIN_DOCK_MOTION_FRAMES = 10;
 const MIN_WAREHOUSE_MOTION_FRAMES = 5;
 const MIN_YARD_HANDOFF_FRAMES = 32;
@@ -175,6 +176,85 @@ const readTruckCabPositions = (
 
   return cabs;
 }, screenshot.toString('base64'));
+
+test('moves a rack preview and renders the saved rack on the same warehouse canvas', async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
+  await page.addInitScript({ content: DRAW_COUNTER_INIT_SCRIPT });
+  await page.addInitScript({ content: createStoreSystemThemeScript() });
+  await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+  const scene = createSceneRobot(page);
+  scene.watchPageErrors();
+  await createPersonaRobot(page).openAsPersona(CUSTOMER_WAREHOUSE_HASH, PERSONAS.freshCustomer.id);
+  await scene.chooseGraphicsPreference('low');
+  await scene.expectSceneState('ready');
+  await scene.expectOneCanvas();
+  await scene.waitForCameraControls();
+  await scene.waitForIdle();
+  await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
+
+  const canvas = page.getByTestId('scene-viewport').locator('canvas');
+  const initialCanvas = await canvas.elementHandle();
+  const initial = await canvas.screenshot({ path: testInfo.outputPath('warehouse-before-construction.png'), style: CANVAS_ONLY_STYLE });
+  const initialTriangles = await scene.readTriangles();
+  const workspace = page.getByTestId('warehouse-workspace');
+  const placement = workspace.getByTestId('warehouse-rack-placement');
+  const addresses = placement.getByTestId('warehouse-rack-preview').locator('li');
+  const grid = placement.getByTestId('warehouse-rack-grid');
+  const selection = grid.getByTestId('warehouse-rack-grid-selection');
+  const submit = placement.getByTestId('warehouse-rack-submit');
+
+  const beforeLayout = await scene.readDrawFrames();
+  await workspace.locator('button[id$="-trigger-layout"]').click();
+  await expect(addresses).toHaveCount(4);
+  await expect(selection).toHaveAttribute('data-x-mm', /^\d+$/u);
+  const initialX = Number(await selection.getAttribute('data-x-mm'));
+  await scene.waitForDrawFramesToExceed(beforeLayout, 'the zone and rack preview did not draw');
+  await expect.poll(scene.readTriangles).toBeGreaterThan(initialTriangles);
+  await scene.waitForIdle();
+  await expect.poll(async () => (await page.getByTestId('hud-free-area').boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(120);
+  await page.screenshot({ path: testInfo.outputPath('warehouse-layout-preview.png') });
+  const preview = await canvas.screenshot({ path: testInfo.outputPath('warehouse-rack-preview.png'), style: CANVAS_ONLY_STYLE });
+  const previewTriangles = await scene.readTriangles();
+  expect(preview.equals(initial), 'the layout did not change the warehouse scene').toBe(false);
+  expect(previewTriangles).toBeGreaterThan(initialTriangles);
+
+  const beforeMove = await scene.readDrawFrames();
+  await grid.press('ArrowRight');
+  await expect(selection).toHaveAttribute('data-x-mm', String(initialX + RACK_GRID_STEP_MM));
+  await expect(submit).toBeEnabled();
+  await scene.waitForDrawFramesToExceed(beforeMove, 'moving the rack did not draw');
+  await scene.waitForIdle();
+  await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
+  const moved = await canvas.screenshot({ path: testInfo.outputPath('warehouse-rack-moved.png'), style: CANVAS_ONLY_STYLE });
+  expect(moved.equals(preview), 'the moved rack did not change the warehouse scene').toBe(false);
+  expect(await scene.readTriangles()).toBe(previewTriangles);
+
+  const newAddresses = (await addresses.allTextContents()).map(text => text.trim());
+  const beforeSave = await scene.readDrawFrames();
+  await submit.press('Enter');
+  await expect(placement.getByTestId('warehouse-rack-saved')).toBeVisible();
+  await expect(placement.getByTestId('warehouse-rack-print')).toBeVisible();
+  await expect(addresses).toHaveCount(0);
+  await scene.waitForDrawFramesToExceed(beforeSave, 'the saved rack did not draw');
+  await scene.waitForIdle();
+  const saved = await canvas.screenshot({ path: testInfo.outputPath('warehouse-rack-saved.png'), style: CANVAS_ONLY_STYLE });
+  expect(saved.equals(moved), 'the saved rack did not replace the preview in the warehouse scene').toBe(false);
+  expect(saved.equals(initial), 'the committed rack is missing from the warehouse scene').toBe(false);
+  expect(await scene.readTriangles()).toBeGreaterThan(initialTriangles);
+
+  await workspace.locator('button[id$="-trigger-addresses"]').click();
+  const cellLinks = workspace.getByTestId('warehouse-addresses').locator('a[href^="#/cells/"]');
+  for (const code of newAddresses) {
+    await expect(cellLinks.filter({ hasText: new RegExp(`(?:^|\\s)${code}$`, 'u') })).toHaveCount(1);
+  }
+  await scene.waitForIdle();
+  await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
+  await canvas.screenshot({ path: testInfo.outputPath('warehouse-saved-addresses.png'), style: CANVAS_ONLY_STYLE });
+  expect(await scene.readTriangles()).toBeGreaterThan(initialTriangles);
+  await scene.expectOneCanvas();
+  expect(await canvas.evaluate((current, original) => current === original, initialCanvas)).toBe(true);
+  expect(scene.readPageErrors()).toEqual([]);
+});
 
 test('renders the dock and the confirmed receiving movements, then returns to rest', async ({ context, page }, testInfo) => {
   test.setTimeout(150_000);

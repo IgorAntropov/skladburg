@@ -53,12 +53,14 @@ const SELECTION = 'border-2 border-indicator bg-indicator/20';
 const BLOCKED_SELECTION = 'border-2 border-dashed border-status-alarm bg-status-alarm/25';
 const GRID_LINE_MM = 1_000;
 const MAX_GRID_LINES = 24;
+const GRID_SIZE = 'max-h-[var(--warehouse-rack-grid-height,24rem)] min-h-40 w-full';
 const GRID_IMAGE = [
   'linear-gradient(to right,var(--color-line) 1px,transparent 1px)',
   'linear-gradient(to bottom,var(--color-line) 1px,transparent 1px)',
 ].join(',');
 const BOARD = [
-  'relative block max-h-96 min-h-40 w-full cursor-crosshair overflow-hidden border border-line-strong bg-panel-solid p-0',
+  'relative block cursor-crosshair overflow-hidden border border-line-strong bg-panel-solid p-0',
+  GRID_SIZE,
   'enabled:not-aria-disabled:hover:bg-panel-solid enabled:not-aria-disabled:active:bg-panel-solid',
   'enabled:not-aria-disabled:motion-safe:active:scale-100 aria-disabled:not-aria-busy:cursor-default',
 ].join(' ');
@@ -146,7 +148,7 @@ export const WarehouseRackOverview = ({ drafts, grid, t }: RackGridSurfaceProps)
   <div className="space-y-2">
     <div
       aria-hidden="true"
-      className="relative max-h-96 min-h-40 w-full overflow-hidden rounded-control border border-line-strong bg-panel-solid"
+      className={`relative overflow-hidden rounded-control border border-line-strong bg-panel-solid ${GRID_SIZE}`}
       style={getBoardStyle(grid)}
     >
       <RackMarkers drafts={drafts} grid={grid} />

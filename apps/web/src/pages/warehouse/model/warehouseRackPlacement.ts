@@ -23,6 +23,7 @@ import {
   WAREHOUSE_RACK_WIDTH_MM,
   warehouseRackRightEdgeMm,
 } from './warehouseRackGrid';
+import { WAREHOUSE_RACK_TIER_ELEVATIONS_MM } from './warehouseRackTemplate';
 
 export interface WarehouseRackPlacementValue {
   cells: readonly WarehouseRackCellInputValue[];
@@ -42,7 +43,6 @@ interface WarehouseRackCodesValue {
 }
 
 const RACK_GAP_MM = 500;
-const TIER_ELEVATIONS_MM = [0, 1_500] as const;
 const MAX_LAYOUT_REVISION = 4_294_967_295;
 const MAX_ADDRESS_PART_LENGTH = 20;
 
@@ -95,7 +95,7 @@ const numberedCode = (prefix: string, position: number): string => `${prefix}${S
 const createCells = (
   { cellPrefix, rackCode, rowCode, zoneCode }: WarehouseRackCodesValue,
   footprint: WarehouseRackFootprintValue,
-): WarehouseRackCellInputValue[] => TIER_ELEVATIONS_MM.flatMap((tierElevationMm, tierIndex) => {
+): WarehouseRackCellInputValue[] => WAREHOUSE_RACK_TIER_ELEVATIONS_MM.flatMap((tierElevationMm, tierIndex) => {
   const tierCode = numberedCode('Y', tierIndex);
 
   return WAREHOUSE_RACK_CELL_OFFSETS_MM.map((xOffsetMm, cellIndex) => ({

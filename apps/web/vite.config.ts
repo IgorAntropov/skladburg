@@ -45,6 +45,7 @@ const HUD_SHARED_MODULES = [
   'node_modules/@connectrpc/connect/dist/esm/code.js',
   'node_modules/@connectrpc/connect/dist/esm/connect-error.js',
   'node_modules/@connectrpc/connect/dist/esm/protocol-connect/code-string.js',
+  'node_modules/@tanstack/react-query/build/modern/queryOptions.js',
   'node_modules/lucide-react/dist/esm/icons/ban.mjs',
   'node_modules/lucide-react/dist/esm/icons/chevron-down.mjs',
   'node_modules/lucide-react/dist/esm/icons/truck.mjs',

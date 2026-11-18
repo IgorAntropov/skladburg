@@ -165,12 +165,14 @@ export const createSubscriptionAccess = (errors: IDomainErrors): ISubscriptionAc
       return;
     }
 
-    if (parsed.kind === 'inventory' || parsed.kind === 'tasks') {
+    if (parsed.kind === 'inventory' || parsed.kind === 'tasks' || parsed.kind === 'layout') {
       if (organizationId === undefined || supportSessionId !== undefined) {
         throw errors.membershipRequired();
       }
 
-      const permission = parsed.kind === 'inventory' ? INVENTORY_CHANNEL_PERMISSION : TASK_CHANNEL_PERMISSION;
+      const permission = parsed.kind === 'inventory'
+        ? INVENTORY_CHANNEL_PERMISSION
+        : parsed.kind === 'tasks' ? TASK_CHANNEL_PERMISSION : WAREHOUSE_CHANNEL_PERMISSION;
       evaluateWarehouse(reader, parsed.warehouseId, userId, permission, organizationId);
 
       return;

@@ -287,12 +287,18 @@ const WarehouseWorkspaceContent = ({
     );
   }
 
-  if (canEditLayout && workspace.canViewTopology) {
+  if (workspace.canViewTopology) {
     tabs.push({
       content: (
         <WarehousePanelSlot key="layout" loader={loadWarehouseRackPlacement}>
           {({ WarehouseRackPlacement }) => (
-            <WarehouseRackPlacement onEditingChange={setIsEditingLayout} query={workspace.topology} t={t} warehouseId={warehouse.id} />
+            <WarehouseRackPlacement
+              canEdit={canEditLayout}
+              onEditingChange={setIsEditingLayout}
+              query={workspace.topology}
+              t={t}
+              warehouseId={warehouse.id}
+            />
           )}
         </WarehousePanelSlot>
       ),

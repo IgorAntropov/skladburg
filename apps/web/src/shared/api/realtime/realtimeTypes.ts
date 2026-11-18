@@ -9,7 +9,7 @@ export interface IFrameScheduler {
 
 export interface IRealtimeChannel {
   stop: () => void;
-  subscribe: (channel: string, listener: (batch: RealtimeBatchValue) => void) => () => void;
+  subscribe: (channel: string, listener: (batch: RealtimeBatchValue) => void, onSubscribed?: () => void) => () => void;
 }
 
 export interface IRealtimeSource {

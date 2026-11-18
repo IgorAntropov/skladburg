@@ -31,6 +31,7 @@ interface ChannelEntryValue {
 interface ListenerRecordValue {
   isActive: boolean;
   listener: (batch: RealtimeBatchValue) => void;
+  onSubscribed: (() => void) | undefined;
 }
 
 const RESYNC_BATCH: RealtimeBatchValue = { kind: 'resync' };
@@ -116,55 +117,43 @@ export const createRealtimeChannel = (options: CreateRealtimeChannelOptionsValue
 
   const acceptEvents = (entry: ChannelEntryValue, events: readonly Event[]): void => {
     for (const event of events) {
-      if (entry.epoch === undefined) {
+      const { epoch, lastSeq } = entry;
+      if (epoch === undefined) {
         requestResync(entry);
         continue;
       }
 
-      if (event.epoch !== entry.epoch) {
-        entry.epoch = event.epoch;
-        entry.lastSeq = event.seq;
-        requestResync(entry);
+      if (event.epoch === epoch && event.seq <= lastSeq) {
         continue;
       }
 
-      if (event.seq <= entry.lastSeq) {
-        continue;
-      }
-
-      const isGap = event.seq !== entry.lastSeq + 1n;
+      entry.epoch = event.epoch;
       entry.lastSeq = event.seq;
 
-      if (isGap) {
+      if (event.epoch !== epoch || event.seq !== lastSeq + 1n) {
         requestResync(entry);
       }
       else if (!entry.isResyncPending) {
-        if (entry.pendingEvents === undefined) {
-          entry.pendingEvents = [event];
-        }
-        else {
-          entry.pendingEvents.push(event);
-        }
-
+        (entry.pendingEvents ??= []).push(event);
         markDirty(entry);
       }
     }
   };
 
   const acceptPosition = (entry: ChannelEntryValue, position: RealtimePositionValue): void => {
-    if (entry.epoch === undefined) {
-      entry.epoch = position.epoch;
-      entry.lastSeq = position.seq;
-
+    const { epoch, lastSeq } = entry;
+    if (epoch === position.epoch && position.seq <= lastSeq) {
       return;
     }
 
-    const isEpochChanged = position.epoch !== entry.epoch;
-    const isSeqAhead = position.seq > entry.lastSeq;
-
-    if (isEpochChanged || isSeqAhead) {
-      entry.epoch = position.epoch;
-      entry.lastSeq = position.seq;
+    entry.epoch = position.epoch;
+    entry.lastSeq = position.seq;
+    if (epoch === undefined) {
+      entry.listeners.forEach(({ onSubscribed }) => {
+        onSubscribed?.();
+      });
+    }
+    else {
       requestResync(entry);
     }
   };
@@ -215,7 +204,6 @@ export const createRealtimeChannel = (options: CreateRealtimeChannelOptionsValue
       closeSource(entry);
       entry.denied = undefined;
       entry.epoch = undefined;
-      entry.lastSeq = 0n;
       requestResync(entry);
       openSource(entry);
     }
@@ -266,14 +254,17 @@ export const createRealtimeChannel = (options: CreateRealtimeChannelOptionsValue
     }
   };
 
-  const subscribe: IRealtimeChannel['subscribe'] = (channel, listener) => {
+  const subscribe: IRealtimeChannel['subscribe'] = (channel, listener, onSubscribed) => {
     if (isStopped) {
       return doNothing;
     }
 
-    const record: ListenerRecordValue = { isActive: true, listener };
+    const record: ListenerRecordValue = { isActive: true, listener, onSubscribed };
     const entry = obtainEntry(channel);
     entry.listeners = [...entry.listeners, record];
+    if (entry.epoch !== undefined) {
+      onSubscribed?.();
+    }
 
     return () => {
       if (!record.isActive) {

@@ -1,5 +1,6 @@
 import { useContext } from 'react';
 
+import type { IRealtimeChannel } from '../realtime/realtimeTypes';
 import type { ApiRuntimeValue } from '../runtime/apiRuntimeTypes';
 
 import { ApiRuntimeContext } from './ApiRuntimeContext';
@@ -13,3 +14,5 @@ export const useApiRuntime = (): ApiRuntimeValue => {
 
   return runtime;
 };
+
+export const useRealtimeChannel = (): IRealtimeChannel => useApiRuntime().realtime;

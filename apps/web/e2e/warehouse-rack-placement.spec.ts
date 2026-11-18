@@ -180,7 +180,10 @@ test('places a rack on the grid, restores its position and prints its four addre
   }
   await expect(workspace).toBeVisible();
   await expect(addressesTab).toBeVisible();
-  await expect(layoutTab).toHaveCount(0);
+  await layoutTab.click();
+  await expect(workspace.getByTestId('warehouse-layout-observer')).toBeVisible();
+  await expect(grid).toHaveCount(0);
+  await expect(submit).toHaveCount(0);
   await expect(page.locator('canvas')).toHaveCount(0);
   expect([...sceneRequests]).toEqual([]);
 });

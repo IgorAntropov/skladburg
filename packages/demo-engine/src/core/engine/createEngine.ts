@@ -157,7 +157,7 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
   return createSeedSnapshotWithTopology(seed);
 };
 
-const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
+const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25];
 
 const prepareDemoWarehouse = async (options: CreateEngineOptionsValue, snapshot: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
   if (options.isDemoWarehouseEnabled !== true) {

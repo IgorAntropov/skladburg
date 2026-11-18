@@ -5,6 +5,42 @@ package wms.v1;
 import "buf/validate/validate.proto";
 import "common/v1/method_options.proto";
 import "google/protobuf/timestamp.proto";
+import "wms/v1/topology.proto";
+
+message WarehouseLayoutDraft {
+  string zone_id = 1;
+  string row_id = 2;
+  WarehouseFloorRect footprint = 3;
+  uint32 base_revision = 4;
+  google.protobuf.Timestamp expires_at = 5;
+}
+
+message GetWarehouseLayoutDraftsRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetWarehouseLayoutDraftsResponse {
+  google.protobuf.Timestamp server_time = 1;
+  repeated WarehouseLayoutDraft drafts = 2;
+}
+
+message PutWarehouseLayoutDraftRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  string zone_id = 2 [(buf.validate.field).string.uuid = true];
+  string row_id = 3 [(buf.validate.field).string.uuid = true];
+  string layout_session_id = 4 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 5 [(buf.validate.field).string.uuid = true];
+  optional uint32 expected_revision = 6 [(buf.validate.field).required = true];
+  optional uint32 expected_draft_revision = 7 [(buf.validate.field).required = true];
+  repeated WarehouseCellInput cells = 8 [(buf.validate.field).repeated = {
+    min_items: 4
+    max_items: 4
+  }];
+}
+
+message PutWarehouseLayoutDraftResponse {
+  uint32 draft_revision = 1;
+}
 
 message OpenWarehouseLayoutSessionRequest {
   string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
@@ -38,6 +74,19 @@ message ReleaseWarehouseLayoutSessionRequest {
 message ReleaseWarehouseLayoutSessionResponse {}
 
 service WarehouseLayoutSessionService {
+  rpc GetWarehouseLayoutDrafts(GetWarehouseLayoutDraftsRequest) returns (GetWarehouseLayoutDraftsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission = {
+      name: "warehouse_view"
+      scope_field: "warehouse_id"
+    };
+  }
+  rpc PutWarehouseLayoutDraft(PutWarehouseLayoutDraftRequest) returns (PutWarehouseLayoutDraftResponse) {
+    option (common.v1.access).permission = {
+      name: "layout_edit"
+      scope_field: "warehouse_id"
+    };
+  }
   rpc OpenWarehouseLayoutSession(OpenWarehouseLayoutSessionRequest) returns (OpenWarehouseLayoutSessionResponse) {
     option (common.v1.access).permission = {
       name: "layout_edit"

@@ -929,6 +929,12 @@ const SHAPE_FINGERPRINTS = {
     ...PRE_SETTLEMENT_SHAPE_FINGERPRINTS[23] ?? [],
     'collection.warehouseLayoutSessions:{expiresAtMs:number,id:string,layoutSessionId:string,ownerKey:string}',
   ].sort(),
+  26: [
+    ...PRE_SETTLEMENT_SHAPE_FINGERPRINTS[23] ?? [],
+    'collection.warehouseLayoutSessions:{draft:{baseRevision:number,cellsBytes:bytes,draftRevision:number,footprintBytes:bytes,'
+    + 'idempotencyKey:string,requestBytes:bytes,rowId:string},expiresAtMs:number,id:string,layoutSessionId:string,ownerKey:string}'
+    + '|{expiresAtMs:number,id:string,layoutSessionId:string,ownerKey:string}',
+  ].sort(),
 } as Readonly<Record<number, readonly string[]>>;
 
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -1051,6 +1057,21 @@ const populatedTask: SchedulerTaskValue = {
       layoutSessionId: 'fingerprint-layout-session',
       ownerKey: 'fingerprint-editor',
     });
+    transaction.put('warehouseLayoutSessions', {
+      draft: {
+        baseRevision: 1,
+        cellsBytes: Uint8Array.of(),
+        draftRevision: 1,
+        footprintBytes: Uint8Array.of(),
+        idempotencyKey: 'fingerprint-key',
+        requestBytes: Uint8Array.of(),
+        rowId: 'fingerprint-row',
+      },
+      expiresAtMs: 120_000,
+      id: 'fingerprint-zone-with-draft',
+      layoutSessionId: 'fingerprint-layout-session-with-draft',
+      ownerKey: 'fingerprint-editor',
+    });
     transaction.put('warehouseOutbound', stockRecord);
   },
 };
@@ -1117,8 +1138,8 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 25 with warehouse layout sessions', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(25);
+  it('is version 26 with warehouse layout drafts', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(26);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
   });
 });

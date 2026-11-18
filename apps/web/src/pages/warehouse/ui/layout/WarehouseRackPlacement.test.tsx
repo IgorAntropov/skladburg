@@ -57,6 +57,7 @@ const Harness = (): ReactElement => {
 
   return (
     <WarehouseRackPlacement
+      canEdit
       onEditingChange={NO_CHANGE}
       query={query}
       t={(key, ..._params) => catalog[key]}

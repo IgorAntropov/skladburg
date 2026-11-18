@@ -90,6 +90,21 @@ describe('createRealtimeChannel', () => {
       expect(harness.source.subscriptions.at(0)?.context).toEqual({ organizationId: 'org-1', userId: 'user-1' });
     });
 
+    it('acknowledges a new subscription before listeners read their initial snapshot', () => {
+      const first = vi.fn();
+      const second = vi.fn();
+      harness.channel.subscribe(CHANNEL, vi.fn(), first);
+      const [subscription] = harness.source.subscriptions;
+
+      expect(first).not.toHaveBeenCalled();
+      subscription?.subscribed({ epoch: 'epoch-1', seq: 0n });
+      expect(first).toHaveBeenCalledOnce();
+
+      harness.channel.subscribe(CHANNEL, vi.fn(), second);
+      expect(second).toHaveBeenCalledOnce();
+      expect(harness.source.subscriptions).toHaveLength(1);
+    });
+
     it('keeps the source subscription until the last listener leaves', () => {
       const first = collect(harness.channel);
       const second = collect(harness.channel);

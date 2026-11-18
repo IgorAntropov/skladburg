@@ -21,6 +21,8 @@ import {
   createPathDispatcher,
   createServiceRouter,
 } from '../../router/engineRouter';
+import { createWarehouseLayoutDraftHandlers } from './warehouseLayoutDraftHandlers';
+import { publishWarehouseLayoutDraftChange } from './warehouseLayoutDrafts';
 import {
   assertWarehouseLayoutZonesAvailable,
   readActiveWarehouseLayoutSession,
@@ -36,6 +38,7 @@ export const createWarehouseLayoutSessionHandlers = (runtime: IModuleRuntime): S
   const { method } = WarehouseLayoutSessionService;
 
   return {
+    ...createWarehouseLayoutDraftHandlers(runtime),
     openWarehouseLayoutSession: (request, context) => command((transaction) => {
       const caller = guard.guardPermissionCall(transaction, method.openWarehouseLayoutSession, request, context.requestHeader);
       const { organizationId: tenantId } = caller;
@@ -73,6 +76,9 @@ export const createWarehouseLayoutSessionHandlers = (runtime: IModuleRuntime): S
           const session = readActiveWarehouseLayoutSession(transaction, scope, getRealTimeMs());
           if (session?.layoutSessionId === request.layoutSessionId && session.ownerKey === ownerKey) {
             transaction.delete('warehouseLayoutSessions', session.id);
+            if (session.draft !== undefined) {
+              publishWarehouseLayoutDraftChange(runtime, transaction, request.warehouseId);
+            }
           }
 
           return create(ReleaseWarehouseLayoutSessionResponseSchema);
@@ -96,6 +102,9 @@ export const createWarehouseLayoutSessionHandlers = (runtime: IModuleRuntime): S
           );
           const expiresAtMs = nowMs + WAREHOUSE_LAYOUT_SESSION_TTL_MS;
           transaction.put('warehouseLayoutSessions', { ...session, expiresAtMs });
+          if (session.draft !== undefined && expiresAtMs !== session.expiresAtMs) {
+            publishWarehouseLayoutDraftChange(runtime, transaction, request.warehouseId);
+          }
 
           return create(RenewWarehouseLayoutSessionResponseSchema, { expiresAt: timestampFromMs(expiresAtMs) });
         },

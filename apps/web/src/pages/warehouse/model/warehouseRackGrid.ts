@@ -68,6 +68,7 @@ export const createWarehouseRackGrid = (
   topology: null | WarehouseTopology,
   footprint: WarehouseRackFootprintValue,
   minimumSize?: Pick<WarehouseRackGridValue, 'depthMm' | 'widthMm'>,
+  draftFootprints: readonly WarehouseRackFootprintValue[] = [],
 ): WarehouseRackGridValue => {
   const obstacles = topology === null ? [] : getWarehouseRackObstacles(topology);
   let maxX = warehouseRackRightEdgeMm(footprint);
@@ -76,6 +77,10 @@ export const createWarehouseRackGrid = (
   for (const obstacle of obstacles) {
     maxX = Math.max(maxX, warehouseRackRightEdgeMm(obstacle.footprint));
     maxZ = Math.max(maxZ, bottomEdgeMm(obstacle.footprint));
+  }
+  for (const draft of draftFootprints) {
+    maxX = Math.max(maxX, warehouseRackRightEdgeMm(draft));
+    maxZ = Math.max(maxZ, bottomEdgeMm(draft));
   }
 
   return {

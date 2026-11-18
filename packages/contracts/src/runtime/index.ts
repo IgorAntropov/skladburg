@@ -19,6 +19,7 @@ export {
   type DealRuleId,
 } from './dealRuleIds';
 export { getErrorTraits } from './errorTraits';
+export { layoutChannel } from './layoutChannel';
 export { getMethodAccess } from './methodAccess';
 export { getPermissionTraits } from './permissionCatalog';
 export {

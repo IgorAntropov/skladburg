@@ -13,6 +13,7 @@ import {
 } from '@skladburg/contracts/wms/v1/topology';
 
 import type { EngineRequestHandler } from '../../router/engineRouter';
+import type { WarehouseLayoutSessionRecordValue } from '../../state/warehouseLayoutSessionRecord';
 import type { IModuleRuntime } from '../moduleRuntime';
 
 import {
@@ -24,6 +25,11 @@ import {
   normalizeWarehouseCellCodes,
   planWarehouseCells,
 } from './warehouseCellPlan';
+import {
+  areLayoutDraftBytesEqual,
+  encodeLayoutDraftCells,
+  publishWarehouseLayoutDraftChange,
+} from './warehouseLayoutDrafts';
 import {
   assertWarehouseLayoutZonesAvailable,
   readActiveWarehouseLayoutSession,
@@ -54,6 +60,7 @@ export const createWarehouseTopologyService = (runtime: IModuleRuntime): Service
           const revision = current?.revision ?? 0;
 
           const zoneIds = readWarehouseCellZoneIds(current, cells);
+          let session: undefined | WarehouseLayoutSessionRecordValue;
           if (layoutSessionId === undefined) {
             assertWarehouseLayoutZonesAvailable(transaction, runtime, { tenantId, warehouseId, zoneIds });
           }
@@ -63,12 +70,22 @@ export const createWarehouseTopologyService = (runtime: IModuleRuntime): Service
               throw errors.create(ErrorCode.WAREHOUSE_LAYOUT_SESSION_INVALID);
             }
 
-            const session = readActiveWarehouseLayoutSession(transaction, { tenantId, warehouseId, zoneId }, getRealTimeMs());
-            requireOwnedWarehouseLayoutSession(runtime, session, scope, layoutSessionId);
+            session = requireOwnedWarehouseLayoutSession(runtime,
+              readActiveWarehouseLayoutSession(transaction, { tenantId, warehouseId, zoneId }, getRealTimeMs()), scope, layoutSessionId);
           }
 
           if (request.expectedRevision !== revision) {
             throw errors.versionConflict(EntityKind.WAREHOUSE, revision);
+          }
+
+          const draft = session?.draft;
+          if (draft !== undefined) {
+            if (draft.baseRevision !== revision) {
+              throw errors.versionConflict(EntityKind.WAREHOUSE, revision);
+            }
+            if (!areLayoutDraftBytesEqual(draft.cellsBytes, encodeLayoutDraftCells(cells))) {
+              throw errors.validationFailed([{ fieldPath: 'cells', ruleId: 'warehouse.layout_draft_mismatch' }]);
+            }
           }
 
           const plan = planWarehouseCells(current, cells);
@@ -82,6 +99,10 @@ export const createWarehouseTopologyService = (runtime: IModuleRuntime): Service
 
           const { topology } = plan.materialize(warehouseId, tenantId, random.uuid);
           saveWarehouseTopology(transaction, runtime, topology);
+          if (session?.draft !== undefined) {
+            transaction.delete('warehouseLayoutSessions', session.id);
+            publishWarehouseLayoutDraftChange(runtime, transaction, warehouseId);
+          }
 
           return create(AddWarehouseCellsResponseSchema, { revision: topology.revision });
         },

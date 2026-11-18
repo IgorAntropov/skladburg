@@ -1,6 +1,7 @@
 import type { MessageInitShape } from '@bufbuild/protobuf';
 import type { Client } from '@connectrpc/connect';
-import type { WarehouseCellInputSchema } from '@skladburg/contracts/wms/v1/topology';
+import type { PutWarehouseLayoutDraftRequest } from '@skladburg/contracts/wms/v1/layout_session';
+import type { WarehouseCellInput } from '@skladburg/contracts/wms/v1/topology';
 
 import { create } from '@bufbuild/protobuf';
 import { timestampMs } from '@bufbuild/protobuf/wkt';
@@ -8,8 +9,19 @@ import { createClient } from '@connectrpc/connect';
 import { RoleAssignmentSchema } from '@skladburg/contracts/access/v1/access';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
-import { WarehouseLayoutSessionService } from '@skladburg/contracts/wms/v1/layout_session';
-import { WarehouseTopologyService } from '@skladburg/contracts/wms/v1/topology';
+import {
+  layoutChannel,
+  SUPPORT_SESSION_HEADER,
+  warehouseChannel,
+} from '@skladburg/contracts/runtime';
+import {
+  PutWarehouseLayoutDraftRequestSchema,
+  WarehouseLayoutSessionService,
+} from '@skladburg/contracts/wms/v1/layout_session';
+import {
+  WarehouseCellInputSchema,
+  WarehouseTopologyService,
+} from '@skladburg/contracts/wms/v1/topology';
 import {
   expect,
   it,
@@ -70,6 +82,176 @@ const addCell = (zoneCode: string, coordinate: number): MessageInitShape<typeof 
   tierElevationMm: 0,
   widthMm: 600,
   zoneCode,
+});
+
+const rackCells = (coordinate: number): WarehouseCellInput[] => {
+  const { rackFootprint } = addCell('Z01', coordinate);
+
+  return [
+    { cellCode: 'Z01-R01-S02-Y01-C01', tierCode: 'Y01', tierElevationMm: 0, xOffsetMm: 0 },
+    { cellCode: 'Z01-R01-S02-Y01-C02', tierCode: 'Y01', tierElevationMm: 0, xOffsetMm: 300 },
+    { cellCode: 'Z01-R01-S02-Y02-C01', tierCode: 'Y02', tierElevationMm: 1_500, xOffsetMm: 0 },
+    { cellCode: 'Z01-R01-S02-Y02-C02', tierCode: 'Y02', tierElevationMm: 1_500, xOffsetMm: 300 },
+  ].map(cell => create(WarehouseCellInputSchema, {
+    ...cell, rackCode: 'S02', rackFootprint, rowCode: 'R01', widthMm: 300, zoneCode: 'Z01',
+  }));
+};
+
+const prepareDraft = async (first: LayoutTabClientValue): Promise<PutWarehouseLayoutDraftRequest> => {
+  const { topology } = await first.getWarehouseTopology({ warehouseId: zone.warehouseId }, admin);
+  const row = topology?.storageZones.find(item => item.id === zone.zoneId)?.rows.find(item => item.code === 'R01');
+  if (row === undefined) {
+    throw new Error('Missing first layout row');
+  }
+
+  const { layoutSessionId } = await first.openWarehouseLayoutSession({ ...zone, idempotencyKey: key('10') }, admin);
+
+  return create(PutWarehouseLayoutDraftRequestSchema, {
+    ...zone,
+    cells: rackCells(6_000),
+    expectedDraftRevision: 0,
+    expectedRevision: 1,
+    idempotencyKey: key('11'),
+    layoutSessionId,
+    rowId: row.id,
+  });
+};
+
+it('projects the latest accepted draft, bounds replay and removes the projection on cancellation', async () => {
+  const { engine, first, realTime, second, storage } = await setup();
+  const observer = callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1);
+  const outsider = callAs(SeedUserId.ADMIN_2, SeedOrganizationId.SUPPLIER_1);
+  const request = await prepareDraft(first);
+  const scope = { warehouseId: zone.warehouseId };
+  const events: string[] = [];
+  const listener = engine.subscribe(layoutChannel(zone.warehouseId), new Headers(observer.headers), (batch) => {
+    events.push(...batch.map(event => event.payload.case ?? ''));
+  });
+  expect(listener.kind).toBe('subscribed');
+  expect(engine.subscribe(layoutChannel(zone.warehouseId), new Headers(outsider.headers), () => undefined).kind).toBe('denied');
+  const support = new Headers(observer.headers);
+  support.set(SUPPORT_SESSION_HEADER, key('16'));
+  expect(engine.subscribe(layoutChannel(zone.warehouseId), support, () => undefined).kind).toBe('denied');
+  expect((await second.getWarehouseLayoutDrafts(scope, observer)).drafts).toEqual([]);
+  expect(readErrorDetail(await captureError(second.getWarehouseLayoutDrafts(scope, outsider))).code).toBe(ErrorCode.NOT_FOUND);
+  expect(readErrorDetail(await captureError(second.getWarehouseLayoutDrafts(scope, { headers: support }))).code)
+    .toBe(ErrorCode.MEMBERSHIP_REQUIRED);
+  expect(readErrorDetail(await captureError(second.putWarehouseLayoutDraft(request, observer))).code).toBe(ErrorCode.PERMISSION_DENIED);
+  expect(readErrorDetail(await captureError(second.putWarehouseLayoutDraft(request, admin))).code)
+    .toBe(ErrorCode.WAREHOUSE_LAYOUT_SESSION_INVALID);
+
+  const beforePut = (await storage.load())?.collections.idempotency.size;
+  expect(await first.putWarehouseLayoutDraft(request, admin)).toMatchObject({ draftRevision: 1 });
+  expect(await first.putWarehouseLayoutDraft(request, admin)).toMatchObject({ draftRevision: 1 });
+  expect(readErrorDetail(await captureError(first.putWarehouseLayoutDraft({ ...request, cells: rackCells(6_200) }, admin))).code)
+    .toBe(ErrorCode.IDEMPOTENCY_KEY_REUSED);
+  expect(await first.putWarehouseLayoutDraft({
+    ...request, cells: rackCells(6_200), expectedDraftRevision: 1, idempotencyKey: key('12'),
+  }, admin)).toMatchObject({ draftRevision: 2 });
+  expect(readErrorDetail(await captureError(first.putWarehouseLayoutDraft(request, admin))).code).toBe(ErrorCode.VERSION_CONFLICT);
+  expect((await storage.load())?.collections.idempotency.size).toBe(beforePut);
+  expect((await second.getWarehouseLayoutDrafts(scope, observer)).drafts).toMatchObject([
+    { baseRevision: 1, footprint: { origin: { xMm: 6_200 } }, rowId: request.rowId, zoneId: zone.zoneId },
+  ]);
+  expect((await second.getWarehouseTopology(scope, observer)).topology?.revision).toBe(1);
+  expect(events).toEqual(['warehouseLayoutDraftsChanged', 'warehouseLayoutDraftsChanged']);
+
+  realTime.advance(30_000);
+  const renewal = { ...zone, idempotencyKey: key('13'), layoutSessionId: request.layoutSessionId };
+  const { expiresAt } = await first.renewWarehouseLayoutSession(renewal, admin);
+  expect((await second.getWarehouseLayoutDrafts(scope, observer)).drafts[0]?.expiresAt).toEqual(expiresAt);
+  expect(events).toEqual(Array<string>(3).fill('warehouseLayoutDraftsChanged'));
+
+  await first.releaseWarehouseLayoutSession({ ...renewal, idempotencyKey: key('17') }, admin);
+  expect((await second.getWarehouseLayoutDrafts(scope, observer)).drafts).toEqual([]);
+  expect(events).toEqual(Array<string>(4).fill('warehouseLayoutDraftsChanged'));
+});
+
+it('restores drafts after restarting the leader and expires them against real time while the world is paused', async () => {
+  const snapshot = await (await createTestEngine()).storage.load();
+  if (snapshot === undefined) {
+    throw new Error('Missing initial world');
+  }
+  const storage = createSpyStorage({ ...snapshot, meta: { ...snapshot.meta, timeScale: 0 } });
+  const { first } = await setup(storage);
+  const request = await prepareDraft(first);
+  await first.putWarehouseLayoutDraft(request, admin);
+  const { engine, realTime, second } = await setup(storage);
+  const world = engine.getClockSnapshot();
+  const scope = { warehouseId: zone.warehouseId };
+  const initial = await second.getWarehouseLayoutDrafts(scope, admin);
+  expect(initial.drafts).toHaveLength(1);
+  expect(initial.serverTime === undefined ? undefined : timestampMs(initial.serverTime)).toBe(realTime.now());
+
+  realTime.advance(119_999);
+  expect((await second.getWarehouseLayoutDrafts(scope, admin)).drafts).toHaveLength(1);
+  realTime.advance(1);
+  expect((await second.getWarehouseLayoutDrafts(scope, admin)).drafts).toHaveLength(0);
+  expect(engine.getClockSnapshot()).toEqual(world);
+});
+
+it('commits only the published positions, retires the lease atomically and replays the successful save', async () => {
+  const { engine, first, second, storage } = await setup();
+  const request = await prepareDraft(first);
+  const scope = { warehouseId: zone.warehouseId };
+  await first.putWarehouseLayoutDraft(request, admin);
+  const add = {
+    ...scope, cells: request.cells.toReversed(), expectedRevision: 1, idempotencyKey: key('14'), layoutSessionId: request.layoutSessionId,
+  };
+  const changes: string[] = [];
+  for (const channel of [warehouseChannel(zone.warehouseId), layoutChannel(zone.warehouseId)]) {
+    engine.subscribe(channel, new Headers(admin.headers), (events) => {
+      changes.push(...events.map(event => event.payload.case ?? ''));
+    });
+  }
+
+  expect(readErrorDetail(await captureError(first.addWarehouseCells({ ...add, cells: rackCells(6_200) }, admin))).code)
+    .toBe(ErrorCode.VALIDATION_FAILED);
+  storage.failNextCommit();
+  expect(readErrorDetail(await captureError(first.addWarehouseCells(add, admin))).code).toBe(ErrorCode.UNAVAILABLE);
+  expect((await second.getWarehouseTopology(scope, admin)).topology?.revision).toBe(1);
+  expect((await second.getWarehouseLayoutDrafts(scope, admin)).drafts).toHaveLength(1);
+  expect(changes).toEqual([]);
+
+  expect(await first.addWarehouseCells(add, admin)).toMatchObject({ revision: 2 });
+  expect(changes.toSorted()).toEqual(['warehouseChanged', 'warehouseLayoutDraftsChanged']);
+  expect((await second.getWarehouseLayoutDrafts(scope, admin)).drafts).toEqual([]);
+  expect((await second.getWarehouseTopology(scope, admin)).topology?.revision).toBe(2);
+  expect(await first.addWarehouseCells(add, admin)).toMatchObject({ revision: 2 });
+  expect((await second.openWarehouseLayoutSession({ ...zone, idempotencyKey: key('15') }, admin)).layoutSessionId)
+    .not.toBe(request.layoutSessionId);
+});
+
+it('hides stale drafts for readers and validates revised positions against committed topology', async () => {
+  const { first, second } = await setup();
+  const request = await prepareDraft(first);
+  const scope = { warehouseId: zone.warehouseId };
+  await first.putWarehouseLayoutDraft(request, admin);
+  await second.addWarehouseCells({ ...scope, cells: [addCell('Z02', 6_000)], expectedRevision: 1, idempotencyKey: key('18') }, admin);
+
+  expect((await second.getWarehouseLayoutDrafts(scope, admin)).drafts).toEqual([]);
+  const stale = { ...request, cells: rackCells(6_800), expectedDraftRevision: 1, idempotencyKey: key('19') };
+  expect(readErrorDetail(await captureError(first.putWarehouseLayoutDraft(stale, admin))).code).toBe(ErrorCode.VERSION_CONFLICT);
+  const overlap = { ...stale, cells: request.cells, expectedRevision: 2 };
+  expect(readErrorDetail(await captureError(first.putWarehouseLayoutDraft(overlap, admin))).code).toBe(ErrorCode.VALIDATION_FAILED);
+  expect(await first.putWarehouseLayoutDraft({ ...stale, expectedRevision: 2 }, admin)).toMatchObject({ draftRevision: 2 });
+  expect((await second.getWarehouseLayoutDrafts(scope, admin)).drafts[0]?.baseRevision).toBe(2);
+});
+
+it('preserves the topology and an existing lease when migrating a version 25 snapshot', async () => {
+  const { first, storage } = await setup();
+  const request = await prepareDraft(first);
+  const snapshot = await storage.load();
+  if (snapshot === undefined) {
+    throw new Error('Missing world with an established layout session');
+  }
+
+  const restart = await setup(createSpyStorage({ ...snapshot, schemaVersion: 25 }));
+  const scope = { warehouseId: zone.warehouseId };
+  expect((await restart.second.getWarehouseLayoutDrafts(scope, admin)).drafts).toEqual([]);
+  expect((await restart.second.getWarehouseTopology(scope, admin)).topology)
+    .toEqual((await first.getWarehouseTopology(scope, admin)).topology);
+  expect(await restart.first.putWarehouseLayoutDraft(request, admin)).toMatchObject({ draftRevision: 1 });
 });
 
 it('assigns one editor when two tabs open a zone with the same persona and request key', async () => {

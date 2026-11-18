@@ -11,8 +11,12 @@ import {
 
 import type { WarehouseRackPlacementValue } from '../model/warehouseRackPlacement';
 import type { WarehouseRackSavedValue } from './addWarehouseRack';
+import type { PublishedRackDraftValue } from './warehouseRackDraftSession';
 
-import { addWarehouseRack } from './addWarehouseRack';
+import {
+  addWarehouseRack,
+  savePublishedWarehouseRack,
+} from './addWarehouseRack';
 import {
   useRefreshWarehouseWorkspace,
   useWarehouseCommandAttempt,
@@ -25,10 +29,16 @@ interface WarehouseRackCommandValue {
   command: CommandValue;
 }
 
+interface WarehouseRackSaveOptionsValue {
+  commit: (save: () => Promise<WarehouseRackSavedValue>) => Promise<WarehouseRackSavedValue>;
+  published: PublishedRackDraftValue | undefined;
+}
+
 export const useAddWarehouseRack = (
   warehouseId: string,
   draft: undefined | WarehouseRackPlacementValue,
   onSaved: (saved: WarehouseRackSavedValue) => void,
+  live: WarehouseRackSaveOptionsValue,
 ): WarehouseRackCommandValue => {
   const client = useApiClient();
   const attempt = useWarehouseCommandAttempt<WarehouseRackSavedValue>();
@@ -41,8 +51,13 @@ export const useAddWarehouseRack = (
         return Promise.reject(new Error('Warehouse rack preview is unavailable'));
       }
       setAttemptedDraft(draft);
+      const topology = client.service(WarehouseTopologyService);
+      const published = live.published;
+      if (published !== undefined) {
+        return live.commit(() => savePublishedWarehouseRack(published.draft, key, published.layoutSessionId, topology));
+      }
 
-      return addWarehouseRack(draft, key, client.service(WarehouseLayoutSessionService), client.service(WarehouseTopologyService));
+      return addWarehouseRack(draft, key, client.service(WarehouseLayoutSessionService), topology);
     }),
     method: WarehouseTopologyService.method.addWarehouseCells,
     onSuccess: (saved) => {

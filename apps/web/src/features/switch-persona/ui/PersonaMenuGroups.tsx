@@ -6,6 +6,7 @@ import {
 } from 'react';
 
 import { useDemoControl } from '@/shared/api';
+import { useRequestLeave } from '@/shared/routing';
 
 import { groupPersonas } from '../lib/groupPersonas';
 import { usePersonaSwitch } from '../model/usePersonaSwitch';
@@ -19,6 +20,7 @@ export interface PersonaMenuGroupsProps {
 
 export const PersonaMenuGroups = ({ focusKey }: PersonaMenuGroupsProps): null | ReactElement => {
   const demoControl = useDemoControl();
+  const requestLeave = useRequestLeave();
   const {
     currentPersona,
     error,
@@ -37,7 +39,13 @@ export const PersonaMenuGroups = ({ focusKey }: PersonaMenuGroupsProps): null | 
 
   const handlePersonaValueChange = (personaId: string): void => {
     console.log('> PersonaMenuGroups -> handlePersonaValueChange:', { personaId });
-    void switchToPersona(personaId);
+    if (personaId === currentPersona?.id) {
+      return;
+    }
+
+    requestLeave(() => {
+      void switchToPersona(personaId);
+    });
   };
 
   useEffect(() => {

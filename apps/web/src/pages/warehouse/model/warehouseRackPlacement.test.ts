@@ -12,7 +12,10 @@ import {
   it,
 } from 'vitest';
 
-import { createWarehouseRackPlacement } from './warehouseRackPlacement';
+import {
+  createWarehouseRackPlacement,
+  moveWarehouseRackPlacement,
+} from './warehouseRackPlacement';
 
 const footprint = (xMm: number, zMm: number, widthMm: number, depthMm: number): {
   depthMm: number;
@@ -169,5 +172,51 @@ describe('createWarehouseRackPlacement', () => {
 
     expect(createWarehouseRackPlacement(topology, 'missing')).toBeUndefined();
     expect(createWarehouseRackPlacement(topology, 'row-1')).toBeUndefined();
+  });
+
+  it('builds a movable draft at an occupied starting point when the automatic suggestion exceeds the coordinate range', () => {
+    const topology = makeTopology({
+      receivingArea: { footprint: footprint(0, 0, 1_200, 1_000) },
+      storageZones: [{
+        ...defaultZone,
+        rows: [{ code: 'R01', id: 'row-1', racks: [{ code: 'S01', footprint: footprint(4_294_966_000, 0, 1_200, 1_000) }] }],
+      }],
+    });
+
+    expect(createWarehouseRackPlacement(topology, 'row-1', { xMm: 0, zMm: 0 })).toMatchObject({
+      expectedRevision: 5,
+      footprint: footprint(0, 0, 1_200, 1_000),
+      rackCode: 'S02',
+    });
+  });
+
+  it.each([
+    { xMm: -100, zMm: 0 },
+    { xMm: 1, zMm: 0 },
+    { xMm: 0, zMm: 10 },
+    { xMm: 4_294_966_100, zMm: 0 },
+    { xMm: 0, zMm: 4_294_966_300 },
+  ])('rejects a starting point outside the grid or coordinate range (%o)', (initialOrigin) => {
+    expect(createWarehouseRackPlacement(makeTopology(), 'row-1', initialOrigin)).toBeUndefined();
+  });
+});
+
+describe('moveWarehouseRackPlacement', () => {
+  it('updates the preview footprint and every cell footprint while keeping the original addresses and revision', () => {
+    const draft = createWarehouseRackPlacement(makeTopology(), 'row-1');
+    if (draft === undefined) {
+      throw new Error('Expected a rack draft for row-1');
+    }
+
+    const origin = { xMm: 5_000, zMm: 1_500 };
+    const next = moveWarehouseRackPlacement(draft, origin);
+    const { cells, footprint: nextFootprint, ...placement } = next;
+    const { cells: originalCells, footprint: originalFootprint, ...originalPlacement } = draft;
+
+    expect(placement).toEqual(originalPlacement);
+    expect(nextFootprint).toEqual(footprint(5_000, 1_500, 1_200, 1_000));
+    expect(cells).toEqual(originalCells.map(cell => ({ ...cell, rackFootprint: nextFootprint })));
+    expect(originalFootprint.origin).toEqual({ xMm: 4_100, zMm: 1_000 });
+    expect(originalCells.every(cell => cell.rackFootprint === originalFootprint)).toBe(true);
   });
 });

@@ -10,6 +10,7 @@ import type {
 import {
   askLastTriggered,
   findTriggered,
+  requestGuardedLeave,
 } from '../blockers';
 import { createSnapshotReader } from '../createSnapshotReader';
 import { isSamePath } from '../isSamePath';
@@ -92,8 +93,8 @@ export const createMemoryLocation = (initialPath: string): IMemoryLocation => {
     };
   };
 
-  const block = (onBlocked: BlockedHandlerValue, shouldBlock?: ShouldBlockValue): (() => void) => {
-    const blocker: BlockerValue = { onBlocked, shouldBlock };
+  const block = (onBlocked: BlockedHandlerValue, shouldBlock?: ShouldBlockValue, isContextChangeGuarded = false): (() => void) => {
+    const blocker: BlockerValue = { isContextChangeGuarded, onBlocked, shouldBlock };
 
     blockers.push(blocker);
 
@@ -129,6 +130,7 @@ export const createMemoryLocation = (initialPath: string): IMemoryLocation => {
     get reloadCount(): number {
       return reloadCount;
     },
+    requestLeave: (action): void => { requestGuardedLeave(blockers, action); },
     subscribe,
   };
 };

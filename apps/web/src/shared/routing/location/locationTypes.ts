@@ -1,11 +1,12 @@
 export type BlockedHandlerValue = (proceed: (() => void) | undefined) => void;
 
 export interface ILocationSource {
-  block: (onBlocked: BlockedHandlerValue, shouldBlock?: ShouldBlockValue) => () => void;
+  block: (onBlocked: BlockedHandlerValue, shouldBlock?: ShouldBlockValue, isContextChangeGuarded?: boolean) => () => void;
   createHref: (path: string) => string;
   navigate: (path: string, options?: NavigateOptionsValue) => void;
   read: () => LocationSnapshotValue;
   reload: () => void;
+  requestLeave: (action: () => void) => void;
   subscribe: (listener: () => void) => () => void;
 }
 

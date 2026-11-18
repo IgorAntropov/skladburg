@@ -75,6 +75,41 @@ describe('createHashLocation block', () => {
     vi.restoreAllMocks();
   });
 
+  describe('requestLeave', () => {
+    it('uses the current blocker for a context change while keeping the address', () => {
+      const location = createHashLocation(window);
+      const blocked = createBlockedMock();
+      const leave = vi.fn<() => void>();
+      releases.push(location.block(blocked, () => false, true));
+
+      location.requestLeave(leave);
+
+      expect(leave).not.toHaveBeenCalled();
+      getProceed(blocked)();
+      expect(leave).toHaveBeenCalledOnce();
+      expect(location.read().path).toBe('/');
+    });
+
+    it('runs the action immediately when there is no blocker', () => {
+      const location = createHashLocation(window);
+      const leave = vi.fn<() => void>();
+
+      location.requestLeave(leave);
+
+      expect(leave).toHaveBeenCalledOnce();
+    });
+
+    it('skips a navigation-only blocker', () => {
+      const { blocked, location } = createBlockedLocation();
+      const leave = vi.fn<() => void>();
+
+      location.requestLeave(leave);
+
+      expect(leave).toHaveBeenCalledOnce();
+      expect(blocked).not.toHaveBeenCalled();
+    });
+  });
+
   describe('navigate', () => {
     it('keeps the address and stays silent while a blocker stands', () => {
       const { blocked, listener, location } = createBlockedLocation();

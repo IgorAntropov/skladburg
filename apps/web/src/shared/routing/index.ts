@@ -40,3 +40,4 @@ export type {
 } from './react/useNavigationGuard';
 export { useNavigationGuard } from './react/useNavigationGuard';
 export { useReloadPage } from './react/useReloadPage';
+export { useRequestLeave } from './react/useRequestLeave';

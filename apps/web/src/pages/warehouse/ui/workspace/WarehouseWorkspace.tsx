@@ -158,6 +158,7 @@ const WarehouseWorkspaceContent = ({
   const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
   const canEditLayout = useCan(PermissionCode.LAYOUT_EDIT, { kind: 'warehouse', warehouseId: warehouse.id });
   const [editingTaskId, setEditingTaskId] = useState<string | undefined>();
+  const [isEditingLayout, setIsEditingLayout] = useState(false);
   const hasEditor = editingTaskId !== undefined && workspace.receiving.data?.some(task => task.id === editingTaskId
     && task.status === ReceivingTaskStatus.IN_PROGRESS) === true;
   const cells = readCells(workspace.topology.data);
@@ -290,7 +291,9 @@ const WarehouseWorkspaceContent = ({
     tabs.push({
       content: (
         <WarehousePanelSlot key="layout" loader={loadWarehouseRackPlacement}>
-          {({ WarehouseRackPlacement }) => <WarehouseRackPlacement query={workspace.topology} t={t} />}
+          {({ WarehouseRackPlacement }) => (
+            <WarehouseRackPlacement onEditingChange={setIsEditingLayout} query={workspace.topology} t={t} warehouseId={warehouse.id} />
+          )}
         </WarehousePanelSlot>
       ),
       id: 'layout',
@@ -324,7 +327,7 @@ const WarehouseWorkspaceContent = ({
       {tabs.length > 0
         ? (
             <Tabs
-              className={hasEditor ? '[&>[role=tablist]]:hidden' : undefined}
+              className={hasEditor || isEditingLayout ? '[&>[role=tablist]]:hidden' : undefined}
               defaultTabId={defaultTabId}
               items={tabs}
               label={t('warehouseWork.tabs')}

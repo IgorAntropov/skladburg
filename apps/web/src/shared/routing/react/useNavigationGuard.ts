@@ -21,12 +21,21 @@ export interface NavigationGuardValue {
 
 export type ShouldGuardValue = (next: AppAddressValue | undefined) => boolean;
 
+interface NavigationGuardOptionsValue {
+  isContextChangeGuarded: boolean;
+}
+
 interface PendingLeaveValue {
   action: () => void;
 }
 
-export const useNavigationGuard = (isDirty: boolean, shouldGuard?: ShouldGuardValue): NavigationGuardValue => {
+export const useNavigationGuard = (
+  isDirty: boolean,
+  shouldGuard?: ShouldGuardValue,
+  options?: NavigationGuardOptionsValue,
+): NavigationGuardValue => {
   const location = useLocationSource();
+  const isContextChangeGuarded = options?.isContextChangeGuarded ?? false;
   const unblockRef = useRef<(() => void) | undefined>(undefined);
   const shouldGuardRef = useRef(shouldGuard);
   const [pendingLeave, setPendingLeave] = useState<PendingLeaveValue | undefined>(undefined);
@@ -85,7 +94,7 @@ export const useNavigationGuard = (isDirty: boolean, shouldGuard?: ShouldGuardVa
       return currentShouldGuard === undefined || currentShouldGuard(parseAddressPath(toPathOnly(nextPath)));
     };
 
-    const unblock = location.block(handleBlocked, shouldBlock);
+    const unblock = location.block(handleBlocked, shouldBlock, isContextChangeGuarded);
 
     unblockRef.current = unblock;
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -96,7 +105,7 @@ export const useNavigationGuard = (isDirty: boolean, shouldGuard?: ShouldGuardVa
       window.removeEventListener('beforeunload', handleBeforeUnload);
       setPendingLeave(undefined);
     };
-  }, [armCount, isDirty, location]);
+  }, [armCount, isContextChangeGuarded, isDirty, location]);
 
   useEffect(() => {
     shouldGuardRef.current = shouldGuard;

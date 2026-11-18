@@ -4,6 +4,7 @@ import type {
 } from './locationTypes';
 
 export interface BlockerValue {
+  isContextChangeGuarded: boolean;
   onBlocked: BlockedHandlerValue;
   shouldBlock: ShouldBlockValue | undefined;
 }
@@ -18,4 +19,15 @@ export const askLastTriggered = (triggered: readonly BlockerValue[], proceed: ()
   for (const blocker of triggered) {
     blocker.onBlocked(blocker === asker ? proceed : undefined);
   }
+};
+
+export const requestGuardedLeave = (blockers: readonly BlockerValue[], action: () => void): void => {
+  const triggered = blockers.filter(({ isContextChangeGuarded }) => isContextChangeGuarded);
+  if (triggered.length === 0) {
+    action();
+
+    return;
+  }
+
+  askLastTriggered(triggered, action);
 };

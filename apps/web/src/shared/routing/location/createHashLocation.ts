@@ -10,6 +10,7 @@ import type {
 import {
   askLastTriggered,
   findTriggered,
+  requestGuardedLeave,
 } from './blockers';
 import { createSnapshotReader } from './createSnapshotReader';
 import { isSamePath } from './isSamePath';
@@ -197,8 +198,8 @@ export const createHashLocation = (target: Window): ILocationSource => {
     };
   };
 
-  const block = (onBlocked: BlockedHandlerValue, shouldBlock?: ShouldBlockValue): (() => void) => {
-    const blocker: BlockerValue = { onBlocked, shouldBlock };
+  const block = (onBlocked: BlockedHandlerValue, shouldBlock?: ShouldBlockValue, isContextChangeGuarded = false): (() => void) => {
+    const blocker: BlockerValue = { isContextChangeGuarded, onBlocked, shouldBlock };
 
     blockers.push(blocker);
     syncListening();
@@ -219,6 +220,7 @@ export const createHashLocation = (target: Window): ILocationSource => {
     navigate,
     read,
     reload,
+    requestLeave: (action): void => { requestGuardedLeave(blockers, action); },
     subscribe,
   };
 };

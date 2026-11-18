@@ -19,6 +19,7 @@ import {
   useState,
 } from 'react';
 
+import type { CachedModuleLoader } from '@/shared/lib/module-loader';
 import type { ObjectRefValue } from '@/shared/routing';
 import type { TabsItemValue } from '@/shared/ui';
 
@@ -71,14 +72,16 @@ interface WarehouseWorkspaceProps {
 }
 
 const loadWarehousePanels = createCachedModuleLoader(() => import('./warehousePanels'));
+const loadWarehouseRackPlacement = createCachedModuleLoader(() => import('../layout/WarehouseRackPlacement'));
 const loadWarehouseSceneView = createCachedModuleLoader(() => import('../WarehouseWorkspaceScene'));
 const WarehouseWorkspaceScene = createLazyComponent(loadWarehouseSceneView);
 const WarehouseSceneControls = createLazyComponent<object>(createCachedModuleLoader(() => loadWarehouseSceneView().then(module => ({
   default: module.WarehouseSceneControls,
 }))));
 
-interface WarehousePanelSlotProps {
-  children: (module: typeof import('./warehousePanels')) => ReactNode;
+interface WarehousePanelSlotProps<TModule> {
+  children: (module: TModule) => ReactNode;
+  loader: CachedModuleLoader<TModule>;
 }
 
 const NO_CHANGE = (): void => undefined;
@@ -91,9 +94,15 @@ const WarehouseSkeleton = (): ReactElement => (
   </div>
 );
 
-const WarehousePanelSlot = ({ children }: WarehousePanelSlotProps): ReactNode => {
+interface WarehouseWorkspaceContentProps extends Omit<WarehouseWorkspaceProps, 'renderLayout'> {
+  onCellSelect: (id: string, taskId: string) => void;
+  t: WarehouseWorkTranslate;
+  workspace: WarehouseWorkspaceValue;
+}
+
+function WarehousePanelSlot<TModule>({ children, loader }: WarehousePanelSlotProps<TModule>): ReactNode {
   const { t } = useI18n();
-  const { load, state } = useChunkLoader(loadWarehousePanels);
+  const { load, state } = useChunkLoader(loader);
 
   useEffect(() => {
     load();
@@ -113,12 +122,6 @@ const WarehousePanelSlot = ({ children }: WarehousePanelSlotProps): ReactNode =>
     );
   }
   return <SkeletonGroup isFilled label={t('routing.section.loading')}><WarehouseSkeleton /></SkeletonGroup>;
-};
-
-interface WarehouseWorkspaceContentProps extends Omit<WarehouseWorkspaceProps, 'renderLayout'> {
-  onCellSelect: (id: string, taskId: string) => void;
-  t: WarehouseWorkTranslate;
-  workspace: WarehouseWorkspaceValue;
 }
 
 function WarehouseQuery<TData>({ children, empty, isEmpty, query, t }: WarehouseQueryProps<TData>): ReactElement {
@@ -153,6 +156,7 @@ const WarehouseWorkspaceContent = ({
 }: WarehouseWorkspaceContentProps): ReactElement => {
   const { t: baseText } = useI18n();
   const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
+  const canEditLayout = useCan(PermissionCode.LAYOUT_EDIT, { kind: 'warehouse', warehouseId: warehouse.id });
   const [editingTaskId, setEditingTaskId] = useState<string | undefined>();
   const hasEditor = editingTaskId !== undefined && workspace.receiving.data?.some(task => task.id === editingTaskId
     && task.status === ReceivingTaskStatus.IN_PROGRESS) === true;
@@ -186,7 +190,7 @@ const WarehouseWorkspaceContent = ({
             <div className="flex flex-col gap-3" data-testid="warehouse-tasks">
               <WarehouseQuery empty={t('warehouseWork.emptyTasks')} query={workspace.picking} t={t}>
                 {tasks => (
-                  <WarehousePanelSlot>
+                  <WarehousePanelSlot loader={loadWarehousePanels}>
                     {({ WarehousePicking }) => tasks.map(task => (
                       <WarehousePicking canViewDeals={canViewDeals} cells={cells} key={task.id} onChanged={NO_CHANGE} t={t} task={task} />
                     ))}
@@ -228,7 +232,7 @@ const WarehouseWorkspaceContent = ({
           t={t}
         >
           {topology => (
-            <WarehousePanelSlot>
+            <WarehousePanelSlot loader={loadWarehousePanels}>
               {({ WarehouseAddresses }) => <WarehouseAddresses addresses={getWarehouseCells(topology)} focus={focus} t={t} />}
             </WarehousePanelSlot>
           )}
@@ -245,7 +249,7 @@ const WarehouseWorkspaceContent = ({
         content: (
           <WarehouseQuery empty={t('warehouseWork.emptyStock')} isEmpty={isEmptyList} query={workspace.balances} t={t}>
             {balances => (
-              <WarehousePanelSlot>
+              <WarehousePanelSlot loader={loadWarehousePanels}>
                 {({ WarehouseStock }) => (
                   <WarehouseStock balances={balances} cells={cells} focus={focus} productNames={productNames} t={t} />
                 )}
@@ -260,7 +264,7 @@ const WarehouseWorkspaceContent = ({
         content: (
           <WarehouseQuery empty={t('warehouseWork.emptyMovements')} isEmpty={isEmptyList} query={workspace.movements} t={t}>
             {movements => (
-              <WarehousePanelSlot>
+              <WarehousePanelSlot loader={loadWarehousePanels}>
                 {({ WarehouseMovements }) => (
                   <WarehouseMovements
                     balances={workspace.balances.data}
@@ -280,6 +284,18 @@ const WarehouseWorkspaceContent = ({
         label: t('warehouseWork.movements'),
       },
     );
+  }
+
+  if (canEditLayout && workspace.canViewTopology) {
+    tabs.push({
+      content: (
+        <WarehousePanelSlot key="layout" loader={loadWarehouseRackPlacement}>
+          {({ WarehouseRackPlacement }) => <WarehouseRackPlacement query={workspace.topology} t={t} />}
+        </WarehousePanelSlot>
+      ),
+      id: 'layout',
+      label: t('warehouseWork.layout'),
+    });
   }
 
   const isCell = focus?.type === 'cell';

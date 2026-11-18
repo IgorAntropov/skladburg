@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package wms.v1;
+
+import "buf/validate/validate.proto";
+import "common/v1/method_options.proto";
+import "google/protobuf/timestamp.proto";
+
+message OpenWarehouseLayoutSessionRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  string zone_id = 2 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
+}
+
+message OpenWarehouseLayoutSessionResponse {
+  string layout_session_id = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message RenewWarehouseLayoutSessionRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  string zone_id = 2 [(buf.validate.field).string.uuid = true];
+  string layout_session_id = 3 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 4 [(buf.validate.field).string.uuid = true];
+}
+
+message RenewWarehouseLayoutSessionResponse {
+  google.protobuf.Timestamp expires_at = 1;
+}
+
+message ReleaseWarehouseLayoutSessionRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  string zone_id = 2 [(buf.validate.field).string.uuid = true];
+  string layout_session_id = 3 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 4 [(buf.validate.field).string.uuid = true];
+}
+
+message ReleaseWarehouseLayoutSessionResponse {}
+
+service WarehouseLayoutSessionService {
+  rpc OpenWarehouseLayoutSession(OpenWarehouseLayoutSessionRequest) returns (OpenWarehouseLayoutSessionResponse) {
+    option (common.v1.access).permission = {
+      name: "layout_edit"
+      scope_field: "warehouse_id"
+    };
+  }
+  rpc RenewWarehouseLayoutSession(RenewWarehouseLayoutSessionRequest) returns (RenewWarehouseLayoutSessionResponse) {
+    option (common.v1.access).permission = {
+      name: "layout_edit"
+      scope_field: "warehouse_id"
+    };
+  }
+  rpc ReleaseWarehouseLayoutSession(ReleaseWarehouseLayoutSessionRequest) returns (ReleaseWarehouseLayoutSessionResponse) {
+    option (common.v1.access).permission = {
+      name: "layout_edit"
+      scope_field: "warehouse_id"
+    };
+  }
+}

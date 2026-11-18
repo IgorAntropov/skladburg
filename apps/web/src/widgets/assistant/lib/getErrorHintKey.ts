@@ -15,6 +15,8 @@ export const getErrorHintKey = (code: ErrorCode): AssistantErrorHintKey | null =
     case ErrorCode.UNAVAILABLE:
     case ErrorCode.UNSPECIFIED:
     case ErrorCode.VALIDATION_FAILED:
+    case ErrorCode.WAREHOUSE_LAYOUT_BUSY:
+    case ErrorCode.WAREHOUSE_LAYOUT_SESSION_INVALID:
       return null;
     case ErrorCode.INVALID_TRANSITION:
       return 'assistant.error.hint.invalidTransition';

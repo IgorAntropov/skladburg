@@ -127,6 +127,7 @@ import type {
   WarehouseStockRecordValue,
   WarehouseTopologyRecordValue,
 } from './records';
+import type { WarehouseLayoutSessionRecordValue } from './warehouseLayoutSessionRecord';
 
 import {
   parseDealReminderMark,
@@ -154,6 +155,10 @@ import {
   serializeWarehouseStockRecord,
   serializeWarehouseTopologyRecord,
 } from './records';
+import {
+  parseWarehouseLayoutSessionRecord,
+  serializeWarehouseLayoutSessionRecord,
+} from './warehouseLayoutSessionRecord';
 
 export const ListingPublication = {
   DRAFT: 'draft',
@@ -214,6 +219,7 @@ export interface TableIndexesValue {
   users: never;
   vehicles: 'tenantId';
   warehouseInbound: 'scopeId';
+  warehouseLayoutSessions: never;
   warehouseOutbound: 'scopeId';
   warehouses: 'tenantId';
   warehouseTopologies: never;
@@ -263,6 +269,7 @@ export interface TableRecordsValue {
   users: User;
   vehicles: Vehicle;
   warehouseInbound: WarehouseStockRecordValue;
+  warehouseLayoutSessions: WarehouseLayoutSessionRecordValue;
   warehouseOutbound: WarehouseStockRecordValue;
   warehouses: Warehouse;
   warehouseTopologies: WarehouseTopologyRecordValue;
@@ -382,6 +389,7 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   users: defineMessageTable(UserSchema, user => user.id, {}),
   vehicles: defineMessageTable(VehicleSchema, vehicle => vehicle.id, { tenantId: vehicle => vehicle.tenantId }),
   warehouseInbound: { ...stockRecordTable, indexKeys: { scopeId: stockScopeId } },
+  warehouseLayoutSessions: defineRecordTable(parseWarehouseLayoutSessionRecord, serializeWarehouseLayoutSessionRecord),
   warehouseOutbound: { ...stockRecordTable, indexKeys: { scopeId: stockScopeId } },
   warehouses: defineMessageTable(WarehouseSchema, warehouse => warehouse.id, { tenantId: warehouse => warehouse.tenantId }),
   warehouseTopologies: defineRecordTable(parseWarehouseTopologyRecord, serializeWarehouseTopologyRecord),

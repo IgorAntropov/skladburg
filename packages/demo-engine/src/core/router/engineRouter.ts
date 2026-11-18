@@ -1,4 +1,5 @@
 import type {
+  ContextValues,
   Interceptor,
   ServiceImpl,
 } from '@connectrpc/connect';
@@ -10,6 +11,8 @@ import type {
 import { createConnectRouter } from '@connectrpc/connect';
 import {
   createFetchHandler,
+  universalServerRequestFromFetch,
+  universalServerResponseToFetch,
   uResponseNotFound,
 } from '@connectrpc/connect/protocol';
 import { AccessService } from '@skladburg/contracts/access/v1/access';
@@ -54,7 +57,12 @@ export interface CreateEngineHandlerOptionsValue {
   userProfileService: ServiceImpl<typeof UserProfileService>;
 }
 
-export type EngineRequestHandler = (request: Request) => Promise<Response>;
+export type EngineRequestHandler = (request: Request, contextValues?: ContextValues) => Promise<Response>;
+
+export const createContextFetchHandler = (dispatch: UniversalHandlerFn): EngineRequestHandler =>
+  async (request, contextValues) => universalServerResponseToFetch(
+    await dispatch({ ...universalServerRequestFromFetch(request, {}), contextValues }),
+  );
 
 const createErrorNormalizer = (errors: IDomainErrors): Interceptor => next => async (request) => {
   try {

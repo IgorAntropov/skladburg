@@ -4,8 +4,8 @@ import type {
 } from '@connectrpc/connect';
 
 import { create } from '@bufbuild/protobuf';
-import { createFetchHandler } from '@connectrpc/connect/protocol';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
+import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import {
   AddWarehouseCellsResponseSchema,
   GetWarehouseTopologyResponseSchema,
@@ -16,6 +16,7 @@ import type { EngineRequestHandler } from '../../router/engineRouter';
 import type { IModuleRuntime } from '../moduleRuntime';
 
 import {
+  createContextFetchHandler,
   createPathDispatcher,
   createServiceRouter,
 } from '../../router/engineRouter';
@@ -24,25 +25,47 @@ import {
   planWarehouseCells,
 } from './warehouseCellPlan';
 import {
+  assertWarehouseLayoutZonesAvailable,
+  readActiveWarehouseLayoutSession,
+  readWarehouseCellZoneIds,
+  readWarehouseLayoutOwnerKey,
+  requireOwnedWarehouseLayoutSession,
+} from './warehouseLayoutSessions';
+import {
   readOwnedWarehouseTopology,
   saveWarehouseTopology,
 } from './warehouseTopologyRecords';
 
 export const createWarehouseTopologyService = (runtime: IModuleRuntime): ServiceImpl<typeof WarehouseTopologyService> => {
-  const { command, errors, guard, idempotency, random, read } = runtime;
+  const { command, errors, getRealTimeMs, guard, idempotency, random, read } = runtime;
   const { method } = WarehouseTopologyService;
 
   return {
     addWarehouseCells: (request, context) => command((transaction) => {
       const cells = request.cells.map(normalizeWarehouseCellCodes);
       const caller = guard.guardPermissionCall(transaction, method.addWarehouseCells, { ...request, cells }, context.requestHeader);
+      const { layoutSessionId, warehouseId } = request;
+      const { organizationId: tenantId } = caller;
+      const scope = layoutSessionId === undefined ? tenantId : readWarehouseLayoutOwnerKey(caller, context.values, errors);
 
       return idempotency.run(transaction, {
         handler: () => {
-          const { warehouseId } = request;
-          const { organizationId } = caller;
-          const current = readOwnedWarehouseTopology(transaction, errors, warehouseId, organizationId);
+          const current = readOwnedWarehouseTopology(transaction, errors, warehouseId, tenantId);
           const revision = current?.revision ?? 0;
+
+          const zoneIds = readWarehouseCellZoneIds(current, cells);
+          if (layoutSessionId === undefined) {
+            assertWarehouseLayoutZonesAvailable(transaction, runtime, { tenantId, warehouseId, zoneIds });
+          }
+          else {
+            const [zoneId] = zoneIds;
+            if (zoneId === undefined || zoneIds.size !== 1 || cells.some(cell => cell.zoneCode !== cells[0]?.zoneCode)) {
+              throw errors.create(ErrorCode.WAREHOUSE_LAYOUT_SESSION_INVALID);
+            }
+
+            const session = readActiveWarehouseLayoutSession(transaction, { tenantId, warehouseId, zoneId }, getRealTimeMs());
+            requireOwnedWarehouseLayoutSession(runtime, session, scope, layoutSessionId);
+          }
 
           if (request.expectedRevision !== revision) {
             throw errors.versionConflict(EntityKind.WAREHOUSE, revision);
@@ -57,7 +80,7 @@ export const createWarehouseTopologyService = (runtime: IModuleRuntime): Service
             })));
           }
 
-          const { topology } = plan.materialize(warehouseId, organizationId, random.uuid);
+          const { topology } = plan.materialize(warehouseId, tenantId, random.uuid);
           saveWarehouseTopology(transaction, runtime, topology);
 
           return create(AddWarehouseCellsResponseSchema, { revision: topology.revision });
@@ -65,7 +88,7 @@ export const createWarehouseTopologyService = (runtime: IModuleRuntime): Service
         idempotencyKey: request.idempotencyKey,
         method: method.addWarehouseCells,
         request,
-        scope: caller.organizationId,
+        scope,
       });
     }),
     getWarehouseTopology: (request, context) => {
@@ -80,6 +103,5 @@ export const createWarehouseTopologyService = (runtime: IModuleRuntime): Service
 export const createWarehouseTopologyHandler = (runtime: IModuleRuntime, supportAudit: Interceptor): EngineRequestHandler => {
   const router = createServiceRouter(runtime.errors, supportAudit);
   router.service(WarehouseTopologyService, createWarehouseTopologyService(runtime));
-
-  return createFetchHandler(createPathDispatcher(router.handlers));
+  return createContextFetchHandler(createPathDispatcher(router.handlers));
 };

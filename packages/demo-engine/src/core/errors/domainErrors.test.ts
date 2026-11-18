@@ -43,6 +43,8 @@ const EXPECTED_CONNECT_CODES: Readonly<Record<ErrorCode, Code>> = {
   [ErrorCode.UNSPECIFIED]: Code.Unknown,
   [ErrorCode.VALIDATION_FAILED]: Code.InvalidArgument,
   [ErrorCode.VERSION_CONFLICT]: Code.Aborted,
+  [ErrorCode.WAREHOUSE_LAYOUT_BUSY]: Code.FailedPrecondition,
+  [ErrorCode.WAREHOUSE_LAYOUT_SESSION_INVALID]: Code.FailedPrecondition,
 };
 
 const ALL_ERROR_CODES: readonly ErrorCode[] = Object.values(ErrorCode).filter(value => typeof value === 'number');

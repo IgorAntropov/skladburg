@@ -11,6 +11,7 @@ const PRE_WAREHOUSE_IMPORT_SCHEMA_VERSION = 20;
 const PRE_WAREHOUSE_OUTBOUND_SCHEMA_VERSION = 21;
 const PRE_WAREHOUSE_INBOUND_SCHEMA_VERSION = 22;
 const PRE_RECEIPT_SETTLEMENT_SCHEMA_VERSION = 23;
+const PRE_WAREHOUSE_LAYOUT_SESSIONS_SCHEMA_VERSION = 24;
 
 const addStockCollections = (snapshot: EngineSnapshotValue): EngineSnapshotValue => ({
   ...snapshot,
@@ -24,18 +25,27 @@ const addStockCollections = (snapshot: EngineSnapshotValue): EngineSnapshotValue
 });
 
 export const migrateStoredSnapshot = async (stored: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
+  const current: EngineSnapshotValue = {
+    ...stored,
+    collections: { ...stored.collections, warehouseLayoutSessions: new Map() },
+    schemaVersion: ENGINE_SCHEMA_VERSION,
+  };
+
+  if (stored.schemaVersion === PRE_WAREHOUSE_LAYOUT_SESSIONS_SCHEMA_VERSION) {
+    return current;
+  }
+
   if (stored.schemaVersion === PRE_RECEIPT_SETTLEMENT_SCHEMA_VERSION) {
     if (stored.collections.warehouseInbound.size === 0) {
-      return { ...stored, schemaVersion: ENGINE_SCHEMA_VERSION };
+      return current;
     }
     const { migrateReceiptDocuments } = await import('./migrateReceiptDocuments');
-    return migrateReceiptDocuments(stored);
+    return migrateReceiptDocuments(current);
   }
 
   const snapshot: EngineSnapshotValue = {
-    ...stored,
-    collections: { ...stored.collections, warehouseInbound: new Map() },
-    schemaVersion: ENGINE_SCHEMA_VERSION,
+    ...current,
+    collections: { ...current.collections, warehouseInbound: new Map() },
   };
 
   if (stored.schemaVersion === PRE_WAREHOUSE_INBOUND_SCHEMA_VERSION) {

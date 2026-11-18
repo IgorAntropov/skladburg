@@ -12,6 +12,7 @@ import type { EngineSeedValue } from '../seed/seedConfig';
 
 export interface CreateEngineOptionsValue {
   epoch: string;
+  generateLayoutSessionId?: (() => string) | undefined;
   isDemoWarehouseEnabled?: boolean | undefined;
   realTime: IRealTimeSource;
   seed?: EngineSeedValue;
@@ -25,7 +26,7 @@ export interface IDemoEngine {
   checkpoint: () => Promise<void>;
   epoch: () => string;
   getClockSnapshot: () => ClockSnapshotValue;
-  handle: (request: Request) => Promise<Response>;
+  handle: (request: Request, tabId?: string) => Promise<Response>;
   listPersonas: () => readonly DemoPersonaListItemValue[];
   reset: (epoch: string) => Promise<void>;
   subscribe: (channel: string, headers: Headers, listener: (events: readonly Event[]) => void) => EngineSubscriptionValue;

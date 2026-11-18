@@ -2,6 +2,7 @@ import type { FileRegistry } from '@bufbuild/protobuf';
 
 import { base64Decode } from '@bufbuild/protobuf/wire';
 import { timestampMs } from '@bufbuild/protobuf/wkt';
+import { createContextValues } from '@connectrpc/connect';
 import { DealStatus } from '@skladburg/contracts/deal/v1/deal';
 import { SafeDealPaymentStatus } from '@skladburg/contracts/payment/v1/payment';
 import {
@@ -25,6 +26,7 @@ import type {
 } from './engineTypes';
 
 import { createCallGuard } from '../access/index';
+import { engineTabIdKey } from '../context/engineRequestContext';
 import { createDomainErrors } from '../errors/index';
 import {
   createEventBus,
@@ -155,7 +157,7 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
   return createSeedSnapshotWithTopology(seed);
 };
 
-const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23];
+const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
 
 const prepareDemoWarehouse = async (options: CreateEngineOptionsValue, snapshot: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
   if (options.isDemoWarehouseEnabled !== true) {
@@ -282,6 +284,10 @@ export const createEngineWithTasks = async (
   const runtime: IModuleRuntime = {
     command,
     errors,
+    generateLayoutSessionId: options.generateLayoutSessionId ?? (() => {
+      throw errors.internal();
+    }),
+    getRealTimeMs: () => Math.floor(realTime.now()),
     getWorldTimeMs: readWorldTimeMs,
     guard: createCallGuard({
       errors,
@@ -382,9 +388,11 @@ export const createEngineWithTasks = async (
     (await import('../modules/wms/warehouseReceivingService')).createWarehouseReceivingHandler(runtime, supportAudit));
   const warehouseStockHandler = deferEngineHandler(async () =>
     (await import('../modules/wms/warehouseStockService')).createWarehouseStockHandler(runtime, supportAudit));
+  const warehouseLayoutSessionHandler = deferEngineHandler(async () =>
+    (await import('../modules/wms/warehouseLayoutSessionHandlers')).createWarehouseLayoutSessionHandler(runtime, supportAudit));
   const warehouseTopologyHandler = deferEngineHandler(async () =>
     (await import('../modules/wms/warehouseTopologyService')).createWarehouseTopologyHandler(runtime, supportAudit));
-  const handle = (request: Request): Promise<Response> => queue.enqueue(() => {
+  const handle: IDemoEngine['handle'] = (request, tabId) => queue.enqueue(() => {
     const { pathname } = new URL(request.url);
 
     if (pathname.startsWith('/wms.v1.WarehousePickingService/')) {
@@ -400,7 +408,13 @@ export const createEngineWithTasks = async (
     }
 
     if (pathname.startsWith('/wms.v1.')) {
-      return warehouseTopologyHandler(request);
+      const context = tabId === undefined ? undefined : createContextValues().set(engineTabIdKey, tabId);
+
+      const service = pathname.startsWith('/wms.v1.WarehouseLayoutSessionService/')
+        ? warehouseLayoutSessionHandler
+        : warehouseTopologyHandler;
+
+      return service(request, context);
     }
 
     if (pathname.startsWith('/logistics.v1.TripDocumentsService/')) {

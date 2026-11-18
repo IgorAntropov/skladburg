@@ -66,6 +66,7 @@ export const startEngine = async (options: EngineStartupOptionsValue): Promise<S
 
   const create = (storage: OpenedEngineStorageValue['storage']): Promise<IDemoEngine> => createEngine({
     epoch: options.generateId(),
+    generateLayoutSessionId: options.generateId,
     isDemoWarehouseEnabled: options.isDemoWarehouseEnabled,
     realTime: options.realTime,
     storage,

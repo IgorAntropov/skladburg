@@ -52,6 +52,8 @@ export const catalog = {
   'error.unavailable': 'Не получилось, повторим',
   'error.validation_failed': 'Проверьте поля формы',
   'error.version_conflict': 'Пока вы смотрели, данные обновились',
+  'error.warehouse_layout_busy': 'Планировку этой зоны уже редактируют',
+  'error.warehouse_layout_session_invalid': 'Сессия редактирования недействительна. Откройте зону заново',
   'field.optional': 'необязательно',
   'graphics.auto': 'Авто',
   'graphics.autoCurrent': 'Авто, сейчас {level}',

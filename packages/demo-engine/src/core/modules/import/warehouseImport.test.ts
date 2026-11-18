@@ -5,6 +5,7 @@ import {
   ImportService,
   ImportStatus,
 } from '@skladburg/contracts/import/v1/import';
+import { WarehouseLayoutSessionService } from '@skladburg/contracts/wms/v1/layout_session';
 import {
   HandlingUnitKind,
   StockStatus,
@@ -32,6 +33,7 @@ import {
   SeedUserId,
   SeedWarehouseId,
 } from '../../seed/seedIds';
+import { TABLE_DEFINITIONS } from '../../state/index';
 import {
   buildProductRequest,
   nextUuid,
@@ -74,16 +76,22 @@ const CELL_HEADERS = [
 const STOCK_HEADERS = ['cell_code', 'sku', 'batch_number', 'expires_on', 'sscc', 'kind', 'status', 'quantity_base'];
 const NEW_CELL_CODE = 'Z01-R01-S01-Y03-C01';
 const CELL_ROW = ['Z01', 'R01', 'S01', '4000', '1000', '1200', '1000', 'Y03', '3000', NEW_CELL_CODE, '0', '600'];
+const NEW_ZONE_ROW = ['Z02', 'R01', 'S01', '6000', '1000', '1200', '1000', 'Y01', '0', 'Z02-R01-S01-Y01-C01', '0', '600'];
 const SUPPLIER = callAs(SeedUserId.ADMIN_2, SeedOrganizationId.SUPPLIER_1);
 const SUPPLIER_WAREHOUSE = SeedWarehouseId.SUPPLIER_1_WAREHOUSE_1;
 
-it('posts stock to the exact SKU and applies the shared batch normalization', async () => {
+it('posts stock to the exact SKU in an occupied zone and applies the shared batch normalization', async () => {
   const { engine } = await createTestEngine();
-  const transport = createEngineTransport(engine, true);
+  const transport = createEngineTransport(engine, true, nextUuid());
   const catalog = createClient(CatalogService, transport);
   const imports = createClient(ImportService, transport);
   const stock = createClient(WarehouseStockService, transport);
+  const topology = createClient(WarehouseTopologyService, transport);
   const warehouseScope = { ...STOCK, warehouseId: SUPPLIER_WAREHOUSE };
+  const { topology: layout } = await topology.getWarehouseTopology({ warehouseId: SUPPLIER_WAREHOUSE }, SUPPLIER);
+  await createClient(WarehouseLayoutSessionService, transport).openWarehouseLayoutSession({
+    idempotencyKey: nextUuid(), warehouseId: SUPPLIER_WAREHOUSE, zoneId: layout?.storageZones[0]?.id ?? '',
+  }, SUPPLIER);
   await catalog.saveProduct(buildProductRequest({ sku: 'EXACT-SKU' }), SUPPLIER);
   const { product } = await catalog.saveProduct(buildProductRequest({ sku: 'EXACT-SKU ' }), SUPPLIER);
   const fileBytes = buildImportXlsx(STOCK_HEADERS, [[
@@ -322,4 +330,123 @@ it('rechecks layout permissions and revision before applying a preview', async (
   }, CUSTOMER);
   expect(readErrorDetail(await captureError(imports.commitImport(commit, CUSTOMER))).code).toBe(ErrorCode.VERSION_CONFLICT);
   expect((await imports.getImportJob({ jobId: job?.id, warehouseScope }, CUSTOMER)).job?.status).toBe(ImportStatus.PREVIEW);
+});
+
+it('previews a mixed workbook while a zone is occupied and rejects its entire commit until release', async () => {
+  const { engine, storage } = await createTestEngine();
+  const transport = createEngineTransport(engine, true, nextUuid());
+  const imports = createClient(ImportService, transport);
+  const layout = createClient(WarehouseLayoutSessionService, transport);
+  const topology = createClient(WarehouseTopologyService, transport);
+  const { warehouseId } = CELLS;
+  const before = await topology.getWarehouseTopology({ warehouseId }, CUSTOMER);
+  const zoneId = before.topology?.storageZones[0]?.id ?? '';
+  const { layoutSessionId } = await layout.openWarehouseLayoutSession({
+    idempotencyKey: nextUuid(), warehouseId, zoneId,
+  }, CUSTOMER);
+  const fileBytes = buildImportXlsx(CELL_HEADERS, [
+    CELL_ROW.map((value, index) => index === 0 ? ' Z01 ' : value),
+    NEW_ZONE_ROW,
+  ]);
+  const { job } = await imports.previewImport({
+    fileBytes, fileName: 'cells.xlsx', idempotencyKey: nextUuid(), warehouseScope: CELLS,
+  }, CUSTOMER);
+  expect(job).toMatchObject({ errorCount: 0, rowCount: 2, status: ImportStatus.PREVIEW });
+
+  const commit = { expectedVersion: job?.version, idempotencyKey: nextUuid(), jobId: job?.id, warehouseScope: CELLS };
+  const commitCount = storage.commits.length;
+  const error = readErrorDetail(await captureError(imports.commitImport(commit, CUSTOMER)));
+  expect(error).toMatchObject({
+    code: ErrorCode.WAREHOUSE_LAYOUT_BUSY,
+    params: { case: 'warehouseLayoutBusy', value: { zoneId } },
+  });
+  expect(storage.commits).toHaveLength(commitCount);
+  expect(await topology.getWarehouseTopology({ warehouseId }, CUSTOMER)).toEqual(before);
+  expect((await imports.getImportJob({ jobId: job?.id, warehouseScope: CELLS }, CUSTOMER)).job).toEqual(job);
+
+  await layout.releaseWarehouseLayoutSession({ idempotencyKey: nextUuid(), layoutSessionId, warehouseId, zoneId }, CUSTOMER);
+  const applied = await imports.commitImport(commit, CUSTOMER);
+  expect(applied.job?.status).toBe(ImportStatus.COMMITTED);
+  expect(await imports.commitImport(commit, CUSTOMER)).toEqual(applied);
+  expect((await topology.getWarehouseTopology({ warehouseId }, CUSTOMER)).topology?.storageZones.map(zone => zone.code))
+    .toEqual(['Z01', 'Z02']);
+});
+
+it('blocks rollback when its imported zone is occupied and allows it with the neighboring zone still occupied', async () => {
+  const { engine, storage } = await createTestEngine();
+  const transport = createEngineTransport(engine, true, nextUuid());
+  const layout = createClient(WarehouseLayoutSessionService, transport);
+  const topology = createClient(WarehouseTopologyService, transport);
+  const imports = createClient(ImportService, transport);
+  const { warehouseId } = CELLS;
+  const before = await topology.getWarehouseTopology({ warehouseId }, CUSTOMER);
+  await layout.openWarehouseLayoutSession({
+    idempotencyKey: nextUuid(), warehouseId, zoneId: before.topology?.storageZones[0]?.id ?? '',
+  }, CUSTOMER);
+  const { job } = await imports.previewImport({
+    fileBytes: buildImportXlsx(CELL_HEADERS, [NEW_ZONE_ROW]), fileName: 'cells.xlsx', idempotencyKey: nextUuid(), warehouseScope: CELLS,
+  }, CUSTOMER);
+  const { job: committed } = await imports.commitImport({
+    expectedVersion: job?.version, idempotencyKey: nextUuid(), jobId: job?.id, warehouseScope: CELLS,
+  }, CUSTOMER);
+  expect(committed?.status).toBe(ImportStatus.COMMITTED);
+  const imported = await topology.getWarehouseTopology({ warehouseId }, CUSTOMER);
+  const zoneId = imported.topology?.storageZones.find(zone => zone.code === 'Z02')?.id ?? '';
+  const { layoutSessionId } = await layout.openWarehouseLayoutSession({ idempotencyKey: nextUuid(), warehouseId, zoneId }, CUSTOMER);
+
+  const rollback = { expectedVersion: committed?.version, idempotencyKey: nextUuid(), jobId: committed?.id, warehouseScope: CELLS };
+  const commitCount = storage.commits.length;
+  const error = readErrorDetail(await captureError(imports.rollbackImport(rollback, CUSTOMER)));
+  expect(error).toMatchObject({
+    code: ErrorCode.WAREHOUSE_LAYOUT_BUSY,
+    params: { case: 'warehouseLayoutBusy', value: { zoneId } },
+  });
+  expect(storage.commits).toHaveLength(commitCount);
+  expect(await topology.getWarehouseTopology({ warehouseId }, CUSTOMER)).toEqual(imported);
+  expect((await imports.getImportJob({ jobId: committed?.id, warehouseScope: CELLS }, CUSTOMER)).job).toEqual(committed);
+
+  await layout.releaseWarehouseLayoutSession({ idempotencyKey: nextUuid(), layoutSessionId, warehouseId, zoneId }, CUSTOMER);
+  expect((await imports.rollbackImport(rollback, CUSTOMER)).job?.status).toBe(ImportStatus.ROLLED_BACK);
+  expect((await topology.getWarehouseTopology({ warehouseId }, CUSTOMER)).topology).toMatchObject({
+    revision: 3,
+    storageZones: before.topology?.storageZones,
+  });
+});
+
+it('blocks rollback if its saved cell ids cannot be located in the current revision', async () => {
+  const { engine, storage } = await createTestEngine();
+  const transport = createEngineTransport(engine, true);
+  const imports = createClient(ImportService, transport);
+  const { job } = await imports.previewImport({
+    fileBytes: buildImportXlsx(CELL_HEADERS, [CELL_ROW]), fileName: 'cells.xlsx', idempotencyKey: nextUuid(), warehouseScope: CELLS,
+  }, CUSTOMER);
+  const { job: committed } = await imports.commitImport({
+    expectedVersion: job?.version, idempotencyKey: nextUuid(), jobId: job?.id, warehouseScope: CELLS,
+  }, CUSTOMER);
+  const snapshot = await storage.load();
+  const jobId = committed?.id ?? '';
+  const bytes = snapshot?.collections.importJobs.get(jobId);
+  if (snapshot === undefined || bytes === undefined) {
+    throw new Error('Expected a stored import job');
+  }
+  const table = TABLE_DEFINITIONS.importJobs;
+  const record = table.decode(bytes);
+  const rollback = record.warehouseImport?.rollback;
+  if (rollback == null) {
+    throw new Error('Expected saved rollback metadata');
+  }
+  rollback.addedCellIds = [nextUuid()];
+  await storage.commit({ deletes: {}, meta: snapshot.meta, puts: { importJobs: new Map([[jobId, table.encode(record)]]) } });
+
+  const reopened = await createTestEngine({ storage });
+  const reopenedTransport = createEngineTransport(reopened.engine, true);
+  const reopenedImports = createClient(ImportService, reopenedTransport);
+  const topology = createClient(WarehouseTopologyService, reopenedTransport);
+  const { warehouseId } = CELLS;
+  const before = await topology.getWarehouseTopology({ warehouseId }, CUSTOMER);
+  const error = readErrorDetail(await captureError(reopenedImports.rollbackImport({
+    expectedVersion: committed?.version, idempotencyKey: nextUuid(), jobId, warehouseScope: CELLS,
+  }, CUSTOMER)));
+  expect(error.code).toBe(ErrorCode.IMPORT_ROLLBACK_BLOCKED);
+  expect(await topology.getWarehouseTopology({ warehouseId }, CUSTOMER)).toEqual(before);
 });

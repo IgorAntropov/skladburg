@@ -34,7 +34,10 @@ import type {
 } from '../engineTypes';
 
 import { callAs } from '../../modules/testing/moduleHarness';
-import { createMemoryStorage } from '../../ports/index';
+import {
+  createMemoryStorage,
+  createSeededRandom,
+} from '../../ports/index';
 import {
   DEMO_USER_HEADER,
   ENGINE_BASE_URL,
@@ -48,6 +51,8 @@ import { createEngine } from '../createEngine';
 
 export const TEST_ENGINE_EPOCH = 'epoch-1';
 export const WORLD_REAL_TIME_START_MS = 1_000_000;
+
+const testLayoutSessionIds = createSeededRandom(3600);
 
 export interface EngineCallerValue {
   access: Client<typeof AccessService>;
@@ -166,6 +171,7 @@ export const createTestEngine = async (
   const storage = overrides.storage ?? createSpyStorage();
   const engine = await createEngine({
     epoch: TEST_ENGINE_EPOCH,
+    generateLayoutSessionId: testLayoutSessionIds.uuid,
     realTime,
     seed: DEFAULT_ENGINE_SEED,
     ...overrides,
@@ -175,11 +181,12 @@ export const createTestEngine = async (
   return { engine, realTime, storage };
 };
 
-export const createEngineTransport = (engine: IDemoEngine, useBinaryFormat: boolean): Transport => createConnectTransport({
-  baseUrl: ENGINE_BASE_URL,
-  fetch: (input, init) => engine.handle(new Request(input, init)),
-  useBinaryFormat,
-});
+export const createEngineTransport = (engine: IDemoEngine, useBinaryFormat: boolean, tabId?: string): Transport =>
+  createConnectTransport({
+    baseUrl: ENGINE_BASE_URL,
+    fetch: (input, init) => engine.handle(new Request(input, init), tabId),
+    useBinaryFormat,
+  });
 
 export const createEngineCaller = (engine: IDemoEngine, useBinaryFormat = true): EngineCallerValue => {
   const transport = createEngineTransport(engine, useBinaryFormat);

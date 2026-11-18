@@ -251,7 +251,7 @@ export const createLeaderService = (options: CreateLeaderServiceOptionsValue): I
     const call = beginCall(tabId, message.requestId);
 
     try {
-      const response = await engine.handle(restoreRequest(message));
+      const response = await engine.handle(restoreRequest(message), tabId);
       flushEvents();
 
       if (!call.isAborted()) {

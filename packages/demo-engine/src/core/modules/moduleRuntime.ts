@@ -24,6 +24,8 @@ export interface IEventOutbox {
 export interface IModuleRuntime {
   command: <TResult>(work: (transaction: IStateTransaction) => TResult) => Promise<TResult>;
   errors: IDomainErrors;
+  generateLayoutSessionId: () => string;
+  getRealTimeMs: () => number;
   getWorldTimeMs: () => number;
   guard: ICallGuard;
   hasInboundProduct?: typeof hasInboundProduct | undefined;

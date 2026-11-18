@@ -11,6 +11,7 @@ const STORES_ADDED_AFTER_V13 = [
   'transportRequests',
   'trips',
   'vehicles',
+  'warehouseLayoutSessions',
   'warehouseTopologies',
 ] as const;
 const PRE_FLEET_DATABASE_VERSION = 13;

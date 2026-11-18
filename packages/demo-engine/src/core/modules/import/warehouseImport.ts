@@ -2,6 +2,7 @@ import type {
   ImportRow,
   WarehouseImportScope,
 } from '@skladburg/contracts/import/v1/import';
+import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
 
 import {
   create,
@@ -40,6 +41,10 @@ import {
 } from '../wms/openingStockPlan';
 import { readStockMovement } from '../wms/stockRecords';
 import { planWarehouseCells } from '../wms/warehouseCellPlan';
+import {
+  assertWarehouseLayoutZonesAvailable,
+  readWarehouseCellZoneIds,
+} from '../wms/warehouseLayoutSessions';
 import {
   readOwnedWarehouseTopology,
   saveWarehouseTopology,
@@ -118,7 +123,8 @@ const prepareWarehouseImport = (
       }
       return row.errors.length === 0;
     });
-    const plan = planWarehouseCells(current, valid.map(entry => entry.cell));
+    const cells = valid.map(entry => entry.cell);
+    const plan = planWarehouseCells(current, cells);
     for (const issue of plan.violations) {
       const row = valid[issue.index]?.row;
       if (row !== undefined) {
@@ -128,6 +134,9 @@ const prepareWarehouseImport = (
 
     return {
       apply: (transaction) => {
+        assertWarehouseLayoutZonesAvailable(transaction, runtime, {
+          tenantId: organizationId, warehouseId, zoneIds: readWarehouseCellZoneIds(current, cells),
+        });
         const { addedCellIds, topology } = plan.materialize(warehouseId, organizationId, () => runtime.random.uuid());
         saveWarehouseTopology(transaction, runtime, topology);
         return {
@@ -229,6 +238,30 @@ export const commitWarehouseImport = (
   record.job.status = ImportStatus.COMMITTED;
 };
 
+const findRollbackZoneIds = (topology: WarehouseTopology, cellIds: ReadonlySet<string>): Set<string> | undefined => {
+  const remaining = new Set(cellIds);
+  const zones = new Set<string>();
+
+  for (const zone of topology.storageZones) {
+    for (const row of zone.rows) {
+      for (const rack of row.racks) {
+        for (const tier of rack.tiers) {
+          for (const cell of tier.cells) {
+            if (cellIds.has(cell.id)) {
+              if (!remaining.delete(cell.id)) {
+                return undefined;
+              }
+              zones.add(zone.id);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return remaining.size === 0 ? zones : undefined;
+};
+
 export const rollbackWarehouseImport = (
   transaction: IStateTransaction,
   runtime: IModuleRuntime,
@@ -250,6 +283,13 @@ export const rollbackWarehouseImport = (
   }
 
   const ids = new Set(rollback.addedCellIds);
+  if (ids.size === 0 || ids.size !== rollback.addedCellIds.length || ids.size !== record.rows.length) {
+    return blocked();
+  }
+  const zoneIds = findRollbackZoneIds(topology, ids);
+  if (zoneIds === undefined) {
+    return blocked();
+  }
   const hasMovements = transaction.listBy('stockMovements', 'scopeId', warehouseId).some((entry) => {
     const movement = readStockMovement(entry, tenantId, errors);
     return ids.has(movement.toCellId) || (movement.fromCellId !== undefined && ids.has(movement.fromCellId));
@@ -264,6 +304,7 @@ export const rollbackWarehouseImport = (
   if (restored.tenantId !== tenantId || restored.warehouseId !== warehouseId) {
     throw errors.internal();
   }
+  assertWarehouseLayoutZonesAvailable(transaction, runtime, { tenantId, warehouseId, zoneIds });
   restored.revision = topology.revision + 1;
   saveWarehouseTopology(transaction, runtime, restored);
   record.job.status = ImportStatus.ROLLED_BACK;

@@ -104,6 +104,8 @@ export const createTestRuntime = (): TestRuntimeValue => {
       storage,
     }),
     errors,
+    generateLayoutSessionId: random.uuid,
+    getRealTimeMs: () => 0,
     getWorldTimeMs: () => clock.now(),
     guard: createCallGuard({
       errors,

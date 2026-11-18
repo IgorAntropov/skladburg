@@ -97,6 +97,7 @@ type UnseededTableName
     | 'transportRequests'
     | 'trips'
     | 'warehouseInbound'
+    | 'warehouseLayoutSessions'
     | 'warehouseOutbound'
     | 'warehouseTopologies';
 

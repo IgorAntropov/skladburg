@@ -85,15 +85,15 @@ const MAX_UINT32 = 4_294_967_295;
 const MAX_CELLS = 10_000;
 const CELL_CODE_PATTERN = /^[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
 
-const normalizeCode = (value: string): string => value.normalize('NFC').trim();
+export const normalizeWarehouseCode = (value: string): string => value.normalize('NFC').trim();
 
 export const normalizeWarehouseCellCodes = (cell: WarehouseCellInput): WarehouseCellInput => ({
   ...cell,
-  cellCode: normalizeCode(cell.cellCode),
-  rackCode: normalizeCode(cell.rackCode),
-  rowCode: normalizeCode(cell.rowCode),
-  tierCode: normalizeCode(cell.tierCode),
-  zoneCode: normalizeCode(cell.zoneCode),
+  cellCode: normalizeWarehouseCode(cell.cellCode),
+  rackCode: normalizeWarehouseCode(cell.rackCode),
+  rowCode: normalizeWarehouseCode(cell.rowCode),
+  tierCode: normalizeWarehouseCode(cell.tierCode),
+  zoneCode: normalizeWarehouseCode(cell.zoneCode),
 });
 
 const checkCode = (code: string, index: number, path: string, limit: number, report: ReportViolation): boolean => {
@@ -149,13 +149,13 @@ const sameFootprint = (current: WarehouseFloorRect, prev: WarehouseFloorRect): b
   && current.origin?.xMm === prev.origin?.xMm && current.origin?.zMm === prev.origin?.zMm;
 
 const indexTopology = (current: undefined | WarehouseTopology, cellCodes: Set<string>): Map<string, ZoneValue> => new Map(
-  current?.storageZones.map(zone => [normalizeCode(zone.code), {
+  current?.storageZones.map(zone => [normalizeWarehouseCode(zone.code), {
     code: zone.code,
     current: zone,
-    rows: new Map(zone.rows.map(row => [normalizeCode(row.code), {
+    rows: new Map(zone.rows.map(row => [normalizeWarehouseCode(row.code), {
       code: row.code,
       current: row,
-      racks: new Map(row.racks.map(rack => [normalizeCode(rack.code), {
+      racks: new Map(row.racks.map(rack => [normalizeWarehouseCode(rack.code), {
         code: rack.code,
         current: rack,
         footprint: rack.footprint,
@@ -164,7 +164,7 @@ const indexTopology = (current: undefined | WarehouseTopology, cellCodes: Set<st
             cellCodes.add(cell.code);
           }
 
-          return [normalizeCode(tier.code), { cells: [], code: tier.code, current: tier, elevation: tier.elevationMm }];
+          return [normalizeWarehouseCode(tier.code), { cells: [], code: tier.code, current: tier, elevation: tier.elevationMm }];
         })),
       }])),
     }])),

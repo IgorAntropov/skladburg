@@ -20,6 +20,8 @@ const ERROR_MESSAGE_KEYS = {
   [ErrorCode.UNAVAILABLE]: 'error.unavailable',
   [ErrorCode.VALIDATION_FAILED]: 'error.validation_failed',
   [ErrorCode.VERSION_CONFLICT]: 'error.version_conflict',
+  [ErrorCode.WAREHOUSE_LAYOUT_BUSY]: 'error.warehouse_layout_busy',
+  [ErrorCode.WAREHOUSE_LAYOUT_SESSION_INVALID]: 'error.warehouse_layout_session_invalid',
 } as const satisfies Record<KnownErrorCode, MessageKey>;
 
 export type ErrorMessageKeyValue = (typeof ERROR_MESSAGE_KEYS)[KnownErrorCode];

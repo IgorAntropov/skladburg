@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto';
 import {
+  create,
   fromBinary,
   toBinary,
 } from '@bufbuild/protobuf';
@@ -15,6 +16,7 @@ import {
   VehicleBodyType,
   VehicleCargoKind,
 } from '@skladburg/contracts/fleet/v1/fleet';
+import { ImportJobSchema } from '@skladburg/contracts/import/v1/import';
 import {
   LogisticsService,
   type SelectTransportOfferRequest,
@@ -59,6 +61,7 @@ import {
   SeedOrganizationId,
   SeedWarehouseId,
 } from '../../core/seed/index';
+import { seedWarehouseWorkspace } from '../../core/seed/seedWarehouseWorkspace';
 import {
   ENGINE_SCHEMA_VERSION,
   TABLE_DEFINITIONS,
@@ -81,7 +84,16 @@ const createLegacyDatabase = (
   const request = factory.open(DATABASE_NAME, databaseVersion);
 
   request.addEventListener('upgradeneeded', () => {
-    const laterCollections = ['stockBalances', 'stockBatches', 'stockMovements'];
+    const laterCollections = ['warehouseLayoutSessions'];
+    if (databaseVersion < 18) {
+      laterCollections.push('stockBalances', 'stockBatches', 'stockMovements');
+    }
+    if (databaseVersion < 19) {
+      laterCollections.push('warehouseOutbound');
+    }
+    if (databaseVersion < 20) {
+      laterCollections.push('warehouseInbound');
+    }
     if (databaseVersion < 17) {
       laterCollections.push('warehouseTopologies');
     }
@@ -279,13 +291,15 @@ describe('saved world migration with an active trip', () => {
   it.each([
     { databaseVersion: 16, schemaVersion: 18 },
     { databaseVersion: 17, schemaVersion: 19 },
+    { databaseVersion: 20, schemaVersion: 24 },
   ])('rolls back a failed migration from schema $schemaVersion and keeps the trip after retry', async ({
     databaseVersion,
     schemaVersion,
   }) => {
     const factory = new IDBFactory();
-    const warehouseTopologies = new Map(original.collections.warehouseTopologies);
-    if (databaseVersion === 17) {
+    const source = databaseVersion === 20 ? seedWarehouseWorkspace(original) : original;
+    const warehouseTopologies = new Map(source.collections.warehouseTopologies);
+    if (databaseVersion >= 17) {
       const warehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1;
       const raw = warehouseTopologies.get(warehouseId);
 
@@ -299,17 +313,36 @@ describe('saved world migration with an active trip', () => {
       topology.revision = 7;
       warehouseTopologies.set(warehouseId, table.encode({ ...record, topologyBytes: toBinary(WarehouseTopologySchema, topology) }));
     }
-    const expected = { ...original, collections: { ...original.collections, warehouseTopologies } };
+    const importJobs = new Map(source.collections.importJobs);
+    if (databaseVersion === 20) {
+      const id = '0b502db9-589a-4a78-ad21-ef23b0c27176';
+      importJobs.set(id, TABLE_DEFINITIONS.importJobs.encode({
+        columns: ['cell_code'],
+        createdPriceListId: '',
+        createdPriceListVersion: 0n,
+        id,
+        job: create(ImportJobSchema, { id, warehouseId: SeedWarehouseId.SUPPLIER_1_WAREHOUSE_2 }),
+        provenance: [],
+        rows: [],
+        usedListingIds: [],
+        warehouseImport: { references: [], rollback: null, topologyRevision: 1 },
+      }));
+      expect(source.collections.stockBalances.size).toBeGreaterThan(0);
+      expect(source.collections.stockMovements.size).toBeGreaterThan(0);
+    }
+    const expected = { ...source, collections: { ...source.collections, importJobs, warehouseTopologies } };
     const old = {
       ...expected,
-      collections: { ...expected.collections, warehouseTopologies: databaseVersion === 17 ? warehouseTopologies : new Map() },
+      collections: { ...expected.collections, warehouseTopologies: databaseVersion >= 17 ? warehouseTopologies : new Map() },
       schemaVersion,
     };
     await createLegacyDatabase(factory, old, databaseVersion, schemaVersion);
     const storage = await createIndexedDbStorage({ databaseName: DATABASE_NAME, factory });
 
     try {
-      deepStrictEqual(await storage.load(), old);
+      const loaded = await storage.load();
+      expect(loaded?.collections.warehouseLayoutSessions).toEqual(new Map());
+      deepStrictEqual(loaded, old);
       const replaceAll = storage.replaceAll;
       vi.spyOn(storage, 'replaceAll').mockImplementationOnce(next => replaceAll({
         ...next,

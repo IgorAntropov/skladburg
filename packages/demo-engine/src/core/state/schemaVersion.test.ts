@@ -925,6 +925,10 @@ const PRE_SETTLEMENT_SHAPE_FINGERPRINTS: Readonly<Record<number, readonly string
 const SHAPE_FINGERPRINTS = {
   ...PRE_SETTLEMENT_SHAPE_FINGERPRINTS,
   24: PRE_SETTLEMENT_SHAPE_FINGERPRINTS[23] ?? [],
+  25: [
+    ...PRE_SETTLEMENT_SHAPE_FINGERPRINTS[23] ?? [],
+    'collection.warehouseLayoutSessions:{expiresAtMs:number,id:string,layoutSessionId:string,ownerKey:string}',
+  ].sort(),
 } as Readonly<Record<number, readonly string[]>>;
 
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -1041,6 +1045,12 @@ const populatedTask: SchedulerTaskValue = {
     transaction.put('stockBatches', stockRecord);
     transaction.put('stockMovements', stockRecord);
     transaction.put('warehouseInbound', stockRecord);
+    transaction.put('warehouseLayoutSessions', {
+      expiresAtMs: 120_000,
+      id: 'fingerprint-zone',
+      layoutSessionId: 'fingerprint-layout-session',
+      ownerKey: 'fingerprint-editor',
+    });
     transaction.put('warehouseOutbound', stockRecord);
   },
 };
@@ -1084,7 +1094,7 @@ describe('snapshot shape', () => {
       .map(([, fingerprint]) => fingerprint.join('\n'));
 
     expect(earlier.length).toBeGreaterThan(0);
-    expect(earlier).not.toContain(SHAPE_FINGERPRINTS[ENGINE_SCHEMA_VERSION]?.join('\n'));
+    expect(earlier).not.toContain(SHAPE_FINGERPRINTS[24]?.join('\n'));
     expect(new Set(earlier).size).toBe(earlier.length);
     expect(SHAPE_FINGERPRINTS[24]).toEqual(SHAPE_FINGERPRINTS[23]);
   });
@@ -1107,8 +1117,8 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 24 after receipt settlement backfill', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(24);
+  it('is version 25 with warehouse layout sessions', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(25);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
   });
 });

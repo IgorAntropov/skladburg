@@ -908,6 +908,38 @@ describe('createIndexedDbStorage with the engine', () => {
     expect(listed.warehouses).toHaveLength(4);
   });
 
+  it('clears saved layout sessions when the reopened engine resets the world', async () => {
+    const factory = new IDBFactory();
+    const firstStorage = await openStorage(factory);
+    const realTime = createFakeRealTime(0);
+    await createEngine({ epoch: TEST_ENGINE_EPOCH, realTime, storage: firstStorage });
+    const snapshot = await firstStorage.load();
+    if (snapshot === undefined) {
+      throw new Error('Expected the stored world');
+    }
+
+    const session = {
+      expiresAtMs: 120_000,
+      id: '1f276b5b-44c6-4e64-91c2-725d113b68f1',
+      layoutSessionId: 'b4ec910e-0f6b-4572-a065-ba7a257d9ee7',
+      ownerKey: 'a71f8f3b-297a-434c-818e-84518e1a5727',
+    };
+    await firstStorage.commit({
+      deletes: {},
+      meta: snapshot.meta,
+      puts: { warehouseLayoutSessions: new Map([[session.id, session]]) },
+    });
+    firstStorage.close();
+
+    const storage = await openStorage(factory);
+    const engine = await createEngine({ epoch: 'reopened', realTime, storage });
+    expect((await storage.load())?.collections.warehouseLayoutSessions.get(session.id)).toEqual(session);
+
+    await engine.reset('reset');
+
+    expect((await storage.load())?.collections.warehouseLayoutSessions).toEqual(new Map());
+  });
+
   it('keeps the world time of a checkpoint across a restart of the engine', async () => {
     const factory = new IDBFactory();
     const realTime = createFakeRealTime();

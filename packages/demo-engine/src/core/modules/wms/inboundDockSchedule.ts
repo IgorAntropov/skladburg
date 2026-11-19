@@ -22,6 +22,7 @@ import { canUseInboundDock } from './inboundDockQueue';
 import {
   findInboundDockSlot,
   INBOUND_DOCK_SLOT_GRACE_MS,
+  isInboundDockSlotExpired,
 } from './inboundDockSlots';
 
 export interface InboundDockAllocationValue {
@@ -69,7 +70,7 @@ export const clearUnavailableInboundReservations = (
     }
 
     const hasCompatibleDock = docks.some(dock => dock.id === slot.dockId && canUseInboundDock(dock, candidate));
-    const hasExpired = worldTimeMs > slot.startsAtMs + INBOUND_DOCK_SLOT_GRACE_MS;
+    const hasExpired = isInboundDockSlotExpired(slot, worldTimeMs);
     if (!hasCompatibleDock || hasExpired) {
       reservations.delete(task);
       schedule.reservation = undefined;

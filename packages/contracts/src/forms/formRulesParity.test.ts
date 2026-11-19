@@ -699,6 +699,7 @@ const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
   'wms.v1.ListPickingTasksRequest.page',
   'wms.v1.ExpectedReceivingBatch.expiresOn',
   'wms.v1.ListReceivingTasksRequest.page',
+  'wms.v1.ListYardWaitingReasonsRequest.page',
   'wms.v1.ReceiveHandlingUnitRequest.batchEvidence',
   'wms.v1.ReceiveHandlingUnitRequest.unlabelledUnit',
   'wms.v1.ConfigureWarehouseReceivingLayoutRequest.docks',

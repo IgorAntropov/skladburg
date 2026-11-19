@@ -19,6 +19,7 @@ import {
 import { YardQueuePolicyChangedSchema } from '@skladburg/contracts/wms/v1/yard_queue_policy_events';
 
 import type { EngineRequestHandler } from '../../router/engineRouter';
+import type { IStateTransaction } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
 import {
@@ -26,10 +27,34 @@ import {
   createPathDispatcher,
   createServiceRouter,
 } from '../../router/engineRouter';
-import { reassignOrganizationInboundDocks } from './inboundRecords';
+import {
+  assignAvailableInboundDocks,
+  isReceivingTaskActive,
+  readInboundTask,
+} from './inboundRecords';
+import { readOwnedWarehouseTopology } from './warehouseTopologyRecords';
 import { DEFAULT_YARD_QUEUE_WEIGHTS } from './yardQueueScoring';
 
 const MAX_POLICY_VERSION = 2_147_483_647n;
+
+const reassignOrganizationInboundDocks = (
+  transaction: IStateTransaction,
+  runtime: Pick<IModuleRuntime, 'errors' | 'outbox'>,
+  tenantId: string,
+): void => {
+  for (const { id: warehouseId } of transaction.listBy('warehouses', 'tenantId', tenantId)) {
+    const receivingAreaId = readOwnedWarehouseTopology(transaction, runtime.errors, warehouseId, tenantId)?.receivingArea?.id;
+    if (receivingAreaId !== undefined && transaction.listBy('warehouseInbound', 'scopeId', warehouseId).some((record) => {
+      if (record.lookupKey !== tenantId) {
+        return false;
+      }
+      const task = readInboundTask(record, runtime.errors);
+      return task.unloadingPointId === undefined && task.receivingAreaId === receivingAreaId && isReceivingTaskActive(task);
+    })) {
+      assignAvailableInboundDocks(transaction, runtime, { receivingAreaId, tenantId, warehouseId });
+    }
+  }
+};
 
 export const createYardQueuePolicyService = (runtime: IModuleRuntime): ServiceImpl<typeof YardQueuePolicyService> => {
   const { command, errors, guard, idempotency, outbox, read } = runtime;

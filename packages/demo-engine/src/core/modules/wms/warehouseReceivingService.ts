@@ -20,6 +20,7 @@ import {
   ClaimReceivingTaskResponseSchema,
   FinishReceivingTaskResponseSchema,
   ListReceivingTasksResponseSchema,
+  ListYardWaitingReasonsResponseSchema,
   PutAwayHandlingUnitResponseSchema,
   ReceiveHandlingUnitResponseSchema,
   type ReceivingTask,
@@ -156,6 +157,13 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
       arrived.sort((current, prev) => current.arrivedAt - prev.arrivedAt);
       const { items, page } = paginate(arrived, ({ task }) => task.id, request.page, errors);
       return create(ListReceivingTasksResponseSchema, { page, tasks: items.map(({ task }) => task) });
+    },
+    listYardWaitingReasons: async (request, context) => {
+      const { listInboundYardWaitingReasons } = await import('./inboundYardWaitingReasons');
+      const { organizationId } = guard.guardPermissionCall(read, method.listYardWaitingReasons, request, context.requestHeader);
+      const reasons = listInboundYardWaitingReasons(runtime, request.warehouseId, organizationId);
+      const { items, page } = paginate(reasons, ({ receivingTaskId }) => receivingTaskId, request.page, errors);
+      return create(ListYardWaitingReasonsResponseSchema, { page, reasons: items });
     },
     putAwayHandlingUnit: (request, context) => runReceivingCommand(runtime, {
       allowedStatuses: [

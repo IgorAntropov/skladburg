@@ -79,6 +79,10 @@ const lazyWarehouseReceivingLayoutFormFiles = [
   'apps/web/src/pages/warehouse/ui/layout/WarehouseReceivingLayoutDockFields.tsx',
   'apps/web/src/pages/warehouse/ui/layout/WarehouseReceivingLayoutForm.tsx',
 ];
+const lazyWarehouseYardPolicyFiles = [
+  'apps/web/src/pages/warehouse/api/useYardQueuePolicy.ts',
+  'apps/web/src/pages/warehouse/ui/workspace/WarehouseYardPolicyEditor.tsx',
+];
 const warehousePageFiles = ['apps/web/src/pages/warehouse/**/*.{ts,tsx}'];
 const lazyCreateWarehouseFeatureFiles: string[] = ['apps/web/src/features/create-warehouse/**/*.{ts,tsx}'];
 const globalSearchFeatureFiles: string[] = ['apps/web/src/features/global-search/**/*.{ts,tsx}'];
@@ -497,6 +501,10 @@ const warehouseInitializeFormChunkLazyRestriction: LazyModuleRestrictionValue = 
 const warehouseReceivingLayoutFormChunkLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'the warehouse receiving layout form chunk',
   regex: '(^|/)(WarehouseReceivingLayout(?:DockFields|Form)|useConfigureWarehouseReceivingLayoutForm)(\\.[^/]+)?$',
+};
+const warehouseYardPolicyChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the warehouse yard policy chunk',
+  regex: '(^|/)(WarehouseYardPolicyEditor|useYardQueuePolicy)(\\.[^/]+)?$',
 };
 
 const sceneCameraControlsChunkLazyRestriction: LazyModuleRestrictionValue = {
@@ -1188,6 +1196,7 @@ export default defineConfig(
       ...lazyWarehouseReceiveFormFiles,
       ...lazyWarehouseInitializeFormFiles,
       ...lazyWarehouseReceivingLayoutFormFiles,
+      ...lazyWarehouseYardPolicyFiles,
     ],
     ignores: webTestFiles,
     rules: createBoundaryRules(
@@ -1292,12 +1301,14 @@ export default defineConfig(
       ...lazyWarehouseReceiveFormFiles,
       ...lazyWarehouseInitializeFormFiles,
       ...lazyWarehouseReceivingLayoutFormFiles,
+      ...lazyWarehouseYardPolicyFiles,
     ],
     rules: createLazyModuleRules(
       [
         warehouseReceiveFormChunkLazyRestriction,
         warehouseInitializeFormChunkLazyRestriction,
         warehouseReceivingLayoutFormChunkLazyRestriction,
+        warehouseYardPolicyChunkLazyRestriction,
       ],
       sourceBoundaryImportRestrictions,
     ),
@@ -1306,7 +1317,7 @@ export default defineConfig(
     files: lazyWarehouseInitializeFormFiles,
     ignores: webTestFiles,
     rules: createLazyModuleRules(
-      [warehouseReceiveFormChunkLazyRestriction, warehouseReceivingLayoutFormChunkLazyRestriction],
+      [warehouseReceiveFormChunkLazyRestriction, warehouseReceivingLayoutFormChunkLazyRestriction, warehouseYardPolicyChunkLazyRestriction],
       sourceBoundaryImportRestrictions,
     ),
   },
@@ -1314,7 +1325,11 @@ export default defineConfig(
     files: lazyWarehouseReceiveFormFiles,
     ignores: webTestFiles,
     rules: createLazyModuleRules(
-      [warehouseInitializeFormChunkLazyRestriction, warehouseReceivingLayoutFormChunkLazyRestriction],
+      [
+        warehouseInitializeFormChunkLazyRestriction,
+        warehouseReceivingLayoutFormChunkLazyRestriction,
+        warehouseYardPolicyChunkLazyRestriction,
+      ],
       sourceBoundaryImportRestrictions,
     ),
   },
@@ -1322,7 +1337,19 @@ export default defineConfig(
     files: lazyWarehouseReceivingLayoutFormFiles,
     ignores: webTestFiles,
     rules: createLazyModuleRules(
-      [warehouseReceiveFormChunkLazyRestriction, warehouseInitializeFormChunkLazyRestriction],
+      [warehouseReceiveFormChunkLazyRestriction, warehouseInitializeFormChunkLazyRestriction, warehouseYardPolicyChunkLazyRestriction],
+      sourceBoundaryImportRestrictions,
+    ),
+  },
+  {
+    files: lazyWarehouseYardPolicyFiles,
+    ignores: webTestFiles,
+    rules: createLazyModuleRules(
+      [
+        warehouseReceiveFormChunkLazyRestriction,
+        warehouseInitializeFormChunkLazyRestriction,
+        warehouseReceivingLayoutFormChunkLazyRestriction,
+      ],
       sourceBoundaryImportRestrictions,
     ),
   },

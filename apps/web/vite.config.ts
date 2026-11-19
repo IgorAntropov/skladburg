@@ -80,6 +80,14 @@ const HUD_SHARED_MODULES = [
   'src/widgets/object-inspector/ui/ObjectInspector.tsx',
 ];
 
+const SELECT_FIELD_MODULES = [
+  'src/shared/ui/form-field/FieldFrame.tsx',
+  'src/shared/ui/form-field/FieldMessage.tsx',
+  'src/shared/ui/form-field/SelectField.tsx',
+  'src/shared/ui/form-field/fieldStyles.ts',
+  'src/shared/ui/form-field/outlinedField.css',
+];
+
 const STARTUP_CONTRACT_MODULES = [
   'node_modules/@bufbuild/protobuf/dist/esm/codegenv2/boot.js',
   'node_modules/@bufbuild/protobuf/dist/esm/codegenv2/enum.js',
@@ -1355,6 +1363,11 @@ export default defineConfig({
             },
             {
               includeDependenciesRecursively: false,
+              name: 'select-field',
+              test: (moduleId: string): boolean => SELECT_FIELD_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
+            {
+              includeDependenciesRecursively: false,
               name: 'startup-contract',
               test: (moduleId: string): boolean => STARTUP_CONTRACT_MODULES.some(entry => hasEntryModule([moduleId], entry)),
             },
@@ -1538,6 +1551,10 @@ export default defineConfig({
       output: {
         codeSplitting: {
           groups: [{
+            includeDependenciesRecursively: false,
+            name: 'engine-yard-waiting',
+            test: /[\\/]core[\\/]modules[\\/]wms[\\/]inboundYardWaitingReasons\.ts$/,
+          }, {
             includeDependenciesRecursively: false,
             name: 'worker-runtime',
             tags: ['$initial'],

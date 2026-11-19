@@ -381,7 +381,7 @@ test('loads, transports and puts away the same pallet on an assigned warehouse t
   const yardStatus = receiving.getByTestId('warehouse-receiving-dock');
   const parked = await expectDockTruckMotion(storeScene, storeCanvas, async () => {
     await advanceClock(TRIP_ARRIVAL_ADVANCE_MS);
-    await expect(yardStatus).toHaveText('На парковке, ждёт документов');
+    await expect(yardStatus.getByTestId('yard-waiting-reason')).toHaveAttribute('data-reason', 'WAITING_DOCUMENTS');
   }, testInfo, 'recipient-parking-waiting-documents');
   const parkedCabs = await readTruckCabPositions(storePage, parked);
   expect(parkedCabs).toHaveLength(1);

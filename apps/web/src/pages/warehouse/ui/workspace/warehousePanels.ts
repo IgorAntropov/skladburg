@@ -4,3 +4,4 @@ export {
   WarehouseStock,
 } from './WarehouseInventory';
 export { WarehousePicking } from './WarehousePicking';
+export { WarehouseReceivingTasks } from './WarehouseReceiving';

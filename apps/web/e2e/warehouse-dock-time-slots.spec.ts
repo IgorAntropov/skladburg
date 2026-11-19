@@ -140,6 +140,7 @@ test('activates an early truck reservation through WMS in two tabs and restores 
   const receipts = pages.map(tab => tab.getByTestId('warehouse-receiving-task')
     .filter({ has: tab.locator(`a[href="#/deals/${dealId}"]`) }));
   const dockLabels = receipts.map(receipt => receipt.getByTestId('warehouse-receiving-dock'));
+  const waitingReasons = receipts.map(receipt => receipt.getByTestId('yard-waiting-reason'));
   const claims = receipts.map(receipt => receipt.getByTestId('warehouse-claim-receiving'));
   const scans = receipts.map(receipt => receipt.getByTestId('warehouse-enter-sscc'));
   const finishes = receipts.map(receipt => receipt.getByTestId('warehouse-finish-receiving'));
@@ -158,10 +159,8 @@ test('activates an early truck reservation through WMS in two tabs and restores 
       scene.watchPageErrors();
     }
     await Promise.all(pages.map(tab => createPersonaRobot(tab).openAsPersona(WAREHOUSE_HASH, PERSONAS.freshCustomer.id)));
-    await Promise.all(dockLabels.map(label => expect(label).toBeVisible()));
-    const firstLabel = required(dockLabels[0], 'the first dock indicator');
-    const documentsPendingLabel = await firstLabel.innerText();
-    await Promise.all(dockLabels.map(label => expect(label).toHaveText(documentsPendingLabel)));
+    await Promise.all(waitingReasons.map(reason => expect(reason).toBeVisible()));
+    await Promise.all(waitingReasons.map(reason => expect(reason).toHaveAttribute('data-reason', 'WAITING_DOCUMENTS')));
     const advanceClock = await freezeEngineClock(page, carrierPage, controlPage);
     const initial = await readTask();
     expect(initial.yardAdmissionStatus).toBe(YardAdmissionStatus.WAITING_DOCUMENTS);
@@ -176,12 +175,9 @@ test('activates an early truck reservation through WMS in two tabs and restores 
     expect(waiting.unloadingPointId).toBeUndefined();
     expect(waiting.dockSchedule).toMatchObject({ preferredStartsAt: startsAt, reservation });
     expect(waiting.version).toBe(initial.version + 1);
-    await expect(firstLabel).not.toHaveText(documentsPendingLabel);
-    const waitingLabel = await firstLabel.innerText();
-    await Promise.all(dockLabels.map(async (label): Promise<void> => {
-      await expect(label).toHaveText(waitingLabel);
-      await expect(label).not.toContainText(dock.code);
-    }));
+    await Promise.all(waitingReasons.map(reason => expect(reason).toBeVisible()));
+    await Promise.all(waitingReasons.map(reason => expect(reason).toHaveAttribute('data-reason', 'WAITING_SLOT')));
+    await Promise.all(dockLabels.map(label => expect(label).not.toContainText(dock.code)));
 
     await required(claims[0], 'the receiving claim action').click();
     await Promise.all(claims.map(claim => expect(claim).toHaveCount(0)));
@@ -202,9 +198,11 @@ test('activates an early truck reservation through WMS in two tabs and restores 
     expect(await readTask()).toEqual(claimed);
     expect(await reader.readEvents(subscription.id)).toHaveLength(0);
     const secondLabel = required(dockLabels[1], 'the second dock indicator');
+    const secondWaitingReason = required(waitingReasons[1], 'the second waiting reason');
     const secondScan = required(scans[1], 'the second receiving scan action');
     await secondPage.reload();
-    await expect(secondLabel).toHaveText(waitingLabel);
+    await expect(secondWaitingReason).toBeVisible();
+    await expect(secondWaitingReason).toHaveAttribute('data-reason', 'WAITING_SLOT');
     expect(await readTask()).toEqual(claimed);
     expect(await readClock()).toBe(beforeStartMs);
     await Promise.all([...scans, ...finishes].map(button => expect(button).toHaveCount(0)));

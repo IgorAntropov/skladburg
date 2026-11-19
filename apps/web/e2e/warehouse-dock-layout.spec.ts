@@ -261,7 +261,7 @@ test('assigns a waiting refrigerated truck to a newly configured cold dock', asy
     expect(tasks).toHaveLength(1);
     expect(tasks[0]?.yardAdmissionStatus).toBe(YardAdmissionStatus.WAITING_DOCK);
     expect(tasks[0]?.unloadingPointId).toBeUndefined();
-    await expect(assignment).toHaveText('Ожидает свободный док');
+    await expect(receiving.getByTestId('yard-waiting-reason')).toHaveAttribute('data-reason', 'NO_COMPATIBLE_DOCK');
     await claim.click();
     await expect(claim).toHaveCount(0);
     await expect(enterSscc).toHaveCount(0);

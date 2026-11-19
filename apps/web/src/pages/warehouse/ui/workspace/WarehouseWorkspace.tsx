@@ -35,12 +35,14 @@ import {
   useChunkLoader,
 } from '@/shared/lib/module-loader';
 import {
+  AccessButton,
   ChunkLoadNotice,
   EmptyState,
   Skeleton,
   SkeletonGroup,
   Tabs,
   TextLink,
+  useFocusHandoff,
   WidgetStates,
 } from '@/shared/ui';
 import { ScenePlaceholder } from '@/widgets/scene-viewport';
@@ -57,7 +59,6 @@ import { useWarehouseWorkspace } from '../../api/useWarehouseWorkspace';
 import { warehouseWorkSection } from '../../i18n/workspaceSection';
 import { getWarehouseCells } from '../../model/warehouseCells';
 import { readCells } from './warehouseFormatting';
-import { WarehouseReceiving } from './WarehouseReceiving';
 
 export type WarehouseLayoutRenderValue = (panel: ReactNode, scene?: ReactNode, sceneControls?: ReactNode) => ReactElement;
 
@@ -77,6 +78,7 @@ interface WarehouseWorkspaceProps {
 
 const loadWarehousePanels = createCachedModuleLoader(() => import('./warehousePanels'));
 const loadWarehouseRackPlacement = createCachedModuleLoader(() => import('../layout/WarehouseRackPlacement'));
+const loadWarehouseYardPolicy = createCachedModuleLoader(() => import('./WarehouseYardPolicyEditor'));
 const loadWarehouseSceneView = createCachedModuleLoader(() => import('../WarehouseWorkspaceScene'));
 const WarehouseWorkspaceScene = createLazyComponent(loadWarehouseSceneView);
 const WarehouseSceneControls = createLazyComponent<object>(createCachedModuleLoader(() => loadWarehouseSceneView().then(module => ({
@@ -161,21 +163,26 @@ const WarehouseWorkspaceContent = ({
 }: WarehouseWorkspaceContentProps): ReactElement => {
   const { t: baseText } = useI18n();
   const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
+  const canViewPolicy = useCan(PermissionCode.YARD_VIEW, { kind: 'organization' });
+  const { ref: policyButtonRef, requestFocus: requestPolicyFocus } = useFocusHandoff<HTMLButtonElement>('warehouse-yard-policy');
   const [editingTaskId, setEditingTaskId] = useState<string | undefined>();
   const [isEditingLayout, setIsEditingLayout] = useState(false);
+  const [isPolicyOpen, setIsPolicyOpen] = useState(false);
   const hasEditor = editingTaskId !== undefined && workspace.receiving.data?.some(task => task.id === editingTaskId
     && task.status === ReceivingTaskStatus.IN_PROGRESS) === true;
   const cells = readCells(workspace.topology.data);
-  const receivingArea = workspace.topology.data?.receivingArea;
-  const dockPoints = receivingArea
-    ? [receivingArea.unloadingPoint, ...receivingArea.additionalUnloadingPoints]
-    : undefined;
-  const hasAssignedDocks = (workspace.topology.data === undefined || dockPoints !== undefined)
-    && workspace.receiving.data?.some(task => task.unloadingPointId !== undefined
-      && (task.status === ReceivingTaskStatus.OPEN || task.status === ReceivingTaskStatus.IN_PROGRESS)) === true;
   const productNames = new Map(workspace.receiving.data?.flatMap(task =>
     task.orderLines.map(({ productId, productName }) => [productId, productName] as const)));
   const tabs: TabsItemValue[] = [];
+
+  const handleOpenPolicy = (): void => {
+    setIsPolicyOpen(true);
+  };
+
+  const handleClosePolicy = (): void => {
+    setIsPolicyOpen(false);
+    requestPolicyFocus();
+  };
 
   if (workspace.isSessionPending) {
     return <SkeletonGroup isFilled label={baseText('routing.section.loading')}><WarehouseSkeleton /></SkeletonGroup>;
@@ -203,21 +210,25 @@ const WarehouseWorkspaceContent = ({
                 )}
               </WarehouseQuery>
               <WarehouseQuery empty={t('warehouseWork.emptyTasks')} query={workspace.receiving} t={t}>
-                {tasks => tasks.map(task => (
-                  <WarehouseReceiving
-                    canViewDeals={canViewDeals}
-                    cells={cells}
-                    dockCode={dockPoints?.find(point => point?.id === task.unloadingPointId)?.code
-                      ?? (hasAssignedDocks && task.unloadingPointId === undefined ? null : undefined)}
-                    editingTaskId={hasEditor ? editingTaskId : undefined}
-                    key={task.id}
-                    onCellSelect={onCellSelect}
-                    onChanged={NO_CHANGE}
-                    onEditingChange={setEditingTaskId}
-                    t={t}
-                    task={task}
-                  />
-                ))}
+                {tasks => (
+                  <WarehousePanelSlot loader={loadWarehousePanels}>
+                    {({ WarehouseReceivingTasks }) => (
+                      <WarehouseReceivingTasks
+                        canViewDeals={canViewDeals}
+                        cells={cells}
+                        editingTaskId={hasEditor ? editingTaskId : undefined}
+                        onCellSelect={onCellSelect}
+                        onChanged={NO_CHANGE}
+                        onEditingChange={setEditingTaskId}
+                        t={t}
+                        tasks={tasks}
+                        timeZone={warehouse.timeZone}
+                        topology={workspace.topology.data}
+                        warehouseId={warehouse.id}
+                      />
+                    )}
+                  </WarehousePanelSlot>
+                )}
               </WarehouseQuery>
             </div>
           ),
@@ -322,6 +333,24 @@ const WarehouseWorkspaceContent = ({
       <header className="flex flex-col items-start gap-1">
         <TextLink size="sm" to={{ kind: 'section', section: 'warehouse' }}>{t('warehouseWork.back')}</TextLink>
         <h2 className="text-xl font-semibold wrap-anywhere" translate="no">{warehouse.name}</h2>
+        {canViewPolicy && (isPolicyOpen
+          ? (
+              <WarehousePanelSlot loader={loadWarehouseYardPolicy}>
+                {({ WarehouseYardPolicyEditor }) => <WarehouseYardPolicyEditor onClose={handleClosePolicy} t={t} />}
+              </WarehousePanelSlot>
+            )
+          : (
+              <AccessButton
+                access={{ status: 'allowed' }}
+                data-testid="yard-queue-policy-open"
+                isDisabled={hasEditor || isEditingLayout}
+                onClick={handleOpenPolicy}
+                ref={policyButtonRef}
+                variant="secondary"
+              >
+                {t('warehouseWork.yardPolicyTitle')}
+              </AccessButton>
+            ))}
         {cellLabel !== undefined && (
           <p className="text-sm text-on-panel-muted">
             {t('warehouseWork.cell')}

@@ -16,6 +16,9 @@ export interface InboundDockSlotValue {
   startsAtMs: number;
 }
 
+export const isInboundDockSlotExpired = (slot: InboundDockSlotValue, worldTimeMs: number): boolean =>
+  worldTimeMs > slot.startsAtMs + INBOUND_DOCK_SLOT_GRACE_MS;
+
 export interface InboundSlotDockValue extends InboundDockValue {
   availableFromMs: number | undefined;
 }

@@ -7,6 +7,7 @@ import {
 } from '@bufbuild/protobuf/wkt';
 import { createClient } from '@connectrpc/connect';
 import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
+import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import {
   DealSchema,
   DealStatus,
@@ -36,6 +37,8 @@ import {
   ReceivingTaskStatus,
   WarehouseReceivingService,
   YardAdmissionStatus,
+  YardPriorityFactor,
+  YardWaitingReasonCode,
 } from '@skladburg/contracts/wms/v1/receiving';
 import {
   expect,
@@ -46,6 +49,7 @@ import {
 import type { IStateTransaction } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
+import { createEngineTasks } from '../../scheduler/engineTasks';
 import { createScheduler } from '../../scheduler/index';
 import {
   SeedOrganizationId,
@@ -61,10 +65,12 @@ import {
   callAs,
   captureError,
   createModuleHarness,
+  readErrorDetail,
 } from '../testing/moduleHarness';
 import { createTestRuntime } from '../testing/testRuntime';
 import {
   assignAvailableInboundDocks,
+  createDockScheduleRefresh,
   openInboundTask,
   readInboundTask,
   refreshInboundDockSchedules,
@@ -201,6 +207,98 @@ const createDockTopology = (): ReturnType<typeof createSeedWarehouseTopology> =>
   prefix: '8f000004', tenantId: TENANT, warehouseId: WAREHOUSE,
 });
 
+it('projects current waiting causes and eligible factors for the scoped warehouse without writing state', async () => {
+  const harness = createModuleHarness();
+  const { commits, events, runtime, transport } = harness;
+  const caller = callAs(await addTestMember(harness, {
+    organizationId: TENANT, permissions: ['task_view'], warehouseIds: [WAREHOUSE],
+  }), TENANT);
+  const denied = callAs(await addTestMember(harness, {
+    organizationId: TENANT, permissions: ['warehouse_view'], warehouseIds: [WAREHOUSE],
+  }), TENANT);
+  const fixtures = await runtime.command((transaction) => {
+    const topology = createDockTopology();
+    const dock = topology.receivingArea?.unloadingPoint;
+    if (dock === undefined) {
+      throw new Error('Missing receiving dock');
+    }
+    dock.capabilities = [WarehouseCapability.OVERSIZE];
+    transaction.put('warehouseTopologies', encodeWarehouseTopology(topology));
+    const now = transaction.worldTimeMs;
+    const rejected = saveArrival(transaction, runtime, SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2);
+    const documents = saveScheduledArrival(transaction, runtime, now, false);
+    const incompatible = saveScheduledArrival(transaction, runtime, now, true, now, VehicleCargoKind.TEMPERATURE_CONTROLLED);
+    const future = saveScheduledArrival(transaction, runtime, now + 5 * MINUTE_MS, true, now - 15 * MINUTE_MS);
+    return { documents, future, incompatible, rejected };
+  });
+  const counts = { commits: commits.length, events: events.length };
+  const receiving = createClient(WarehouseReceivingService, transport);
+  const request = { warehouseId: WAREHOUSE };
+  const { reasons } = await receiving.listYardWaitingReasons(request, caller);
+  const readReason = (task: ReceivingTask): (typeof reasons)[number] | undefined => reasons.find(row => row.receivingTaskId === task.id);
+  expect(readReason(fixtures.rejected)).toMatchObject({ priorityFactors: [], reason: YardWaitingReasonCode.PASS_REJECTED });
+  expect(readReason(fixtures.documents)).toMatchObject({ priorityFactors: [], reason: YardWaitingReasonCode.WAITING_DOCUMENTS });
+  expect(readReason(fixtures.incompatible)).toMatchObject({ priorityFactors: [], reason: YardWaitingReasonCode.NO_COMPATIBLE_DOCK });
+  expect(readReason(fixtures.future)).toMatchObject({
+    reason: YardWaitingReasonCode.WAITING_SLOT,
+    taskVersion: requireStoredTask(runtime, fixtures.future.id).version,
+  });
+  expect(readReason(fixtures.future)?.priorityFactors).toContain(YardPriorityFactor.WAITING_TIME);
+  const first = await receiving.listYardWaitingReasons({ ...request, page: { pageSize: 1 } }, caller);
+  const second = await receiving.listYardWaitingReasons({
+    ...request, page: { pageSize: 1, pageToken: first.page?.nextPageToken },
+  }, caller);
+  expect([...first.reasons, ...second.reasons]).toEqual(reasons.slice(0, 2));
+  const deniedRead = await captureError(receiving.listYardWaitingReasons(request, denied));
+  expect(readErrorDetail(deniedRead).code).toBe(ErrorCode.PERMISSION_DENIED);
+  const foreignRead = await captureError(receiving.listYardWaitingReasons(request, callAs(SeedUserId.ADMIN_2, SUPPLIER)));
+  expect(readErrorDetail(foreignRead).code).toBe(ErrorCode.NOT_FOUND);
+  expect({ commits: commits.length, events: events.length }).toEqual(counts);
+});
+
+it('publishes a waiting reason update at the reserved start when the booked dock stays occupied', async () => {
+  const { clock, events, runtime, transport } = createModuleHarness();
+  const startsAt = clock.now() + 5 * MINUTE_MS;
+  const worldTime = vi.spyOn(clock, 'now');
+  const scheduled = await runtime.command((transaction) => {
+    const topology = createDockTopology();
+    const dock = topology.receivingArea?.unloadingPoint;
+    if (dock === undefined) {
+      throw new Error('Missing receiving dock');
+    }
+    transaction.put('warehouseTopologies', encodeWarehouseTopology(topology));
+    const future = saveScheduledArrival(transaction, runtime, startsAt, true);
+    const holder = saveArrival(transaction, runtime, WAREHOUSE);
+    holder.unloadingPointId = dock.id;
+    saveInboundTask(transaction, runtime, holder, TENANT);
+    return requireStoredTask({ ...runtime, read: transaction }, future.id);
+  });
+  const schedulerTask = createEngineTasks({
+    ...runtime, refreshInboundDockSchedules: createDockScheduleRefresh(runtime.getWorldTimeMs()),
+  }).find(task => task.id === 'inbound-dock-schedules');
+  if (schedulerTask === undefined) {
+    throw new Error('Missing dock scheduler');
+  }
+  const scheduler = createScheduler({ command: runtime.command, getWorldTimeMs: runtime.getWorldTimeMs });
+  scheduler.register(schedulerTask);
+  const receiving = createClient(WarehouseReceivingService, transport);
+  const caller = callAs(SeedUserId.ADMIN_1, TENANT);
+  const readReason = async (): Promise<undefined | YardWaitingReasonCode> => {
+    const { reasons } = await receiving.listYardWaitingReasons({ warehouseId: WAREHOUSE }, caller);
+    return reasons.find(row => row.receivingTaskId === scheduled.id)?.reason;
+  };
+  expect(await readReason()).toBe(YardWaitingReasonCode.WAITING_SLOT);
+  const eventCount = events.length;
+  worldTime.mockReturnValue(startsAt);
+  await scheduler.tick();
+  expect(requireStoredTask(runtime, scheduled.id)).toEqual(scheduled);
+  expect(await readReason()).toBe(YardWaitingReasonCode.BOOKED_DOCK_BUSY);
+  expect(events.slice(eventCount).map(({ payload }) => payload.case)).toEqual(['receivingTasksChanged']);
+  worldTime.mockReturnValue(startsAt + 1_000);
+  await scheduler.tick();
+  expect(events).toHaveLength(eventCount + 1);
+});
+
 const finishScheduledArrival = (transaction: IStateTransaction, runtime: IModuleRuntime, id: string): void => {
   const record = transaction.get('warehouseInbound', id);
   if (record === undefined) {
@@ -214,7 +312,7 @@ const finishScheduledArrival = (transaction: IStateTransaction, runtime: IModule
 };
 
 it('preserves receipt fallback in a saved receiving area without docks and waits for a dock on a new scheduled visit', async () => {
-  const { runtime } = createTestRuntime();
+  const { runtime, transport } = createModuleHarness();
   const { legacyId, scheduledId } = await runtime.command((transaction) => {
     const topology = createDockTopology();
     const area = topology.receivingArea;
@@ -244,6 +342,10 @@ it('preserves receipt fallback in a saved receiving area without docks and waits
   expect(() => {
     requireInboundDock(runtime.read, runtime.errors, scheduled, TENANT, 'ReceiveHandlingUnit', runtime.getWorldTimeMs());
   }).toThrow();
+  const receiving = createClient(WarehouseReceivingService, transport);
+  const { reasons } = await receiving.listYardWaitingReasons({ warehouseId: WAREHOUSE }, callAs(SeedUserId.ADMIN_1, TENANT));
+  expect(reasons.find(row => row.receivingTaskId === legacyId)).toBeUndefined();
+  expect(reasons.find(row => row.receivingTaskId === scheduledId)?.reason).toBe(YardWaitingReasonCode.NO_COMPATIBLE_DOCK);
 });
 
 it('holds an early visit on the yard, forbids single-dock receipt and assigns it once at the reserved start', async () => {

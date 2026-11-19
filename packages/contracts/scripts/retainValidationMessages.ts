@@ -61,6 +61,8 @@ export const retainValidationMessages = (image: FileDescriptorSet): void => {
   }
 
   for (const file of image.file) {
+    const prefix = file.package === '' ? '' : `.${file.package}`;
+    file.enumType = file.enumType.filter(type => pending.has(`${prefix}.${type.name}`));
     file.messageType = file.messageType.filter(message => needed.has(message));
   }
 };

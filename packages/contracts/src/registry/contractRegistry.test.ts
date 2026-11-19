@@ -286,6 +286,10 @@ it('preserves every request descriptor and its dependencies while removing respo
   expect(registry.getMessage('wms.v1.ListStockBalancesResponse')).toBeDefined();
   expect(restored.getMessage('wms.v1.ListPickingTasksResponse')).toBeUndefined();
   expect(registry.getMessage('wms.v1.ListPickingTasksResponse')).toBeDefined();
+  expect(restored.getEnum('wms.v1.YardWaitingReasonCode')).toBeUndefined();
+  expect(registry.getEnum('wms.v1.YardWaitingReasonCode')).toBeDefined();
+  expect(restored.getEnum('wms.v1.YardPriorityFactor')).toBeUndefined();
+  expect(registry.getEnum('wms.v1.YardPriorityFactor')).toBeDefined();
 
   for (const file of registry.files) {
     if (!isExternalFile(file)) {
@@ -302,6 +306,9 @@ it('preserves every request descriptor and its dependencies while removing respo
   for (const descriptor of restored) {
     if (descriptor.kind === 'message') {
       expect(descriptor.proto).toEqual(registry.getMessage(descriptor.typeName)?.proto);
+    }
+    else if (descriptor.kind === 'enum') {
+      expect(descriptor.proto).toEqual(registry.getEnum(descriptor.typeName)?.proto);
     }
   }
 });

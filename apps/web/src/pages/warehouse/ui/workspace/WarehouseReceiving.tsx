@@ -1,7 +1,9 @@
 import type {
   ExpectedReceivingUnit,
   ReceivingTask,
+  YardWaitingReason,
 } from '@skladburg/contracts/wms/v1/receiving';
+import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
 import type {
   ComponentType,
   ReactElement,
@@ -12,6 +14,7 @@ import { MarkingMode } from '@skladburg/contracts/catalog/v1/catalog';
 import {
   ReceivingTaskStatus,
   YardAdmissionStatus,
+  YardWaitingReasonCode,
 } from '@skladburg/contracts/wms/v1/receiving';
 import {
   Suspense,
@@ -51,9 +54,11 @@ import {
   useFinishReceiving,
   useReceiveUnitCommand,
 } from '../../api/useWarehouseCommands';
+import { useYardWaitingReasons } from '../../api/useYardWaitingReasons';
 import { RECEIVING_TEXT } from './warehouseFormatting';
 import { WarehousePlacement } from './WarehousePlacement';
 import { WarehouseScanner } from './WarehouseScanner';
+import { WarehouseYardWaiting } from './WarehouseYardWaiting';
 
 interface WarehouseReceiveActionProps extends Omit<WarehouseReceiveFormProps, 'command' | 'scanner'> {
   form: ComponentType<WarehouseReceiveFormProps>;
@@ -70,6 +75,14 @@ interface WarehouseReceivingProps {
   onEditingChange: (taskId: string | undefined) => void;
   t: WarehouseWorkTranslate;
   task: ReceivingTask;
+  timeZone: string;
+  waitingReason: undefined | YardWaitingReason;
+}
+
+interface WarehouseReceivingTasksProps extends Omit<WarehouseReceivingProps, 'dockCode' | 'task' | 'waitingReason'> {
+  tasks: readonly ReceivingTask[];
+  topology: null | undefined | WarehouseTopology;
+  warehouseId: string;
 }
 
 const loadReceiveForm = createCachedModuleLoader(() => import('./WarehouseReceiveForm'));
@@ -81,8 +94,8 @@ const WarehouseReceiveAction = ({ form: Form, onReceived, task, ...props }: Ware
   return <Form {...props} command={command} scanner={WarehouseScanner} task={task} />;
 };
 
-export const WarehouseReceiving = ({
-  canViewDeals, cells, dockCode, editingTaskId, onCellSelect, onChanged, onEditingChange, t, task,
+const WarehouseReceiving = ({
+  canViewDeals, cells, dockCode, editingTaskId, onCellSelect, onChanged, onEditingChange, t, task, timeZone, waitingReason,
 }: WarehouseReceivingProps): ReactElement => {
   const { userId } = useActingContext();
   const { t: baseText } = useI18n();
@@ -101,6 +114,10 @@ export const WarehouseReceiving = ({
   const isOpen = task.status === ReceivingTaskStatus.OPEN;
   const isReceiving = task.status === ReceivingTaskStatus.IN_PROGRESS;
   const isActive = isOpen || isReceiving;
+  const currentReason = isActive && waitingReason?.taskVersion === task.version
+    && waitingReason.reason !== YardWaitingReasonCode.UNSPECIFIED
+    ? waitingReason
+    : undefined;
   const isWaitingDock = isActive && (dockCode === null || task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCK);
   const isWaitingForDocuments = isActive && task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCUMENTS;
   const isPassRejected = isActive && task.yardAdmissionStatus === YardAdmissionStatus.PASS_REJECTED;
@@ -166,11 +183,13 @@ export const WarehouseReceiving = ({
         <h3 className="font-semibold">{t('warehouseWork.receipt')}</h3>
         <p className="text-sm text-on-panel-muted">{t(RECEIVING_TEXT[task.status])}</p>
       </header>
-      {dockLabel !== undefined && (
-        <p aria-live="polite" className="text-sm text-on-panel-muted" data-testid="warehouse-receiving-dock">
-          {dockLabel}
-        </p>
-      )}
+      {currentReason !== undefined
+        ? <WarehouseYardWaiting reason={currentReason} schedule={task.dockSchedule} t={t} timeZone={timeZone} />
+        : dockLabel !== undefined && (
+          <p aria-live="polite" className="text-sm text-on-panel-muted" data-testid="warehouse-receiving-dock">
+            {dockLabel}
+          </p>
+        )}
       {canViewDeals && (
         <TextLink size="sm" to={{ kind: 'object', object: { id: task.dealId, type: 'deal' } }}>{t('warehouseWork.deal')}</TextLink>
       )}
@@ -303,5 +322,37 @@ export const WarehouseReceiving = ({
         </div>
       )}
     </Card>
+  );
+};
+
+const isActiveTask = (task: ReceivingTask): boolean =>
+  task.status === ReceivingTaskStatus.OPEN || task.status === ReceivingTaskStatus.IN_PROGRESS;
+
+export const WarehouseReceivingTasks = ({
+  tasks, topology, warehouseId, ...props
+}: WarehouseReceivingTasksProps): ReactElement => {
+  const area = topology?.receivingArea;
+  const dockPoints = area === undefined ? undefined : [area.unloadingPoint, ...area.additionalUnloadingPoints];
+  const hasAssignedDocks = (topology === undefined || dockPoints !== undefined)
+    && tasks.some(task => isActiveTask(task) && task.unloadingPointId !== undefined);
+  const hasWaitingCandidates = tasks.some(task => isActiveTask(task)
+    && (task.unloadingPointId === undefined || task.yardAdmissionStatus === YardAdmissionStatus.PASS_REJECTED
+      || task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCUMENTS));
+  const reasons = useYardWaitingReasons(warehouseId, hasWaitingCandidates);
+  const waitingReasons = new Map(reasons.isError ? [] : reasons.data?.map(row => [row.receivingTaskId, row]));
+
+  return (
+    <>
+      {tasks.map(task => (
+        <WarehouseReceiving
+          {...props}
+          dockCode={dockPoints?.find(point => point?.id === task.unloadingPointId)?.code
+            ?? (hasAssignedDocks && task.unloadingPointId === undefined ? null : undefined)}
+          key={task.id}
+          task={task}
+          waitingReason={waitingReasons.get(task.id)}
+        />
+      ))}
+    </>
   );
 };

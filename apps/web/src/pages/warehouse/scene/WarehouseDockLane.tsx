@@ -1,4 +1,7 @@
-import type { ReactElement } from 'react';
+import type {
+  ReactElement,
+  RefObject,
+} from 'react';
 import type {
   BoxGeometry,
   Group,
@@ -9,6 +12,7 @@ import { useRef } from 'react';
 import type { WarehouseGeometryKitValue } from './createWarehouseGeometryKit';
 import type { WarehouseTruckModelValue } from './useWarehouseTruckModel';
 import type { WarehouseDockCargoValue } from './warehouseDockCargo';
+import type { WarehouseYardPlaybackClockValue } from './warehouseDockPlayback';
 import type { WarehouseForkliftRigValue } from './WarehouseForklift';
 import type {
   WarehouseDockPointValue,
@@ -30,6 +34,7 @@ interface WarehouseDockLaneProps {
   lane: WarehouseDockCargoValue;
   laneIndex: number;
   layout: WarehouseLayoutValue;
+  playbackClock: RefObject<WarehouseYardPlaybackClockValue>;
   traffic: WarehouseYardTrafficValue;
   truckModel: WarehouseTruckModelValue;
 }
@@ -37,7 +42,7 @@ interface WarehouseDockLaneProps {
 const EMPTY_CARGO = { dockTaskId: undefined, hasDock: false, units: [] };
 
 export const WarehouseDockLane = ({
-  dock, geometry, hasAssignedDocks, hasShadows, kit, lane, laneIndex, layout, traffic, truckModel,
+  dock, geometry, hasAssignedDocks, hasShadows, kit, lane, laneIndex, layout, playbackClock, traffic, truckModel,
 }: WarehouseDockLaneProps): ReactElement => {
   const dockTruck = useRef<Group>(null);
   const forklift = useRef<WarehouseForkliftRigValue>(null);
@@ -74,6 +79,7 @@ export const WarehouseDockLane = ({
         kit={kit}
         laneIndex={laneIndex}
         layout={layout}
+        playbackClock={playbackClock}
         traffic={traffic}
         yardParking={yardParking}
       />

@@ -364,9 +364,8 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
   const topology = workspace.canViewTopology && !isReadAccessDenied(workspace.topology.error)
     ? workspace.topology.data
     : undefined;
-  const hasTaskSnapshot = workspace.canViewTasks && !workspace.receiving.isPending && !workspace.picking.isPending;
-  const tasks = hasTaskSnapshot && !isReadAccessDenied(workspace.receiving.error) ? workspace.receiving.data : undefined;
-  const picking = hasTaskSnapshot && !isReadAccessDenied(workspace.picking.error) ? workspace.picking.data : undefined;
+  const receiving = workspace.canViewTasks && !isReadAccessDenied(workspace.receiving.error) ? workspace.receiving : undefined;
+  const picking = workspace.canViewTasks && !isReadAccessDenied(workspace.picking.error) ? workspace.picking : undefined;
   const balances = workspace.canViewInventory && !isReadAccessDenied(workspace.balances.error) ? workspace.balances.data : undefined;
   const focusCellId = focus?.type === 'cell'
     ? focusId
@@ -399,9 +398,9 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
           isLoading={workspace.topology.isPending && workspace.canViewTopology}
           label={warehouse.name}
           picking={picking}
+          receiving={receiving}
           scannedCell={currentScan}
           selectedCellId={focusCellId}
-          tasks={tasks}
           topology={topology}
           warehouseId={warehouse.id}
         />

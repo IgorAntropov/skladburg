@@ -27,6 +27,7 @@ import type {
   WarehouseSceneDataValue,
   WarehouseSceneInteractionValue,
 } from '../model/warehouseSceneInteraction';
+import type { WarehouseYardPlaybackClockValue } from './warehouseDockPlayback';
 import type {
   WarehouseBoxValue,
   WarehouseCellVisualValue,
@@ -81,6 +82,9 @@ const WarehouseWorldScene = ({
   const desiredLayout = getWarehouseLayout(data.topology, data.parkingCapacity);
   const [motionLayout, setMotionLayout] = useState<WarehouseLayoutValue>();
   const traffic = useMemo(() => createWarehouseYardTraffic(), []);
+  const playbackClock = useRef<WarehouseYardPlaybackClockValue>({
+    delta: 0, isCatchingUp: false, isPaused: false, isResuming: false,
+  });
   const geometry = useMemo(() => new BoxGeometry(1, 1, 1), []);
   const kit = useMemo(() => createWarehouseGeometryKit(), []);
   const truckModel = useWarehouseTruckModel();
@@ -131,6 +135,29 @@ const WarehouseWorldScene = ({
   }, [invalidate]);
 
   useEffect(() => {
+    const handleVisibilityChange = (): void => {
+      if (document.hidden) {
+        playbackClock.current.isPaused = true;
+        playbackClock.current.isResuming = true;
+      }
+      else {
+        invalidate();
+      }
+    };
+    handleVisibilityChange();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [invalidate]);
+
+  useEffect(() => {
+    if (interaction.isRefreshingYardFacts !== true && !document.hidden) {
+      invalidate();
+    }
+  }, [interaction.isRefreshingYardFacts, invalidate]);
+
+  useEffect(() => {
     const prev = lastFocus.current;
     const isRequested = prev?.request !== focusRequest || (scannedCell !== undefined && prev.scan !== scannedCell);
     lastFocus.current = { request: focusRequest, scan: scannedCell };
@@ -142,10 +169,25 @@ const WarehouseWorldScene = ({
   }, [focusRequest, rig, scannedCell, selection]);
 
   useFrame((_, delta) => {
-    if (advanceWarehouseYardTraffic(traffic, layout.yard, delta, motion.current?.matches === true, hasPendingLayout)) {
+    const clock = playbackClock.current;
+    clock.isPaused = document.hidden || interaction.isRefreshingYardFacts === true;
+    if (clock.isPaused) {
+      clock.isResuming = true;
+      return;
+    }
+    const isResuming = clock.isResuming;
+    clock.delta = isResuming ? 0 : delta;
+    clock.isCatchingUp ||= isResuming;
+    clock.isResuming = false;
+    const isMoving = advanceWarehouseYardTraffic(
+      traffic, layout.yard, clock.delta, motion.current?.matches === true, hasPendingLayout, clock.isCatchingUp,
+    );
+    if (isMoving) {
       invalidate();
     }
-    const isMoving = traffic.reservation !== undefined || traffic.yard.isMoving;
+    else if (!traffic.forklifts.some(Boolean)) {
+      clock.isCatchingUp = false;
+    }
     if (isMoving !== isYardActive.current) {
       isYardActive.current = isMoving;
       queueMicrotask(handleYardActivityChange);
@@ -173,6 +215,7 @@ const WarehouseWorldScene = ({
           lane={lane}
           laneIndex={index}
           layout={layout}
+          playbackClock={playbackClock}
           traffic={traffic}
           truckModel={truckModel}
         />

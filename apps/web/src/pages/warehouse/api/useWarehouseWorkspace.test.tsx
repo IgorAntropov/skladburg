@@ -57,12 +57,125 @@ import {
 
 import { useWarehouseObjectLookup } from './useWarehouseObjectLookup';
 import { useWarehouseWorkspace } from './useWarehouseWorkspace';
+import { useWarehouseYardRefresh } from './useWarehouseYardRefresh';
 
 const WAREHOUSE = '80000000-0000-4000-8000-000000000001';
 const OTHER_WAREHOUSE = '80000000-0000-4000-8000-000000000002';
 const OTHER_USER = '80000000-0000-4000-8000-000000000003';
 
-afterEach(cleanup);
+function createDeferred<T>(value: T): { promise: Promise<T>; resolve: () => void } {
+  let resolve = (): void => undefined;
+  const promise = new Promise<T>((finish) => {
+    resolve = (): void => {
+      finish(value);
+    };
+  });
+
+  return { promise, resolve };
+}
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+it('refreshes available yard sources once and waits for their results to reach the snapshot', async () => {
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+  const initialData = ['before'];
+  const fetchedData = ['after'];
+  const received = { data: fetchedData, dataUpdatedAt: 1, errorUpdatedAt: 0 };
+  const deferred = createDeferred(received);
+  const refetch = vi.fn(() => deferred.promise);
+  const view = { data: initialData, dataUpdatedAt: 1, errorUpdatedAt: 0, fetchStatus: 'idle', refetch } as const;
+  const { rerender, result } = renderHook(
+    ({ data }) => useWarehouseYardRefresh('current', undefined, { ...view, data }, undefined),
+    { initialProps: { data: initialData } },
+  );
+
+  expect(result.current).toBe(false);
+  act(() => {
+    visibility.mockReturnValue('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  expect(result.current).toBe(true);
+  expect(refetch).not.toHaveBeenCalled();
+
+  act(() => {
+    visibility.mockReturnValue('visible');
+    document.dispatchEvent(new Event('visibilitychange'));
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  expect(refetch).toHaveBeenCalledOnce();
+  await act(async () => {
+    deferred.resolve();
+    await deferred.promise;
+  });
+  expect(result.current).toBe(true);
+
+  rerender({ data: fetchedData });
+  expect(result.current).toBe(false);
+});
+
+it('never resumes a different acting scope from the previous in-flight refresh', async () => {
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+  const received = { data: [], dataUpdatedAt: 1, errorUpdatedAt: 0 };
+  const deferred = createDeferred(received);
+  const refetch = vi.fn(() => deferred.promise);
+  const view = { ...received, fetchStatus: 'idle', refetch } as const;
+  const { rerender, result } = renderHook(
+    ({ scope }) => useWarehouseYardRefresh(scope, scope === 'previous' ? view : undefined, undefined, undefined),
+    { initialProps: { scope: 'previous' } },
+  );
+
+  act(() => {
+    visibility.mockReturnValue('visible');
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  expect(result.current).toBe(true);
+  expect(refetch).toHaveBeenCalledOnce();
+
+  rerender({ scope: 'current' });
+  await act(async () => {
+    deferred.resolve();
+    await deferred.promise;
+  });
+  expect(result.current).toBe(false);
+  expect(refetch).toHaveBeenCalledOnce();
+});
+
+it('restarts a pending refresh when an available query reader changes in the same visible scope', async () => {
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+  const received = { data: [], dataUpdatedAt: 1, errorUpdatedAt: 0 };
+  const previous = createDeferred(received);
+  const current = createDeferred(received);
+  const refetchPrevious = vi.fn(() => previous.promise);
+  const refetchCurrent = vi.fn(() => current.promise);
+  const { rerender, result } = renderHook(
+    ({ refetch }) => useWarehouseYardRefresh('same', undefined, { ...received, fetchStatus: 'idle', refetch }, undefined),
+    { initialProps: { refetch: refetchPrevious } },
+  );
+
+  act(() => {
+    visibility.mockReturnValue('visible');
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  expect(result.current).toBe(true);
+  expect(refetchPrevious).toHaveBeenCalledOnce();
+
+  rerender({ refetch: refetchCurrent });
+  await act(async () => {
+    previous.resolve();
+    await previous.promise;
+  });
+  expect(result.current).toBe(true);
+  expect(refetchCurrent).toHaveBeenCalledOnce();
+
+  await act(async () => {
+    current.resolve();
+    await current.promise;
+  });
+  expect(result.current).toBe(false);
+});
 
 it('loads only permitted warehouse views and retains each page and event scope', async () => {
   const getWarehouseTopology = vi.fn(() => create(GetWarehouseTopologyResponseSchema));

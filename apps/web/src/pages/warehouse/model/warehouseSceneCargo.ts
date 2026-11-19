@@ -28,7 +28,9 @@ export interface WarehouseDockVisitValue {
   isOutbound?: boolean | undefined;
   isWaitingInYard?: boolean | undefined;
   taskId: string;
+  taskVersion?: number | undefined;
   tripId: string | undefined;
+  tripVersion?: number | undefined;
   unloadingPointId?: string | undefined;
 }
 

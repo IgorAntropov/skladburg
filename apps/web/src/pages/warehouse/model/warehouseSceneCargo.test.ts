@@ -50,7 +50,7 @@ const makeTrip = (status: TripStatus): Trip => create(TripSchema, {
 
 const projectPicking = (picking: PickingTask, trip?: Trip): ReturnType<typeof projectWarehouseCargo> =>
   projectWarehouseCargo([], 'receiving', true, {
-    picking: [picking], trips: trip === undefined ? undefined : [trip], warehouseId: 'source',
+    picking: [picking], trips: trip === undefined ? [] : [trip], warehouseId: 'source',
   });
 
 describe('warehouse scene cargo', () => {
@@ -280,7 +280,9 @@ describe('warehouse scene cargo', () => {
 
   it('does not reclassify a known trip as self-pickup when trip data is unavailable', () => {
     const routed = projectPicking(makePicking(PickingTaskStatus.PICKED), makeTrip(TripStatus.ASSIGNED));
-    const withoutTrip = projectPicking(makePicking(PickingTaskStatus.SHIPPED));
+    const withoutTrip = projectWarehouseCargo([], 'receiving', true, {
+      picking: [makePicking(PickingTaskStatus.SHIPPED)], trips: undefined, warehouseId: 'source',
+    });
     expect(readWarehouseDockDeparture(withoutTrip, routed.dockTaskId, routed.dockTripId)).toBeUndefined();
     expect(readWarehouseCargoMoves(routed, withoutTrip)).toEqual([]);
   });

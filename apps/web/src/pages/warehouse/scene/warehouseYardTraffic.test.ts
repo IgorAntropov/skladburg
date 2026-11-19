@@ -45,6 +45,132 @@ const readParked = (traffic: ReturnType<typeof createWarehouseYardTraffic>): { o
   traffic.yard.parked.map(({ offsetX, offsetZ, taskId }) => ({ offsetX, offsetZ, taskId }));
 
 describe('warehouse yard traffic', () => {
+  it.each([3, 6])('keeps the assigned successor in its parking place during the previous exit with %i places', (capacity) => {
+    const traffic = createWarehouseYardTraffic();
+    const lane = buildLane(6.2, 'occupant');
+    const plan = buildExpandedRoads(capacity);
+    traffic.lanes = [buildLane(0, 'neighbor'), lane];
+    traffic.visits = visits;
+    advanceWarehouseYardTraffic(traffic, plan, 0, false);
+    const original = readParked(traffic).find(({ taskId }) => taskId === 'third');
+
+    traffic.visits = visits.slice(0, -1);
+    lane.dockSteps = [{
+      departure: undefined, hasReachedDock: false, hasStartedExit: false, isCatchingUp: false, taskId: 'third', tripId: undefined,
+    }];
+    lane.hasConfirmedDeparture = true;
+    lane.target = undefined;
+    advanceWarehouseYardTraffic(traffic, plan, 1 / 60, false);
+
+    expect(lane.truck.phase).toBe('departing');
+    expect(readParked(traffic).find(({ taskId }) => taskId === 'third')).toEqual(original);
+  });
+
+  it.each([30, 60, 120])('catches up a confirmed approach and departure from rear parking within two seconds at %i Hz', (rate) => {
+    const traffic = createWarehouseYardTraffic();
+    const lane = buildLane(6.2, undefined);
+    const plan = buildExpandedRoads(30);
+    const delta = 1 / rate;
+    const taskId = 'visit-28';
+    traffic.lanes = [buildLane(0, 'unloading'), lane];
+    traffic.visits = expandedVisits(28);
+    advanceWarehouseYardTraffic(traffic, plan, 0, false);
+    const assignedPosition = readParked(traffic).find(visit => visit.taskId === taskId);
+
+    lane.target = taskId;
+    lane.isCatchingUp = true;
+    traffic.visits = traffic.visits.filter(visit => visit.taskId !== taskId);
+    expect(advanceWarehouseYardTraffic(traffic, plan, 0, false)).toBe(true);
+    expect(traffic.reservation).toBe(lane);
+    expect(lane.truck.start).toEqual({ x: assignedPosition?.offsetX, z: assignedPosition?.offsetZ });
+
+    let elapsed = 0;
+    const phases: (typeof lane.truck.phase)[] = ['approaching'];
+    for (let frame = 0; frame < 600 && traffic.reservation !== undefined; frame += 1) {
+      advanceWarehouseYardTraffic(traffic, plan, delta, false);
+      elapsed += delta;
+      if (phases.at(-1) !== lane.truck.phase) {
+        phases.push(lane.truck.phase);
+      }
+      if (lane.truck.phase === 'docked') {
+        lane.hasConfirmedDeparture = true;
+        lane.target = undefined;
+        expect(advanceWarehouseYardTraffic(traffic, plan, 0, false)).toBe(true);
+        expect(traffic.reservation).toBe(lane);
+        phases.push(lane.truck.phase);
+      }
+      expect(traffic.yard.byTask.has(taskId)).toBe(false);
+    }
+    expect(phases).toEqual(['approaching', 'docked', 'departing', 'away']);
+    expect(elapsed).toBeGreaterThanOrEqual(1);
+    expect(elapsed).toBeLessThanOrEqual(2);
+    expect(advanceWarehouseYardTraffic(traffic, plan, delta, false)).toBe(false);
+  });
+
+  it('keeps a catch-up approach waiting behind a normal departure without speeding up its reservation', () => {
+    const traffic = createWarehouseYardTraffic();
+    const departing = buildLane(0, 'unloading');
+    const waiting = buildLane(6.2, undefined);
+    const plan = buildExpandedRoads(25);
+    const delta = 1 / 60;
+    traffic.lanes = [departing, waiting];
+    traffic.visits = expandedVisits(24);
+    advanceWarehouseYardTraffic(traffic, plan, 0, false);
+    const assignedPosition = readParked(traffic).at(-1);
+
+    departing.hasConfirmedDeparture = true;
+    departing.target = undefined;
+    waiting.target = assignedPosition?.taskId;
+    waiting.isCatchingUp = true;
+    advanceWarehouseYardTraffic(traffic, plan, 0, false);
+
+    let beforeRelease = 0;
+    for (let frame = 0; frame < 240 && traffic.reservation === departing; frame += 1) {
+      expect(waiting.truck.phase).toBe('away');
+      expect(readParked(traffic).at(-1)).toEqual(assignedPosition);
+      advanceWarehouseYardTraffic(traffic, plan, delta, false);
+      beforeRelease += delta;
+    }
+    expect(beforeRelease).toBeCloseTo(2.8, 1);
+    expect(traffic.reservation).toBe(waiting);
+    let afterRelease = 0;
+    for (let frame = 0; frame < 120 && traffic.reservation === waiting; frame += 1) {
+      advanceWarehouseYardTraffic(traffic, plan, delta, false);
+      afterRelease += delta;
+    }
+    expect(afterRelease).toBeLessThanOrEqual(2);
+    expect(waiting.truck).toMatchObject({ phase: 'docked', taskId: assignedPosition?.taskId });
+    expect(advanceWarehouseYardTraffic(traffic, plan, delta, false)).toBe(false);
+  });
+
+  it('continues the existing parking reservation at catch-up speed without applying the hidden time', () => {
+    const traffic = createWarehouseYardTraffic();
+    const plan = buildExpandedRoads(12);
+    traffic.lanes = [buildLane(0, undefined)];
+    traffic.visits = expandedVisits(10);
+    advanceWarehouseYardTraffic(traffic, plan, 0, false);
+    traffic.visits = expandedVisits(11);
+    advanceWarehouseYardTraffic(traffic, plan, 0, false);
+    const arrival = traffic.reservation;
+    advanceWarehouseYardTraffic(traffic, plan, 0.05, false);
+    const before = traffic.yard.elapsed;
+
+    advanceWarehouseYardTraffic(traffic, plan, 100, false, false, true);
+    expect(traffic.reservation).toBe(arrival);
+    expect(traffic.yard.elapsed - before).toBeLessThanOrEqual(0.2);
+    expect(traffic.yard.elapsed).toBeGreaterThan(before + 0.05);
+
+    const delta = 1 / 60;
+    let elapsed = 0;
+    for (let frame = 0; frame < 120 && traffic.reservation === arrival; frame += 1) {
+      advanceWarehouseYardTraffic(traffic, plan, delta, false, false, true);
+      elapsed += delta;
+    }
+    expect(elapsed).toBeLessThanOrEqual(2);
+    expect(traffic.reservation).toBeUndefined();
+    expect(advanceWarehouseYardTraffic(traffic, plan, delta, false)).toBe(false);
+  });
+
   it.each([20, 25, 30])('preserves distinct places for %i simultaneous visits through repeated and reordered snapshots', (count) => {
     const traffic = createWarehouseYardTraffic();
     traffic.lanes = [buildLane(0, 'dock-first'), buildLane(6.2, 'dock-second')];

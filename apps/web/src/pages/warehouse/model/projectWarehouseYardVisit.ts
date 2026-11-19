@@ -20,9 +20,9 @@ export const isWarehouseVisitActive = (visit: undefined | WarehouseYardVisitValu
 } => visit !== undefined && !('departure' in visit) && visit.phase !== 'awaiting-shipment'
   && visit.phase !== 'cancelled' && visit.phase !== 'pass-rejected';
 
-export const projectInboundYardVisit = (task: ReceivingTask, tripId: string | undefined): undefined | WarehouseYardVisitValue => {
+export const projectInboundYardVisit = (task: ReceivingTask, trip: Trip | undefined): undefined | WarehouseYardVisitValue => {
   const { id: taskId, receivedUnits, status, unloadingPointId, yardAdmissionStatus } = task;
-  const visit = { taskId, tripId, unloadingPointId };
+  const visit = { taskId, taskVersion: task.version, tripId: trip?.id, tripVersion: trip?.version, unloadingPointId };
   if (status === ReceivingTaskStatus.READY_FOR_RECONCILIATION || status === ReceivingTaskStatus.RECONCILED) {
     return { ...visit, departure: 'received', phase: 'released' };
   }
@@ -42,8 +42,12 @@ export const projectInboundYardVisit = (task: ReceivingTask, tripId: string | un
   return undefined;
 };
 
-export const projectOutboundYardVisit = (task: PickingTask, trip: Trip | undefined): undefined | WarehouseYardVisitValue => {
-  const visit = { isOutbound: true, taskId: task.id, tripId: trip?.id };
+export const projectOutboundYardVisit = (
+  task: PickingTask,
+  trip: Trip | undefined,
+  canConfirmSelfPickup: boolean,
+): undefined | WarehouseYardVisitValue => {
+  const visit = { isOutbound: true, taskId: task.id, taskVersion: task.version, tripId: trip?.id, tripVersion: trip?.version };
   if (trip?.status === TripStatus.CANCELLED || task.status === PickingTaskStatus.CANCELLED) {
     return { ...visit, phase: 'cancelled' };
   }
@@ -53,6 +57,9 @@ export const projectOutboundYardVisit = (task: PickingTask, trip: Trip | undefin
     return undefined;
   }
   if (trip === undefined) {
+    if (!canConfirmSelfPickup) {
+      return undefined;
+    }
     return isShipped ? { ...visit, departure: 'self-pickup', phase: 'departed' } : { ...visit, phase: 'awaiting-load' };
   }
 

@@ -35,10 +35,13 @@ export const createWarehouseForkliftPlayback = (
   };
 };
 
-export const clearWarehouseForkliftJobs = (playback: WarehouseForkliftPlaybackValue): void => {
+export const clearWarehouseForkliftJobs = (playback: WarehouseForkliftPlaybackValue, shouldKeepPose = false): void => {
   playback.jobs.length = 0;
   playback.elapsed = 0;
   playback.phaseIndex = 0;
+  if (shouldKeepPose) {
+    return;
+  }
   if (playback.pose !== undefined && playback.parking !== undefined) {
     Object.assign(playback.pose, playback.parking);
   }
@@ -48,34 +51,39 @@ export const clearWarehouseForkliftJobs = (playback: WarehouseForkliftPlaybackVa
   }
 };
 
+export const truncateWarehouseForkliftJobs = (playback: WarehouseForkliftPlaybackValue, count: number): void => {
+  playback.jobs.length = count;
+};
+
 export const queueWarehouseForkliftJobs = (
   playback: WarehouseForkliftPlaybackValue,
   layout: WarehouseLayoutValue,
   transfers: readonly WarehouseCargoTransferValue[],
 ): void => {
-  if (playback.jobs.length + transfers.length > MAX_WAREHOUSE_FORKLIFT_JOBS) {
-    clearWarehouseForkliftJobs(playback);
-    return;
-  }
-
   for (const transfer of transfers) {
+    if (playback.jobs.length === MAX_WAREHOUSE_FORKLIFT_JOBS) {
+      break;
+    }
+    if (playback.jobs.some(({ transfer: queued }) => queued.id === transfer.id && queued.dockTaskId === transfer.dockTaskId
+      && queued.from.location === transfer.from.location && queued.to.location === transfer.to.location
+      && queued.to.cellId === transfer.to.cellId)) {
+      continue;
+    }
     const start = playback.jobs.at(-1)?.finish ?? playback.pose;
     const job = start === undefined ? undefined : planWarehouseForkliftJob(layout, { ...start }, transfer, playback.parking);
-    if (job === undefined) {
-      clearWarehouseForkliftJobs(playback);
-      return;
+    if (job !== undefined) {
+      playback.jobs.push(job);
     }
-    playback.jobs.push(job);
   }
 };
 
-export const advanceWarehouseForklift = (playback: WarehouseForkliftPlaybackValue, delta: number, stopAfterJob = false): void => {
+export const advanceWarehouseForklift = (playback: WarehouseForkliftPlaybackValue, delta: number, stopAfterJob = false, rate = 1): void => {
   const { pose } = playback;
   if (pose === undefined) {
     return;
   }
 
-  playback.elapsed += Math.min(delta, MAX_FRAME_DELTA);
+  playback.elapsed += Math.min(delta, MAX_FRAME_DELTA) * rate;
   while (playback.jobs.length > 0) {
     const phase = playback.jobs[0]?.phases[playback.phaseIndex];
     if (phase === undefined) {

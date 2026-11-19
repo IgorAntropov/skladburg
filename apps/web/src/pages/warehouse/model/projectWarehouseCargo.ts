@@ -20,6 +20,7 @@ import {
 } from './projectWarehouseYardVisit';
 
 interface WarehouseCargoProjectionValue {
+  knownPickupDeals?: ReadonlySet<string> | undefined;
   picking: readonly PickingTask[] | undefined;
   trips: readonly Trip[] | undefined;
   warehouseId: string;
@@ -35,7 +36,7 @@ const compareOutboundVisits = (current: PickingTask, prev: PickingTask): number 
   || comparePickedAt(current, prev);
 
 const appendOutboundCargo = (
-  { picking, trips, warehouseId }: WarehouseCargoProjectionValue,
+  { knownPickupDeals, picking, trips, warehouseId }: WarehouseCargoProjectionValue,
   units: WarehouseCargoUnitValue[],
   hasDock: boolean,
   yardVisits: Map<string, WarehouseYardVisitValue>,
@@ -49,7 +50,8 @@ const appendOutboundCargo = (
     if (task.warehouseId !== warehouseId) {
       continue;
     }
-    const visit = projectOutboundYardVisit(task, pickupTrips.get(task.dealId));
+    const canConfirmSelfPickup = trips !== undefined && knownPickupDeals?.has(task.dealId) !== true;
+    const visit = projectOutboundYardVisit(task, pickupTrips.get(task.dealId), canConfirmSelfPickup);
     const isActive = isWarehouseVisitActive(visit);
     const isSelfPickup = visit?.phase === 'departed' && visit.departure === 'self-pickup';
     const isAwaitingShipment = visit?.phase === 'awaiting-shipment';
@@ -104,7 +106,7 @@ export const projectWarehouseCargo = (
     && (options === undefined || task.warehouseId === options.warehouseId));
   const deliveryTrips = new Map(options?.trips
     ?.filter(trip => trip.delivery?.warehouseId === options.warehouseId && trip.status !== TripStatus.CANCELLED)
-    .map(trip => [trip.dealId, trip.id]));
+    .map(trip => [trip.dealId, trip]));
   const dockVisits: WarehouseDockVisitValue[] = [];
   const units: WarehouseCargoUnitValue[] = [];
   const yardVisits = new Map<string, WarehouseYardVisitValue>();

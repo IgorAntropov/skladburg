@@ -22,12 +22,13 @@ describe('warehouse parking sections', () => {
     expect(readWarehouseSceneParking(undefined, 'warehouse', waiting(count), ['D01', 'D02'], undefined).capacity).toBe(capacity);
   });
 
-  it('retains open sections until switching warehouses', () => {
-    const previous = readWarehouseSceneParking(undefined, 'warehouse', waiting(25), ['D01'], undefined);
+  it('retains open sections only within the same authorized scope', () => {
+    const previous = readWarehouseSceneParking(undefined, 'warehouse:tasks', waiting(25), ['D01'], undefined);
 
-    expect(readWarehouseSceneParking(previous, 'warehouse', waiting(3), ['D01'], undefined)).toBe(previous);
-    expect(readWarehouseSceneParking(previous, 'warehouse', undefined, ['D01'], undefined)).toBe(previous);
-    expect(readWarehouseSceneParking(previous, 'other', waiting(3), ['D01'], undefined)).toEqual({ capacity: 3, warehouseId: 'other' });
+    expect(readWarehouseSceneParking(previous, 'warehouse:tasks', waiting(3), ['D01'], undefined)).toBe(previous);
+    expect(readWarehouseSceneParking(previous, 'warehouse:tasks', undefined, ['D01'], undefined)).toBe(previous);
+    expect(readWarehouseSceneParking(previous, 'warehouse:limited', undefined, ['D01'], undefined))
+      .toEqual({ capacity: 3, scope: 'warehouse:limited' });
   });
 
   it('counts distinct waiting visits and excludes already assigned trucks', () => {

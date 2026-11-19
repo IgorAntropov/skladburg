@@ -7,7 +7,7 @@ import {
 
 export interface WarehouseSceneParkingValue {
   capacity: number;
-  warehouseId: string;
+  scope: string;
 }
 
 export const WAREHOUSE_YARD_PARKING_LIMIT = 3;
@@ -15,7 +15,7 @@ export const WAREHOUSE_YARD_MAX_PARKING_LIMIT = 30;
 
 export const readWarehouseSceneParking = (
   current: undefined | WarehouseSceneParkingValue,
-  warehouseId: string,
+  scope: string,
   visits: readonly WarehouseDockVisitValue[] | undefined,
   dockIds: readonly string[],
   dockTaskId: string | undefined,
@@ -34,5 +34,5 @@ export const readWarehouseSceneParking = (
   const capacity = waiting.size <= WAREHOUSE_YARD_PARKING_LIMIT
     ? WAREHOUSE_YARD_PARKING_LIMIT
     : Math.max(WAREHOUSE_YARD_PARKING_LIMIT * 2, Math.ceil(waiting.size / 2) * 2);
-  return current?.warehouseId === warehouseId && current.capacity >= capacity ? current : { capacity, warehouseId };
+  return current?.scope === scope && current.capacity >= capacity ? current : { capacity, scope };
 };

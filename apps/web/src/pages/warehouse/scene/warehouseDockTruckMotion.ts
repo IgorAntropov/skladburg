@@ -75,6 +75,7 @@ export const advanceWarehouseDockTruck = (
   roads: WarehouseYardRoadsValue,
   dock: WarehouseDockPointValue,
   delta: number,
+  playbackRate = 1,
 ): void => {
   if (!isWarehouseDockTruckMoving(truck)) {
     return;
@@ -82,7 +83,7 @@ export const advanceWarehouseDockTruck = (
   const isApproaching = truck.phase === 'approaching';
   const exitSeconds = isApproaching && truck.usesParkingExit ? PARKING_EXIT_SECONDS : 0;
   const duration = isApproaching ? APPROACH_SECONDS : DEPARTURE_SECONDS;
-  truck.elapsed += Math.min(delta, MAX_FRAME_DELTA);
+  truck.elapsed += Math.min(delta, MAX_FRAME_DELTA) * playbackRate;
   const isLeavingParking = truck.elapsed < exitSeconds;
   const progress = isLeavingParking ? truck.elapsed / exitSeconds : Math.min((truck.elapsed - exitSeconds) / duration, 1);
   if (progress === 1) {

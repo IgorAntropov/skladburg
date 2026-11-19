@@ -106,6 +106,7 @@ export const advanceWarehouseParkingArrival = (
   truck: WarehouseParkingPoseValue,
   delta: number,
   isReducedMotion: boolean,
+  playbackRate = 1,
 ): void => {
   const spot = roads.parking[truck.slotIndex];
   if (spot === undefined) {
@@ -114,7 +115,7 @@ export const advanceWarehouseParkingArrival = (
     return;
   }
 
-  yard.elapsed += Math.min(delta, MAX_FRAME_DELTA);
+  yard.elapsed += Math.min(delta, MAX_FRAME_DELTA) * playbackRate;
   const progress = Math.min(yard.elapsed / PARKING_ADVANCE_SECONDS, 1);
   if (isReducedMotion || progress === 1) {
     settleWarehouseParkingArrival(yard, truck, spot);
@@ -180,11 +181,11 @@ export const syncWarehouseYardMotion = (
   yard.hasInitialized = true;
 };
 
-export const advanceWarehouseYardMotion = (yard: WarehouseYardMotionValue, delta: number): void => {
+export const advanceWarehouseYardMotion = (yard: WarehouseYardMotionValue, delta: number, playbackRate = 1): void => {
   if (!yard.isMoving) {
     return;
   }
-  yard.elapsed += Math.min(delta, MAX_FRAME_DELTA);
+  yard.elapsed += Math.min(delta, MAX_FRAME_DELTA) * playbackRate;
   const progress = Math.min(yard.elapsed / PARKING_ADVANCE_SECONDS, 1);
   const eased = progress * progress * (3 - 2 * progress);
   let index = 0;

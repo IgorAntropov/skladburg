@@ -10,8 +10,10 @@ import {
 import type {
   WarehouseCargoUnitValue,
   WarehouseCargoValue,
+  WarehouseYardVisitValue,
 } from '../model/warehouseSceneCargo';
 import type { WarehouseCargoVisualValue } from './warehouseCargoPositions';
+import type { WarehouseDockStepValue } from './warehouseDockPlayback';
 
 import { isWarehouseAisleSegmentOpen } from './warehouseAislePath';
 import {
@@ -21,8 +23,13 @@ import {
   groupWarehouseCargoVisuals,
 } from './warehouseCargoPositions';
 import {
+  retainWarehouseDockLoads,
+  syncWarehouseDockSteps,
+} from './warehouseDockPlayback';
+import {
   advanceWarehouseForklift,
   createWarehouseForkliftPlayback,
+  MAX_WAREHOUSE_FORKLIFT_JOBS,
   queueWarehouseForkliftJobs,
 } from './warehouseForkliftPlayback';
 import {
@@ -85,6 +92,28 @@ const placed = {
   ...truck,
   units: [{ ...receivedUnit, cellId: 'upper-cell', location: 'cell', slot: 1 }],
 } satisfies WarehouseCargoValue;
+
+it('keeps a moving handoff when a batch exceeds the available forklift queue', () => {
+  const playback = createWarehouseForkliftPlayback(layout);
+  const transfers = buildWarehouseCargoTransfers(layout, truck, staging);
+  const [transfer] = transfers;
+  expect(transfer).toBeDefined();
+  if (transfer === undefined) {
+    return;
+  }
+
+  queueWarehouseForkliftJobs(playback, layout, transfers);
+  advanceWarehouseForklift(playback, 0.02);
+  const active = playback.jobs[0];
+  const elapsed = playback.elapsed;
+  queueWarehouseForkliftJobs(playback, layout, Array.from({ length: 10 }, (_, index) => ({
+    ...transfer, id: `batch-${String(index)}`,
+  })));
+
+  expect(playback.jobs).toHaveLength(MAX_WAREHOUSE_FORKLIFT_JOBS);
+  expect(playback.jobs[0]).toBe(active);
+  expect(playback.elapsed).toBe(elapsed);
+});
 
 const pickedOutbound = {
   cellId: 'upper-cell',
@@ -260,6 +289,26 @@ describe('warehouse forklift jobs', () => {
     expect(buildWarehouseDepartureCargo(layout, 'dispatch', prev, packed.shippedUnitIds))
       .toMatchObject([{ point: visual?.point, size: visual?.size }]);
     expect(buildWarehouseDepartureCargo(layout, 'wrong-dock', prev, packed.shippedUnitIds)).toEqual([]);
+  });
+
+  it('keeps a shipped pallet with its queued truck while a predecessor still occupies the dock', () => {
+    const steps: WarehouseDockStepValue[] = [];
+    syncWarehouseDockSteps(steps, { ...picked, dockTaskId: 'previous' });
+    const previous = { departure: 'received', phase: 'released', taskId: 'previous', tripId: undefined } as const;
+    syncWarehouseDockSteps(steps, { ...picked, yardVisits: new Map([['previous', previous]]) });
+    syncWarehouseDockSteps(steps, {
+      ...packed,
+      dockTaskId: 'next',
+      yardVisits: new Map<string, WarehouseYardVisitValue>([
+        ['dispatch', { departure: 'route', phase: 'departed', taskId: 'dispatch', tripId: packed.dockTripId }],
+        ['previous', previous],
+      ]),
+    });
+    retainWarehouseDockLoads(steps, layout, picked, packed.shippedUnitIds, primary);
+
+    expect(steps.map(step => [step.taskId, step.load?.map(item => item.id)])).toEqual([
+      ['previous', undefined], ['dispatch', ['pallet']], ['next', undefined],
+    ]);
   });
 
   it('indexes truck pallets by visit separately from the ground layer', () => {

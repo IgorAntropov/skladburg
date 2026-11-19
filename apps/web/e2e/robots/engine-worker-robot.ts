@@ -89,6 +89,7 @@ const findWorkerFileName = (): string => {
 export const createEngineWorkerRobot = async (
   page: Page,
   actingContext: WorkerActingContextValue = DEFAULT_ACTING_CONTEXT,
+  baseUrl = './',
 ): Promise<EngineWorkerRobotValue> => {
   const requests: string[] = [];
   const context = page.context();
@@ -99,7 +100,7 @@ export const createEngineWorkerRobot = async (
     route.fulfill({ body: '<!doctype html><title>Worker</title>', contentType: 'text/html' });
   context.on('request', handleRequest);
   await page.route(DOCUMENT_ROUTE, handleDocument);
-  await page.goto('./');
+  await page.goto(baseUrl);
   const handle: JSHandle<BrowserWorkerValue> = await page.evaluateHandle((fileName): BrowserWorkerValue => {
     const worker = new Worker(new URL(`assets/${fileName}`, location.href), { type: 'module' });
     const messages: unknown[] = [];

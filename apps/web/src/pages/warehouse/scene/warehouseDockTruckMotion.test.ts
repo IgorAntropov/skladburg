@@ -63,6 +63,26 @@ describe('warehouse dock truck motion', () => {
     expect(truck).toMatchObject({ offsetZ: -WAREHOUSE_TRUCK_RUNUP, phase: 'away', taskId: undefined });
   });
 
+  it('changes the rate of an active approach without discarding its pose or elapsed fraction', () => {
+    if (roads === undefined) {
+      throw new Error('Expected yard roads');
+    }
+
+    const truck = createWarehouseDockTruck(undefined);
+    const { entrance } = roads;
+    startWarehouseDockApproach(truck, 'arrival', entrance.x, entrance.z, dock, false);
+    advanceWarehouseDockTruck(truck, roads, dock, 0.05);
+    const before = { ...truck };
+
+    advanceWarehouseDockTruck(truck, roads, dock, 0, 4);
+    expect(truck).toEqual(before);
+    advanceWarehouseDockTruck(truck, roads, dock, 80, 4);
+    expect(truck.elapsed).toBeCloseTo(before.elapsed + 0.2);
+    expect(truck.offsetZ).toBeGreaterThan(before.offsetZ);
+    expect(truck.offsetZ).toBeLessThan(0);
+    expect(truck.phase).toBe('approaching');
+  });
+
   it('travels across a wide facade before aligning at the sixth dock and retraces the crossing on departure', () => {
     const wideRoads = buildWarehouseYardRoads([0, -6, 8, 16, 24, 40].map(x => ({ x: x + 12, z: 5 })));
     if (wideRoads === undefined) {

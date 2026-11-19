@@ -1,4 +1,5 @@
 import type { WarehouseDockVisitValue } from '../model/warehouseSceneCargo';
+import type { WarehouseDockStepValue } from './warehouseDockPlayback';
 import type { WarehouseDockTruckValue } from './warehouseDockTruckMotion';
 import type { WarehouseForkliftPlaybackValue } from './warehouseForkliftPlayback';
 import type { WarehouseDockPointValue } from './warehouseLayout';
@@ -8,6 +9,7 @@ import type {
 } from './warehouseYardMotion';
 import type { WarehouseYardRoadsValue } from './warehouseYardRoads';
 
+import { hasPendingWarehouseDockStep } from './warehouseDockPlayback';
 import {
   advanceWarehouseDockTruck,
   isWarehouseDockTruckMoving,
@@ -31,8 +33,10 @@ import {
 
 export interface WarehouseYardLaneValue {
   dock: WarehouseDockPointValue;
+  dockSteps?: readonly WarehouseDockStepValue[] | undefined;
   hasChanged: boolean;
   hasConfirmedDeparture: boolean;
+  isCatchingUp?: boolean | undefined;
   target: string | undefined;
   truck: WarehouseDockTruckValue;
 }
@@ -48,6 +52,8 @@ export interface WarehouseYardTrafficValue {
   visits: readonly WarehouseDockVisitValue[];
   yard: WarehouseYardMotionValue;
 }
+
+export const WAREHOUSE_YARD_CATCH_UP_RATE = 4;
 
 export const createWarehouseYardTraffic = (): WarehouseYardTrafficValue => ({
   forklifts: [],
@@ -84,12 +90,13 @@ export const setWarehouseYardForklift = (
   traffic.forklifts[index] = playback;
 };
 
-const readTaskLane = (traffic: WarehouseYardTrafficValue, taskId: string): undefined | WarehouseYardLaneValue => {
+const readTaskLane = (traffic: WarehouseYardTrafficValue, taskId: string, includePending = false): undefined | WarehouseYardLaneValue => {
   let index = 0;
   while (index < traffic.lanes.length) {
     const lane = traffic.lanes[index];
     index += 1;
-    if (lane !== undefined && (lane.target === taskId || lane.truck.taskId === taskId)) {
+    if (lane !== undefined && (lane.target === taskId || lane.truck.taskId === taskId
+      || (includePending && lane.dockSteps !== undefined && hasPendingWarehouseDockStep(lane.dockSteps, taskId)))) {
       return lane;
     }
   }
@@ -138,7 +145,7 @@ const syncParking = (traffic: WarehouseYardTrafficValue, isReducedMotion: boolea
     if (slot === undefined) {
       continue;
     }
-    const lane = readTaskLane(traffic, slot.taskId);
+    const lane = readTaskLane(traffic, slot.taskId, true);
     if (lane === undefined ? isVisitingYard(visits, slot.taskId) : lane.truck.taskId !== slot.taskId) {
       queue.push(slot.taskId);
       tailZ = slot.offsetZ;
@@ -150,7 +157,7 @@ const syncParking = (traffic: WarehouseYardTrafficValue, isReducedMotion: boolea
   while (index < visits.length && queue.length < WAREHOUSE_YARD_PARKING_LIMIT && (!needsClearEntrance || tailZ >= clearanceZ)) {
     const taskId = visits[index]?.taskId;
     index += 1;
-    if (taskId !== undefined && !queue.includes(taskId) && readTaskLane(traffic, taskId) === undefined) {
+    if (taskId !== undefined && !queue.includes(taskId) && readTaskLane(traffic, taskId, true) === undefined) {
       queue.push(taskId);
       tailZ = WAREHOUSE_YARD_PARKING_ENTRANCE;
     }
@@ -183,7 +190,7 @@ const retainExpandedParking = (traffic: WarehouseYardTrafficValue): void => {
     }
     const { taskId } = truck;
     if (reservation === truck || (readTruckLane(traffic, taskId) === undefined
-      && (visitIds.has(taskId) || readTaskLane(traffic, taskId) !== undefined))) {
+      && (visitIds.has(taskId) || readTaskLane(traffic, taskId, true) !== undefined))) {
       parked[written] = truck;
       written += 1;
     }
@@ -218,7 +225,7 @@ const admitExpandedParking = (
     }
     const taskId = visits[visitIndex]?.taskId;
     visitIndex += 1;
-    if (taskId === undefined || taskId === '' || yard.byTask.has(taskId) || readTaskLane(traffic, taskId) !== undefined) {
+    if (taskId === undefined || taskId === '' || yard.byTask.has(taskId) || readTaskLane(traffic, taskId, true) !== undefined) {
       continue;
     }
 
@@ -299,6 +306,7 @@ const advanceReservation = (
   delta: number,
   isReducedMotion: boolean,
   hasPendingLayout: boolean,
+  parkingRate: number,
 ): void => {
   const { reservation, yard } = traffic;
   if (reservation === undefined) {
@@ -314,7 +322,8 @@ const advanceReservation = (
       }
     }
     else {
-      advanceWarehouseDockTruck(reservation.truck, roads, reservation.dock, delta);
+      const rate = reservation.isCatchingUp === true ? WAREHOUSE_YARD_CATCH_UP_RATE : 1;
+      advanceWarehouseDockTruck(reservation.truck, roads, reservation.dock, delta, rate);
       reservation.hasChanged = true;
       if (!isWarehouseDockTruckMoving(reservation.truck)) {
         traffic.reservation = undefined;
@@ -322,7 +331,7 @@ const advanceReservation = (
     }
   }
   else {
-    advanceWarehouseParkingArrival(yard, roads, reservation, delta, isReducedMotion);
+    advanceWarehouseParkingArrival(yard, roads, reservation, delta, isReducedMotion, parkingRate);
     if (!yard.isMoving) {
       traffic.reservation = undefined;
     }
@@ -335,6 +344,7 @@ export const advanceWarehouseYardTraffic = (
   delta: number,
   isReducedMotion: boolean,
   hasPendingLayout = false,
+  isCatchingUp = false,
 ): boolean => {
   const { yard } = traffic;
   traffic.hasParkingChanged = false;
@@ -353,14 +363,15 @@ export const advanceWarehouseYardTraffic = (
   }
 
   const isExpanded = roads.parking.length > WAREHOUSE_YARD_PARKING_LIMIT;
-  advanceReservation(traffic, roads, delta, isReducedMotion, hasPendingLayout);
+  const parkingRate = isCatchingUp ? WAREHOUSE_YARD_CATCH_UP_RATE : 1;
+  advanceReservation(traffic, roads, delta, isReducedMotion, hasPendingLayout, parkingRate);
   if (hasPendingLayout) {
     if (!isExpanded && traffic.reservation === undefined) {
       if (isReducedMotion && yard.isMoving) {
         syncWarehouseYardMotion(yard, traffic.queue, true);
       }
       else {
-        advanceWarehouseYardMotion(yard, delta);
+        advanceWarehouseYardMotion(yard, delta, parkingRate);
       }
     }
     traffic.hasParkingChanged = yard.hasChanged;
@@ -393,7 +404,7 @@ export const advanceWarehouseYardTraffic = (
       admitExpandedParking(traffic, roads, shouldSettle);
     }
     else if (!isReducedMotion) {
-      advanceWarehouseYardMotion(yard, delta);
+      advanceWarehouseYardMotion(yard, delta, parkingRate);
     }
   }
   yard.hasInitialized = true;

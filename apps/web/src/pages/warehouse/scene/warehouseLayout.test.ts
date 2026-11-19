@@ -9,9 +9,9 @@ import {
   it,
 } from 'vitest';
 
-import { createWarehouseTruckGeometry } from './useWarehouseTruckModel';
 import { WAREHOUSE_DOCK_LANE_LENGTH } from './warehouseFloorLayout';
 import { getWarehouseLayout } from './warehouseLayout';
+import { createWarehouseTruckGeometry } from './warehouseTruckModel';
 import {
   readWarehouseParkingOffset,
   WAREHOUSE_YARD_PARKING_LIMIT,

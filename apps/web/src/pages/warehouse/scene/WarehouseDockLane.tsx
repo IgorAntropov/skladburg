@@ -10,7 +10,6 @@ import type {
 import { useRef } from 'react';
 
 import type { WarehouseGeometryKitValue } from './createWarehouseGeometryKit';
-import type { WarehouseTruckModelValue } from './useWarehouseTruckModel';
 import type { WarehouseDockCargoValue } from './warehouseDockCargo';
 import type { WarehouseYardPlaybackClockValue } from './warehouseDockPlayback';
 import type { WarehouseForkliftRigValue } from './WarehouseForklift';
@@ -18,6 +17,7 @@ import type {
   WarehouseDockPointValue,
   WarehouseLayoutValue,
 } from './warehouseLayout';
+import type { WarehouseTruckModelValue } from './warehouseTruckModel';
 import type { WarehouseYardParkingRigValue } from './WarehouseYardParkingLayer';
 import type { WarehouseYardTrafficValue } from './warehouseYardTraffic';
 
@@ -58,7 +58,13 @@ export const WarehouseDockLane = ({
       {hasDock && (
         <group name="warehouse-dock-truck" ref={dockTruck} visible={false}>
           <group>
-            <mesh geometry={truckModel.geometry} material={truckModel.material} receiveShadow />
+            <instancedMesh
+              args={[undefined, undefined, 1]}
+              geometry={truckModel.geometry}
+              material={truckModel.material}
+              receiveShadow
+              ref={mesh => truckModel.onDockTruck?.(laneIndex, mesh)}
+            />
           </group>
         </group>
       )}

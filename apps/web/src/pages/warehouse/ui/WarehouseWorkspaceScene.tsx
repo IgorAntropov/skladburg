@@ -39,6 +39,7 @@ import type {
 } from '../model/warehouseSceneInteraction';
 import type { WarehouseSceneParkingValue } from '../model/warehouseSceneParking';
 import type { WarehouseYardFactsValue } from '../model/warehouseYardFacts';
+import type { WarehouseYardVehicleMarkingVisualValue } from '../model/warehouseYardVehicleMarkingVisual';
 
 import { useWarehouseYardLight } from '../api/useWarehouseYardLight';
 import { useWarehouseYardRefresh } from '../api/useWarehouseYardRefresh';
@@ -54,7 +55,14 @@ const loadWarehouseConstruction = createCachedModuleLoader(() => import('../scen
 
 interface WarehouseWorkspaceSceneProps extends Omit<
   WarehouseSceneInteractionValue,
-  'cargo' | 'constructionLayer' | 'focusRequest' | 'isNight' | 'isRefreshingYardFacts' | 'onCellSelect' | 'parkingCapacity'
+  | 'cargo'
+  | 'constructionLayer'
+  | 'focusRequest'
+  | 'isCameraReady'
+  | 'isNight'
+  | 'isRefreshingYardFacts'
+  | 'onCellSelect'
+  | 'parkingCapacity'
 > {
   isLoading: boolean;
   label: string;
@@ -81,7 +89,8 @@ const WarehouseConstructionLayer = (props: WarehouseConstructionLayerProps): nul
 };
 
 const WarehouseWorkspaceScene = ({
-  balances, construction, isLoading, label, picking, receiving, scannedCell, selectedCellId, timeZone, topology, warehouseId, yardDrag,
+  balances, construction, isLoading, label, picking, receiving, scannedCell, selectedCellId, timeZone, topology,
+  vehicleMarkings, warehouseId, yardDrag,
 }: WarehouseWorkspaceSceneProps): ReactElement => {
   const { createSectionTranslator, t } = useI18n();
   const navigate = useNavigate();
@@ -113,6 +122,21 @@ const WarehouseWorkspaceScene = ({
       : projectWarehouseCargo(acceptedReceiving ?? [], areaId, hasDock, { knownPickupDeals, picking: acceptedPicking, trips, warehouseId }),
     [acceptedPicking, acceptedReceiving, areaId, hasDock, isAwaitingFacts, knownPickupDeals, trips, warehouseId],
   );
+  const { dockVisits, yardVisits } = cargo ?? {};
+  const sceneMarkings = useMemo((): ReadonlyMap<string, WarehouseYardVehicleMarkingVisualValue> | undefined => {
+    if (yardVisits === undefined || vehicleMarkings === undefined) {
+      return undefined;
+    }
+
+    const result = new Map<string, WarehouseYardVehicleMarkingVisualValue>();
+    for (const { taskId } of [...dockVisits ?? [], ...yardVisits.values()]) {
+      const marking = vehicleMarkings.get(taskId);
+      if (marking !== undefined) {
+        result.set(taskId, marking);
+      }
+    }
+    return result;
+  }, [dockVisits, vehicleMarkings, yardVisits]);
   const dockIds = useMemo(() => readWarehouseReceivingDocks(receivingArea).map(dock => dock.id), [receivingArea]);
   const parking = useMemo(
     () => readWarehouseSceneParking(lastParking, yardsScope, cargo?.dockVisits, dockIds, cargo?.dockTaskId),
@@ -147,12 +171,14 @@ const WarehouseWorkspaceScene = ({
         construction,
         constructionLayer: WarehouseConstructionLayer,
         focusRequest,
+        isCameraReady: isSceneCameraReady,
         isNight,
         isRefreshingYardFacts,
         onCellSelect: handleCellSelect,
         parkingCapacity: parking.capacity,
         scannedCell,
         selectedCellId,
+        vehicleMarkings: sceneMarkings,
         yardDrag,
       }}
       key={yardsScope}

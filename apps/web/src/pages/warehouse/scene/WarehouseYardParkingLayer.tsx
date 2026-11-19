@@ -15,8 +15,8 @@ import {
   Vector3,
 } from 'three';
 
-import type { WarehouseTruckModelValue } from './useWarehouseTruckModel';
 import type { WarehouseDockPointValue } from './warehouseLayout';
+import type { WarehouseTruckModelValue } from './warehouseTruckModel';
 import type { WarehouseParkingPoseValue } from './warehouseYardMotion';
 import type { WarehouseYardRoadsValue } from './warehouseYardRoads';
 
@@ -40,6 +40,11 @@ interface WarehouseYardParkingProps {
 export const WarehouseYardParking = ({ dock, model, parked, rig, roads }: WarehouseYardParkingProps): ReactElement => {
   const ref = useRef<InstancedMesh>(null);
   const capacity = roads.parking.length;
+
+  const handleParkingMesh = (mesh: InstancedMesh | null): void => {
+    ref.current = mesh;
+    model.onParking?.(mesh);
+  };
 
   useImperativeHandle(rig, (): WarehouseYardParkingRigValue => {
     const matrix = new Matrix4();
@@ -78,11 +83,13 @@ export const WarehouseYardParking = ({ dock, model, parked, rig, roads }: Wareho
   return (
     <group name="warehouse-yard-parking" position={[dock.x, 0, dock.z + WAREHOUSE_TRUCK_CENTER_Z]}>
       <instancedMesh
-        args={[model.geometry, model.material, capacity]}
+        args={[undefined, undefined, capacity]}
         count={0}
+        geometry={model.geometry}
         instanceMatrix-usage={DynamicDrawUsage}
+        material={model.material}
         receiveShadow
-        ref={ref}
+        ref={handleParkingMesh}
       />
     </group>
   );

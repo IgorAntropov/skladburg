@@ -10,6 +10,7 @@ import {
   toBinary,
 } from '@bufbuild/protobuf';
 import { timestampFromMs } from '@bufbuild/protobuf/wkt';
+import { MembershipSchema } from '@skladburg/contracts/access/v1/access';
 import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
 import {
   DealDeadlinesSchema,
@@ -49,6 +50,7 @@ import {
 const DATABASE_NAME = 'skladburg-demo-engine';
 const CARRIER_ORGANIZATION_ID = '10000004-0000-4000-8000-000000000000';
 const CARRIER_USER_ID = '20000004-0000-4000-8000-000000000000';
+const OTHER_CARRIER_ORGANIZATION_ID = '10000008-0000-4000-8000-000000000000';
 const DOCK_SPACING_MM = 6_400;
 const DOCK_LEFT_MM = 1_000;
 const SCALED_ARRIVAL_START_MS = Date.UTC(2026, 9, 6, 8);
@@ -88,6 +90,16 @@ export interface YardSceneDispatchFixtureValue {
   visitCount: number;
 }
 
+export interface YardVehicleMarkingsFixtureValue extends YardSceneDispatchFixtureValue {
+  registrationNumber: string;
+  unassignedTaskId: string | undefined;
+}
+
+interface FixtureTripMarkingValue {
+  carrierOrganizationId: string;
+  registrationNumber: string;
+}
+
 interface SixDockDeliveryValue {
   deal: Deal;
   task: ReceivingTask;
@@ -96,7 +108,7 @@ interface SixDockDeliveryValue {
 interface StoredSeedPutValue {
   bytes: number[];
   id: string;
-  table: 'deals' | 'documents' | 'payments' | 'trips' | 'warehouseInbound' | 'warehouses' | 'warehouseTopologies';
+  table: 'deals' | 'documents' | 'memberships' | 'payments' | 'trips' | 'warehouseInbound' | 'warehouses' | 'warehouseTopologies';
 }
 
 const fixtureId = (number: number): string => `ff910000-0000-4000-8000-${String(number).padStart(12, '0')}`;
@@ -192,12 +204,18 @@ const fixtureTripPut = (
   isWaitingForTitle = false,
   arrivalAt = reachedAt(deal),
   titleSubmittedAt?: Timestamp,
+  marking?: FixtureTripMarkingValue,
 ): StoredSeedPutValue => {
   const id = fixtureId(number);
   const arrivedAt = arrivalAt;
   const trip = create(TripRecordSchema, {
     arrivedAt,
-    assignment: { arrivalAt: arrivedAt, driverId: fixtureId(number + 200), registrationNumber: 'ДЕМО', vehicleId: fixtureId(number + 300) },
+    assignment: {
+      arrivalAt: arrivedAt,
+      driverId: fixtureId(number + 200),
+      registrationNumber: marking?.registrationNumber ?? 'ДЕМО',
+      vehicleId: fixtureId(number + 300),
+    },
     carrierTitle: titleSubmittedAt === undefined
       ? isWaitingForTitle ? {} : undefined
       : { submittedAt: titleSubmittedAt, submittedByUserId: CARRIER_USER_ID },
@@ -208,7 +226,7 @@ const fixtureTripPut = (
     supplierOrganizationId: deal.supplierOrganizationId,
     transportOrder: {
       cargo: { cargoKind },
-      carrierOrganizationId: CARRIER_ORGANIZATION_ID,
+      carrierOrganizationId: marking?.carrierOrganizationId ?? CARRIER_ORGANIZATION_ID,
       confirmedAt: arrivedAt,
       delivery: { organizationId: deal.customerOrganizationId, warehouseId: deal.shipToWarehouseId },
       shipperOrganizationId: deal.customerOrganizationId,
@@ -391,6 +409,88 @@ export const storeYardSceneDispatchQueue = async (
     { bytes: Array.from(toBinary(DocumentSchema, dispatchTitle)), id: dispatchTitle.id, table: 'documents' },
   ]);
   return { dockId: coldDock.id, taskId: ready.task.id, visitCount };
+};
+
+const markingRegistrationNumber = (index: number): string => `А${String(271 + index).padStart(3, '0')}ВС 000`;
+
+export const storeYardVehicleMarkings = async (
+  page: Page,
+  topology: WarehouseTopology,
+  warehouse: Warehouse,
+  deliveries: readonly SixDockDeliveryValue[],
+  visitCount: 1 | 25 | 30,
+  isDirectDelivery: boolean,
+): Promise<YardVehicleMarkingsFixtureValue> => {
+  const [sample] = deliveries;
+  const wideTopology = createWideDockTopology(topology);
+  const finalDock = wideTopology.receivingArea?.additionalUnloadingPoints[4];
+  if (sample === undefined || finalDock === undefined) {
+    throw new Error('The vehicle markings scenario needs the original receipt and six docks');
+  }
+
+  const source = {
+    ...sample,
+    task: create(ReceivingTaskSchema, {
+      ...sample.task, assigneeUserId: undefined, dockSchedule: undefined, receivedUnits: [], status: ReceivingTaskStatus.OPEN, version: 1,
+    }),
+  };
+  const arrivalAtMs = SCALED_ARRIVAL_START_MS;
+  const submittedAt = timestampFromMs(arrivalAtMs);
+  const hasOnlyOneVisit = visitCount === 1;
+  const ready = giveArrivalTime(createFixtureDelivery(
+    source, 1_600, YardAdmissionStatus.WAITING_DOCK,
+    undefined, isDirectDelivery ? DeliveryMethod.SUPPLIER : DeliveryMethod.EXCHANGE,
+  ), arrivalAtMs);
+  const unassigned = hasOnlyOneVisit
+    ? undefined
+    : giveArrivalTime(createFixtureDelivery(
+        source, 1_601, YardAdmissionStatus.WAITING_DOCK, undefined, DeliveryMethod.SUPPLIER,
+      ), arrivalAtMs + 60_000);
+  const blocked = Array.from({ length: Math.max(0, visitCount - 2) }, (_unused, index) => giveArrivalTime(createFixtureDelivery(
+    source, 1_602 + index, YardAdmissionStatus.WAITING_DOCUMENTS, undefined, DeliveryMethod.EXCHANGE,
+  ), arrivalAtMs + (index + 2) * 60_000));
+  const visits = unassigned === undefined ? [ready, ...blocked] : [ready, ...blocked, unassigned];
+  const dispatchTitle = create(DocumentSchema, {
+    content: { terms: {
+      case: 'dispatchTitle',
+      value: { shippedAt: timestampFromMs(arrivalAtMs - 30 * 60_000), updDocumentId: ready.task.updDocumentId },
+    } },
+    dealId: ready.deal.id,
+    displayNumber: 'ДВОР-НОМЕР-ОТГРУЗКА',
+    id: fixtureId(1_980),
+    issuerOrganizationId: ready.deal.supplierOrganizationId,
+    status: DocumentStatus.APPROVED,
+    type: DocumentType.DISPATCH_TITLE,
+    version: 1,
+  });
+  const hidden = deliveries.map(({ task }) => create(ReceivingTaskSchema, {
+    ...task, status: ReceivingTaskStatus.UNSPECIFIED, unloadingPointId: undefined, version: 0,
+  }));
+  const markedTrips = [ready, ...blocked].flatMap(({ deal }, index) => deal.deliveryMethod !== DeliveryMethod.EXCHANGE
+    ? []
+    : [fixtureTripPut(
+        4_600 + index, deal, index === 0 ? VehicleCargoKind.TEMPERATURE_CONTROLLED : VehicleCargoKind.GENERAL,
+        index !== 0, reachedAt(deal), index === 0 ? submittedAt : undefined,
+        {
+          carrierOrganizationId: index % 2 === 0 ? CARRIER_ORGANIZATION_ID : OTHER_CARRIER_ORGANIZATION_ID,
+          registrationNumber: markingRegistrationNumber(index),
+        },
+      )]);
+  const observer = create(MembershipSchema, {
+    id: '30000010-0000-4000-8000-000000000000',
+    organizationId: warehouse.tenantId,
+    roleAssignments: [{ roleId: '40500001-0000-4000-8000-000000000000', warehouseIds: [warehouse.id] }],
+    userId: '20000010-0000-4000-8000-000000000000',
+  });
+  await commitFixture(page, warehouse, wideTopology, [...hidden, ...visits.map(({ task }) => task)], [
+    ...visits.flatMap(fixtureDeliveryPuts), ...markedTrips,
+    { bytes: Array.from(toBinary(DocumentSchema, dispatchTitle)), id: dispatchTitle.id, table: 'documents' },
+    { bytes: Array.from(toBinary(MembershipSchema, observer)), id: observer.id, table: 'memberships' },
+  ]);
+  return {
+    dockId: finalDock.id, registrationNumber: markingRegistrationNumber(0), taskId: ready.task.id,
+    unassignedTaskId: unassigned?.task.id, visitCount,
+  };
 };
 
 export const storeScaledDockWarehouse = async (

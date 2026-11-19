@@ -1,3 +1,5 @@
+import type { InstancedMesh } from 'three';
+
 import {
   useEffect,
   useLayoutEffect,
@@ -11,6 +13,8 @@ import {
   SRGBColorSpace,
 } from 'three';
 
+import type { WorldPaletteValue } from '@/shared/3d';
+
 import { useWorldPalette } from '@/shared/3d';
 
 import truck from './warehouseTruck.json';
@@ -22,6 +26,8 @@ import {
 export interface WarehouseTruckModelValue {
   geometry: BufferGeometry;
   material: MeshStandardMaterial;
+  onDockTruck?: ((lane: number, mesh: InstancedMesh | null) => void) | undefined;
+  onParking?: ((mesh: InstancedMesh | null) => void) | undefined;
 }
 
 const CHANNEL_MAX = 255;
@@ -43,28 +49,32 @@ export const createWarehouseTruckGeometry = (): BufferGeometry => {
   return geometry;
 };
 
+export const paintWarehouseTruckColors = (geometry: BufferGeometry, palette: WorldPaletteValue): void => {
+  const colors = WAREHOUSE_TRUCK_COLORS.map((key) => {
+    const { blue, green, red } = palette[key];
+
+    return new Color().setRGB(red / CHANNEL_MAX, green / CHANNEL_MAX, blue / CHANNEL_MAX, SRGBColorSpace);
+  });
+  const vertexColors = geometry.getAttribute('color');
+
+  for (const [vertex, part] of truck.colors.entries()) {
+    const color = colors[part];
+
+    if (color !== undefined) {
+      vertexColors.setXYZ(vertex, color.r, color.g, color.b);
+    }
+  }
+
+  vertexColors.needsUpdate = true;
+};
+
 export const useWarehouseTruckModel = (): WarehouseTruckModelValue => {
   const palette = useWorldPalette();
   const geometry = useMemo(() => createWarehouseTruckGeometry(), []);
   const material = useMemo(() => new MeshStandardMaterial({ flatShading: true, roughness: 0.9, vertexColors: true }), []);
 
   useLayoutEffect(() => {
-    const colors = WAREHOUSE_TRUCK_COLORS.map((key) => {
-      const { blue, green, red } = palette[key];
-
-      return new Color().setRGB(red / CHANNEL_MAX, green / CHANNEL_MAX, blue / CHANNEL_MAX, SRGBColorSpace);
-    });
-    const vertexColors = geometry.getAttribute('color');
-
-    for (const [vertex, part] of truck.colors.entries()) {
-      const color = colors[part];
-
-      if (color !== undefined) {
-        vertexColors.setXYZ(vertex, color.r, color.g, color.b);
-      }
-    }
-
-    vertexColors.needsUpdate = true;
+    paintWarehouseTruckColors(geometry, palette);
   }, [geometry, palette]);
 
   useEffect(() => () => {

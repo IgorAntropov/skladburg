@@ -7,6 +7,7 @@ import type { WarehouseInstancesProps } from '../scene/WarehouseInstances';
 import type { WarehouseRackFootprintValue } from './warehouseRackGrid';
 import type { WarehouseCargoValue } from './warehouseSceneCargo';
 import type { WarehouseYardDragValue } from './warehouseYardDockChoice';
+import type { WarehouseYardVehicleMarkingVisualValue } from './warehouseYardVehicleMarkingVisual';
 
 export type WarehouseConstructionChangeValue = (preview: undefined | WarehouseConstructionPreviewValue) => void;
 
@@ -40,12 +41,14 @@ export interface WarehouseSceneInteractionValue {
   construction: undefined | WarehouseConstructionPreviewValue;
   constructionLayer: ComponentType<WarehouseConstructionLayerProps>;
   focusRequest: number;
+  isCameraReady?: boolean | undefined;
   isNight: boolean;
   isRefreshingYardFacts?: boolean | undefined;
   onCellSelect: (id: string) => void;
   parkingCapacity: number;
   scannedCell: undefined | WarehouseSceneScanValue;
   selectedCellId: string | undefined;
+  vehicleMarkings?: ReadonlyMap<string, WarehouseYardVehicleMarkingVisualValue> | undefined;
   yardDrag?: undefined | WarehouseYardDragValue;
 }
 

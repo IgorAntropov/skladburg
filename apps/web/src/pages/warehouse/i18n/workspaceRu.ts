@@ -183,6 +183,7 @@ export const catalog = {
   'warehouseWork.unitPiece': '{quantity} шт.',
   'warehouseWork.unitUnknown': '{quantity}',
   'warehouseWork.untake': 'Снять отметку',
+  'warehouseWork.vehicleRegistration': 'Госномер',
   'warehouseWork.waitingDock': 'Ожидает свободный док',
   'warehouseWork.waitingYardDocuments': 'На парковке, ждёт документов',
   'warehouseWork.workByOther': 'Задание взял другой сотрудник.',

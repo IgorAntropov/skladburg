@@ -12,13 +12,13 @@ import {
   it,
 } from 'vitest';
 
-import { createWarehouseTruckGeometry } from './useWarehouseTruckModel';
 import {
   buildWarehouseCargoVisuals,
   WAREHOUSE_TRUCK_SLOTS,
 } from './warehouseCargoPositions';
 import { getWarehouseLayout } from './warehouseLayout';
 import { WAREHOUSE_TRUCK_DECK_Y } from './warehouseTruckDimensions';
+import { createWarehouseTruckGeometry } from './warehouseTruckModel';
 import { WAREHOUSE_TRUCK_CENTER_Z } from './warehouseYardRoads';
 
 describe('warehouse truck model', () => {

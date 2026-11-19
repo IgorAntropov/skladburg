@@ -16,6 +16,7 @@ import {
 } from '@/shared/ui';
 
 import type { WarehouseWorkTranslate } from '../../i18n/workspaceSection';
+import type { WarehouseYardVehicleMarkingVisualValue } from '../../model/warehouseYardVehicleMarkingVisual';
 import type { WarehouseScanHandlerValue } from './WarehouseScanner';
 
 import {
@@ -26,16 +27,18 @@ import {
 import { PICKING_TEXT } from './warehouseFormatting';
 import { WarehouseScanner } from './WarehouseScanner';
 import { WarehouseStockLines } from './WarehouseStockLines';
+import { WarehouseVehicleMarking } from './WarehouseVehicleMarking';
 
 interface WarehousePickingProps {
   canViewDeals: boolean;
   cells: ReadonlyMap<string, string>;
+  marking: undefined | WarehouseYardVehicleMarkingVisualValue;
   onChanged: () => void;
   t: WarehouseWorkTranslate;
   task: PickingTask;
 }
 
-export const WarehousePicking = ({ canViewDeals, cells, onChanged, t, task }: WarehousePickingProps): ReactElement => {
+export const WarehousePicking = ({ canViewDeals, cells, marking, onChanged, t, task }: WarehousePickingProps): ReactElement => {
   const { userId } = useActingContext();
   const { locale } = useI18n();
   const [checked, setChecked] = useState<readonly string[]>([]);
@@ -78,6 +81,7 @@ export const WarehousePicking = ({ canViewDeals, cells, onChanged, t, task }: Wa
         <h3 className="font-semibold">{t('warehouseWork.picking')}</h3>
         <p className="text-sm text-on-panel-muted">{t(PICKING_TEXT[task.status])}</p>
       </header>
+      <WarehouseVehicleMarking marking={marking} t={t} />
       {canViewDeals && (
         <TextLink size="sm" to={{ kind: 'object', object: { id: task.dealId, type: 'deal' } }}>{t('warehouseWork.deal')}</TextLink>
       )}

@@ -60,8 +60,10 @@ import type {
   WarehouseYardDragOptionsValue,
   WarehouseYardDragValue,
 } from '../../model/warehouseYardDockChoice';
+import type { WarehouseYardVehicleMarkingVisualValue } from '../../model/warehouseYardVehicleMarkingVisual';
 
 import { useWarehouseWorkspace } from '../../api/useWarehouseWorkspace';
+import { useWarehouseYardVehicleMarkings } from '../../api/useWarehouseYardVehicleMarkings';
 import { warehouseWorkSection } from '../../i18n/workspaceSection';
 import { getWarehouseCells } from '../../model/warehouseCells';
 import { isWarehouseYardDockChoiceAllowed } from '../../model/warehouseYardDockChoice';
@@ -117,6 +119,7 @@ interface WarehouseWorkspaceContentProps extends Omit<WarehouseWorkspaceProps, '
   onEditingYardChange: (isEditing: boolean) => void;
   onPreviewChange: WarehouseConstructionChangeValue;
   t: WarehouseWorkTranslate;
+  vehicleMarkings: ReadonlyMap<string, WarehouseYardVehicleMarkingVisualValue> | undefined;
   workspace: WarehouseWorkspaceValue;
 }
 
@@ -173,7 +176,7 @@ function WarehouseQuery<TData>({ children, empty, isEmpty, query, t }: Warehouse
 
 const WarehouseWorkspaceContent = ({
   dockChoice, focus, isEditingYard, onCellSelect, onConsumeDockChoice, onDragOptionsChange, onEditingYardChange, onPreviewChange,
-  t, warehouse, workspace,
+  t, vehicleMarkings, warehouse, workspace,
 }: WarehouseWorkspaceContentProps): ReactElement => {
   const { t: baseText } = useI18n();
   const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
@@ -219,7 +222,15 @@ const WarehouseWorkspaceContent = ({
                 {tasks => (
                   <WarehousePanelSlot loader={loadWarehousePanels}>
                     {({ WarehousePicking }) => tasks.map(task => (
-                      <WarehousePicking canViewDeals={canViewDeals} cells={cells} key={task.id} onChanged={NO_CHANGE} t={t} task={task} />
+                      <WarehousePicking
+                        canViewDeals={canViewDeals}
+                        cells={cells}
+                        key={task.id}
+                        marking={vehicleMarkings?.get(task.id)}
+                        onChanged={NO_CHANGE}
+                        t={t}
+                        task={task}
+                      />
                     ))}
                   </WarehousePanelSlot>
                 )}
@@ -263,6 +274,7 @@ const WarehouseWorkspaceContent = ({
               receiving={workspace.receiving}
               t={t}
               topology={workspace.canViewTopology ? workspace.topology : undefined}
+              vehicleMarkings={vehicleMarkings}
               warehouse={warehouse}
             />
           )}
@@ -417,6 +429,13 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
   const { t: baseText } = useI18n();
   const { retry, status, t } = useCatalogSection(warehouseWorkSection);
   const workspace = useWarehouseWorkspace(warehouse.id);
+  const receivingTasks = isReadAccessDenied(workspace.receiving.error) ? undefined : workspace.receiving.data;
+  const pickingTasks = isReadAccessDenied(workspace.picking.error) ? undefined : workspace.picking.data;
+  const taskIds = useMemo(
+    () => [...receivingTasks ?? [], ...pickingTasks ?? []].map(({ id }) => id),
+    [pickingTasks, receivingTasks],
+  );
+  const vehicleMarkings = useWarehouseYardVehicleMarkings(warehouse.id, taskIds, workspace.canViewTasks);
   const [construction, setConstruction] = useState<WarehouseConstructionPreviewValue>();
   const [dockChoice, setDockChoice] = useState<WarehouseYardDockChoiceValue>();
   const [dragOptions, setDragOptions] = useState<WarehouseYardDragOptionsValue>();
@@ -480,6 +499,7 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
         onEditingYardChange={setIsEditingYard}
         onPreviewChange={setConstruction}
         t={t}
+        vehicleMarkings={vehicleMarkings}
         warehouse={warehouse}
         workspace={workspace}
       />
@@ -498,6 +518,7 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
           selectedCellId={focusCellId}
           timeZone={warehouse.timeZone}
           topology={topology}
+          vehicleMarkings={vehicleMarkings}
           warehouseId={warehouse.id}
           yardDrag={yardDrag}
         />

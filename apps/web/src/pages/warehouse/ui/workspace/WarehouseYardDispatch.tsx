@@ -44,6 +44,7 @@ import type {
   WarehouseYardDockChoiceValue,
   WarehouseYardDragOptionsValue,
 } from '../../model/warehouseYardDockChoice';
+import type { WarehouseYardVehicleMarkingVisualValue } from '../../model/warehouseYardVehicleMarkingVisual';
 import type { YardDispatchVisitValue } from '../../model/yardDispatchRows';
 import type {
   YardDispatchIntentValue,
@@ -55,6 +56,7 @@ import { yardDispatchMethods } from '../../api/useYardDispatchForm';
 import { useYardWaitingReasons } from '../../api/useYardWaitingReasons';
 import { readYardSlotMinutes } from '../../model/yardDispatchClock';
 import { readYardDispatchGroups } from '../../model/yardDispatchRows';
+import { WarehouseVehicleMarking } from './WarehouseVehicleMarking';
 import { WarehouseYardDispatchForm } from './WarehouseYardDispatchForm';
 import { WarehouseYardWaiting } from './WarehouseYardWaiting';
 
@@ -66,6 +68,7 @@ interface WarehouseYardDispatchProps {
   receiving: WarehouseWorkspaceValue['receiving'];
   t: WarehouseWorkTranslate;
   topology: undefined | WarehouseWorkspaceValue['topology'];
+  vehicleMarkings: ReadonlyMap<string, WarehouseYardVehicleMarkingVisualValue> | undefined;
   warehouse: Warehouse;
 }
 
@@ -74,6 +77,7 @@ interface YardVisitRowProps {
   canViewDeals: boolean;
   dockCodes: ReadonlyMap<string, string>;
   isSelected: boolean;
+  marking: undefined | WarehouseYardVehicleMarkingVisualValue;
   onOpen: (intent: YardDispatchIntentValue) => void;
   onSelect: (taskId: string) => void;
   t: WarehouseWorkTranslate;
@@ -102,7 +106,7 @@ const readSnapshot = (
 });
 
 const YardVisitRow = ({
-  canManage, canViewDeals, dockCodes, isSelected, onOpen, onSelect, t, timeZone, visit, warehouseId, worldTimeMs,
+  canManage, canViewDeals, dockCodes, isSelected, marking, onOpen, onSelect, t, timeZone, visit, warehouseId, worldTimeMs,
 }: YardVisitRowProps): ReactElement => {
   const { formatDateTime, formatNumber } = useI18n();
   const detailsId = useId();
@@ -156,6 +160,7 @@ const YardVisitRow = ({
       >
         {rank === undefined ? taskLabel : t('warehouseWork.yardDispatchRankedVisit', { position: formatNumber(rank), visit: taskLabel })}
       </Button>
+      <WarehouseVehicleMarking marking={marking} t={t} />
       {isDocked && (
         <p className="text-sm">{t(state === 'assigned' ? 'warehouseWork.yardDispatchAtDock' : 'warehouseWork.yardDispatchUnloading')}</p>
       )}
@@ -216,7 +221,7 @@ const YardVisitRow = ({
 };
 
 export const WarehouseYardDispatch = ({
-  dockChoice, onConsumeDockChoice, onDragOptionsChange, onEditingChange, receiving, t, topology, warehouse,
+  dockChoice, onConsumeDockChoice, onDragOptionsChange, onEditingChange, receiving, t, topology, vehicleMarkings, warehouse,
 }: WarehouseYardDispatchProps): ReactElement => {
   const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
   const canManageYard = useCan(PermissionCode.YARD_MANAGE, { kind: 'warehouse', warehouseId: warehouse.id });
@@ -384,6 +389,7 @@ export const WarehouseYardDispatch = ({
                       dockCodes={dockCodes}
                       isSelected={selectedId === visit.task.id}
                       key={visit.task.id}
+                      marking={vehicleMarkings?.get(visit.task.id)}
                       onOpen={handleOpen}
                       onSelect={handleSelect}
                       t={t}

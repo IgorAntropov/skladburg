@@ -9,7 +9,7 @@ const PREVIEW_PORT = '4174';
 const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}${APP_BASE_PATH}`;
 const SCENE_SPECS = [
   /scene-(?:budget|network-(?:selection|trip)|notification-focus|world-edge)\.spec\.ts$/,
-  /scene-warehouse(?:-(?:night|parking|playback|yard-dispatch))?\.spec\.ts$/,
+  /scene-warehouse(?:-(?:night|parking|playback|yard-dispatch|yard-markings))?\.spec\.ts$/,
 ];
 const OFFLINE_SPEC = /app-offline\.spec\.ts$/;
 

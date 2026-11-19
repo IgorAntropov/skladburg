@@ -35,16 +35,17 @@ import type {
   WarehouseCellVisualValue,
   WarehouseLayoutValue,
 } from './warehouseLayout';
+import type { WarehouseTruckModelValue } from './warehouseTruckModel';
 import type { IWarehouseYardLightingRig } from './WarehouseYardLightingLayer';
 
 import { createWarehouseGeometryKit } from './createWarehouseGeometryKit';
-import { useWarehouseTruckModel } from './useWarehouseTruckModel';
 import { splitWarehouseDockCargo } from './warehouseDockCargo';
 import { WarehouseDockLane } from './WarehouseDockLane';
 import { WarehouseFloor } from './WarehouseFloor';
 import { WarehouseInstances } from './WarehouseInstances';
 import { getWarehouseLayout } from './warehouseLayout';
 import { WarehouseRacks } from './WarehouseRacks';
+import { useWarehouseTruckModel } from './warehouseTruckModel';
 import {
   advanceWarehouseYardTraffic,
   createWarehouseYardTraffic,
@@ -53,6 +54,7 @@ import {
 const TAP_SLOP_PX = 5;
 const WarehouseYardDragLayer = lazy(() => import('./WarehouseYardDragLayer'));
 const WarehouseYardLightingLayer = lazy(() => import('./WarehouseYardLightingLayer'));
+const WarehouseYardMarkings = lazy(() => import('./WarehouseYardMarkings'));
 
 export const prepare = ({ parkingCapacity, topology }: WarehouseSceneDataValue): Promise<void> => {
   getWarehouseLayout(topology, parkingCapacity);
@@ -95,7 +97,8 @@ const WarehouseWorldScene = ({
   });
   const geometry = useMemo(() => new BoxGeometry(1, 1, 1), []);
   const kit = useMemo(() => createWarehouseGeometryKit(), []);
-  const truckModel = useWarehouseTruckModel();
+  const baseTruckModel = useWarehouseTruckModel();
+  const [markedTruckModel, setMarkedTruckModel] = useState<WarehouseTruckModelValue>();
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const lastFocus = useRef<{ request: number; scan: WarehouseSceneInteractionValue['scannedCell'] }>(undefined);
   const {
@@ -229,7 +232,7 @@ const WarehouseWorldScene = ({
           layout={layout}
           playbackClock={playbackClock}
           traffic={traffic}
-          truckModel={truckModel}
+          truckModel={markedTruckModel ?? baseTruckModel}
         />
       ))}
       {primaryDock !== undefined && docks !== undefined && layout.yard !== undefined && (
@@ -241,6 +244,17 @@ const WarehouseWorldScene = ({
             level={level}
             rig={lighting}
             roads={layout.yard}
+            traffic={traffic}
+          />
+        </Suspense>
+      )}
+      {primaryDock !== undefined && interaction.isCameraReady === true && (
+        <Suspense fallback={null}>
+          <WarehouseYardMarkings
+            geometry={baseTruckModel.geometry}
+            markings={interaction.vehicleMarkings}
+            material={baseTruckModel.material}
+            onModelChange={setMarkedTruckModel}
             traffic={traffic}
           />
         </Suspense>

@@ -2,7 +2,6 @@ import { create } from '@bufbuild/protobuf';
 import {
   AssistantAddressForm,
   type Organization,
-  OrganizationLogoSchema,
   OrganizationSchema,
   type OrganizationSettings,
   OrganizationSettingsSchema,
@@ -157,13 +156,13 @@ export const createSeedOrganizations = (): Organization[] => SEED_ORGANIZATION_D
   legalName: `ООО «${definition.name}»`,
   logo: definition.logoKey === undefined
     ? undefined
-    : create(OrganizationLogoSchema, {
+    : {
         darkUrl: `logos/${definition.logoKey}-dark.svg`,
         lightUrl: `logos/${definition.logoKey}-light.svg`,
-      }),
+      },
   name: definition.name,
   ogrn: definition.ogrn,
-  profiles: definition.profiles.map(profile => ({ kind: profile.kind, verificationLevel: profile.verificationLevel })),
+  profiles: [...definition.profiles],
   sphereIds: [...definition.sphereIds],
 }));
 

@@ -164,6 +164,11 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
       return create(ListReceivingTasksResponseSchema, { page, tasks: items.map(({ task }) => task) });
     },
     listYardDispatchEntries: async (request, context) => (await loadYardDispatch()).listYardDispatchEntries(request, context),
+    listYardVehicleMarkings: async (request, context) => {
+      const { listYardVehicleMarkings } = await import('./yardVehicleMarkings');
+      const caller = guard.guardPermissionCall(read, method.listYardVehicleMarkings, request, context.requestHeader);
+      return listYardVehicleMarkings(runtime, caller, request);
+    },
     listYardWaitingReasons: async (request, context) => {
       const { listInboundYardWaitingReasons } = await import('./inboundYardWaitingReasons');
       const caller = guard.guardPermissionCall(read, method.listYardWaitingReasons, request, context.requestHeader);

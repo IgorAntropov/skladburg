@@ -126,6 +126,7 @@ import type {
   IdempotencyRecordValue,
   NotificationRecordValue,
   SupportBotQueueRecordValue,
+  WarehouseInboundRecordValue,
   WarehouseStockRecordValue,
   WarehouseTopologyRecordValue,
 } from './records';
@@ -148,12 +149,14 @@ import {
   parseIdempotencyRecord,
   parseNotificationRecord,
   parseSupportBotQueueRecord,
+  parseWarehouseInboundRecord,
   parseWarehouseStockRecord,
   parseWarehouseTopologyRecord,
   serializeDemoPersona,
   serializeIdempotencyRecord,
   serializeNotificationRecord,
   serializeSupportBotQueueRecord,
+  serializeWarehouseInboundRecord,
   serializeWarehouseStockRecord,
   serializeWarehouseTopologyRecord,
 } from './records';
@@ -225,6 +228,7 @@ export interface TableIndexesValue {
   warehouseOutbound: 'scopeId';
   warehouses: 'tenantId';
   warehouseTopologies: never;
+  yardDispatchEntries: 'scopeId';
   yardQueuePolicies: never;
 }
 
@@ -271,11 +275,12 @@ export interface TableRecordsValue {
   trips: TripRecord;
   users: User;
   vehicles: Vehicle;
-  warehouseInbound: WarehouseStockRecordValue;
+  warehouseInbound: WarehouseInboundRecordValue;
   warehouseLayoutSessions: WarehouseLayoutSessionRecordValue;
   warehouseOutbound: WarehouseStockRecordValue;
   warehouses: Warehouse;
   warehouseTopologies: WarehouseTopologyRecordValue;
+  yardDispatchEntries: WarehouseStockRecordValue;
   yardQueuePolicies: YardQueuePolicy;
 }
 
@@ -392,10 +397,14 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   }),
   users: defineMessageTable(UserSchema, user => user.id, {}),
   vehicles: defineMessageTable(VehicleSchema, vehicle => vehicle.id, { tenantId: vehicle => vehicle.tenantId }),
-  warehouseInbound: { ...stockRecordTable, indexKeys: { scopeId: stockScopeId } },
+  warehouseInbound: {
+    ...defineRecordTable(parseWarehouseInboundRecord, serializeWarehouseInboundRecord),
+    indexKeys: { scopeId: stockScopeId },
+  },
   warehouseLayoutSessions: defineRecordTable(parseWarehouseLayoutSessionRecord, serializeWarehouseLayoutSessionRecord),
   warehouseOutbound: { ...stockRecordTable, indexKeys: { scopeId: stockScopeId } },
   warehouses: defineMessageTable(WarehouseSchema, warehouse => warehouse.id, { tenantId: warehouse => warehouse.tenantId }),
   warehouseTopologies: defineRecordTable(parseWarehouseTopologyRecord, serializeWarehouseTopologyRecord),
+  yardDispatchEntries: { ...stockRecordTable, indexKeys: { scopeId: stockScopeId } },
   yardQueuePolicies: defineMessageTable(YardQueuePolicySchema, policy => policy.organizationId, {}),
 };

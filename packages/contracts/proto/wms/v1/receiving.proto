@@ -139,6 +139,7 @@ enum YardPriorityFactor {
   YARD_PRIORITY_FACTOR_WAITING_TIME = 5;
   YARD_PRIORITY_FACTOR_AVAILABLE_RESOURCES = 6;
   YARD_PRIORITY_FACTOR_STARTED_RECEIPT = 7;
+  YARD_PRIORITY_FACTOR_MANUAL_PROMOTION = 8;
 }
 
 message YardWaitingReason {
@@ -237,6 +238,107 @@ message PutAwayHandlingUnitResponse {
   ReceivingTask task = 1;
 }
 
+enum YardDispatchBlockedReason {
+  YARD_DISPATCH_BLOCKED_REASON_UNSPECIFIED = 0;
+  YARD_DISPATCH_BLOCKED_REASON_VISIT_NOT_WAITING = 1;
+  YARD_DISPATCH_BLOCKED_REASON_PASS_REJECTED = 2;
+  YARD_DISPATCH_BLOCKED_REASON_WAITING_DOCUMENTS = 3;
+  YARD_DISPATCH_BLOCKED_REASON_ALREADY_ASSIGNED = 4;
+  YARD_DISPATCH_BLOCKED_REASON_ALREADY_PROMOTED = 5;
+  YARD_DISPATCH_BLOCKED_REASON_DOCK_NOT_FOUND = 6;
+  YARD_DISPATCH_BLOCKED_REASON_INCOMPATIBLE_DOCK = 7;
+  YARD_DISPATCH_BLOCKED_REASON_DOCK_BUSY = 8;
+  YARD_DISPATCH_BLOCKED_REASON_RESERVATION_PROTECTED = 9;
+  YARD_DISPATCH_BLOCKED_REASON_SLOT_NOT_STARTED = 10;
+}
+
+enum YardDispatchAction {
+  YARD_DISPATCH_ACTION_UNSPECIFIED = 0;
+  YARD_DISPATCH_ACTION_PROMOTE = 1;
+  YARD_DISPATCH_ACTION_ASSIGN_DOCK = 2;
+}
+
+enum YardDispatchOutcome {
+  YARD_DISPATCH_OUTCOME_UNSPECIFIED = 0;
+  YARD_DISPATCH_OUTCOME_WAITING = 1;
+  YARD_DISPATCH_OUTCOME_SLOT_BOOKED = 2;
+  YARD_DISPATCH_OUTCOME_DOCK_ASSIGNED = 3;
+}
+
+message YardDispatchState {
+  int32 task_version = 1;
+  bool is_manually_prioritized = 2;
+  optional string unloading_point_id = 3;
+  DockSlotReservation reservation = 4;
+  YardAdmissionStatus yard_admission_status = 5;
+}
+
+message YardDispatchEntry {
+  string id = 1;
+  uint64 sequence = 2;
+  string tenant_id = 3;
+  string warehouse_id = 4;
+  string task_id = 5;
+  string actor_user_id = 6;
+  google.protobuf.Timestamp occurred_at = 7;
+  YardDispatchAction action = 8;
+  string reason = 9;
+  YardDispatchState before = 10;
+  YardDispatchState after = 11;
+  YardDispatchOutcome outcome = 12;
+}
+
+message PromoteYardVisitRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  string task_id = 2 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 4 [(buf.validate.field).int32.gt = 0];
+  string reason = 5 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 300
+  }];
+}
+
+message PromoteYardVisitResponse {
+  string task_id = 1;
+  int32 task_version = 2;
+  string entry_id = 3;
+  YardDispatchOutcome outcome = 4;
+  optional string unloading_point_id = 5;
+  DockSlotReservation reservation = 6;
+}
+
+message AssignYardVisitToDockRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  string task_id = 2 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
+  int32 expected_version = 4 [(buf.validate.field).int32.gt = 0];
+  string reason = 5 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 300
+  }];
+  string unloading_point_id = 6 [(buf.validate.field).string.uuid = true];
+}
+
+message AssignYardVisitToDockResponse {
+  string task_id = 1;
+  int32 task_version = 2;
+  string entry_id = 3;
+  YardDispatchOutcome outcome = 4;
+  optional string unloading_point_id = 5;
+  DockSlotReservation reservation = 6;
+}
+
+message ListYardDispatchEntriesRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  common.v1.PageRequest page = 2;
+}
+
+message ListYardDispatchEntriesResponse {
+  repeated YardDispatchEntry entries = 1;
+  common.v1.PageResponse page = 2;
+}
+
 service WarehouseReceivingService {
   rpc ListReceivingTasks(ListReceivingTasksRequest) returns (ListReceivingTasksResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -249,6 +351,25 @@ service WarehouseReceivingService {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (common.v1.access).permission = {
       name: "task_view"
+      scope_field: "warehouse_id"
+    };
+  }
+  rpc PromoteYardVisit(PromoteYardVisitRequest) returns (PromoteYardVisitResponse) {
+    option (common.v1.access).permission = {
+      name: "yard_manage"
+      scope_field: "warehouse_id"
+    };
+  }
+  rpc AssignYardVisitToDock(AssignYardVisitToDockRequest) returns (AssignYardVisitToDockResponse) {
+    option (common.v1.access).permission = {
+      name: "yard_manage"
+      scope_field: "warehouse_id"
+    };
+  }
+  rpc ListYardDispatchEntries(ListYardDispatchEntriesRequest) returns (ListYardDispatchEntriesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission = {
+      name: "yard_view"
       scope_field: "warehouse_id"
     };
   }

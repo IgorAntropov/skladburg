@@ -13,6 +13,7 @@ import type { IModuleRuntime } from '../moduleRuntime';
 import { canUseInboundDock } from './inboundDockQueue';
 import { isInboundDockSlotExpired } from './inboundDockSlots';
 import {
+  discardUnavailableInboundReservations,
   isReceivingTaskActive,
   MAX_RECEIVING_VERSION,
   readInboundDockCandidate,
@@ -46,22 +47,14 @@ export const listInboundYardWaitingReasons = (
   const { occupied, reservations } = readInboundDockUsage(
     tasks.filter(task => task.receivingAreaId === area?.id), docks, area?.id ?? '', worldTimeMs,
   );
-  for (const [owner, slot] of reservations) {
-    if (!isReceivingTaskActive(owner) || owner.version >= MAX_RECEIVING_VERSION || docks.some(dock => dock.id === owner.unloadingPointId)) {
-      continue;
-    }
-    const ownerCandidate = readInboundDockCandidate(read, owner, tenantId, docks.length, warehouseDate);
-    if (isInboundDockSlotExpired(slot, worldTimeMs) || isInboundYardBlocked(readInboundYardGate(read, owner, tenantId))
-      || !docks.some(dock => dock.id === slot.dockId && canUseInboundDock(dock, ownerCandidate))) {
-      reservations.delete(owner);
-    }
-  }
+  discardUnavailableInboundReservations(read, tenantId, docks, reservations, worldTimeMs, warehouseDate);
   const weights = readYardQueueWeights(read, tenantId);
   const primary = docks[0];
-  const hasSchedules = reservations.size > 0 || tasks.some(task => task.dockSchedule !== undefined
+  const hasDispatchConstraints = reservations.size > 0 || tasks.some(task =>
+    (task.dockSchedule !== undefined || read.get('warehouseInbound', task.id)?.manualPrioritySequence !== undefined)
     && task.receivingAreaId === area?.id && isReceivingTaskActive(task)
     && !isInboundYardBlocked(readInboundYardGate(read, task, tenantId)));
-  if (primary !== undefined && hasSchedules && usesOutboundDock(read, tenantId, warehouseId, errors)) {
+  if (primary !== undefined && hasDispatchConstraints && usesOutboundDock(read, tenantId, warehouseId, errors)) {
     occupied.set(primary.id, undefined);
   }
 

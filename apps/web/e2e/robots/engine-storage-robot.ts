@@ -13,6 +13,7 @@ const STORES_ADDED_AFTER_V13 = [
   'vehicles',
   'warehouseLayoutSessions',
   'warehouseTopologies',
+  'yardDispatchEntries',
   'yardQueuePolicies',
 ] as const;
 const PRE_FLEET_DATABASE_VERSION = 13;

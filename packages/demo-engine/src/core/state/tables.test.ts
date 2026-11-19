@@ -139,6 +139,23 @@ describe('message tables', () => {
   });
 });
 
+describe('warehouse inbound records', () => {
+  const inbound = { bytes: Uint8Array.of(1, 2), id: 'inbound-1', lookupKey: 'org-1', scopeId: 'warehouse-1' };
+
+  it('round-trips the manual priority while preserving the former shape without a priority', () => {
+    const table = TABLE_DEFINITIONS.warehouseInbound;
+    const promoted = { ...inbound, manualPrioritySequence: 4 };
+
+    expect(table.decode(table.encode(promoted))).toEqual(promoted);
+    expect(table.decode(inbound)).toStrictEqual(inbound);
+    expect(table.encode({ ...inbound, manualPrioritySequence: undefined })).toStrictEqual(inbound);
+  });
+
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '4', null])('rejects invalid priority %s', (value) => {
+    expect(() => TABLE_DEFINITIONS.warehouseInbound.decode({ ...inbound, manualPrioritySequence: value })).toThrow(TypeError);
+  });
+});
+
 const VALID_PERSONA_FIELDS = {
   group: DemoPersonaGroup.FRESH,
   id: 'p',

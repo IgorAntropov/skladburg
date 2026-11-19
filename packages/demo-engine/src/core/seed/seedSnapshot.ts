@@ -100,6 +100,7 @@ type UnseededTableName
     | 'warehouseLayoutSessions'
     | 'warehouseOutbound'
     | 'warehouseTopologies'
+    | 'yardDispatchEntries'
     | 'yardQueuePolicies';
 
 export const createSeedRecords = (worldStartMs = SEED_WORLD_START_MS): SeedRecordsValue => ({

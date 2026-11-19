@@ -84,7 +84,7 @@ const createLegacyDatabase = (
   const request = factory.open(DATABASE_NAME, databaseVersion);
 
   request.addEventListener('upgradeneeded', () => {
-    const laterCollections = ['warehouseLayoutSessions', 'yardQueuePolicies'];
+    const laterCollections = ['warehouseLayoutSessions', 'yardDispatchEntries', 'yardQueuePolicies'];
     if (databaseVersion < 18) {
       laterCollections.push('stockBalances', 'stockBatches', 'stockMovements');
     }

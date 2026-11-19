@@ -193,6 +193,7 @@ export const catalog = {
   'warehouseWork.yardFactorColdAndExpiry': 'Груз требует охлаждения и скоро истекает срок годности',
   'warehouseWork.yardFactorExpiry': 'Скоро истекает срок годности груза',
   'warehouseWork.yardFactorExplicit': 'Покупатель отметил заказ срочным',
+  'warehouseWork.yardFactorManual': 'Приоритет повышен вручную',
   'warehouseWork.yardFactorResources': 'Доступны ресурсы для разгрузки',
   'warehouseWork.yardFactorStarted': 'Приёмка уже начата',
   'warehouseWork.yardFactorWaiting': 'Время с прибытия на двор',

@@ -34,10 +34,18 @@ export interface YardQueueCandidateValue {
   hasReceipt: boolean;
   id: string;
   isUrgent: boolean;
+  manualPrioritySequence?: number | undefined;
 }
 
 export type YardQueueReasonCode
-  = 'AVAILABLE_RESOURCES' | 'COLD_CARGO' | 'DELIVERY_WINDOW' | 'EXPIRING_CARGO' | 'EXPLICIT_URGENCY' | 'STARTED_RECEIPT' | 'WAITING_TIME';
+  = | 'AVAILABLE_RESOURCES'
+    | 'COLD_CARGO'
+    | 'DELIVERY_WINDOW'
+    | 'EXPIRING_CARGO'
+    | 'EXPLICIT_URGENCY'
+    | 'MANUAL_PROMOTION'
+    | 'STARTED_RECEIPT'
+    | 'WAITING_TIME';
 
 export interface YardQueueScoreValue {
   factors: {
@@ -84,6 +92,7 @@ export const scoreYardQueueCandidate = (
   };
   const reasons: readonly (readonly [YardQueueReasonCode, boolean])[] = [
     ['STARTED_RECEIPT', hasReceipt],
+    ['MANUAL_PROMOTION', candidate.manualPrioritySequence !== undefined],
     ['EXPLICIT_URGENCY', contributions.explicitUrgency > 0],
     ['COLD_CARGO', hasColdCargo && contributions.cargoUrgency > 0],
     ['EXPIRING_CARGO', hasExpiringCargo && contributions.cargoUrgency > 0],
@@ -127,6 +136,7 @@ export const rankYardQueue = <T extends YardQueueCandidateValue>(
 
   scored.sort(({ candidate: current, score }, { candidate: prev, score: prevScore }) =>
     Number(prev.hasReceipt) - Number(current.hasReceipt)
+    || compareOptionalTimes(current.manualPrioritySequence, prev.manualPrioritySequence)
     || prevScore - score
     || (weights.deliveryWindowWeight > 0 ? compareOptionalTimes(current.deliveryEndsAtMs, prev.deliveryEndsAtMs) : 0)
     || compareOptionalTimes(current.arrivedAtMs, prev.arrivedAtMs)

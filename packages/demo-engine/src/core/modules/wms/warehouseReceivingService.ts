@@ -112,8 +112,13 @@ const runReceivingCommand = <TInput extends DescMessage, TOutput extends DescMes
 export const createWarehouseReceivingService = (runtime: IModuleRuntime): ServiceImpl<typeof WarehouseReceivingService> => {
   const { errors, guard, read } = runtime;
   const { method } = WarehouseReceivingService;
+  const loadYardDispatch = async (): Promise<ReturnType<typeof import('./yardDispatchService').createYardDispatchHandlers>> => {
+    const { createYardDispatchHandlers } = await import('./yardDispatchService');
+    return createYardDispatchHandlers(runtime);
+  };
 
   return {
+    assignYardVisitToDock: async (request, context) => (await loadYardDispatch()).assignYardVisitToDock(request, context),
     claimReceivingTask: (request, context) => runReceivingCommand(runtime, {
       allowedStatuses: [ReceivingTaskStatus.OPEN],
       handle: (_transaction, caller, task) => {
@@ -158,6 +163,7 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
       const { items, page } = paginate(arrived, ({ task }) => task.id, request.page, errors);
       return create(ListReceivingTasksResponseSchema, { page, tasks: items.map(({ task }) => task) });
     },
+    listYardDispatchEntries: async (request, context) => (await loadYardDispatch()).listYardDispatchEntries(request, context),
     listYardWaitingReasons: async (request, context) => {
       const { listInboundYardWaitingReasons } = await import('./inboundYardWaitingReasons');
       const { organizationId } = guard.guardPermissionCall(read, method.listYardWaitingReasons, request, context.requestHeader);
@@ -165,6 +171,7 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
       const { items, page } = paginate(reasons, ({ receivingTaskId }) => receivingTaskId, request.page, errors);
       return create(ListYardWaitingReasonsResponseSchema, { page, reasons: items });
     },
+    promoteYardVisit: async (request, context) => (await loadYardDispatch()).promoteYardVisit(request, context),
     putAwayHandlingUnit: (request, context) => runReceivingCommand(runtime, {
       allowedStatuses: [
         ReceivingTaskStatus.IN_PROGRESS,

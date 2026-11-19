@@ -26,6 +26,12 @@ import {
   TripStatus,
 } from '@skladburg/contracts/logistics/v1/trip_records';
 import { WarehouseCapability } from '@skladburg/contracts/organization/v1/organization';
+import { SUPPORT_SESSION_HEADER } from '@skladburg/contracts/runtime';
+import {
+  SupportAccessMode,
+  SupportAccessSection,
+  SupportAccessStatus,
+} from '@skladburg/contracts/support/v1/support_access';
 import {
   PickingTaskSchema,
   PickingTaskStatus,
@@ -37,9 +43,11 @@ import {
   ReceivingTaskStatus,
   WarehouseReceivingService,
   YardAdmissionStatus,
+  YardDispatchOutcome,
   YardPriorityFactor,
   YardWaitingReasonCode,
 } from '@skladburg/contracts/wms/v1/receiving';
+import { YardQueuePolicyService } from '@skladburg/contracts/wms/v1/yard_queue_policy';
 import {
   expect,
   it,
@@ -59,6 +67,7 @@ import {
 import { addSeedReceivingDock } from '../../seed/seedReceivingDocks';
 import { createSeedWarehouseTopology } from '../../seed/seedWarehouseTopologies';
 import { createEngineState } from '../../state/index';
+import { createTestSupportAccessSession } from '../../state/testRecords';
 import { nextUuid } from '../catalog/testing/catalogFixtures';
 import {
   addTestMember,
@@ -205,6 +214,382 @@ const saveScheduledArrival = (
 
 const createDockTopology = (): ReturnType<typeof createSeedWarehouseTopology> => createSeedWarehouseTopology({
   prefix: '8f000004', tenantId: TENANT, warehouseId: WAREHOUSE,
+});
+
+const saveDispatchQueue = (
+  transaction: IStateTransaction,
+  runtime: IModuleRuntime,
+  hasHolder: boolean,
+): { dockId: string; first: ReceivingTask; holder: ReceivingTask | undefined; second: ReceivingTask } => {
+  const topology = createDockTopology();
+  const dock = topology.receivingArea?.unloadingPoint;
+  if (dock === undefined) {
+    throw new Error('Missing receiving dock');
+  }
+  transaction.put('warehouseTopologies', encodeWarehouseTopology(topology));
+  const first = saveArrival(transaction, runtime, WAREHOUSE);
+  const second = saveArrival(transaction, runtime, WAREHOUSE);
+  for (const task of [first, second]) {
+    task.yardAdmissionStatus = YardAdmissionStatus.WAITING_DOCK;
+    saveDispatchTitle(transaction, task);
+    saveInboundTask(transaction, runtime, task, TENANT);
+  }
+  const holder = hasHolder ? saveArrival(transaction, runtime, WAREHOUSE) : undefined;
+  if (holder !== undefined) {
+    holder.unloadingPointId = dock.id;
+    saveInboundTask(transaction, runtime, holder, TENANT);
+  }
+  return { dockId: dock.id, first, holder, second };
+};
+
+it('records scoped promotions once and spends their order when a dock becomes free', async () => {
+  const harness = createModuleHarness();
+  const { events, runtime, transport } = harness;
+  const userId = await addTestMember(harness, {
+    organizationId: TENANT, permissions: ['yard_manage'], warehouseIds: [WAREHOUSE],
+  });
+  const manager = callAs(userId, TENANT);
+  const reader = callAs(await addTestMember(harness, {
+    organizationId: TENANT, permissions: ['yard_view'], warehouseIds: [WAREHOUSE],
+  }), TENANT);
+  const owner = callAs(SeedUserId.ADMIN_1, TENANT);
+  const client = createClient(WarehouseReceivingService, transport);
+  const { dockId, first, holder, second } = await runtime.command(transaction => saveDispatchQueue(transaction, runtime, true));
+  if (holder === undefined) {
+    throw new Error('Missing occupied dock');
+  }
+  const request = { expectedVersion: second.version, idempotencyKey: nextUuid(), reason: ' Разгрузка срочной поставки ', taskId: second.id,
+    warehouseId: WAREHOUSE };
+  const count = events.length;
+  const promoted = await client.promoteYardVisit(request, manager);
+  expect(promoted).toMatchObject({ outcome: YardDispatchOutcome.WAITING, taskId: second.id, taskVersion: second.version + 1 });
+  expect(await client.promoteYardVisit(request, manager)).toEqual(promoted);
+  const reused = await captureError(client.promoteYardVisit({ ...request, reason: 'Другое основание' }, manager));
+  expect(readErrorDetail(reused).code).toBe(ErrorCode.IDEMPOTENCY_KEY_REUSED);
+  const stale = await captureError(client.promoteYardVisit({ ...request, idempotencyKey: nextUuid() }, manager));
+  expect(readErrorDetail(stale).code).toBe(ErrorCode.VERSION_CONFLICT);
+  const alreadyPromoted = await captureError(client.promoteYardVisit({
+    ...request, expectedVersion: promoted.taskVersion, idempotencyKey: nextUuid(),
+  }, manager));
+  expect(readErrorDetail(alreadyPromoted).params).toMatchObject({ value: { reason: 'ALREADY_PROMOTED' } });
+  expect(events.slice(count).map(event => event.payload.case)).toEqual(['receivingTasksChanged']);
+  const readDenied = await captureError(client.listYardDispatchEntries(request, manager));
+  expect(readErrorDetail(readDenied).code).toBe(ErrorCode.PERMISSION_DENIED);
+  const foreignRead = await captureError(client.listYardDispatchEntries(request, callAs(SeedUserId.ADMIN_2, SUPPLIER)));
+  expect(readErrorDetail(foreignRead).code).toBe(ErrorCode.NOT_FOUND);
+  const writeDenied = await captureError(client.promoteYardVisit(request, reader));
+  expect(readErrorDetail(writeDenied).code).toBe(ErrorCode.PERMISSION_DENIED);
+  const { entries: [entry] } = await client.listYardDispatchEntries(request, reader);
+  expect(entry).toMatchObject({
+    actorUserId: userId,
+    after: { isManuallyPrioritized: true, taskVersion: second.version + 1 },
+    before: { isManuallyPrioritized: false, taskVersion: second.version },
+    id: promoted.entryId,
+    reason: request.reason.trim(),
+    sequence: 1n,
+  });
+  const { reasons } = await client.listYardWaitingReasons({ warehouseId: WAREHOUSE }, owner);
+  expect(reasons.find(row => row.receivingTaskId === second.id)?.priorityFactors).toContain(YardPriorityFactor.MANUAL_PROMOTION);
+  await client.promoteYardVisit({ ...request, expectedVersion: first.version, idempotencyKey: nextUuid(), taskId: first.id }, manager);
+  await createClient(YardQueuePolicyService, transport).saveYardQueuePolicy({
+    expectedVersion: 0n,
+    idempotencyKey: nextUuid(),
+    weights: {
+      cargoUrgencyWeight: 0, deliveryWindowWeight: 0, explicitUrgencyWeight: 0, resourceAvailabilityWeight: 0, waitingTimeWeight: 0,
+    },
+  }, owner);
+  await runtime.command((transaction) => {
+    finishScheduledArrival(transaction, runtime, holder.id);
+  });
+  expect(requireStoredTask(runtime, second.id).unloadingPointId).toBe(dockId);
+  expect(requireStoredTask(runtime, first.id).unloadingPointId).toBeUndefined();
+  const journal = await client.listYardDispatchEntries({ warehouseId: WAREHOUSE }, reader);
+  expect(journal.entries.map(item => item.sequence)).toEqual([2n, 1n]);
+});
+
+it('assigns a compatible dock atomically and denies a second visit and a missing reason', async () => {
+  const { events, runtime, transport } = createModuleHarness();
+  const caller = callAs(SeedUserId.ADMIN_1, TENANT);
+  const client = createClient(WarehouseReceivingService, transport);
+  const { dockId, first, second } = await runtime.command(transaction => saveDispatchQueue(transaction, runtime, false));
+  const base = { expectedVersion: first.version, idempotencyKey: nextUuid(), reason: 'Приёмка по решению диспетчера',
+    taskId: first.id, unloadingPointId: dockId, warehouseId: WAREHOUSE };
+  const blank = await captureError(client.assignYardVisitToDock({ ...base, reason: '   ' }, caller));
+  expect(readErrorDetail(blank).code).toBe(ErrorCode.VALIDATION_FAILED);
+  const count = events.length;
+  const assigned = await client.assignYardVisitToDock(base, caller);
+  expect(assigned).toMatchObject({ outcome: YardDispatchOutcome.DOCK_ASSIGNED, taskId: first.id, unloadingPointId: dockId });
+  expect(await client.assignYardVisitToDock(base, caller)).toEqual(assigned);
+  const blocked = await captureError(client.assignYardVisitToDock({
+    ...base, expectedVersion: second.version, idempotencyKey: nextUuid(), taskId: second.id,
+  }, caller));
+  expect(readErrorDetail(blocked)).toMatchObject({
+    code: ErrorCode.YARD_DISPATCH_BLOCKED,
+    params: { case: 'yardDispatchBlocked', value: { reason: 'DOCK_BUSY' } },
+  });
+  expect(events.slice(count).map(event => event.payload.case)).toEqual(['receivingTasksChanged']);
+  const { entries } = await client.listYardDispatchEntries({ warehouseId: WAREHOUSE }, caller);
+  expect(entries.map(({ id }) => id)).toEqual([assigned.entryId]);
+});
+
+it('keeps manual dispatch and its journal inaccessible from an active warehouse support session', async () => {
+  const { events, runtime, transport } = createModuleHarness();
+  const staffId = SeedUserId.OPERATOR_SUPER_ADMIN_1;
+  const sessionId = nextUuid();
+  const { dockId, first } = await runtime.command((transaction) => {
+    transaction.put('supportAccessSessions', createTestSupportAccessSession(sessionId, TENANT, staffId, SupportAccessStatus.ACTIVE, {
+      expiresAt: timestampFromMs(transaction.worldTimeMs + 60 * MINUTE_MS),
+      mode: SupportAccessMode.EDIT,
+      section: SupportAccessSection.WAREHOUSES,
+    }));
+    return saveDispatchQueue(transaction, runtime, false);
+  });
+  const caller = callAs(staffId, TENANT);
+  const headers = new Headers(caller.headers);
+  headers.set(SUPPORT_SESSION_HEADER, sessionId);
+  const client = createClient(WarehouseReceivingService, transport);
+  const request = {
+    expectedVersion: first.version,
+    idempotencyKey: nextUuid(),
+    reason: 'Подача ожидающей машины',
+    taskId: first.id,
+    warehouseId: WAREHOUSE,
+  };
+  const count = events.length;
+  await client.listYardWaitingReasons({ warehouseId: WAREHOUSE }, { headers });
+  const denied = await Promise.all([
+    captureError(client.promoteYardVisit(request, { headers })),
+    captureError(client.assignYardVisitToDock({ ...request, unloadingPointId: dockId }, { headers })),
+    captureError(client.listYardDispatchEntries({ warehouseId: WAREHOUSE }, { headers })),
+  ]);
+  for (const error of denied) {
+    expect(readErrorDetail(error).code).toBe(ErrorCode.PERMISSION_DENIED);
+  }
+  expect(requireStoredTask(runtime, first.id)).toEqual(first);
+  expect((await client.listYardDispatchEntries({ warehouseId: WAREHOUSE }, callAs(SeedUserId.ADMIN_1, TENANT))).entries).toHaveLength(0);
+  expect(events).toHaveLength(count);
+});
+
+it('protects a confirmed reservation and admits its visit exactly ten minutes after the start', async () => {
+  const { clock, events, runtime, transport } = createModuleHarness();
+  const start = clock.now() + 5 * MINUTE_MS;
+  const worldTime = vi.spyOn(clock, 'now');
+  const { dockId, otherDockId, task } = await runtime.command((transaction) => {
+    const topology = createDockTopology();
+    expect(addSeedReceivingDock(topology)).toBe(true);
+    const otherDock = topology.receivingArea?.additionalUnloadingPoints[0];
+    if (otherDock === undefined) {
+      throw new Error('Missing alternate dock');
+    }
+    transaction.put('warehouseTopologies', encodeWarehouseTopology(topology));
+    const saved = saveScheduledArrival(transaction, runtime, start, true);
+    const task = requireStoredTask({ ...runtime, read: transaction }, saved.id);
+    const dockId = task.dockSchedule?.reservation?.unloadingPointId;
+    const otherDockId = [
+      topology.receivingArea?.unloadingPoint?.id, otherDock.id,
+    ].find(id => id !== undefined && id !== dockId);
+    if (dockId === undefined || otherDockId === undefined) {
+      throw new Error('Missing booked or alternate dock');
+    }
+    return { dockId, otherDockId, task };
+  });
+  const caller = callAs(SeedUserId.ADMIN_1, TENANT);
+  const client = createClient(WarehouseReceivingService, transport);
+  const request = { expectedVersion: task.version, idempotencyKey: nextUuid(), reason: 'Подача в подтверждённое окно',
+    taskId: task.id, warehouseId: WAREHOUSE };
+  const count = events.length;
+  worldTime.mockReturnValue(start - 1);
+  const tooEarly = await captureError(client.assignYardVisitToDock({ ...request, unloadingPointId: dockId }, caller));
+  expect(readErrorDetail(tooEarly).params).toMatchObject({ value: { reason: 'SLOT_NOT_STARTED' } });
+  const promote = await captureError(client.promoteYardVisit(request, caller));
+  expect(readErrorDetail(promote).params).toMatchObject({ value: { reason: 'RESERVATION_PROTECTED' } });
+  worldTime.mockReturnValue(start + 10 * MINUTE_MS);
+  const reassign = await captureError(client.assignYardVisitToDock({ ...request, unloadingPointId: otherDockId }, caller));
+  expect(readErrorDetail(reassign).params).toMatchObject({ value: { reason: 'RESERVATION_PROTECTED' } });
+  expect(requireStoredTask(runtime, task.id)).toEqual(task);
+  expect(events).toHaveLength(count);
+  const assigned = await client.assignYardVisitToDock({ ...request, unloadingPointId: dockId }, caller);
+  expect(assigned.outcome).toBe(YardDispatchOutcome.DOCK_ASSIGNED);
+  expect(assigned.reservation).toEqual(task.dockSchedule?.reservation);
+  expect((await client.listYardDispatchEntries(request, caller)).entries).toHaveLength(1);
+});
+
+it.each([29, 30])('checks a full immediate interval before a reservation %i minutes away', async (minutes) => {
+  const { runtime, transport } = createModuleHarness();
+  const { dockId, first, reserved } = await runtime.command((transaction) => {
+    transaction.put('warehouseTopologies', encodeWarehouseTopology(createDockTopology()));
+    const future = saveScheduledArrival(transaction, runtime, transaction.worldTimeMs + minutes * MINUTE_MS, true);
+    const reserved = requireStoredTask({ ...runtime, read: transaction }, future.id);
+    return { ...saveDispatchQueue(transaction, runtime, false), reserved };
+  });
+  const caller = callAs(SeedUserId.ADMIN_1, TENANT);
+  const client = createClient(WarehouseReceivingService, transport);
+  const request = { expectedVersion: first.version, idempotencyKey: nextUuid(), reason: 'Ручная подача',
+    taskId: first.id, unloadingPointId: dockId, warehouseId: WAREHOUSE };
+  if (minutes === 29) {
+    const error = await captureError(client.assignYardVisitToDock(request, caller));
+    expect(readErrorDetail(error).params).toMatchObject({ value: { reason: 'RESERVATION_PROTECTED' } });
+    expect((await client.listYardDispatchEntries(request, caller)).entries).toHaveLength(0);
+  }
+  else {
+    const assigned = await client.assignYardVisitToDock(request, caller);
+    expect(assigned.outcome).toBe(YardDispatchOutcome.DOCK_ASSIGNED);
+  }
+  expect(requireStoredTask(runtime, reserved.id)).toEqual(reserved);
+});
+
+it('leaves the journal and waiting task unchanged if appending the dispatch entry fails', async () => {
+  const { events, runtime, transport } = createModuleHarness();
+  const caller = callAs(SeedUserId.ADMIN_1, TENANT);
+  const client = createClient(WarehouseReceivingService, transport);
+  const { first, second } = await runtime.command(transaction => saveDispatchQueue(transaction, runtime, true));
+  const request = { expectedVersion: first.version, idempotencyKey: nextUuid(), reason: 'Изменение очереди',
+    taskId: first.id, warehouseId: WAREHOUSE };
+  const accepted = await client.promoteYardVisit(request, caller);
+  const count = events.length;
+  const uuid = vi.spyOn(runtime.random, 'uuid').mockReturnValue(accepted.entryId);
+  try {
+    const failed = await captureError(client.promoteYardVisit({
+      ...request, expectedVersion: second.version, idempotencyKey: nextUuid(), taskId: second.id,
+    }, caller));
+    expect(readErrorDetail(failed).code).toBe(ErrorCode.INTERNAL);
+  }
+  finally {
+    uuid.mockRestore();
+  }
+  expect(runtime.read.get('warehouseInbound', second.id)?.manualPrioritySequence).toBeUndefined();
+  expect(requireStoredTask(runtime, second.id)).toEqual(second);
+  expect(events).toHaveLength(count);
+  expect((await client.listYardDispatchEntries(request, caller)).entries.map(row => row.id)).toEqual([accepted.entryId]);
+});
+
+it('blocks manual action for missing admission, cargo incompatibility and outbound use of the primary dock', async () => {
+  const { events, runtime, transport } = createModuleHarness();
+  const { dockId, docs, invalid, outboundId, oversized, reefer, standard } = await runtime.command((transaction) => {
+    const topology = createDockTopology();
+    const dock = topology.receivingArea?.unloadingPoint;
+    if (dock === undefined) {
+      throw new Error('Missing receiving dock');
+    }
+    dock.capabilities = [WarehouseCapability.RAMP];
+    transaction.put('warehouseTopologies', encodeWarehouseTopology(topology));
+    const now = transaction.worldTimeMs;
+    const docs = saveArrival(transaction, runtime, WAREHOUSE);
+    const invalid = saveArrival(transaction, runtime, SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2);
+    const reefer = saveArrival(transaction, runtime, WAREHOUSE, {
+      arrivedAt: now, cargoKind: VehicleCargoKind.TEMPERATURE_CONTROLLED, deliveryEndsAt: now + MINUTE_MS,
+    });
+    const oversized = saveArrival(transaction, runtime, WAREHOUSE, {
+      arrivedAt: now, cargoKind: VehicleCargoKind.OVERSIZE, deliveryEndsAt: now + MINUTE_MS,
+    });
+    const standard = saveArrival(transaction, runtime, WAREHOUSE);
+    for (const task of [reefer, oversized, standard]) {
+      saveDispatchTitle(transaction, task);
+    }
+    const outboundId = nextUuid();
+    const picking = create(PickingTaskSchema, {
+      dealId: outboundId,
+      id: outboundId,
+      status: PickingTaskStatus.PICKED,
+      units: [{ handlingUnit: { tenantId: TENANT, warehouseId: WAREHOUSE } }],
+      version: 1,
+      warehouseId: WAREHOUSE,
+    });
+    saveOutboundTask(transaction, runtime, picking, TENANT, false);
+    return { dockId: dock.id, docs, invalid, outboundId, oversized, reefer, standard };
+  });
+  const caller = callAs(SeedUserId.ADMIN_1, TENANT);
+  const client = createClient(WarehouseReceivingService, transport);
+  const count = events.length;
+  for (const { reason, task } of [
+    { reason: 'WAITING_DOCUMENTS', task: docs },
+    { reason: 'PASS_REJECTED', task: invalid },
+    { reason: 'INCOMPATIBLE_DOCK', task: reefer },
+    { reason: 'INCOMPATIBLE_DOCK', task: oversized },
+    { reason: 'DOCK_BUSY', task: standard },
+  ]) {
+    const error = await captureError(client.assignYardVisitToDock({
+      expectedVersion: task.version, idempotencyKey: nextUuid(), reason: 'Подача', taskId: task.id,
+      unloadingPointId: dockId, warehouseId: WAREHOUSE,
+    }, caller));
+    expect(readErrorDetail(error).params).toMatchObject({ value: { reason } });
+  }
+  const unknownDock = await captureError(client.assignYardVisitToDock({
+    expectedVersion: standard.version, idempotencyKey: nextUuid(), reason: 'Подача', taskId: standard.id,
+    unloadingPointId: nextUuid(), warehouseId: WAREHOUSE,
+  }, caller));
+  expect(readErrorDetail(unknownDock).params).toMatchObject({ value: { reason: 'DOCK_NOT_FOUND' } });
+  expect((await client.listYardDispatchEntries({ warehouseId: WAREHOUSE }, caller)).entries).toHaveLength(0);
+  expect(events).toHaveLength(count);
+  const promotion = await client.promoteYardVisit({
+    expectedVersion: standard.version,
+    idempotencyKey: nextUuid(),
+    reason: 'Следом за отгрузкой',
+    taskId: standard.id,
+    warehouseId: WAREHOUSE,
+  }, caller);
+  expect(promotion.outcome).toBe(YardDispatchOutcome.WAITING);
+  const { reasons } = await client.listYardWaitingReasons({ warehouseId: WAREHOUSE }, caller);
+  expect(reasons.find(row => row.receivingTaskId === standard.id)?.reason).toBe(YardWaitingReasonCode.DOCKS_BUSY);
+  await runtime.command((transaction) => {
+    transaction.delete('warehouseOutbound', outboundId);
+  });
+  await refreshInboundDockSchedules(runtime);
+  expect(requireStoredTask(runtime, standard.id).unloadingPointId).toBe(dockId);
+});
+
+it('opens a new manual slot after the old reserved start exceeds the grace period', async () => {
+  const { clock, runtime, transport } = createModuleHarness();
+  const start = clock.now() + 5 * MINUTE_MS;
+  const worldTime = vi.spyOn(clock, 'now');
+  const task = await runtime.command((transaction) => {
+    transaction.put('warehouseTopologies', encodeWarehouseTopology(createDockTopology()));
+    const scheduled = saveScheduledArrival(transaction, runtime, start, true);
+    return requireStoredTask({ ...runtime, read: transaction }, scheduled.id);
+  });
+  const unloadingPointId = task.dockSchedule?.reservation?.unloadingPointId;
+  if (unloadingPointId === undefined) {
+    throw new Error('Missing original reservation');
+  }
+  const now = start + 10 * MINUTE_MS + 1;
+  worldTime.mockReturnValue(now);
+  const caller = callAs(SeedUserId.ADMIN_1, TENANT);
+  const client = createClient(WarehouseReceivingService, transport);
+  const request = { expectedVersion: task.version, idempotencyKey: nextUuid(), reason: 'Окно освобождено',
+    taskId: task.id, unloadingPointId, warehouseId: WAREHOUSE };
+  const assigned = await client.assignYardVisitToDock(request, caller);
+  expect(assigned.reservation).toEqual({
+    ...task.dockSchedule?.reservation, endsAt: timestampFromMs(now + 30 * MINUTE_MS), startsAt: timestampFromMs(now),
+  });
+  const { entries: [entry] } = await client.listYardDispatchEntries(request, caller);
+  expect(entry?.before?.reservation).toEqual(task.dockSchedule?.reservation);
+  expect(entry?.after?.reservation).toEqual(assigned.reservation);
+});
+
+it('clears the one-use promotion when admission is lost without restoring it when documents return', async () => {
+  const { runtime, transport } = createModuleHarness();
+  const { first } = await runtime.command(transaction => saveDispatchQueue(transaction, runtime, true));
+  const caller = callAs(SeedUserId.ADMIN_1, TENANT);
+  const client = createClient(WarehouseReceivingService, transport);
+  await client.promoteYardVisit({
+    expectedVersion: first.version, idempotencyKey: nextUuid(), reason: 'Продвинуть приёмку', taskId: first.id, warehouseId: WAREHOUSE,
+  }, caller);
+  await runtime.command((transaction) => {
+    for (const doc of transaction.listBy('documents', 'dealId', first.id)) {
+      if (doc.type === DocumentType.DISPATCH_TITLE) {
+        transaction.delete('documents', doc.id);
+      }
+    }
+    refreshInboundYardAdmission(transaction, runtime, first.id);
+  });
+  expect(requireStoredTask(runtime, first.id).yardAdmissionStatus).toBe(YardAdmissionStatus.WAITING_DOCUMENTS);
+  expect(runtime.read.get('warehouseInbound', first.id)?.manualPrioritySequence).toBeUndefined();
+  await runtime.command((transaction) => {
+    saveDispatchTitle(transaction, first);
+    refreshInboundYardAdmission(transaction, runtime, first.id);
+  });
+  expect(runtime.read.get('warehouseInbound', first.id)?.manualPrioritySequence).toBeUndefined();
+  expect((await client.listYardDispatchEntries({ warehouseId: WAREHOUSE }, caller)).entries).toHaveLength(1);
 });
 
 it('projects current waiting causes and eligible factors for the scoped warehouse without writing state', async () => {

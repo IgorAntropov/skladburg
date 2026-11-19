@@ -46,6 +46,10 @@ export interface SupportBotQueueRecordValue {
   id: string;
 }
 
+export interface WarehouseInboundRecordValue extends WarehouseStockRecordValue {
+  manualPrioritySequence?: number | undefined;
+}
+
 export interface WarehouseStockRecordValue {
   bytes: Uint8Array;
   id: string;
@@ -141,6 +145,25 @@ export const serializeWarehouseStockRecord = (record: WarehouseStockRecordValue)
   ...record,
   bytes: record.bytes.slice(),
 });
+
+export const parseWarehouseInboundRecord = (stored: StoredRecordValue): WarehouseInboundRecordValue => {
+  const { manualPrioritySequence } = readPlainObject(stored, 'warehouse inbound record');
+  const record = parseWarehouseStockRecord(stored);
+  if (manualPrioritySequence === undefined) {
+    return record;
+  }
+  if (typeof manualPrioritySequence !== 'number' || !Number.isSafeInteger(manualPrioritySequence) || manualPrioritySequence <= 0) {
+    throw new TypeError('Invalid warehouse inbound priority');
+  }
+  return { ...record, manualPrioritySequence };
+};
+
+export const serializeWarehouseInboundRecord = ({
+  manualPrioritySequence,
+  ...record
+}: WarehouseInboundRecordValue): StoredObjectValue => manualPrioritySequence === undefined
+  ? serializeWarehouseStockRecord(record)
+  : { ...serializeWarehouseStockRecord(record), manualPrioritySequence };
 
 export const parseWarehouseTopologyRecord = (stored: StoredRecordValue): WarehouseTopologyRecordValue => {
   if (stored instanceof Uint8Array || typeof stored.id !== 'string' || !(stored.topologyBytes instanceof Uint8Array)) {

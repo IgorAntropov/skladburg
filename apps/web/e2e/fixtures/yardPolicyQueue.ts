@@ -77,7 +77,7 @@ export const callYardWorker = async <TInput extends DescMessage, TOutput extends
   return fromBinary(method.output, await worker.call(`${method.parent.typeName}/${method.name}`, request));
 };
 
-const readQueueSeed = async (page: Page): Promise<YardPolicyQueueSeedValue> => {
+export const readQueueSeed = async (page: Page): Promise<YardPolicyQueueSeedValue> => {
   const seed = await createEngineWorkerRobot(page, DEAL_CUSTOMER);
   try {
     const { warehouseId } = YARD_POLICY_QUEUE;

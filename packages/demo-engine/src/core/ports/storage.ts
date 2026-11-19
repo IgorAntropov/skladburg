@@ -15,6 +15,7 @@ export const ENGINE_COLLECTION_NAMES = [
   'warehouses',
   'warehouseTopologies',
   'warehouseLayoutSessions',
+  'yardDispatchEntries',
   'yardQueuePolicies',
   'stockBalances',
   'stockBatches',
@@ -136,5 +137,6 @@ export const createEmptyCollections = (): Record<EngineCollectionName, EngineCol
   warehouseOutbound: new Map(),
   warehouses: new Map(),
   warehouseTopologies: new Map(),
+  yardDispatchEntries: new Map(),
   yardQueuePolicies: new Map(),
 });

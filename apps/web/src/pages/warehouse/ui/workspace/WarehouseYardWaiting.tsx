@@ -36,6 +36,7 @@ const FACTOR_TEXT = {
   [YardPriorityFactor.DELIVERY_WINDOW]: 'warehouseWork.yardFactorWindow',
   [YardPriorityFactor.EXPIRING_CARGO]: 'warehouseWork.yardFactorExpiry',
   [YardPriorityFactor.EXPLICIT_URGENCY]: 'warehouseWork.yardFactorExplicit',
+  [YardPriorityFactor.MANUAL_PROMOTION]: 'warehouseWork.yardFactorManual',
   [YardPriorityFactor.STARTED_RECEIPT]: 'warehouseWork.yardFactorStarted',
   [YardPriorityFactor.WAITING_TIME]: 'warehouseWork.yardFactorWaiting',
 } as const;

@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import {
   create,
+  fromBinary,
   toBinary,
 } from '@bufbuild/protobuf';
 import { timestampFromMs } from '@bufbuild/protobuf/wkt';
@@ -8,6 +9,9 @@ import {
   ReceivingTaskSchema,
   ReceivingTaskStatus,
   YardAdmissionStatus,
+  YardDispatchAction,
+  YardDispatchEntrySchema,
+  YardDispatchOutcome,
 } from '@skladburg/contracts/wms/v1/receiving';
 import { YardQueuePolicySchema } from '@skladburg/contracts/wms/v1/yard_queue_policy';
 import { IDBFactory } from 'fake-indexeddb';
@@ -42,7 +46,10 @@ import {
   SeedUserId,
   SeedWarehouseId,
 } from '../../core/seed/index';
-import { createEngineState } from '../../core/state/index';
+import {
+  createEngineState,
+  TABLE_DEFINITIONS,
+} from '../../core/state/index';
 import {
   createIndexedDbStorage,
   INDEXED_DB_VERSION,
@@ -493,7 +500,10 @@ describe('createIndexedDbStorage when another connection changes the version', (
 });
 
 describe('createIndexedDbStorage over a database of the previous version', () => {
-  it('migrates a schema 26 world without replacing the existing dock reservations', async () => {
+  it.each([
+    { databaseVersion: 21, schemaVersion: 26 },
+    { databaseVersion: 22, schemaVersion: 27 },
+  ])('migrates schema $schemaVersion without replacing the dock reservations and policy', async ({ databaseVersion, schemaVersion }) => {
     const factory = new IDBFactory();
     const seed = createSeedSnapshot();
     const warehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1;
@@ -515,36 +525,6 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     ]]);
     const session = { expiresAtMs: seed.meta.worldTimeMs + 300_000, id: 'receiving-1', layoutSessionId: 'lease-1', ownerKey: 'owner-1' };
     const warehouseLayoutSessions = new Map([[session.id, session]]);
-    const priorCollections = { ...seed.collections, warehouseInbound, warehouseLayoutSessions };
-    const request = factory.open(DATABASE_NAME, 21);
-    request.addEventListener('upgradeneeded', () => {
-      for (const [name, records] of Object.entries(priorCollections)) {
-        if (name !== 'yardQueuePolicies') {
-          const store = request.result.createObjectStore(name);
-          for (const [id, record] of records) {
-            store.put(record, id);
-          }
-        }
-      }
-      const meta = request.result.createObjectStore('meta');
-      meta.put(26, 'schemaVersion');
-      meta.put(seed.meta, 'engineMeta');
-    });
-    const oldDatabase = await wrap(request);
-    if (oldDatabase === undefined) {
-      throw new Error('Expected the schema 26 database');
-    }
-    oldDatabase.close();
-
-    const storage = await openStorage(factory);
-    await createEngine({ epoch: TEST_ENGINE_EPOCH, realTime: createFakeRealTime(), storage });
-    const loaded = await storage.load();
-    expect(loaded?.schemaVersion).toBe(27);
-    expect(loaded).toEqual({
-      collections: { ...priorCollections, yardQueuePolicies: new Map() },
-      meta: seed.meta,
-      schemaVersion: 27,
-    });
     const policy = create(YardQueuePolicySchema, {
       organizationId: SeedOrganizationId.CUSTOMER_1,
       version: 1n,
@@ -556,21 +536,94 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
         waitingTimeWeight: 10,
       },
     });
+    const policyRecords = new Map([[policy.organizationId, toBinary(YardQueuePolicySchema, policy)]]);
+    const priorCollections: EngineSnapshotValue['collections'] = {
+      ...seed.collections,
+      warehouseInbound,
+      warehouseLayoutSessions,
+      yardQueuePolicies: schemaVersion === 27 ? policyRecords : new Map(),
+    };
+    const request = factory.open(DATABASE_NAME, databaseVersion);
+    request.addEventListener('upgradeneeded', () => {
+      for (const [name, records] of Object.entries(priorCollections)) {
+        if (name === 'yardDispatchEntries' || (name === 'yardQueuePolicies' && schemaVersion === 26)) {
+          continue;
+        }
+        const store = request.result.createObjectStore(name);
+        for (const [id, record] of records) {
+          store.put(record, id);
+        }
+      }
+      const meta = request.result.createObjectStore('meta');
+      meta.put(schemaVersion, 'schemaVersion');
+      meta.put(seed.meta, 'engineMeta');
+    });
+    const oldDatabase = await wrap(request);
+    if (oldDatabase === undefined) {
+      throw new Error('Expected the saved database');
+    }
+    oldDatabase.close();
+
+    const storage = await openStorage(factory);
+    await createEngine({ epoch: TEST_ENGINE_EPOCH, realTime: createFakeRealTime(), storage });
+    const loaded = await storage.load();
+    expect(loaded?.schemaVersion).toBe(28);
+    expect(loaded).toEqual({
+      collections: { ...priorCollections, yardDispatchEntries: new Map() },
+      meta: seed.meta,
+      schemaVersion: 28,
+    });
+    const promoted = create(ReceivingTaskSchema, {
+      id: 'receiving-2', status: ReceivingTaskStatus.OPEN, version: 8, warehouseId, yardAdmissionStatus: YardAdmissionStatus.WAITING_DOCK,
+    });
+    const entry = create(YardDispatchEntrySchema, {
+      action: YardDispatchAction.PROMOTE,
+      actorUserId: SeedUserId.ADMIN_1,
+      after: { isManuallyPrioritized: true, taskVersion: 8, yardAdmissionStatus: YardAdmissionStatus.WAITING_DOCK },
+      before: { taskVersion: 7, yardAdmissionStatus: YardAdmissionStatus.WAITING_DOCK },
+      id: 'dispatch-entry-1',
+      occurredAt: timestampFromMs(seed.meta.worldTimeMs),
+      outcome: YardDispatchOutcome.WAITING,
+      reason: 'Подтверждённая срочная приёмка',
+      sequence: 1n,
+      taskId: promoted.id,
+      tenantId: policy.organizationId,
+      warehouseId,
+    });
+    const mark = TABLE_DEFINITIONS.warehouseInbound.encode({
+      bytes: toBinary(ReceivingTaskSchema, promoted),
+      id: promoted.id,
+      lookupKey: entry.tenantId,
+      manualPrioritySequence: 1,
+      scopeId: warehouseId,
+    });
+    const journal = TABLE_DEFINITIONS.yardDispatchEntries.encode({
+      bytes: toBinary(YardDispatchEntrySchema, entry), id: entry.id, lookupKey: entry.tenantId, scopeId: warehouseId,
+    });
     await storage.commit({
       deletes: {},
       meta: seed.meta,
-      puts: { yardQueuePolicies: new Map([[policy.organizationId, toBinary(YardQueuePolicySchema, policy)]]) },
+      puts: {
+        warehouseInbound: new Map([[promoted.id, mark]]),
+        yardDispatchEntries: new Map([[entry.id, journal]]),
+        yardQueuePolicies: schemaVersion === 26 ? policyRecords : new Map(),
+      },
     });
     storage.close();
 
     const reopened = await openStorage(factory);
     const restored = await reopened.load();
     if (restored === undefined) {
-      throw new Error('Expected the saved yard policy');
+      throw new Error('Expected the saved yard dispatch records');
     }
     const { read } = createEngineState(restored);
     expect(read.get('yardQueuePolicies', policy.organizationId)).toEqual(policy);
     expect(read.get('yardQueuePolicies', SeedOrganizationId.CUSTOMER_2)).toBeUndefined();
+    expect(read.get('warehouseInbound', promoted.id)).toEqual(mark);
+    expect(read.get('warehouseInbound', task.id)).toEqual(warehouseInbound.get(task.id));
+    const entries = read.listBy('yardDispatchEntries', 'scopeId', warehouseId).map(row => fromBinary(YardDispatchEntrySchema, row.bytes));
+    expect(entries).toEqual([entry]);
+    expect(read.listBy('yardDispatchEntries', 'scopeId', SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2)).toEqual([]);
   });
 
   it.each([
@@ -596,7 +649,7 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     const hasOutbound = databaseVersion >= 19;
     const request = factory.open(DATABASE_NAME, databaseVersion);
     request.addEventListener('upgradeneeded', () => {
-      const missingStores = ['warehouseInbound', 'yardQueuePolicies'];
+      const missingStores = ['warehouseInbound', 'yardDispatchEntries', 'yardQueuePolicies'];
       if (!hasOutbound) {
         missingStores.push('warehouseOutbound');
       }
@@ -666,6 +719,7 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     expect(loaded?.collections.warehouseTopologies).toEqual(new Map());
     expect(loaded?.collections.stockBalances.get('a')).toEqual(hasStock ? bytes : undefined);
     expect(loaded?.collections.warehouseInbound).toEqual(new Map());
+    expect(loaded?.collections.yardDispatchEntries).toEqual(new Map());
     expect(loaded?.collections.yardQueuePolicies).toEqual(new Map());
     expect(loaded?.collections.warehouseOutbound.get('a')).toEqual(hasOutbound ? outbound : undefined);
     expect(loaded?.collections.stockBatches).toEqual(new Map());

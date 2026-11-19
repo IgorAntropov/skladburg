@@ -52,6 +52,7 @@ enum ErrorCode {
   ERROR_CODE_WAREHOUSE_LAYOUT_BUSY = 14 [(error_traits) = {category: ERROR_CATEGORY_FAILED_PRECONDITION}];
   ERROR_CODE_WAREHOUSE_LAYOUT_SESSION_INVALID = 15 [(error_traits) = {category: ERROR_CATEGORY_FAILED_PRECONDITION}];
   ERROR_CODE_WAREHOUSE_RECEIVING_LAYOUT_BLOCKED = 16 [(error_traits) = {category: ERROR_CATEGORY_FAILED_PRECONDITION}];
+  ERROR_CODE_YARD_DISPATCH_BLOCKED = 17 [(error_traits) = {category: ERROR_CATEGORY_FAILED_PRECONDITION}];
 }
 
 message FieldViolation {
@@ -131,6 +132,10 @@ message WarehouseReceivingLayoutBlockedParams {
   optional string unloading_point_id = 2;
 }
 
+message YardDispatchBlockedParams {
+  string reason = 1;
+}
+
 message ErrorDetail {
   ErrorCode code = 1;
   string trace_id = 2;
@@ -145,5 +150,6 @@ message ErrorDetail {
     ImportRollbackBlockedParams import_rollback_blocked = 17;
     WarehouseLayoutBusyParams warehouse_layout_busy = 18;
     WarehouseReceivingLayoutBlockedParams warehouse_receiving_layout_blocked = 19;
+    YardDispatchBlockedParams yard_dispatch_blocked = 20;
   }
 }

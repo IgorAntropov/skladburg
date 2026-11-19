@@ -930,6 +930,8 @@ const WAREHOUSE_LAYOUT_DRAFTS_SHAPE_FINGERPRINT = [
   + '|{expiresAtMs:number,id:string,layoutSessionId:string,ownerKey:string}',
 ].sort();
 
+const YARD_QUEUE_POLICY_SHAPE_FINGERPRINT = [...WAREHOUSE_LAYOUT_DRAFTS_SHAPE_FINGERPRINT, 'collection.yardQueuePolicies:bytes'].sort();
+
 const SHAPE_FINGERPRINTS = {
   ...PRE_SETTLEMENT_SHAPE_FINGERPRINTS,
   24: PRE_SETTLEMENT_SHAPE_FINGERPRINTS[23] ?? [],
@@ -938,7 +940,13 @@ const SHAPE_FINGERPRINTS = {
     'collection.warehouseLayoutSessions:{expiresAtMs:number,id:string,layoutSessionId:string,ownerKey:string}',
   ].sort(),
   26: WAREHOUSE_LAYOUT_DRAFTS_SHAPE_FINGERPRINT,
-  27: [...WAREHOUSE_LAYOUT_DRAFTS_SHAPE_FINGERPRINT, 'collection.yardQueuePolicies:bytes'].sort(),
+  27: YARD_QUEUE_POLICY_SHAPE_FINGERPRINT,
+  28: [
+    ...YARD_QUEUE_POLICY_SHAPE_FINGERPRINT.filter(line => !line.startsWith('collection.warehouseInbound:')),
+    'collection.warehouseInbound:{bytes:bytes,id:string,lookupKey:string,manualPrioritySequence:number,scopeId:string}'
+    + '|{bytes:bytes,id:string,lookupKey:string,scopeId:string}',
+    'collection.yardDispatchEntries:{bytes:bytes,id:string,lookupKey:string,scopeId:string}',
+  ].sort(),
 } as Readonly<Record<number, readonly string[]>>;
 
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -1056,6 +1064,8 @@ const populatedTask: SchedulerTaskValue = {
     transaction.put('stockBatches', stockRecord);
     transaction.put('stockMovements', stockRecord);
     transaction.put('warehouseInbound', stockRecord);
+    transaction.put('warehouseInbound', { ...stockRecord, id: 'fingerprint-promoted', manualPrioritySequence: 1 });
+    transaction.put('yardDispatchEntries', stockRecord);
     transaction.put('warehouseLayoutSessions', {
       expiresAtMs: 120_000,
       id: 'fingerprint-zone',
@@ -1143,9 +1153,10 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 27 with a private yard queue policy collection', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(27);
+  it('is version 28 with a private yard dispatch journal', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(28);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
+    expect(createSeedSnapshot().collections.yardDispatchEntries.size).toBe(0);
     expect(createSeedSnapshot().collections.yardQueuePolicies.size).toBe(0);
   });
 });

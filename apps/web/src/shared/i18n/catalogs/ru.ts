@@ -55,6 +55,7 @@ export const catalog = {
   'error.warehouse_layout_busy': 'Планировку этой зоны уже редактируют',
   'error.warehouse_layout_session_invalid': 'Сессия редактирования недействительна. Откройте зону заново',
   'error.warehouse_receiving_layout_blocked': 'Планировку приёмки сейчас нельзя изменить',
+  'error.yard_dispatch_blocked': 'Двор пока не готов к этому действию',
   'field.optional': 'необязательно',
   'graphics.auto': 'Авто',
   'graphics.autoCurrent': 'Авто, сейчас {level}',

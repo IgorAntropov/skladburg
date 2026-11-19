@@ -2,8 +2,7 @@ import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 
 export type KnownErrorCode = Exclude<ErrorCode, ErrorCode.UNSPECIFIED>;
 
-const KNOWN_ERROR_CODES: ReadonlySet<number> = new Set(
-  Object.values(ErrorCode).filter((value): value is KnownErrorCode => typeof value === 'number' && value !== ErrorCode.UNSPECIFIED),
-);
+const UNSPECIFIED_ERROR_CODE: number = ErrorCode.UNSPECIFIED;
 
-export const isKnownErrorCode = (code: number): code is KnownErrorCode => KNOWN_ERROR_CODES.has(code);
+export const isKnownErrorCode = (code: number): code is KnownErrorCode =>
+  code !== UNSPECIFIED_ERROR_CODE && typeof ErrorCode[code] === 'string';

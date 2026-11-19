@@ -2,7 +2,10 @@ import type { WarehouseDockVisitValue } from '../model/warehouseSceneCargo';
 import type { WarehouseDockTruckValue } from './warehouseDockTruckMotion';
 import type { WarehouseForkliftPlaybackValue } from './warehouseForkliftPlayback';
 import type { WarehouseDockPointValue } from './warehouseLayout';
-import type { WarehouseYardMotionValue } from './warehouseYardMotion';
+import type {
+  WarehouseParkingPoseValue,
+  WarehouseYardMotionValue,
+} from './warehouseYardMotion';
 import type { WarehouseYardRoadsValue } from './warehouseYardRoads';
 
 import {
@@ -13,8 +16,10 @@ import {
   startWarehouseDockDeparture,
 } from './warehouseDockTruckMotion';
 import {
+  advanceWarehouseParkingArrival,
   advanceWarehouseYardMotion,
   createWarehouseYardMotion,
+  placeWarehouseParkingTruck,
   readWarehouseYardTruckOffset,
   syncWarehouseYardMotion,
 } from './warehouseYardMotion';
@@ -35,9 +40,11 @@ export interface WarehouseYardLaneValue {
 export interface WarehouseYardTrafficValue {
   forklifts: (undefined | WarehouseForkliftPlaybackValue)[];
   hasParkingChanged: boolean;
+  indexedVisits: readonly WarehouseDockVisitValue[] | undefined;
   lanes: (undefined | WarehouseYardLaneValue)[];
   queue: string[];
-  reservation: undefined | WarehouseYardLaneValue;
+  reservation: undefined | WarehouseParkingPoseValue | WarehouseYardLaneValue;
+  visitIds: Set<string>;
   visits: readonly WarehouseDockVisitValue[];
   yard: WarehouseYardMotionValue;
 }
@@ -45,9 +52,11 @@ export interface WarehouseYardTrafficValue {
 export const createWarehouseYardTraffic = (): WarehouseYardTrafficValue => ({
   forklifts: [],
   hasParkingChanged: false,
+  indexedVisits: undefined,
   lanes: [],
   queue: [],
   reservation: undefined,
+  visitIds: new Set(),
   visits: [],
   yard: createWarehouseYardMotion(),
 });
@@ -81,6 +90,25 @@ const readTaskLane = (traffic: WarehouseYardTrafficValue, taskId: string): undef
     const lane = traffic.lanes[index];
     index += 1;
     if (lane !== undefined && (lane.target === taskId || lane.truck.taskId === taskId)) {
+      return lane;
+    }
+  }
+  return undefined;
+};
+
+const readTruckLane = (traffic: WarehouseYardTrafficValue, taskId: string | undefined): undefined | WarehouseYardLaneValue => {
+  const { reservation } = traffic;
+  if (taskId === undefined) {
+    return undefined;
+  }
+  if (reservation !== undefined && 'truck' in reservation && reservation.truck.taskId === taskId) {
+    return reservation;
+  }
+  let index = 0;
+  while (index < traffic.lanes.length) {
+    const lane = traffic.lanes[index];
+    index += 1;
+    if (lane?.truck.taskId === taskId) {
       return lane;
     }
   }
@@ -130,22 +158,102 @@ const syncParking = (traffic: WarehouseYardTrafficValue, isReducedMotion: boolea
   syncWarehouseYardMotion(yard, queue, isReducedMotion);
 };
 
-const reserveDeparture = (traffic: WarehouseYardTrafficValue, isReducedMotion: boolean): void => {
+const indexExpandedVisits = (traffic: WarehouseYardTrafficValue): void => {
+  const { visitIds, visits } = traffic;
+  if (traffic.indexedVisits === visits) {
+    return;
+  }
+  traffic.indexedVisits = visits;
+  visitIds.clear();
+  for (const visit of visits) {
+    visitIds.add(visit.taskId);
+  }
+};
+
+const retainExpandedParking = (traffic: WarehouseYardTrafficValue): void => {
+  const { reservation, visitIds, yard } = traffic;
+  const { byTask, parked } = yard;
+  let written = 0;
+  let index = 0;
+  while (index < parked.length) {
+    const truck = parked[index];
+    index += 1;
+    if (truck === undefined) {
+      continue;
+    }
+    const { taskId } = truck;
+    if (reservation === truck || (readTruckLane(traffic, taskId) === undefined
+      && (visitIds.has(taskId) || readTaskLane(traffic, taskId) !== undefined))) {
+      parked[written] = truck;
+      written += 1;
+    }
+    else {
+      byTask.delete(taskId);
+      truck.taskId = '';
+      yard.hasChanged = true;
+    }
+  }
+  parked.length = written;
+};
+
+const admitExpandedParking = (
+  traffic: WarehouseYardTrafficValue,
+  roads: WarehouseYardRoadsValue,
+  shouldSettle: boolean,
+): void => {
+  const { visits, yard } = traffic;
+  const { parking } = roads;
+  if (yard.parked.length >= parking.length) {
+    return;
+  }
+
+  let slotIndex = 0;
+  let visitIndex = 0;
+  while (visitIndex < visits.length && slotIndex < parking.length) {
+    const truck = yard.pool[slotIndex];
+    const spot = parking[slotIndex];
+    if (truck === undefined || spot === undefined || truck.taskId !== '') {
+      slotIndex += 1;
+      continue;
+    }
+    const taskId = visits[visitIndex]?.taskId;
+    visitIndex += 1;
+    if (taskId === undefined || taskId === '' || yard.byTask.has(taskId) || readTaskLane(traffic, taskId) !== undefined) {
+      continue;
+    }
+
+    placeWarehouseParkingTruck(yard, roads, truck, spot, taskId, !shouldSettle);
+    if (!shouldSettle) {
+      traffic.reservation = truck;
+      return;
+    }
+    slotIndex += 1;
+  }
+};
+
+const reserveDeparture = (traffic: WarehouseYardTrafficValue, shouldSettle: boolean, isExpanded: boolean): void => {
   let index = 0;
   while (index < traffic.lanes.length) {
     const lane = traffic.lanes[index];
     index += 1;
-    if (lane === undefined || (lane.truck.taskId === lane.target && !isWarehouseDockTruckMoving(lane.truck))) {
+    if (lane === undefined || lane === traffic.reservation) {
       continue;
     }
     const { hasConfirmedDeparture, target, truck } = lane;
+    if (isExpanded && truck.taskId !== undefined && readTruckLane(traffic, truck.taskId) !== lane) {
+      settleWarehouseDockTruck(truck, undefined);
+      lane.hasChanged = true;
+      continue;
+    }
+    if (truck.taskId === target && !isWarehouseDockTruckMoving(truck)) {
+      continue;
+    }
+
     const isReplacement = !hasConfirmedDeparture && truck.taskId !== target && truck.phase !== 'away' && truck.phase !== 'departing';
-    if (isReducedMotion || isReplacement) {
-      const isWaiting = !isReducedMotion && readWarehouseYardTruckOffset(traffic.yard, target) !== undefined;
-      settleWarehouseDockTruck(truck, isWaiting ? undefined : target);
-      if (traffic.reservation === lane) {
-        traffic.reservation = undefined;
-      }
+    if (shouldSettle || isReplacement) {
+      const isWaiting = !shouldSettle && (isExpanded || readWarehouseYardTruckOffset(traffic.yard, target) !== undefined);
+      const owner = readTruckLane(traffic, target);
+      settleWarehouseDockTruck(truck, isWaiting || (owner !== undefined && owner !== lane) ? undefined : target);
       lane.hasChanged = true;
     }
     else if (hasConfirmedDeparture && truck.phase === 'docked' && traffic.reservation === undefined) {
@@ -159,15 +267,15 @@ const reserveDeparture = (traffic: WarehouseYardTrafficValue, isReducedMotion: b
 const reserveApproach = (
   traffic: WarehouseYardTrafficValue,
   roads: WarehouseYardRoadsValue,
+  isExpanded: boolean,
 ): undefined | WarehouseYardLaneValue => {
   let index = 0;
   while (index < traffic.yard.parked.length) {
     const slot = traffic.yard.parked[index];
-    const isRearSpot = index > 0;
     index += 1;
     const lane = slot === undefined ? undefined : readTaskLane(traffic, slot.taskId);
-    if (slot !== undefined && lane?.truck.phase === 'away') {
-      startWarehouseDockApproach(lane.truck, slot.taskId, 0, slot.offsetZ, lane.dock, isRearSpot);
+    if (slot !== undefined && lane?.truck.phase === 'away' && readTruckLane(traffic, slot.taskId) === undefined) {
+      startWarehouseDockApproach(lane.truck, slot.taskId, slot.offsetX, slot.offsetZ, lane.dock, isExpanded || slot.slotIndex > 0);
       return lane;
     }
   }
@@ -177,12 +285,48 @@ const reserveApproach = (
     const lane = traffic.lanes[index];
     index += 1;
     if (lane?.target !== undefined && lane.truck.phase === 'away'
-      && readWarehouseYardTruckOffset(traffic.yard, lane.target) === undefined) {
+      && !traffic.yard.byTask.has(lane.target) && readTruckLane(traffic, lane.target) === undefined) {
       startWarehouseDockApproach(lane.truck, lane.target, roads.entrance.x, roads.entrance.z, lane.dock, false);
       return lane;
     }
   }
   return undefined;
+};
+
+const advanceReservation = (
+  traffic: WarehouseYardTrafficValue,
+  roads: WarehouseYardRoadsValue,
+  delta: number,
+  isReducedMotion: boolean,
+  hasPendingLayout: boolean,
+): void => {
+  const { reservation, yard } = traffic;
+  if (reservation === undefined) {
+    return;
+  }
+  if ('truck' in reservation) {
+    if (isReducedMotion) {
+      traffic.reservation = undefined;
+      if (hasPendingLayout) {
+        const { truck } = reservation;
+        settleWarehouseDockTruck(truck, truck.phase === 'departing' ? undefined : truck.taskId);
+        reservation.hasChanged = true;
+      }
+    }
+    else {
+      advanceWarehouseDockTruck(reservation.truck, roads, reservation.dock, delta);
+      reservation.hasChanged = true;
+      if (!isWarehouseDockTruckMoving(reservation.truck)) {
+        traffic.reservation = undefined;
+      }
+    }
+  }
+  else {
+    advanceWarehouseParkingArrival(yard, roads, reservation, delta, isReducedMotion);
+    if (!yard.isMoving) {
+      traffic.reservation = undefined;
+    }
+  }
 };
 
 export const advanceWarehouseYardTraffic = (
@@ -208,38 +352,51 @@ export const advanceWarehouseYardTraffic = (
     }
   }
 
-  const { reservation } = traffic;
-  if (isReducedMotion) {
-    traffic.reservation = undefined;
-    if (hasPendingLayout && reservation !== undefined) {
-      settleWarehouseDockTruck(reservation.truck, undefined);
-      reservation.hasChanged = true;
-    }
-  }
-  else if (reservation !== undefined) {
-    advanceWarehouseDockTruck(reservation.truck, roads, reservation.dock, delta);
-    reservation.hasChanged = true;
-    if (!isWarehouseDockTruckMoving(reservation.truck)) {
-      traffic.reservation = undefined;
-    }
-  }
+  const isExpanded = roads.parking.length > WAREHOUSE_YARD_PARKING_LIMIT;
+  advanceReservation(traffic, roads, delta, isReducedMotion, hasPendingLayout);
   if (hasPendingLayout) {
-    return traffic.reservation !== undefined;
+    if (!isExpanded && traffic.reservation === undefined) {
+      if (isReducedMotion && yard.isMoving) {
+        syncWarehouseYardMotion(yard, traffic.queue, true);
+      }
+      else {
+        advanceWarehouseYardMotion(yard, delta);
+      }
+    }
+    traffic.hasParkingChanged = yard.hasChanged;
+    return traffic.reservation !== undefined || yard.isMoving;
   }
 
-  reserveDeparture(traffic, isReducedMotion);
-  syncParking(traffic, isReducedMotion);
-  if (!isReducedMotion && traffic.reservation === undefined) {
-    const approach = reserveApproach(traffic, roads);
-    if (approach !== undefined) {
-      traffic.reservation = approach;
-      approach.hasChanged = true;
-      syncParking(traffic, false);
+  const shouldSettle = isReducedMotion || (isExpanded && !yard.hasInitialized);
+  reserveDeparture(traffic, shouldSettle, isExpanded);
+  if (isExpanded) {
+    indexExpandedVisits(traffic);
+    retainExpandedParking(traffic);
+  }
+  else {
+    syncParking(traffic, isReducedMotion);
+  }
+
+  const approach = !shouldSettle && traffic.reservation === undefined ? reserveApproach(traffic, roads, isExpanded) : undefined;
+  if (approach !== undefined) {
+    traffic.reservation = approach;
+    approach.hasChanged = true;
+    if (isExpanded) {
+      retainExpandedParking(traffic);
     }
     else {
+      syncParking(traffic, false);
+    }
+  }
+  else if (traffic.reservation === undefined) {
+    if (isExpanded) {
+      admitExpandedParking(traffic, roads, shouldSettle);
+    }
+    else if (!isReducedMotion) {
       advanceWarehouseYardMotion(yard, delta);
     }
   }
+  yard.hasInitialized = true;
   traffic.hasParkingChanged = yard.hasChanged;
   return traffic.reservation !== undefined || yard.isMoving;
 };

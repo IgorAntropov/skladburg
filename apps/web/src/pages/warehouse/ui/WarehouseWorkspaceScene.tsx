@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useState,
 } from 'react';
 
 import { useCan } from '@/entities/session';
@@ -30,17 +31,21 @@ import {
 
 import type {
   WarehouseConstructionLayerProps,
+  WarehouseSceneDataValue,
   WarehouseSceneInteractionValue,
 } from '../model/warehouseSceneInteraction';
+import type { WarehouseSceneParkingValue } from '../model/warehouseSceneParking';
 
 import { warehouseSceneMessages } from '../i18n/warehouseSceneRu';
 import { projectWarehouseCargo } from '../model/projectWarehouseCargo';
+import { readWarehouseReceivingDocks } from '../model/warehouseReceivingDocks';
+import { readWarehouseSceneParking } from '../model/warehouseSceneParking';
 
 const loadWarehouseScene = createCachedModuleLoader(() => import('../scene/WarehouseWorldScene'));
 const loadWarehouseConstruction = createCachedModuleLoader(() => import('../scene/WarehouseConstruction'));
 
 interface WarehouseWorkspaceSceneProps extends Omit<
-  WarehouseSceneInteractionValue, 'cargo' | 'constructionLayer' | 'focusRequest' | 'onCellSelect'
+  WarehouseSceneInteractionValue, 'cargo' | 'constructionLayer' | 'focusRequest' | 'onCellSelect' | 'parkingCapacity'
 > {
   isLoading: boolean;
   label: string;
@@ -72,8 +77,10 @@ const WarehouseWorkspaceScene = ({
   const navigate = useNavigate();
   const { focusRequest } = useAddress();
   const canViewTrips = useCan(PermissionCode.TRIP_VIEW, { kind: 'organization' });
-  const areaId = topology?.receivingArea?.id;
-  const hasDock = topology?.receivingArea?.unloadingPoint?.position !== undefined;
+  const [lastParking, setLastParking] = useState<WarehouseSceneParkingValue>();
+  const receivingArea = topology?.receivingArea;
+  const areaId = receivingArea?.id;
+  const hasDock = receivingArea?.unloadingPoint?.position !== undefined;
   const canLoadTrips = canViewTrips && hasDock;
   const tripQuery = useTrips(canLoadTrips);
   const isAwaitingTrips = canLoadTrips && tripQuery.isPending;
@@ -84,10 +91,22 @@ const WarehouseWorkspaceScene = ({
       : projectWarehouseCargo(tasks ?? [], areaId, hasDock, { picking, trips, warehouseId }),
     [areaId, hasDock, isAwaitingTrips, picking, tasks, trips, warehouseId],
   );
+  const dockIds = useMemo(() => readWarehouseReceivingDocks(receivingArea).map(dock => dock.id), [receivingArea]);
+  const parking = useMemo(
+    () => readWarehouseSceneParking(lastParking, warehouseId, cargo?.dockVisits, dockIds, cargo?.dockTaskId),
+    [cargo, dockIds, lastParking, warehouseId],
+  );
+  const sceneData = useMemo((): undefined | WarehouseSceneDataValue => topology == null
+    ? undefined
+    : { parkingCapacity: parking.capacity, topology }, [parking.capacity, topology]);
 
   const handleCellSelect = useCallback((id: string): void => {
     navigate({ kind: 'object', object: { id, type: 'cell' } });
   }, [navigate]);
+
+  if (parking !== lastParking) {
+    setLastParking(parking);
+  }
 
   if (topology === null || topology === undefined) {
     return isLoading
@@ -104,12 +123,13 @@ const WarehouseWorkspaceScene = ({
         constructionLayer: WarehouseConstructionLayer,
         focusRequest,
         onCellSelect: handleCellSelect,
+        parkingCapacity: parking.capacity,
         scannedCell,
         selectedCellId,
       }}
       label={label}
       loadScene={loadWarehouseScene}
-      sceneData={topology}
+      sceneData={sceneData}
     />
   );
 };

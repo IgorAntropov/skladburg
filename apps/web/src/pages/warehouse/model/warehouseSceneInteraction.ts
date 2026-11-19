@@ -28,6 +28,11 @@ export interface WarehouseConstructionRackValue {
   zoneId: string;
 }
 
+export interface WarehouseSceneDataValue {
+  parkingCapacity: number;
+  topology: WarehouseTopology;
+}
+
 export interface WarehouseSceneInteractionValue {
   balances: readonly StockBalance[] | undefined;
   cargo: undefined | WarehouseCargoValue;
@@ -35,6 +40,7 @@ export interface WarehouseSceneInteractionValue {
   constructionLayer: ComponentType<WarehouseConstructionLayerProps>;
   focusRequest: number;
   onCellSelect: (id: string) => void;
+  parkingCapacity: number;
   scannedCell: undefined | WarehouseSceneScanValue;
   selectedCellId: string | undefined;
 }

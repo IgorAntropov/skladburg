@@ -11,12 +11,14 @@ import type {
   WarehouseCargoUnitValue,
   WarehouseCargoValue,
 } from '../model/warehouseSceneCargo';
+import type { WarehouseCargoVisualValue } from './warehouseCargoPositions';
 
 import { isWarehouseAisleSegmentOpen } from './warehouseAislePath';
 import {
   buildWarehouseCargoTransfers,
   buildWarehouseCargoVisuals,
   buildWarehouseDepartureCargo,
+  groupWarehouseCargoVisuals,
 } from './warehouseCargoPositions';
 import {
   advanceWarehouseForklift,
@@ -258,6 +260,18 @@ describe('warehouse forklift jobs', () => {
     expect(buildWarehouseDepartureCargo(layout, 'dispatch', prev, packed.shippedUnitIds))
       .toMatchObject([{ point: visual?.point, size: visual?.size }]);
     expect(buildWarehouseDepartureCargo(layout, 'wrong-dock', prev, packed.shippedUnitIds)).toEqual([]);
+  });
+
+  it('indexes truck pallets by visit separately from the ground layer', () => {
+    const visuals = Array.from({ length: 32 }, (_, index): WarehouseCargoVisualValue => ({
+      id: `pallet-${String(index)}`, point: [0, 0, 0], size: 0.48,
+      stockUnitIds: undefined, truckTaskId: index === 31 ? undefined : `visit-${String(index)}`,
+    }));
+    const { ground, trucks } = groupWarehouseCargoVisuals(visuals);
+
+    expect(ground).toEqual([visuals[31]]);
+    expect(trucks.get('visit-0')).toEqual([visuals[0]]);
+    expect(trucks.get('visit-30')).toEqual([visuals[30]]);
   });
 
   it('preserves the final unload if receipt and dock release arrive together', () => {

@@ -28,7 +28,190 @@ const buildLane = (x: number, taskId: string | undefined, target = taskId): Ware
   truck: createWarehouseDockTruck(taskId),
 });
 
+const expandedVisits = (count: number): typeof visits => Array.from({ length: count }, (_unused, index) => ({
+  taskId: `visit-${String(index + 1)}`,
+  tripId: undefined,
+}));
+
+const buildExpandedRoads = (count: number): NonNullable<ReturnType<typeof buildWarehouseYardRoads>> => {
+  const plan = buildWarehouseYardRoads([{ x: 0, z: 0 }, { x: 6.2, z: 0 }], count);
+  if (plan === undefined) {
+    throw new Error('Expected yard roads');
+  }
+  return plan;
+};
+
+const readParked = (traffic: ReturnType<typeof createWarehouseYardTraffic>): { offsetX: number; offsetZ: number; taskId: string }[] =>
+  traffic.yard.parked.map(({ offsetX, offsetZ, taskId }) => ({ offsetX, offsetZ, taskId }));
+
 describe('warehouse yard traffic', () => {
+  it.each([20, 25, 30])('preserves distinct places for %i simultaneous visits through repeated and reordered snapshots', (count) => {
+    const traffic = createWarehouseYardTraffic();
+    traffic.lanes = [buildLane(0, 'dock-first'), buildLane(6.2, 'dock-second')];
+    const snapshot = expandedVisits(count - 2);
+    const plan = buildExpandedRoads(count - 2);
+    traffic.visits = [...snapshot, ...snapshot];
+
+    expect(advanceWarehouseYardTraffic(traffic, plan, 0, false)).toBe(false);
+    const initial = readParked(traffic);
+    expect(initial).toHaveLength(count - 2);
+    expect(new Set(initial.map(({ offsetX, offsetZ }) => `${String(offsetX)}:${String(offsetZ)}`)).size).toBe(count - 2);
+
+    traffic.visits = snapshot.toReversed();
+    expect(advanceWarehouseYardTraffic(traffic, plan, 0, false)).toBe(false);
+    expect(readParked(traffic)).toEqual(initial);
+    expect(traffic.hasParkingChanged).toBe(false);
+  });
+
+  it('keeps the next arrival outside until a place is free and brings it to that exact place', () => {
+    const traffic = createWarehouseYardTraffic();
+    traffic.lanes = [buildLane(0, 'dock')];
+    const snapshot = expandedVisits(31);
+    const plan = buildExpandedRoads(30);
+    traffic.visits = snapshot;
+    expect(advanceWarehouseYardTraffic(traffic, plan, 0, false)).toBe(false);
+    expect(traffic.yard.parked).toHaveLength(30);
+    const freed = traffic.yard.parked[5];
+    expect(freed?.taskId).toBe('visit-6');
+    const original = readParked(traffic).filter(({ taskId }) => taskId !== 'visit-6');
+    const freedPose = { offsetX: freed?.offsetX, offsetZ: freed?.offsetZ };
+    expect(traffic.yard.parked.some(({ taskId }) => taskId === 'visit-31')).toBe(false);
+
+    traffic.visits = snapshot.filter(({ taskId }) => taskId !== 'visit-6');
+    expect(advanceWarehouseYardTraffic(traffic, plan, 0, false)).toBe(true);
+    expect(traffic.reservation).toMatchObject({ taskId: 'visit-31' });
+    expect(traffic.yard.parked.find(({ taskId }) => taskId === 'visit-31')).toMatchObject({
+      offsetX: plan.entrance.x,
+      offsetZ: plan.entrance.z,
+    });
+    for (let frame = 0; frame < 240 && traffic.reservation !== undefined; frame += 1) {
+      advanceWarehouseYardTraffic(traffic, plan, 0.05, false);
+    }
+    expect(traffic.reservation).toBeUndefined();
+    expect(traffic.yard.parked.find(({ taskId }) => taskId === 'visit-31')).toMatchObject(freedPose);
+    expect(readParked(traffic).filter(({ taskId }) => taskId !== 'visit-31')).toEqual(original);
+  });
+
+  it('keeps the compact places when the fourth truck gets the expanded entry reservation', () => {
+    const traffic = createWarehouseYardTraffic();
+    const docked = buildLane(0, 'dock');
+    const nextLane = buildLane(6.2, undefined);
+    traffic.lanes = [docked, nextLane];
+    traffic.visits = visits;
+    advanceWarehouseYardTraffic(traffic, roads, 0, false);
+    const initial = readParked(traffic);
+    const plan = buildExpandedRoads(4);
+    const newVisit = { taskId: 'fourth', tripId: undefined };
+    traffic.visits = [...visits, newVisit, newVisit];
+
+    expect(advanceWarehouseYardTraffic(traffic, plan, 0, false)).toBe(true);
+    expect(readParked(traffic).slice(0, 3)).toEqual(initial);
+    expect(traffic.reservation).toMatchObject({ taskId: 'fourth' });
+    nextLane.target = 'fourth';
+    traffic.visits = visits;
+    expect(advanceWarehouseYardTraffic(traffic, plan, 0.05, false)).toBe(true);
+    expect(traffic.reservation).toMatchObject({ taskId: 'fourth' });
+    expect(nextLane.truck.phase).toBe('away');
+
+    let isMoving = true;
+    let didPromote = false;
+    for (let frame = 0; frame < 240 && isMoving; frame += 1) {
+      isMoving = advanceWarehouseYardTraffic(traffic, plan, 0.05, false);
+      if (nextLane.truck.taskId === 'fourth') {
+        didPromote = true;
+        expect(traffic.yard.parked.some(({ taskId }) => taskId === 'fourth')).toBe(false);
+      }
+      expect(readParked(traffic).slice(0, 3)).toEqual(initial);
+    }
+    expect(didPromote).toBe(true);
+    expect(nextLane.truck).toMatchObject({ phase: 'docked', taskId: 'fourth' });
+    expect(isMoving).toBe(false);
+  });
+
+  it('keeps one visible truck if repeated snapshots assign the same visit to two lanes', () => {
+    const traffic = createWarehouseYardTraffic();
+    const first = buildLane(0, 'duplicate');
+    const second = buildLane(6.2, 'duplicate');
+    traffic.lanes = [first, second];
+    traffic.visits = [{ taskId: 'duplicate', tripId: undefined }, ...visits];
+    const plan = buildExpandedRoads(6);
+
+    expect(advanceWarehouseYardTraffic(traffic, plan, 0, false)).toBe(false);
+    expect(first.truck).toMatchObject({ phase: 'docked', taskId: 'duplicate' });
+    expect(second.truck).toMatchObject({ phase: 'away', taskId: undefined });
+    expect(traffic.yard.parked.some(({ taskId }) => taskId === 'duplicate')).toBe(false);
+    expect(advanceWarehouseYardTraffic(traffic, plan, 0, false)).toBe(false);
+  });
+
+  it('finishes the active entrance before changing the roads or departing from the dock', () => {
+    const traffic = createWarehouseYardTraffic();
+    const docked = buildLane(0, 'dock');
+    const nextLane = buildLane(6.2, undefined);
+    traffic.lanes = [docked, nextLane];
+    const plan = buildExpandedRoads(12);
+    traffic.visits = expandedVisits(10);
+    advanceWarehouseYardTraffic(traffic, plan, 0, false);
+    const oldParking = readParked(traffic);
+    traffic.visits = expandedVisits(11);
+    advanceWarehouseYardTraffic(traffic, plan, 0, false);
+    const arrival = traffic.reservation;
+    expect(arrival).toMatchObject({ taskId: 'visit-11' });
+
+    docked.hasConfirmedDeparture = true;
+    docked.target = undefined;
+    nextLane.target = 'visit-11';
+    traffic.visits = expandedVisits(10);
+    let isMoving = true;
+    for (let frame = 0; frame < 120 && isMoving; frame += 1) {
+      isMoving = advanceWarehouseYardTraffic(traffic, plan, 0.05, false, true);
+      expect(traffic.reservation === arrival || traffic.reservation === undefined).toBe(true);
+      expect(docked.truck.phase).toBe('docked');
+      expect(nextLane.truck.phase).toBe('away');
+      expect(readParked(traffic).slice(0, 10)).toEqual(oldParking);
+    }
+    expect(isMoving).toBe(false);
+
+    const nextPlan = buildExpandedRoads(24);
+    expect(advanceWarehouseYardTraffic(traffic, nextPlan, 0, false)).toBe(true);
+    expect(traffic.reservation).toBe(docked);
+    expect(nextLane.truck.phase).toBe('away');
+    const assignedPosition = readParked(traffic).find(({ taskId }) => taskId === 'visit-11');
+    for (let frame = 0; frame < 120 && traffic.reservation === docked; frame += 1) {
+      advanceWarehouseYardTraffic(traffic, nextPlan, 0.05, false);
+      if (traffic.reservation === docked) {
+        expect(readParked(traffic).find(({ taskId }) => taskId === 'visit-11')).toEqual(assignedPosition);
+      }
+    }
+    expect(traffic.reservation).toBe(nextLane);
+    expect(nextLane.truck.start).toEqual({ x: assignedPosition?.offsetX, z: assignedPosition?.offsetZ });
+    expect(readParked(traffic)).toEqual(oldParking);
+  });
+
+  it('settles assigned, entering and waiting visits without duplicate trucks in reduced motion', () => {
+    const traffic = createWarehouseYardTraffic();
+    const lane = buildLane(0, undefined, 'initial-dock');
+    traffic.lanes = [lane];
+    const plan = buildExpandedRoads(8);
+    traffic.visits = expandedVisits(4);
+    expect(advanceWarehouseYardTraffic(traffic, plan, 0, false)).toBe(false);
+    expect(lane.truck).toMatchObject({ phase: 'docked', taskId: 'initial-dock' });
+    const parked = readParked(traffic);
+
+    traffic.visits = expandedVisits(7);
+    advanceWarehouseYardTraffic(traffic, plan, 0, false);
+    expect(traffic.reservation).toMatchObject({ taskId: 'visit-5' });
+    lane.target = 'visit-5';
+    lane.hasConfirmedDeparture = true;
+
+    expect(advanceWarehouseYardTraffic(traffic, plan, 0.05, true)).toBe(false);
+    expect(traffic.reservation).toBeUndefined();
+    expect(lane.truck).toMatchObject({ phase: 'docked', taskId: 'visit-5' });
+    expect(readParked(traffic).slice(0, 4)).toEqual(parked);
+    expect(traffic.yard.parked.map(({ taskId }) => taskId)).toEqual([
+      'visit-1', 'visit-2', 'visit-3', 'visit-4', 'visit-6', 'visit-7',
+    ]);
+  });
+
   it('reserves the route from the rear parking place to D06 and runs the other assignment after it', () => {
     const docks = [0, -5, 5, 11, 20, 34];
     const wideRoads = buildWarehouseYardRoads(docks.map(x => ({ x, z: 0 })));

@@ -1,5 +1,4 @@
 import type { ThreeEvent } from '@react-three/fiber';
-import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
 import type { ReactElement } from 'react';
 
 import {
@@ -24,7 +23,10 @@ import {
   useSceneCameraRig,
 } from '@/shared/3d';
 
-import type { WarehouseSceneInteractionValue } from '../model/warehouseSceneInteraction';
+import type {
+  WarehouseSceneDataValue,
+  WarehouseSceneInteractionValue,
+} from '../model/warehouseSceneInteraction';
 import type {
   WarehouseBoxValue,
   WarehouseCellVisualValue,
@@ -46,12 +48,13 @@ import {
 
 const TAP_SLOP_PX = 5;
 
-export const prepare = (topology: WarehouseTopology): Promise<void> => {
-  getWarehouseLayout(topology);
+export const prepare = ({ parkingCapacity, topology }: WarehouseSceneDataValue): Promise<void> => {
+  getWarehouseLayout(topology, parkingCapacity);
   return Promise.resolve();
 };
 
-export const resolveWorld = (topology: WarehouseTopology): SceneWorldValue => getWarehouseLayout(topology).world;
+export const resolveWorld = ({ parkingCapacity, topology }: WarehouseSceneDataValue): SceneWorldValue =>
+  getWarehouseLayout(topology, parkingCapacity).world;
 
 const buildSelectionBoxes = (selection: undefined | WarehouseCellVisualValue): WarehouseBoxValue[] => {
   if (selection === undefined) {
@@ -70,13 +73,13 @@ const buildSelectionBoxes = (selection: undefined | WarehouseCellVisualValue): W
 
 const WarehouseWorldScene = ({
   data, interaction, level,
-}: SceneContentProps<WarehouseTopology, WarehouseSceneInteractionValue>): ReactElement => {
+}: SceneContentProps<WarehouseSceneDataValue, WarehouseSceneInteractionValue>): ReactElement => {
   const rig = useSceneCameraRig();
   const invalidate = useThree(state => state.invalidate);
   const motion = useRef<MediaQueryList | undefined>(undefined);
-  const isDepartureActive = useRef(false);
-  const desiredLayout = getWarehouseLayout(data);
-  const [departureLayout, setDepartureLayout] = useState<WarehouseLayoutValue>();
+  const isYardActive = useRef(false);
+  const desiredLayout = getWarehouseLayout(data.topology, data.parkingCapacity);
+  const [motionLayout, setMotionLayout] = useState<WarehouseLayoutValue>();
   const traffic = useMemo(() => createWarehouseYardTraffic(), []);
   const geometry = useMemo(() => new BoxGeometry(1, 1, 1), []);
   const kit = useMemo(() => createWarehouseGeometryKit(), []);
@@ -86,8 +89,8 @@ const WarehouseWorldScene = ({
   const {
     balances, cargo, construction, constructionLayer: ConstructionLayer, focusRequest, onCellSelect, scannedCell, selectedCellId,
   } = interaction;
-  const layout = departureLayout ?? desiredLayout;
-  const hasPendingLayout = layout !== desiredLayout;
+  const layout = motionLayout ?? desiredLayout;
+  const hasPendingLayout = layout !== desiredLayout || data.parkingCapacity !== interaction.parkingCapacity;
   const docks = layout.receiving?.docks;
   const lanes = useMemo(() => splitWarehouseDockCargo(cargo, balances, docks?.map(dock => dock.id) ?? []), [balances, cargo, docks]);
   const hasAssignedDocks = (docks?.length ?? 0) > 1;
@@ -103,8 +106,8 @@ const WarehouseWorldScene = ({
     }
   };
 
-  const handleDepartureChange = (): void => {
-    setDepartureLayout(isDepartureActive.current ? layout : undefined);
+  const handleYardActivityChange = (): void => {
+    setMotionLayout(isYardActive.current ? layout : undefined);
   };
 
   useEffect(() => (): void => {
@@ -142,10 +145,10 @@ const WarehouseWorldScene = ({
     if (advanceWarehouseYardTraffic(traffic, layout.yard, delta, motion.current?.matches === true, hasPendingLayout)) {
       invalidate();
     }
-    const isDeparting = traffic.reservation?.truck.phase === 'departing';
-    if (isDeparting !== isDepartureActive.current) {
-      isDepartureActive.current = isDeparting;
-      queueMicrotask(handleDepartureChange);
+    const isMoving = traffic.reservation !== undefined || traffic.yard.isMoving;
+    if (isMoving !== isYardActive.current) {
+      isYardActive.current = isMoving;
+      queueMicrotask(handleYardActivityChange);
     }
   }, -1);
 
@@ -154,7 +157,7 @@ const WarehouseWorldScene = ({
       <WarehouseFloor batches={layout.floor} geometry={geometry} hasShadows={hasShadows} />
       <WarehouseRacks box={geometry} kit={kit} layout={layout.racks} level={level} />
       {construction !== undefined && (
-        <ConstructionLayer construction={construction} geometry={geometry} instances={WarehouseInstances} topology={data} />
+        <ConstructionLayer construction={construction} geometry={geometry} instances={WarehouseInstances} topology={data.topology} />
       )}
       {layout.cells.length > 0 && (
         <WarehouseInstances boxes={layout.cells} geometry={geometry} materialKey="buildingWall" onClick={handleCellClick} />

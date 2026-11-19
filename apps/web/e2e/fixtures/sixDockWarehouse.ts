@@ -9,10 +9,13 @@ import {
   create,
   toBinary,
 } from '@bufbuild/protobuf';
+import { timestampFromMs } from '@bufbuild/protobuf/wkt';
 import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
 import {
+  DealDeadlinesSchema,
   DealSchema,
   DealStatus,
+  DealTransitionSchema,
 } from '@skladburg/contracts/deal/v1/deal';
 import {
   DocumentSchema,
@@ -29,7 +32,12 @@ import {
   WarehouseSchema,
 } from '@skladburg/contracts/organization/v1/organization';
 import {
+  SafeDealPaymentRecordSchema,
+  SafeDealPaymentStatus,
+} from '@skladburg/contracts/payment/v1/payment';
+import {
   ReceivingTaskSchema,
+  ReceivingTaskStatus,
   YardAdmissionStatus,
 } from '@skladburg/contracts/wms/v1/receiving';
 import {
@@ -42,6 +50,26 @@ const DATABASE_NAME = 'skladburg-demo-engine';
 const CARRIER_ORGANIZATION_ID = '10000004-0000-4000-8000-000000000000';
 const DOCK_SPACING_MM = 6_400;
 const DOCK_LEFT_MM = 1_000;
+const SCALED_ARRIVAL_START_MS = Date.UTC(2026, 9, 6, 8);
+const NEXT_ARRIVAL_AT_MS = Date.UTC(2026, 9, 12, 10);
+
+export interface ScaledDockAssignmentValue {
+  dockId: string;
+  dockNumber: number;
+  parkingIndex: number;
+  releaseTaskId: string;
+  taskId: string;
+}
+
+export interface ScaledDockFixtureValue {
+  assignments: readonly ScaledDockAssignmentValue[];
+  dockIds: readonly string[];
+  neighborId: string | undefined;
+  nextArrivalId: string | undefined;
+  waitingIds: readonly string[];
+}
+
+export type ScaledDockScenarioValue = 20 | 25 | 30 | 'capacity';
 
 export interface SixDockFixtureValue {
   dockIds: readonly string[];
@@ -61,7 +89,7 @@ interface SixDockDeliveryValue {
 interface StoredSeedPutValue {
   bytes: number[];
   id: string;
-  table: 'deals' | 'documents' | 'trips' | 'warehouseInbound' | 'warehouses' | 'warehouseTopologies';
+  table: 'deals' | 'documents' | 'payments' | 'trips' | 'warehouseInbound' | 'warehouses' | 'warehouseTopologies';
 }
 
 const fixtureId = (number: number): string => `ff910000-0000-4000-8000-${String(number).padStart(12, '0')}`;
@@ -150,9 +178,15 @@ const fixtureDeliveryPuts = ({ deal, task }: SixDockDeliveryValue): StoredSeedPu
   ];
 };
 
-const fixtureTripPut = (number: number, deal: Deal, cargoKind: VehicleCargoKind, isWaitingForTitle = false): StoredSeedPutValue => {
+const fixtureTripPut = (
+  number: number,
+  deal: Deal,
+  cargoKind: VehicleCargoKind,
+  isWaitingForTitle = false,
+  arrivalAt = reachedAt(deal),
+): StoredSeedPutValue => {
   const id = fixtureId(number);
-  const arrivedAt = reachedAt(deal);
+  const arrivedAt = arrivalAt;
   const trip = create(TripRecordSchema, {
     arrivedAt,
     assignment: { arrivalAt: arrivedAt, driverId: fixtureId(number + 200), registrationNumber: 'ДЕМО', vehicleId: fixtureId(number + 300) },
@@ -174,20 +208,13 @@ const fixtureTripPut = (number: number, deal: Deal, cargoKind: VehicleCargoKind,
   return { bytes: Array.from(toBinary(TripRecordSchema, trip)), id, table: 'trips' };
 };
 
-export const storeSixDockWarehouse = async (
-  page: Page,
-  topology: WarehouseTopology,
-  warehouse: Warehouse,
-  deliveries: readonly SixDockDeliveryValue[],
-): Promise<SixDockFixtureValue> => {
-  const [neighbor, far, rear] = deliveries;
+const createWideDockTopology = (topology: WarehouseTopology): WarehouseTopology => {
   const area = topology.receivingArea;
   const d01 = area?.unloadingPoint;
   const d02 = area?.additionalUnloadingPoints[0];
-  if (neighbor === undefined || far === undefined || rear === undefined || area === undefined || d01 === undefined || d02 === undefined) {
-    throw new Error('The six-dock scenario needs the three seeded Kazan arrivals and both original docks');
+  if (area === undefined || d01 === undefined || d02 === undefined) {
+    throw new Error('Kazan must have both original docks');
   }
-
   const positions = [undefined, undefined, undefined, WarehouseCapability.OVERSIZE, undefined, WarehouseCapability.COLD];
   const docks = positions.map((capability, index) => create(WarehouseUnloadingPointSchema, {
     capabilities: capability === undefined ? [WarehouseCapability.RAMP] : [WarehouseCapability.RAMP, capability],
@@ -195,9 +222,51 @@ export const storeSixDockWarehouse = async (
     id: index === 0 ? d01.id : index === 1 ? d02.id : fixtureId(index + 1),
     position: { xMm: DOCK_LEFT_MM + index * DOCK_SPACING_MM, zMm: 0 },
   }));
-  const [primary, , , d04, d05, d06] = docks;
-  if (primary === undefined || d04 === undefined || d05 === undefined || d06 === undefined) {
-    throw new Error('Missing a dock required by the six-dock scenario');
+  return create(WarehouseTopologySchema, {
+    ...topology,
+    receivingArea: {
+      ...area,
+      additionalUnloadingPoints: docks.slice(1),
+      footprint: create(WarehouseFloorRectSchema, { depthMm: 3_000, origin: { xMm: DOCK_LEFT_MM, zMm: 2_100 }, widthMm: 34_000 }),
+      unloadingPoint: docks[0],
+    },
+    revision: topology.revision + 1,
+  });
+};
+
+const commitFixture = async (
+  page: Page,
+  warehouse: Warehouse,
+  topology: WarehouseTopology,
+  tasks: readonly ReceivingTask[],
+  puts: readonly StoredSeedPutValue[],
+): Promise<void> => {
+  const wideWarehouse = create(WarehouseSchema, {
+    ...warehouse, capabilities: [WarehouseCapability.RAMP, WarehouseCapability.COLD, WarehouseCapability.OVERSIZE],
+  });
+  await writeFixture(page, [
+    { bytes: Array.from(toBinary(WarehouseTopologySchema, topology)), id: warehouse.id, table: 'warehouseTopologies' },
+    { bytes: Array.from(toBinary(WarehouseSchema, wideWarehouse)), id: warehouse.id, table: 'warehouses' },
+    ...puts,
+    ...tasks.map((task): StoredSeedPutValue => ({
+      bytes: Array.from(toBinary(ReceivingTaskSchema, task)), id: task.id, table: 'warehouseInbound',
+    })),
+  ], warehouse.tenantId, warehouse.id);
+};
+
+export const storeSixDockWarehouse = async (
+  page: Page,
+  topology: WarehouseTopology,
+  warehouse: Warehouse,
+  deliveries: readonly SixDockDeliveryValue[],
+): Promise<SixDockFixtureValue> => {
+  const [neighbor, far, rear] = deliveries;
+  const wideTopology = createWideDockTopology(topology);
+  const area = wideTopology.receivingArea;
+  const [d04, d05, d06] = area?.additionalUnloadingPoints.slice(2) ?? [];
+  if (neighbor === undefined || far === undefined || rear === undefined || area?.unloadingPoint === undefined
+    || d04 === undefined || d05 === undefined || d06 === undefined) {
+    throw new Error('The six-dock scenario needs the three seeded Kazan arrivals');
   }
 
   const front = createFixtureDelivery(neighbor, 10, YardAdmissionStatus.WAITING_DOCUMENTS, undefined, DeliveryMethod.EXCHANGE);
@@ -211,39 +280,121 @@ export const storeSixDockWarehouse = async (
     middle.task,
     releaseMiddle.task,
   ];
-  const wideTopology = create(WarehouseTopologySchema, {
-    ...topology,
-    receivingArea: {
-      ...area,
-      additionalUnloadingPoints: docks.slice(1),
-      footprint: create(WarehouseFloorRectSchema, { depthMm: 3_000, origin: { xMm: DOCK_LEFT_MM, zMm: 2_100 }, widthMm: 34_000 }),
-      unloadingPoint: primary,
-    },
-    revision: topology.revision + 1,
-  });
-  const wideWarehouse = create(WarehouseSchema, {
-    ...warehouse, capabilities: [WarehouseCapability.RAMP, WarehouseCapability.COLD, WarehouseCapability.OVERSIZE],
-  });
-  const puts: StoredSeedPutValue[] = [
-    { bytes: Array.from(toBinary(WarehouseTopologySchema, wideTopology)), id: warehouse.id, table: 'warehouseTopologies' },
-    { bytes: Array.from(toBinary(WarehouseSchema, wideWarehouse)), id: warehouse.id, table: 'warehouses' },
+  await commitFixture(page, warehouse, wideTopology, tasks, [
     ...[front, middle, releaseMiddle].flatMap(fixtureDeliveryPuts),
     fixtureTripPut(20, front.deal, VehicleCargoKind.GENERAL, true),
     fixtureTripPut(21, middle.deal, VehicleCargoKind.OVERSIZE),
     fixtureTripPut(22, rear.deal, VehicleCargoKind.TEMPERATURE_CONTROLLED),
-    ...tasks.map((task): StoredSeedPutValue => ({
-      bytes: Array.from(toBinary(ReceivingTaskSchema, task)), id: task.id, table: 'warehouseInbound',
-    })),
-  ];
-  await writeFixture(page, puts, warehouse.tenantId, warehouse.id);
+  ]);
 
   return {
-    dockIds: docks.map(dock => dock.id),
+    dockIds: [area.unloadingPoint, ...area.additionalUnloadingPoints].map(dock => dock.id),
     frontId: front.task.id,
     middleId: middle.task.id,
     neighborId: neighbor.task.id,
     rearId: rear.task.id,
     releaseFarId: far.task.id,
     releaseMiddleId: releaseMiddle.task.id,
+  };
+};
+
+const giveArrivalTime = (delivery: SixDockDeliveryValue, arrivedAtMs: number): SixDockDeliveryValue => ({
+  ...delivery,
+  deal: create(DealSchema, {
+    ...delivery.deal,
+    transitions: delivery.deal.transitions.map(transition => transition.to === DealStatus.ARRIVED
+      ? create(DealTransitionSchema, { ...transition, at: timestampFromMs(arrivedAtMs) })
+      : transition),
+  }),
+});
+
+const createNextArrival = (source: SixDockDeliveryValue): SixDockDeliveryValue => {
+  const delivery = createFixtureDelivery(source, 1_499, YardAdmissionStatus.UNSPECIFIED, undefined);
+  return {
+    deal: create(DealSchema, {
+      ...delivery.deal,
+      deadlines: create(DealDeadlinesSchema, { arrivalDueAt: timestampFromMs(NEXT_ARRIVAL_AT_MS) }),
+      status: DealStatus.IN_TRANSIT,
+      transitions: delivery.deal.transitions.filter(transition => transition.to !== DealStatus.ARRIVED),
+    }),
+    task: create(ReceivingTaskSchema, { ...delivery.task, status: ReceivingTaskStatus.UNSPECIFIED, version: 0 }),
+  };
+};
+
+const fixturePaymentPut = ({ id }: Deal): StoredSeedPutValue => {
+  const payment = create(SafeDealPaymentRecordSchema, { id, payment: { dealId: id, status: SafeDealPaymentStatus.HELD, version: 1 } });
+  return { bytes: Array.from(toBinary(SafeDealPaymentRecordSchema, payment)), id, table: 'payments' };
+};
+
+export const storeScaledDockWarehouse = async (
+  page: Page,
+  topology: WarehouseTopology,
+  warehouse: Warehouse,
+  deliveries: readonly SixDockDeliveryValue[],
+  scenario: ScaledDockScenarioValue,
+): Promise<ScaledDockFixtureValue> => {
+  const [neighbor, far, source] = deliveries;
+  const wideTopology = createWideDockTopology(topology);
+  const area = wideTopology.receivingArea;
+  const [d04, d05, d06] = area?.additionalUnloadingPoints.slice(2) ?? [];
+  if (neighbor === undefined || far === undefined || source === undefined || area?.unloadingPoint === undefined
+    || d04 === undefined || d05 === undefined || d06 === undefined) {
+    throw new Error('The scaled yard requires the three Kazan warehouse receipts');
+  }
+  const placements = scenario === 'capacity'
+    ? []
+    : scenario === 30
+      ? [{ cargo: VehicleCargoKind.OVERSIZE, dock: d04, parkingIndex: 5 },
+          { cargo: VehicleCargoKind.TEMPERATURE_CONTROLLED, dock: d06, parkingIndex: 26 }]
+      : [{ cargo: VehicleCargoKind.TEMPERATURE_CONTROLLED, dock: d06, parkingIndex: scenario === 20 ? 0 : 21 }];
+  const docked = scenario === 'capacity'
+    ? []
+    : [
+        create(ReceivingTaskSchema, { ...neighbor.task, unloadingPointId: d05.id, yardAdmissionStatus: YardAdmissionStatus.ADMITTED }),
+        create(ReceivingTaskSchema, { ...far.task, unloadingPointId: d06.id, yardAdmissionStatus: YardAdmissionStatus.ADMITTED }),
+        ...(scenario === 30
+          ? [create(ReceivingTaskSchema, { ...source.task, unloadingPointId: d04.id, yardAdmissionStatus: YardAdmissionStatus.ADMITTED })]
+          : []),
+      ];
+  const hidden = deliveries.filter(({ task }) => !docked.some(candidate => candidate.id === task.id)).map(({ task }) =>
+    create(ReceivingTaskSchema, { ...task, status: ReceivingTaskStatus.UNSPECIFIED, unloadingPointId: undefined, version: 0 }));
+  const parkingCount = scenario === 'capacity' ? 30 : scenario - docked.length;
+  const waiting = Array.from({ length: parkingCount }, (_unused, index) => {
+    const target = placements.find(placement => placement.parkingIndex === index);
+    const status = target === undefined ? YardAdmissionStatus.WAITING_DOCUMENTS : YardAdmissionStatus.WAITING_DOCK;
+    const method = target === undefined ? DeliveryMethod.EXCHANGE : DeliveryMethod.CUSTOMER;
+    const delivery = createFixtureDelivery(source, 1_000 + index, status, undefined, method);
+    return giveArrivalTime(delivery, SCALED_ARRIVAL_START_MS + index * 60_000);
+  });
+  const assignments = placements.map(({ dock, parkingIndex }): ScaledDockAssignmentValue => {
+    const target = waiting[parkingIndex];
+    const isFar = dock.id === d06.id;
+    if (target === undefined) {
+      throw new Error(`No seeded visit for parking index ${String(parkingIndex)}`);
+    }
+    return { dockId: dock.id, dockNumber: isFar ? 6 : 4, parkingIndex, releaseTaskId: isFar ? far.task.id : source.task.id,
+      taskId: target.task.id };
+  });
+  const next = scenario === 20 ? createNextArrival(source) : undefined;
+  const tasks = [...docked, ...hidden, ...waiting.map(({ task }) => task), ...(next === undefined ? [] : [next.task])];
+  await commitFixture(page, warehouse, wideTopology, tasks, [
+    ...waiting.flatMap(fixtureDeliveryPuts),
+    ...waiting.map(({ deal }, index) => {
+      const target = placements.find(placement => placement.parkingIndex === index);
+      return fixtureTripPut(4_000 + index, deal, target?.cargo ?? VehicleCargoKind.GENERAL, target === undefined);
+    }),
+    ...(next === undefined
+      ? []
+      : [
+          ...fixtureDeliveryPuts(next), fixturePaymentPut(next.deal),
+          fixtureTripPut(4_099, next.deal, VehicleCargoKind.TEMPERATURE_CONTROLLED, false, timestampFromMs(NEXT_ARRIVAL_AT_MS)),
+        ]),
+  ]);
+  return {
+    assignments,
+    dockIds: [area.unloadingPoint, ...area.additionalUnloadingPoints].map(dock => dock.id),
+    neighborId: scenario === 'capacity' ? undefined : neighbor.task.id,
+    nextArrivalId: next?.task.id,
+    waitingIds: waiting.map(({ task }) => task.id),
   };
 };

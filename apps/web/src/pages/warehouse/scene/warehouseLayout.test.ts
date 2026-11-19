@@ -33,6 +33,40 @@ const getTruckBounds = (): NonNullable<ReturnType<typeof createWarehouseTruckGeo
 };
 
 describe('warehouse scene layout', () => {
+  it('caches matching parking sizes and frames an expanded single-dock yard on a narrow viewport', () => {
+    const topology = create(WarehouseTopologySchema, {
+      receivingArea: {
+        footprint: { depthMm: 3_000, origin: { xMm: 4_000, zMm: 5_000 }, widthMm: 4_000 },
+        unloadingPoint: { position: { xMm: 5_000, zMm: 4_000 } },
+      },
+    });
+    const compact = getWarehouseLayout(topology);
+    const expanded = getWarehouseLayout(topology, 30);
+    expect(expanded).not.toBe(compact);
+    expect(getWarehouseLayout(topology, 30)).toBe(expanded);
+    expect(expanded.topologyKey).toBe(compact.topologyKey);
+    const { world, yard } = expanded;
+    if (yard === undefined) {
+      throw new Error('Expected a full yard');
+    }
+    expect(yard.parking).toHaveLength(30);
+    expect(world.home.radius).toBeGreaterThan(compact.world.home.radius);
+    const { apron } = yard;
+    for (const x of [apron.minX, apron.maxX]) {
+      for (const z of [apron.minZ, apron.maxZ]) {
+        expect(Math.hypot(5 + x - world.home.centerX, 4 + z - world.home.centerZ)).toBeLessThan(world.home.radius);
+      }
+    }
+    const viewportFootprint = Math.hypot(390 / 2, (844 + 170) / 2 / Math.sin(Math.atan(1 / Math.SQRT2)));
+    const { maxX, maxZ, minX, minZ } = world.bounds;
+    const zoomOut = viewportFootprint / (Math.min(maxX - minX, maxZ - minZ) / 2 - 18);
+    expect((apron.maxX - apron.minX + apron.maxZ - apron.minZ) * zoomOut / Math.SQRT2).toBeLessThan(370);
+
+    const rowX = new Set(yard.parking.map(({ x }) => 5 + x));
+    const boundaries = expanded.floor.get('sand')?.filter(({ position, size }) => rowX.has(position[0]) && size[0] > 2);
+    expect(boundaries).toHaveLength(32);
+  });
+
   it('keeps the same geometry and camera when only the revision and dock capabilities change', () => {
     const makeTopology = (revision: number, capabilities: WarehouseCapability[], xMm: number): WarehouseTopology =>
       create(WarehouseTopologySchema, {

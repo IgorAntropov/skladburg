@@ -1,7 +1,4 @@
-import type {
-  WarehouseTopology,
-  WarehouseUnloadingPoint,
-} from '@skladburg/contracts/wms/v1/topology';
+import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
 
 import type {
   SceneWorldValue,
@@ -11,6 +8,7 @@ import type {
 import type { WarehouseAisleRectValue } from './warehouseAislePath';
 import type { WarehouseYardRoadsValue } from './warehouseYardRoads';
 
+import { readWarehouseReceivingDocks } from '../model/warehouseReceivingDocks';
 import {
   buildWarehouseFloor,
   WAREHOUSE_DOCK_LANE_LENGTH,
@@ -24,6 +22,10 @@ import {
   WAREHOUSE_RACK_HEADROOM,
   WAREHOUSE_RACK_MIN_HEIGHT,
 } from './warehouseRackGeometry';
+import {
+  readWarehouseParkingCapacity,
+  WAREHOUSE_YARD_PARKING_LIMIT,
+} from './warehouseYardParking';
 import {
   buildWarehouseYardRoads,
   WAREHOUSE_TRUCK_CENTER_Z,
@@ -63,6 +65,7 @@ export interface WarehouseLayoutValue {
   navigation: WarehouseNavigationValue;
   racks: WarehouseRackLayoutValue;
   receiving: undefined | WarehouseReceivingLayoutValue;
+  topologyKey: string;
   world: SceneWorldValue;
   yard: undefined | WarehouseYardRoadsValue;
 }
@@ -90,46 +93,15 @@ type VectorValue = [number, number, number];
 interface WarehouseLayoutCacheValue {
   key: string;
   layout: WarehouseLayoutValue;
+  parkingCount: number;
 }
 
 const layouts = new WeakMap<WarehouseTopology, WarehouseLayoutCacheValue>();
 let recentLayout: undefined | WarehouseLayoutCacheValue;
-const DOCK_MIN_SPACING_MM = 2660;
 export const WAREHOUSE_DOCK_RAMP_END = 0.505;
 export const WAREHOUSE_DOCK_HANDOFF_Z = 0.4;
 
-const readDock = (point: undefined | WarehouseUnloadingPoint): undefined | WarehouseDockLayoutValue => {
-  const position = point?.position;
-  if (point === undefined || position === undefined
-    || !Number.isInteger(position.xMm) || position.xMm < 0 || !Number.isInteger(position.zMm) || position.zMm < 0) {
-    return undefined;
-  }
-
-  return { id: point.id, x: position.xMm / WAREHOUSE_MM_PER_METER, z: position.zMm / WAREHOUSE_MM_PER_METER };
-};
-
-const readDocks = (
-  primary: WarehouseDockLayoutValue,
-  points: readonly WarehouseUnloadingPoint[],
-): readonly WarehouseDockLayoutValue[] => {
-  const docks = [primary];
-
-  for (const candidate of points) {
-    const point = readDock(candidate);
-    if (point?.z !== primary.z || point.id === '') {
-      continue;
-    }
-    const hasConflict = docks.some(dock => dock.id === point.id
-      || Math.abs(Math.round((point.x - dock.x) * WAREHOUSE_MM_PER_METER)) < DOCK_MIN_SPACING_MM);
-    if (!hasConflict) {
-      docks.push(point);
-    }
-  }
-
-  return docks;
-};
-
-const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue => {
+const buildWarehouseLayout = (topology: WarehouseTopology, topologyKey: string, parkingCount: number): WarehouseLayoutValue => {
   const cells: WarehouseCellVisualValue[] = [];
   const aisleMarks: WarehouseBoxValue[] = [];
   const decks: WarehouseBoxValue[] = [];
@@ -139,9 +111,13 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
   const obstacles: WarehouseAisleRectValue[] = [];
   const area = topology.receivingArea;
   const floor = readWarehouseFloor(area?.footprint);
-  const point = floor === undefined ? undefined : readDock(area?.unloadingPoint);
+  const docks = floor === undefined
+    ? []
+    : readWarehouseReceivingDocks(area).map(({ id, xMm, zMm }) => ({
+        id, x: xMm / WAREHOUSE_MM_PER_METER, z: zMm / WAREHOUSE_MM_PER_METER,
+      }));
+  const point = docks[0];
   const dock = point === undefined ? undefined : { x: point.x, z: point.z };
-  const docks = point === undefined ? [] : readDocks(point, area?.additionalUnloadingPoints ?? []);
   const receiving = floor === undefined || area === undefined
     ? undefined
     : {
@@ -235,7 +211,7 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
   maxX += 1.55;
   maxZ += 1.65;
   const building = { depth: maxZ - minZ, width: maxX - minX, x: minX, z: minZ };
-  const yard = buildWarehouseYardRoads(docks);
+  const yard = buildWarehouseYardRoads(docks, parkingCount);
   const grounds = { ...building };
   if (yard !== undefined && dock !== undefined) {
     grounds.x = Math.min(minX, dock.x + yard.apron.minX);
@@ -243,7 +219,7 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
     grounds.width = Math.max(maxX, dock.x + yard.apron.maxX) - grounds.x;
     grounds.depth = maxZ - grounds.z;
   }
-  const home = docks.length > 2 ? grounds : building;
+  const home = docks.length > 2 || (yard !== undefined && parkingCount > WAREHOUSE_YARD_PARKING_LIMIT) ? grounds : building;
   const radius = Math.max(4.5, Math.hypot(home.width, home.depth) * 0.52);
   const padding = 18 + Math.max(4.5, Math.hypot(grounds.width, grounds.depth) * 0.52) * 5;
   for (const { x, z } of docks) {
@@ -257,6 +233,7 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
     navigation: { bounds, obstacles },
     racks: { decks, dividers, frames, guards },
     receiving,
+    topologyKey,
     world: {
       bounds: {
         maxX: grounds.x + grounds.width + padding,
@@ -271,15 +248,20 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
   };
 };
 
-export const getWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue => {
+export const getWarehouseLayout = (topology: WarehouseTopology, parkingCount = WAREHOUSE_YARD_PARKING_LIMIT): WarehouseLayoutValue => {
+  const capacity = readWarehouseParkingCapacity(parkingCount);
   const current = layouts.get(topology);
-  if (current !== undefined) {
+  if (current?.parkingCount === capacity) {
     recentLayout = current;
     return current.layout;
   }
 
-  const key = JSON.stringify(topology, (field, value: unknown) => field === 'revision' || field === 'capabilities' ? undefined : value);
-  const next = recentLayout?.key === key ? recentLayout : { key, layout: buildWarehouseLayout(topology) };
+  const key = current?.key ?? JSON.stringify(topology, (field, value: unknown) => (
+    field === 'revision' || field === 'capabilities' ? undefined : value
+  ));
+  const next = recentLayout?.key === key && recentLayout.parkingCount === capacity
+    ? recentLayout
+    : { key, layout: buildWarehouseLayout(topology, key, capacity), parkingCount: capacity };
   layouts.set(topology, next);
   recentLayout = next;
   return next.layout;

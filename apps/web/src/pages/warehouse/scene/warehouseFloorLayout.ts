@@ -9,10 +9,7 @@ import type {
 import type { WarehouseYardRoadsValue } from './warehouseYardRoads';
 
 import warehouseShell from './warehouseShell.json';
-import {
-  WAREHOUSE_YARD_PARKING_LIMIT,
-  WAREHOUSE_YARD_PARKING_SPACING,
-} from './warehouseYardParking';
+import { WAREHOUSE_YARD_PARKING_SPACING } from './warehouseYardParking';
 import { WAREHOUSE_TRUCK_RUNUP } from './warehouseYardRoads';
 
 type BoxLayersValue = Map<WorldPaletteKeyValue, WarehouseBoxValue[]>;
@@ -163,12 +160,11 @@ const addApron = (floor: BoxLayersValue, x: number, z: number, width: number, de
 const addParking = (
   floor: BoxLayersValue,
   { x, z }: WarehouseDockPointValue,
-  { apron, entrance, parkingMouthZ }: WarehouseYardRoadsValue,
+  { apron, entrance, parking, parkingMouthZ }: WarehouseYardRoadsValue,
   slab: WarehouseFloorValue,
 ): void => {
   const spacing = WAREHOUSE_YARD_PARKING_SPACING;
   const laneStartZ = z + parkingMouthZ;
-  const laneLength = WAREHOUSE_YARD_PARKING_LIMIT * spacing;
   const entranceX = x + entrance.x;
   const apronLeft = x + apron.minX;
   const apronRight = x + apron.maxX;
@@ -180,9 +176,15 @@ const addParking = (
   addApron(floor, apronLeft, apronStartZ, apronWidth, Math.min(slab.z, apronEndZ) - apronStartZ);
   addApron(floor, apronLeft, sideZ, slab.x - apronLeft, apronEndZ - sideZ);
   addApron(floor, slab.x + slab.width, sideZ, apronRight - slab.x - slab.width, apronEndZ - sideZ);
-  for (const laneX of [x, entranceX]) {
-    addWarehouseBox(floor, 'road', [laneX, 0.01, (apronStartZ + laneStartZ) / 2], [DOCK_LANE_WIDTH, 0.02, laneLength + spacing]);
+  const rows = new Map<number, number>();
+  for (const spot of parking) {
+    rows.set(spot.x, (rows.get(spot.x) ?? 0) + 1);
   }
+  const aisleWidth = rows.size > 1 ? 2 * Math.abs(entrance.x) - DOCK_LANE_WIDTH : DOCK_LANE_WIDTH;
+  for (const laneX of rows.keys()) {
+    addWarehouseBox(floor, 'road', [x + laneX, 0.01, (apronStartZ + laneStartZ) / 2], [DOCK_LANE_WIDTH, 0.02, laneStartZ - apronStartZ]);
+  }
+  addWarehouseBox(floor, 'road', [entranceX, 0.01, (apronStartZ + laneStartZ) / 2], [aisleWidth, 0.02, laneStartZ - apronStartZ]);
   addWarehouseBox(floor, 'road', [centerX, 0.01, z + (parkingMouthZ + apron.maxZ) / 2],
     [apronWidth, 0.02, apron.maxZ - parkingMouthZ]);
   const curbLength = apronEndZ - apronStartZ - 0.2;
@@ -193,12 +195,15 @@ const addParking = (
     addWarehouseBox(floor, 'sand', [entranceX, 0.024, markZ], [0.051, 0.008, 0.76]);
   }
   const edgeInset = DOCK_LANE_WIDTH / 2 - 0.09;
-  for (const sideX of [x - edgeInset, x + edgeInset]) {
-    addWarehouseBox(floor, 'sand', [sideX, 0.027, laneStartZ - laneLength / 2], [0.064, 0.014, laneLength]);
-  }
-  for (let index = 0; index <= WAREHOUSE_YARD_PARKING_LIMIT; index += 1) {
-    const lineZ = laneStartZ - index * spacing;
-    addWarehouseBox(floor, 'sand', [x, 0.028, lineZ], [DOCK_LANE_WIDTH - 0.18, 0.014, 0.064]);
+  for (const [rowX, count] of rows) {
+    const center = x + rowX;
+    const length = count * spacing;
+    for (const sideX of [center - edgeInset, center + edgeInset]) {
+      addWarehouseBox(floor, 'sand', [sideX, 0.027, laneStartZ - length / 2], [0.064, 0.014, length]);
+    }
+    for (let index = 0; index <= count; index += 1) {
+      addWarehouseBox(floor, 'sand', [center, 0.028, laneStartZ - index * spacing], [DOCK_LANE_WIDTH - 0.18, 0.014, 0.064]);
+    }
   }
 };
 

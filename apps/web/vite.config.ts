@@ -1398,6 +1398,12 @@ export default defineConfig({
             },
             {
               includeDependenciesRecursively: false,
+              name: 'warehouse-yard-layout',
+              test:
+                /[\\/]pages[\\/]warehouse[\\/]model[\\/](?:warehouseDockAssignments|warehouseReceivingDocks|warehouseSceneParking)\.ts$/u,
+            },
+            {
+              includeDependenciesRecursively: false,
               name: 'deal-form-shared',
               test: (moduleId: string): boolean => DEAL_FORM_MODULES.some(entry => hasEntryModule([moduleId], entry)),
             },

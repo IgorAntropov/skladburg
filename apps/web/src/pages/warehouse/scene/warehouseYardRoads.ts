@@ -2,6 +2,8 @@ import type { WarehouseAisleRectValue } from './warehouseAislePath';
 import type { WarehouseDockPointValue } from './warehouseLayout';
 
 import {
+  buildWarehouseParking,
+  readWarehouseParkingCapacity,
   WAREHOUSE_YARD_PARKING_LIMIT,
   WAREHOUSE_YARD_PARKING_SPACING,
 } from './warehouseYardParking';
@@ -10,6 +12,7 @@ export interface WarehouseYardRoadsValue {
   apron: WarehouseAisleRectValue;
   entrance: WarehouseDockPointValue;
   junctionZ: number;
+  parking: readonly WarehouseDockPointValue[];
   parkingMouthZ: number;
   throatZ: number;
 }
@@ -25,6 +28,7 @@ export const WAREHOUSE_TRUCK_CENTER_Z = -3;
 export const WAREHOUSE_TRUCK_RUNUP = 3.2;
 export const WAREHOUSE_TRUCK_SWEEP_RADIUS = 3.25;
 const ENTRANCE_LANE_SPACING = 3.2;
+const EXPANDED_LANE_SPACING = 4.4;
 const JUNCTION_Z = -13.5;
 const DOCK_THROAT_Z = -7;
 const PARKING_CLEARANCE = 6.1;
@@ -33,12 +37,23 @@ const TURN_RADIUS = (DOCK_THROAT_Z - JUNCTION_Z) / 2;
 const QUARTER_CIRCLE = Math.PI / 2;
 const TURN_LENGTH = TURN_RADIUS * QUARTER_CIRCLE;
 
-export const buildWarehouseYardRoads = (docks: readonly WarehouseDockPointValue[]): undefined | WarehouseYardRoadsValue => {
+const origin: WarehouseDockPointValue = { x: 0, z: 0 };
+
+export const buildWarehouseYardRoads = (
+  docks: readonly WarehouseDockPointValue[],
+  parkingCount = WAREHOUSE_YARD_PARKING_LIMIT,
+): undefined | WarehouseYardRoadsValue => {
   const primary = docks[0];
   if (primary === undefined) {
     return undefined;
   }
-  let left = -ENTRANCE_LANE_SPACING;
+  const capacity = readWarehouseParkingCapacity(parkingCount);
+  const isExpanded = capacity > WAREHOUSE_YARD_PARKING_LIMIT;
+  const aisleX = isExpanded ? -EXPANDED_LANE_SPACING : -ENTRANCE_LANE_SPACING;
+  const oppositeX = 2 * aisleX;
+  const depth = Math.max(WAREHOUSE_YARD_PARKING_LIMIT, Math.ceil(capacity / 2));
+  const parking = buildWarehouseParking(capacity, oppositeX);
+  let left = isExpanded ? oppositeX : aisleX;
   let right = 0;
   for (const dock of docks) {
     const x = dock.x - primary.x;
@@ -46,7 +61,7 @@ export const buildWarehouseYardRoads = (docks: readonly WarehouseDockPointValue[
     right = Math.max(right, x);
   }
   const parkingMouthZ = JUNCTION_Z - PARKING_CLEARANCE;
-  const minZ = parkingMouthZ - (WAREHOUSE_YARD_PARKING_LIMIT + 1) * WAREHOUSE_YARD_PARKING_SPACING;
+  const minZ = parkingMouthZ - (depth + 1) * WAREHOUSE_YARD_PARKING_SPACING;
   return {
     apron: {
       maxX: right + SHOULDER,
@@ -54,8 +69,9 @@ export const buildWarehouseYardRoads = (docks: readonly WarehouseDockPointValue[
       minX: left - SHOULDER,
       minZ,
     },
-    entrance: { x: -ENTRANCE_LANE_SPACING, z: minZ - 0.5 },
+    entrance: { x: aisleX, z: minZ - 0.5 },
     junctionZ: JUNCTION_Z,
+    parking,
     parkingMouthZ,
     throatZ: DOCK_THROAT_Z,
   };
@@ -86,6 +102,28 @@ export const readWarehouseParkingExit = (
   z: number,
   pose: WarehouseYardPoseValue,
 ): void => { readYardTurn(pose, dock, start.x, roads.entrance.x, start.z, start.z + WAREHOUSE_PARKING_EXIT_ADVANCE, z); };
+
+export const readWarehouseParkingArrival = (
+  roads: WarehouseYardRoadsValue,
+  spot: WarehouseDockPointValue,
+  progress: number,
+  pose: WarehouseYardPoseValue,
+): void => {
+  const { x, z } = roads.entrance;
+  const turnStartZ = spot.z + WAREHOUSE_PARKING_EXIT_ADVANCE;
+  const lead = turnStartZ - z;
+  const turnLength = Math.hypot(spot.x - x, WAREHOUSE_PARKING_EXIT_ADVANCE);
+  const distance = (lead + turnLength) * progress;
+  if (distance <= lead) {
+    pose.offsetX = x;
+    pose.offsetZ = z + distance;
+    pose.yaw = 0;
+  }
+  else {
+    const turnProgress = (distance - lead) / turnLength;
+    readWarehouseParkingExit(roads, spot, origin, turnStartZ - WAREHOUSE_PARKING_EXIT_ADVANCE * turnProgress, pose);
+  }
+};
 
 export const readWarehouseYardApproach = (
   { junctionZ, throatZ }: WarehouseYardRoadsValue,

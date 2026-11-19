@@ -36,6 +36,11 @@ export interface WarehouseCargoTransferValue {
   to: WarehouseCargoEndpointValue;
 }
 
+export interface WarehouseCargoVisualLayersValue {
+  ground: readonly WarehouseCargoVisualValue[];
+  trucks: ReadonlyMap<string, readonly WarehouseCargoVisualValue[]>;
+}
+
 export interface WarehouseCargoVisualValue extends CargoPlacementValue {
   id: string;
   requiresActiveDispatch?: boolean | undefined;
@@ -325,4 +330,25 @@ export const buildWarehouseCargoVisuals = (
   }
 
   return result;
+};
+
+export const groupWarehouseCargoVisuals = (visuals: readonly WarehouseCargoVisualValue[]): WarehouseCargoVisualLayersValue => {
+  const ground: WarehouseCargoVisualValue[] = [];
+  const trucks = new Map<string, WarehouseCargoVisualValue[]>();
+  for (const visual of visuals) {
+    const { truckTaskId } = visual;
+    if (truckTaskId === undefined) {
+      ground.push(visual);
+    }
+    else {
+      const cargo = trucks.get(truckTaskId);
+      if (cargo === undefined) {
+        trucks.set(truckTaskId, [visual]);
+      }
+      else {
+        cargo.push(visual);
+      }
+    }
+  }
+  return { ground, trucks };
 };

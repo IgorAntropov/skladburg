@@ -44,6 +44,7 @@ export const WarehouseDockLane = ({
   const yardParking = useRef<WarehouseYardParkingRigValue>(null);
   const { balances, cargo } = lane;
   const primaryDock = layout.receiving?.dock;
+  const roads = layout.yard;
   const hasDock = cargo?.hasDock === true && dock !== undefined && primaryDock !== undefined;
   const hasParking = hasDock && laneIndex === 0;
 
@@ -57,7 +58,9 @@ export const WarehouseDockLane = ({
         </group>
       )}
       <WarehouseForklift rig={forklift} />
-      {hasParking && <WarehouseYardParking dock={primaryDock} model={truckModel} rig={yardParking} />}
+      {hasParking && roads !== undefined && (
+        <WarehouseYardParking dock={primaryDock} model={truckModel} parked={traffic.yard.parked} rig={yardParking} roads={roads} />
+      )}
       <WarehouseCargo
         balances={balances}
         cargo={cargo ?? EMPTY_CARGO}

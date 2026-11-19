@@ -34,6 +34,7 @@ import {
   SupportTicketMessageSchema,
   SupportTicketSchema,
 } from '@skladburg/contracts/support/v1/support_ticket';
+import { YardQueuePolicySchema } from '@skladburg/contracts/wms/v1/yard_queue_policy';
 import {
   describe,
   expect,
@@ -922,6 +923,13 @@ const PRE_SETTLEMENT_SHAPE_FINGERPRINTS: Readonly<Record<number, readonly string
   ],
 };
 
+const WAREHOUSE_LAYOUT_DRAFTS_SHAPE_FINGERPRINT = [
+  ...PRE_SETTLEMENT_SHAPE_FINGERPRINTS[23] ?? [],
+  'collection.warehouseLayoutSessions:{draft:{baseRevision:number,cellsBytes:bytes,draftRevision:number,footprintBytes:bytes,'
+  + 'idempotencyKey:string,requestBytes:bytes,rowId:string},expiresAtMs:number,id:string,layoutSessionId:string,ownerKey:string}'
+  + '|{expiresAtMs:number,id:string,layoutSessionId:string,ownerKey:string}',
+].sort();
+
 const SHAPE_FINGERPRINTS = {
   ...PRE_SETTLEMENT_SHAPE_FINGERPRINTS,
   24: PRE_SETTLEMENT_SHAPE_FINGERPRINTS[23] ?? [],
@@ -929,12 +937,8 @@ const SHAPE_FINGERPRINTS = {
     ...PRE_SETTLEMENT_SHAPE_FINGERPRINTS[23] ?? [],
     'collection.warehouseLayoutSessions:{expiresAtMs:number,id:string,layoutSessionId:string,ownerKey:string}',
   ].sort(),
-  26: [
-    ...PRE_SETTLEMENT_SHAPE_FINGERPRINTS[23] ?? [],
-    'collection.warehouseLayoutSessions:{draft:{baseRevision:number,cellsBytes:bytes,draftRevision:number,footprintBytes:bytes,'
-    + 'idempotencyKey:string,requestBytes:bytes,rowId:string},expiresAtMs:number,id:string,layoutSessionId:string,ownerKey:string}'
-    + '|{expiresAtMs:number,id:string,layoutSessionId:string,ownerKey:string}',
-  ].sort(),
+  26: WAREHOUSE_LAYOUT_DRAFTS_SHAPE_FINGERPRINT,
+  27: [...WAREHOUSE_LAYOUT_DRAFTS_SHAPE_FINGERPRINT, 'collection.yardQueuePolicies:bytes'].sort(),
 } as Readonly<Record<number, readonly string[]>>;
 
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -1040,6 +1044,7 @@ const populatedTask: SchedulerTaskValue = {
     transaction.put('listingPrices', create(ListingPriceSchema, { listingId: 'fingerprint-listing' }));
     transaction.put('priceLists', create(PriceListSchema, { id: 'fingerprint-price-list' }));
     transaction.put('salesTerms', create(SalesTermsSchema, { organizationId: 'fingerprint-organization' }));
+    transaction.put('yardQueuePolicies', create(YardQueuePolicySchema, { organizationId: 'fingerprint-organization' }));
     transaction.put('transportOffers', create(TransportOfferSchema, {
       id: 'fingerprint-offer',
       transportRequestId: 'fingerprint-request',
@@ -1138,8 +1143,9 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 26 with warehouse layout drafts', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(26);
+  it('is version 27 with a private yard queue policy collection', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(27);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
+    expect(createSeedSnapshot().collections.yardQueuePolicies.size).toBe(0);
   });
 });

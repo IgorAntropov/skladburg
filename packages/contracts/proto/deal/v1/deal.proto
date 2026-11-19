@@ -125,6 +125,7 @@ message Deal {
   google.protobuf.Timestamp created_at = 20;
   google.protobuf.Timestamp submitted_at = 21;
   google.protobuf.Timestamp updated_at = 22;
+  optional bool is_urgent = 23;
 }
 
 message DraftDealLine {
@@ -150,6 +151,7 @@ message CreateDealDraftRequest {
     (buf.validate.field).repeated.max_items = 100
   ];
   string supplier_organization_id = 8 [(buf.validate.field).string.uuid = true];
+  optional bool is_urgent = 9;
 }
 
 message CreateDealDraftResponse {
@@ -167,6 +169,7 @@ message UpdateDealDraftRequest {
     (buf.validate.field).repeated.min_items = 1,
     (buf.validate.field).repeated.max_items = 100
   ];
+  optional bool is_urgent = 8;
 }
 
 message UpdateDealDraftResponse {

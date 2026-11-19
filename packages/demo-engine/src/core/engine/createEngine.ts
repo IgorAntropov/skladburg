@@ -157,7 +157,7 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
   return createSeedSnapshotWithTopology(seed);
 };
 
-const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25];
+const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26];
 
 const prepareDemoWarehouse = async (options: CreateEngineOptionsValue, snapshot: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
   if (options.isDemoWarehouseEnabled !== true) {
@@ -395,6 +395,8 @@ export const createEngineWithTasks = async (
     (await import('../modules/wms/warehouseLayoutSessionHandlers')).createWarehouseLayoutSessionHandler(runtime, supportAudit));
   const warehouseTopologyHandler = deferEngineHandler(async () =>
     (await import('../modules/wms/warehouseTopologyService')).createWarehouseTopologyHandler(runtime, supportAudit));
+  const yardQueuePolicyHandler = deferEngineHandler(async () =>
+    (await import('../modules/wms/yardQueuePolicyService')).createYardQueuePolicyHandler(runtime, supportAudit));
   const handle: IDemoEngine['handle'] = (request, tabId) => queue.enqueue(() => {
     const { pathname } = new URL(request.url);
 
@@ -412,6 +414,10 @@ export const createEngineWithTasks = async (
 
     if (pathname.startsWith('/wms.v1.WarehouseStockService/')) {
       return warehouseStockHandler(request);
+    }
+
+    if (pathname.startsWith('/wms.v1.YardQueuePolicyService/')) {
+      return yardQueuePolicyHandler(request);
     }
 
     if (pathname.startsWith('/wms.v1.')) {

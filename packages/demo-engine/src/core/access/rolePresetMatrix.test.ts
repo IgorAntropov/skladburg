@@ -8,7 +8,6 @@ import type { Role } from '@skladburg/contracts/access/v1/access';
 import type { Organization } from '@skladburg/contracts/organization/v1/organization';
 
 import { create } from '@bufbuild/protobuf';
-import { MethodOptions_IdempotencyLevel } from '@bufbuild/protobuf/wkt';
 import {
   MembershipSchema,
   UserSchema,
@@ -218,7 +217,7 @@ const isReachable = (subject: MatrixSubjectValue, entry: PermissionMethodValue):
   }
 
   const isScopeApplicable = getPermissionTraits(findCode(entry.permissionName)).isScopeApplicable;
-  const isScopeAware = entry.method.idempotency === MethodOptions_IdempotencyLevel.NO_SIDE_EFFECTS || entry.scopeField !== '';
+  const isScopeAware = entry.scopeField !== '' || entry.method === OrganizationService.method.listWarehouses;
 
   return isScopeApplicable && isScopeAware;
 };

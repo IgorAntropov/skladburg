@@ -1,4 +1,15 @@
 import 'fake-indexeddb/auto';
+import {
+  create,
+  toBinary,
+} from '@bufbuild/protobuf';
+import { timestampFromMs } from '@bufbuild/protobuf/wkt';
+import {
+  ReceivingTaskSchema,
+  ReceivingTaskStatus,
+  YardAdmissionStatus,
+} from '@skladburg/contracts/wms/v1/receiving';
+import { YardQueuePolicySchema } from '@skladburg/contracts/wms/v1/yard_queue_policy';
 import { IDBFactory } from 'fake-indexeddb';
 import { wrap } from 'idb';
 import {
@@ -29,7 +40,9 @@ import {
   createSeedSnapshot,
   SeedOrganizationId,
   SeedUserId,
+  SeedWarehouseId,
 } from '../../core/seed/index';
+import { createEngineState } from '../../core/state/index';
 import {
   createIndexedDbStorage,
   INDEXED_DB_VERSION,
@@ -480,6 +493,86 @@ describe('createIndexedDbStorage when another connection changes the version', (
 });
 
 describe('createIndexedDbStorage over a database of the previous version', () => {
+  it('migrates a schema 26 world without replacing the existing dock reservations', async () => {
+    const factory = new IDBFactory();
+    const seed = createSeedSnapshot();
+    const warehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1;
+    const startsAt = timestampFromMs(seed.meta.worldTimeMs + 120_000);
+    const task = create(ReceivingTaskSchema, {
+      dockSchedule: {
+        preferredStartsAt: startsAt,
+        reservation: { endsAt: timestampFromMs(seed.meta.worldTimeMs + 1_920_000), startsAt, unloadingPointId: 'dock-1' },
+      },
+      id: 'receiving-1',
+      status: ReceivingTaskStatus.OPEN,
+      version: 7,
+      warehouseId,
+      yardAdmissionStatus: YardAdmissionStatus.WAITING_DOCK,
+    });
+    const warehouseInbound = new Map([[
+      task.id,
+      { bytes: toBinary(ReceivingTaskSchema, task), id: task.id, lookupKey: SeedOrganizationId.CUSTOMER_1, scopeId: warehouseId },
+    ]]);
+    const session = { expiresAtMs: seed.meta.worldTimeMs + 300_000, id: 'receiving-1', layoutSessionId: 'lease-1', ownerKey: 'owner-1' };
+    const warehouseLayoutSessions = new Map([[session.id, session]]);
+    const priorCollections = { ...seed.collections, warehouseInbound, warehouseLayoutSessions };
+    const request = factory.open(DATABASE_NAME, 21);
+    request.addEventListener('upgradeneeded', () => {
+      for (const [name, records] of Object.entries(priorCollections)) {
+        if (name !== 'yardQueuePolicies') {
+          const store = request.result.createObjectStore(name);
+          for (const [id, record] of records) {
+            store.put(record, id);
+          }
+        }
+      }
+      const meta = request.result.createObjectStore('meta');
+      meta.put(26, 'schemaVersion');
+      meta.put(seed.meta, 'engineMeta');
+    });
+    const oldDatabase = await wrap(request);
+    if (oldDatabase === undefined) {
+      throw new Error('Expected the schema 26 database');
+    }
+    oldDatabase.close();
+
+    const storage = await openStorage(factory);
+    await createEngine({ epoch: TEST_ENGINE_EPOCH, realTime: createFakeRealTime(), storage });
+    const loaded = await storage.load();
+    expect(loaded?.schemaVersion).toBe(27);
+    expect(loaded).toEqual({
+      collections: { ...priorCollections, yardQueuePolicies: new Map() },
+      meta: seed.meta,
+      schemaVersion: 27,
+    });
+    const policy = create(YardQueuePolicySchema, {
+      organizationId: SeedOrganizationId.CUSTOMER_1,
+      version: 1n,
+      weights: {
+        cargoUrgencyWeight: 55,
+        deliveryWindowWeight: 25,
+        explicitUrgencyWeight: 0,
+        resourceAvailabilityWeight: 5,
+        waitingTimeWeight: 10,
+      },
+    });
+    await storage.commit({
+      deletes: {},
+      meta: seed.meta,
+      puts: { yardQueuePolicies: new Map([[policy.organizationId, toBinary(YardQueuePolicySchema, policy)]]) },
+    });
+    storage.close();
+
+    const reopened = await openStorage(factory);
+    const restored = await reopened.load();
+    if (restored === undefined) {
+      throw new Error('Expected the saved yard policy');
+    }
+    const { read } = createEngineState(restored);
+    expect(read.get('yardQueuePolicies', policy.organizationId)).toEqual(policy);
+    expect(read.get('yardQueuePolicies', SeedOrganizationId.CUSTOMER_2)).toBeUndefined();
+  });
+
   it.each([
     { databaseVersion: 11, schemaVersion: 13 },
     { databaseVersion: 12, schemaVersion: 14 },
@@ -503,7 +596,7 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     const hasOutbound = databaseVersion >= 19;
     const request = factory.open(DATABASE_NAME, databaseVersion);
     request.addEventListener('upgradeneeded', () => {
-      const missingStores = ['warehouseInbound'];
+      const missingStores = ['warehouseInbound', 'yardQueuePolicies'];
       if (!hasOutbound) {
         missingStores.push('warehouseOutbound');
       }
@@ -573,6 +666,7 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     expect(loaded?.collections.warehouseTopologies).toEqual(new Map());
     expect(loaded?.collections.stockBalances.get('a')).toEqual(hasStock ? bytes : undefined);
     expect(loaded?.collections.warehouseInbound).toEqual(new Map());
+    expect(loaded?.collections.yardQueuePolicies).toEqual(new Map());
     expect(loaded?.collections.warehouseOutbound.get('a')).toEqual(hasOutbound ? outbound : undefined);
     expect(loaded?.collections.stockBatches).toEqual(new Map());
     expect(loaded?.collections.stockMovements).toEqual(new Map());

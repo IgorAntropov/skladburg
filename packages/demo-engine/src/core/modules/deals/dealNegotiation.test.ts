@@ -1,3 +1,8 @@
+import type {
+  CreateDealDraftRequest,
+  UpdateDealDraftRequest,
+} from '@skladburg/contracts/deal/v1/deal';
+
 import { create } from '@bufbuild/protobuf';
 import {
   BaseUnit,
@@ -20,6 +25,7 @@ import {
 
 import {
   SeedOrganizationId,
+  SeedUserId,
   SeedWarehouseId,
 } from '../../seed/index';
 import { CUSTOMER_CALL } from '../catalog/showcase/testing/showcaseFixtures';
@@ -159,6 +165,65 @@ describe('deal negotiation invariants', () => {
     expect(customerProduct?.sku).not.toBe('PRIVATE-SKU');
     expect(customerProduct?.minPrice).toBeUndefined();
     expect(customerProduct?.isDiscountForbidden).toBe(false);
+  });
+});
+
+describe('buyer order urgency', () => {
+  const createDraftEdit = (request: CreateDealDraftRequest, expectedVersion: number): UpdateDealDraftRequest =>
+    create(UpdateDealDraftRequestSchema, {
+      dealId: request.dealId,
+      desiredDate: request.desiredDate,
+      expectedVersion,
+      idempotencyKey: nextUuid(),
+      lines: request.lines,
+      shipFromCityId: request.shipFromCityId,
+      shipToWarehouseId: request.shipToWarehouseId,
+    });
+
+  it('preserves draft urgency for older clients and clears it when the buyer sends false', async () => {
+    const { harness, request } = await createDealFixture();
+    const created = await harness.deal.createDealDraft({ ...request, isUrgent: true }, CUSTOMER_CALL);
+    expect(created.deal?.isUrgent).toBe(true);
+
+    const edit = createDraftEdit(request, 1);
+    const updatedByOlderClient = await harness.deal.updateDealDraft(edit, CUSTOMER_CALL);
+    expect(updatedByOlderClient.deal?.isUrgent).toBe(true);
+
+    const cleared = await harness.deal.updateDealDraft({
+      ...edit, expectedVersion: 2, idempotencyKey: nextUuid(), isUrgent: false,
+    }, CUSTOMER_CALL);
+    expect(cleared.deal?.isUrgent).toBe(false);
+    expect(harness.state.read.get('deals', request.dealId)?.isUrgent).toBe(false);
+
+    const ordinary = await harness.deal.createDealDraft({ ...request, dealId: nextUuid(), idempotencyKey: nextUuid() }, CUSTOMER_CALL);
+    expect(ordinary.deal?.isUrgent ?? false).toBe(false);
+  });
+
+  it('keeps submitted urgency locked and private in supplier reads and counteroffer responses', async () => {
+    const { harness, request } = await createDealFixture();
+    const submitted = await createSubmittedDeal(harness, { ...request, isUrgent: true });
+    expect(submitted.isUrgent).toBe(true);
+    const lateEdit = { ...createDraftEdit(request, submitted.version), isUrgent: false };
+    expect((await captureFailure(harness.deal.updateDealDraft(lateEdit, CUSTOMER_CALL))).code).toBe(ErrorCode.INVALID_TRANSITION);
+
+    const read = { dealId: submitted.id };
+    const supplier = await harness.deal.getDeal(read, SUPPLIER_1_CALL);
+    expect(supplier.deal?.id).toBe(submitted.id);
+    expect(supplier.deal?.isUrgent).toBeUndefined();
+
+    const list = { query: String(submitted.number) };
+    const supplierList = await harness.deal.listDeals(list, SUPPLIER_1_CALL);
+    expect(supplierList.deals.map(deal => deal.id)).toContain(submitted.id);
+    expect(supplierList.deals.find(deal => deal.id === submitted.id)?.isUrgent).toBeUndefined();
+    const buyerList = await harness.deal.listDeals(list, CUSTOMER_CALL);
+    expect(buyerList.deals.find(deal => deal.id === submitted.id)?.isUrgent).toBe(true);
+
+    const countered = await counterSubmittedDeal(harness, submitted);
+    expect(countered.status).toBe(DealStatus.COUNTER_OFFERED);
+    expect(countered.isUrgent).toBeUndefined();
+    expect((await harness.deal.getDeal(read, CUSTOMER_CALL)).deal?.isUrgent).toBe(true);
+    const carrier = callAs(SeedUserId.ADMIN_4, SeedOrganizationId.CARRIER_1);
+    expect((await captureFailure(harness.deal.getDeal(read, carrier))).code).toBe(ErrorCode.NOT_FOUND);
   });
 });
 

@@ -53,6 +53,7 @@ import type {
   SupportTicket,
   SupportTicketMessage,
 } from '@skladburg/contracts/support/v1/support_ticket';
+import type { YardQueuePolicy } from '@skladburg/contracts/wms/v1/yard_queue_policy';
 
 import {
   clone,
@@ -110,6 +111,7 @@ import {
   SupportTicketMessageSchema,
   SupportTicketSchema,
 } from '@skladburg/contracts/support/v1/support_ticket';
+import { YardQueuePolicySchema } from '@skladburg/contracts/wms/v1/yard_queue_policy';
 
 import type { DealReminderMarkValue } from '../modules/deals/dealReminderRecords';
 import type { ProductLinkRecordValue } from '../modules/deals/productLinkRecords';
@@ -223,6 +225,7 @@ export interface TableIndexesValue {
   warehouseOutbound: 'scopeId';
   warehouses: 'tenantId';
   warehouseTopologies: never;
+  yardQueuePolicies: never;
 }
 
 export type TableName = EngineCollectionName;
@@ -273,6 +276,7 @@ export interface TableRecordsValue {
   warehouseOutbound: WarehouseStockRecordValue;
   warehouses: Warehouse;
   warehouseTopologies: WarehouseTopologyRecordValue;
+  yardQueuePolicies: YardQueuePolicy;
 }
 
 const defineMessageTable = <TDesc extends DescMessage, TIndex extends string>(
@@ -393,4 +397,5 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   warehouseOutbound: { ...stockRecordTable, indexKeys: { scopeId: stockScopeId } },
   warehouses: defineMessageTable(WarehouseSchema, warehouse => warehouse.id, { tenantId: warehouse => warehouse.tenantId }),
   warehouseTopologies: defineRecordTable(parseWarehouseTopologyRecord, serializeWarehouseTopologyRecord),
+  yardQueuePolicies: defineMessageTable(YardQueuePolicySchema, policy => policy.organizationId, {}),
 };

@@ -105,6 +105,7 @@ const createTables = (): TablesValue => ({
   warehouseOutbound: createTable(TABLE_DEFINITIONS.warehouseOutbound),
   warehouses: createTable(TABLE_DEFINITIONS.warehouses),
   warehouseTopologies: createTable(TABLE_DEFINITIONS.warehouseTopologies),
+  yardQueuePolicies: createTable(TABLE_DEFINITIONS.yardQueuePolicies),
 });
 
 const createOverlays = (tables: TablesValue): OverlaysValue => ({
@@ -153,6 +154,7 @@ const createOverlays = (tables: TablesValue): OverlaysValue => ({
   warehouseOutbound: tables.warehouseOutbound.createOverlay(),
   warehouses: tables.warehouses.createOverlay(),
   warehouseTopologies: tables.warehouseTopologies.createOverlay(),
+  yardQueuePolicies: tables.yardQueuePolicies.createOverlay(),
 });
 
 export const createEngineState = (initial: EngineSnapshotValue): IEngineState => {

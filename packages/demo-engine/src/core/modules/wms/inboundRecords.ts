@@ -21,6 +21,7 @@ import {
 } from '@skladburg/contracts/wms/v1/receiving';
 import { ReceivingTasksChangedSchema } from '@skladburg/contracts/wms/v1/receiving_events';
 
+import type { CalendarDateValue } from '../../calendar/index';
 import type { IDomainErrors } from '../../errors/index';
 import type {
   IStateReader,
@@ -34,19 +35,21 @@ import type {
 } from './inboundDockQueue';
 import type { InboundDockCandidateValue } from './inboundDockSchedule';
 import type { InboundDockSlotValue } from './inboundDockSlots';
+import type { YardQueueWeightsValue } from './yardQueueScoring';
 
-import { compareIds } from '../../state/index';
-import { readTripForDeal } from '../logistics/tripRecords';
 import {
-  canUseInboundDock,
-  matchInboundDockQueue,
-} from './inboundDockQueue';
+  compareCalendarDates,
+  isCalendarDateExisting,
+  toCalendarDate,
+} from '../../calendar/index';
+import { readTripForDeal } from '../logistics/tripRecords';
+import { canUseInboundDock } from './inboundDockQueue';
 import {
   assignInboundDock,
-  assignScheduledInboundDocks,
   readInboundDockReservation,
 } from './inboundDockSchedule';
 import { INBOUND_DOCK_SLOT_GRACE_MS } from './inboundDockSlots';
+import { allocateInboundQueue } from './inboundQueueAllocation';
 import {
   isInboundYardBlocked,
   readInboundYardGate,
@@ -56,6 +59,10 @@ import {
   readEffectiveWarehouseDocks,
   readOwnedWarehouseTopology,
 } from './warehouseTopologyRecords';
+import {
+  DEFAULT_YARD_QUEUE_WEIGHTS,
+  rankYardQueue,
+} from './yardQueueScoring';
 
 const MAX_RECEIVING_VERSION = 2_147_483_647;
 
@@ -97,6 +104,31 @@ const isActiveInboundTask = (task: ReceivingTask, receivingAreaId: string): bool
 
 const hasLegacyReceipts = (task: ReceivingTask): boolean =>
   task.yardAdmissionStatus === YardAdmissionStatus.UNSPECIFIED && task.receivedUnits.length > 0;
+
+const readEarliestUsableExpiry = (task: ReceivingTask, today: CalendarDateValue): CalendarDateValue | undefined => {
+  let earliest: CalendarDateValue | undefined;
+  for (const unit of task.expectedUnits) {
+    for (const { expiresOn } of unit.batches) {
+      if (expiresOn !== undefined && isCalendarDateExisting(expiresOn) && compareCalendarDates(expiresOn, today) >= 0
+        && (earliest === undefined || compareCalendarDates(expiresOn, earliest) < 0)) {
+        earliest = expiresOn;
+      }
+    }
+  }
+  return earliest;
+};
+
+const readYardQueueWeights = (reader: IStateReader, tenantId: string): YardQueueWeightsValue => {
+  const stored = reader.get('yardQueuePolicies', tenantId)?.weights;
+  const defaults = DEFAULT_YARD_QUEUE_WEIGHTS;
+  return {
+    cargoUrgencyWeight: stored?.cargoUrgencyWeight ?? defaults.cargoUrgencyWeight,
+    deliveryWindowWeight: stored?.deliveryWindowWeight ?? defaults.deliveryWindowWeight,
+    explicitUrgencyWeight: stored?.explicitUrgencyWeight ?? defaults.explicitUrgencyWeight,
+    resourceAvailabilityWeight: stored?.resourceAvailabilityWeight ?? defaults.resourceAvailabilityWeight,
+    waitingTimeWeight: stored?.waitingTimeWeight ?? defaults.waitingTimeWeight,
+  };
+};
 
 export const requireInboundDock = (
   reader: IStateReader,
@@ -170,6 +202,8 @@ export const assignAvailableInboundDocks = (
   const docks = readInboundDocks(transaction, runtime.errors, scope);
   const { receivingAreaId, tenantId, warehouseId } = scope;
   const { worldTimeMs } = transaction;
+  const timeZone = transaction.get('warehouses', warehouseId)?.timeZone ?? '';
+  const warehouseDate = toCalendarDate(worldTimeMs, timeZone === '' ? 'UTC' : timeZone);
   const tasks = transaction.listBy('warehouseInbound', 'scopeId', warehouseId)
     .filter(record => record.lookupKey === tenantId)
     .map(record => record.id === updatedTask?.id ? updatedTask : readInboundTask(record, runtime.errors))
@@ -214,10 +248,15 @@ export const assignAvailableInboundDocks = (
     const deliveryEnd = order?.deliveryWindow?.endsAt;
     const documentsReadyAt = trip?.carrierTitle?.submittedAt;
     waiting.push({
-      arrivedAt: arrived === undefined ? 0 : timestampMs(arrived),
-      deliveryEndsAt: deliveryEnd === undefined ? Number.MAX_SAFE_INTEGER : timestampMs(deliveryEnd),
+      arrivedAtMs: arrived === undefined ? undefined : timestampMs(arrived),
+      deliveryEndsAtMs: deliveryEnd === undefined ? undefined : timestampMs(deliveryEnd),
       documentsReadyAt: documentsReadyAt === undefined ? undefined : timestampMs(documentsReadyAt),
+      earliestUsableExpiry: readEarliestUsableExpiry(task, warehouseDate),
       ...readCargoRequirements(docks.length === 1 && hasLegacyReceipts(task) ? undefined : order?.cargo),
+      hasAvailableResources: undefined,
+      hasReceipt: task.receivedUnits.length > 0,
+      id: task.id,
+      isUrgent: deal?.customerOrganizationId === tenantId && deal.isUrgent === true,
       task,
     });
   }
@@ -237,37 +276,41 @@ export const assignAvailableInboundDocks = (
     updatedTask.yardAdmissionStatus = YardAdmissionStatus.WAITING_DOCK;
   }
 
-  waiting.sort((current, prev) => {
-    const hasReceipt = current.task.receivedUnits.length > 0;
-    const hadReceipt = prev.task.receivedUnits.length > 0;
-    return Number(hadReceipt) - Number(hasReceipt)
-      || Number(prev.hasColdCargo) - Number(current.hasColdCargo)
-      || current.deliveryEndsAt - prev.deliveryEndsAt
-      || current.arrivedAt - prev.arrivedAt
-      || compareIds(current.task.id, prev.task.id);
-  });
-  const legacy = waiting.filter(({ task }) => task.dockSchedule === undefined);
-  const continuingReceipt = legacy[0];
+  const canBook = (candidate: InboundDockCandidateValue): boolean => docks.some(dock => canUseInboundDock(dock, candidate));
+  const sorted = rankYardQueue(waiting.filter(canBook), readYardQueueWeights(transaction, tenantId), worldTimeMs, warehouseDate);
+  const continuingReceipt = sorted.find(({ task }) => task.dockSchedule === undefined);
   if (primary !== undefined && docks.length === 1 && continuingReceipt !== undefined
     && hasLegacyReceipts(continuingReceipt.task) && !occupied.has(primary.id)) {
     assignInboundDock(continuingReceipt.task, primary.id);
     occupied.set(primary.id, undefined);
     changed.add(continuingReceipt.task);
   }
-  assignScheduledInboundDocks(waiting.filter(({ task }) => task.dockSchedule !== undefined), docks, reservations, occupied,
-    worldTimeMs, changed);
-
-  const reservedNow = new Set([...reservations.values()].filter(slot =>
-    slot.startsAtMs <= worldTimeMs && worldTimeMs < slot.endsAtMs).map(slot => slot.dockId));
-  const available = docks.filter(dock => !occupied.has(dock.id) && !reservedNow.has(dock.id));
-  for (const [dockId, { task }] of matchInboundDockQueue(available, legacy)) {
-    assignInboundDock(task, dockId);
-    changed.add(task);
-  }
+  const queue = sorted.filter(({ task }) => task.unloadingPointId === undefined || !dockIds.has(task.unloadingPointId));
+  queue.push(...waiting.filter(candidate => candidate.task.dockSchedule !== undefined && !canBook(candidate)));
+  allocateInboundQueue(queue, docks, { changed, occupied, reservations, worldTimeMs });
   for (const task of changed) {
     if (task !== updatedTask) {
       task.version += 1;
       saveInboundTask(transaction, runtime, task, tenantId);
+    }
+  }
+};
+
+export const reassignOrganizationInboundDocks = (
+  transaction: IStateTransaction,
+  runtime: Pick<IModuleRuntime, 'errors' | 'outbox'>,
+  tenantId: string,
+): void => {
+  for (const { id: warehouseId } of transaction.listBy('warehouses', 'tenantId', tenantId)) {
+    const receivingAreaId = readOwnedWarehouseTopology(transaction, runtime.errors, warehouseId, tenantId)?.receivingArea?.id;
+    if (receivingAreaId !== undefined && transaction.listBy('warehouseInbound', 'scopeId', warehouseId).some((record) => {
+      if (record.lookupKey !== tenantId) {
+        return false;
+      }
+      const task = readInboundTask(record, runtime.errors);
+      return task.unloadingPointId === undefined && isActiveInboundTask(task, receivingAreaId);
+    })) {
+      assignAvailableInboundDocks(transaction, runtime, { receivingAreaId, tenantId, warehouseId });
     }
   }
 };

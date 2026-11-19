@@ -77,6 +77,7 @@ export const createDealDraftHandlers = (
           desiredDate: request.desiredDate,
           goodsTotal,
           id: request.dealId,
+          isUrgent: request.isUrgent,
           lines,
           number,
           shipFromCityId: request.shipFromCityId,
@@ -101,6 +102,7 @@ export const createDealDraftHandlers = (
     command: 'updateDealDraft',
     handle: (transaction, caller, deal) => {
       const next = clone(DealSchema, deal);
+      next.isUrgent = request.isUrgent ?? deal.isUrgent;
       next.shipFromCityId = request.shipFromCityId;
       next.shipToWarehouseId = request.shipToWarehouseId;
       next.desiredDate = request.desiredDate;

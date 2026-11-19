@@ -52,6 +52,7 @@ import { WarehouseReceivingService } from '@skladburg/contracts/wms/v1/receiving
 import { WarehouseReceivingLayoutService } from '@skladburg/contracts/wms/v1/receiving_layout';
 import { WarehouseStockService } from '@skladburg/contracts/wms/v1/stock';
 import { WarehouseTopologyService } from '@skladburg/contracts/wms/v1/topology';
+import { YardQueuePolicyService } from '@skladburg/contracts/wms/v1/yard_queue_policy';
 
 import type { TestRuntimeValue } from './testRuntime';
 
@@ -88,6 +89,7 @@ import { createWarehouseReceivingLayoutService } from '../wms/warehouseReceiving
 import { createWarehouseReceivingService } from '../wms/warehouseReceivingService';
 import { createWarehouseStockService } from '../wms/warehouseStockService';
 import { createWarehouseTopologyService } from '../wms/warehouseTopologyService';
+import { createYardQueuePolicyService } from '../wms/yardQueuePolicyService';
 import { createTestRuntime } from './testRuntime';
 
 export interface ModuleHarnessValue extends TestRuntimeValue {
@@ -189,6 +191,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(WarehouseReceivingService, createWarehouseReceivingService(testRuntime.runtime));
     service(WarehouseStockService, createWarehouseStockService(testRuntime.runtime));
     service(WarehouseTopologyService, createWarehouseTopologyService(testRuntime.runtime));
+    service(YardQueuePolicyService, createYardQueuePolicyService(testRuntime.runtime));
   });
 
   return {

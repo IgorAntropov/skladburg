@@ -7,6 +7,9 @@ import { ProfileKind } from '@skladburg/contracts/organization/v1/organization';
 export const projectDeal = (deal: Deal, organizationId: string): Deal => {
   const projected = clone(DealSchema, deal);
   const ownSide = deal.customerOrganizationId === organizationId ? ProfileKind.CUSTOMER : ProfileKind.SUPPLIER;
+  if (ownSide !== ProfileKind.CUSTOMER) {
+    projected.isUrgent = undefined;
+  }
   for (const transition of projected.transitions) {
     if (transition.actorSide !== ownSide) {
       transition.actorRoleName = '';

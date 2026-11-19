@@ -13,6 +13,7 @@ const PRE_WAREHOUSE_INBOUND_SCHEMA_VERSION = 22;
 const PRE_RECEIPT_SETTLEMENT_SCHEMA_VERSION = 23;
 const PRE_WAREHOUSE_LAYOUT_SESSIONS_SCHEMA_VERSION = 24;
 const PRE_WAREHOUSE_LAYOUT_DRAFTS_SCHEMA_VERSION = 25;
+const PRE_YARD_QUEUE_POLICY_SCHEMA_VERSION = 26;
 
 const addStockCollections = (snapshot: EngineSnapshotValue): EngineSnapshotValue => ({
   ...snapshot,
@@ -26,14 +27,19 @@ const addStockCollections = (snapshot: EngineSnapshotValue): EngineSnapshotValue
 });
 
 export const migrateStoredSnapshot = async (stored: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
-  if (stored.schemaVersion === PRE_WAREHOUSE_LAYOUT_DRAFTS_SCHEMA_VERSION) {
-    return { ...stored, schemaVersion: ENGINE_SCHEMA_VERSION };
+  const withYardQueuePolicies: EngineSnapshotValue = {
+    ...stored,
+    collections: { ...stored.collections, yardQueuePolicies: new Map() },
+    schemaVersion: ENGINE_SCHEMA_VERSION,
+  };
+  if (stored.schemaVersion === PRE_WAREHOUSE_LAYOUT_DRAFTS_SCHEMA_VERSION
+    || stored.schemaVersion === PRE_YARD_QUEUE_POLICY_SCHEMA_VERSION) {
+    return withYardQueuePolicies;
   }
 
   const current: EngineSnapshotValue = {
-    ...stored,
-    collections: { ...stored.collections, warehouseLayoutSessions: new Map() },
-    schemaVersion: ENGINE_SCHEMA_VERSION,
+    ...withYardQueuePolicies,
+    collections: { ...withYardQueuePolicies.collections, warehouseLayoutSessions: new Map() },
   };
 
   if (stored.schemaVersion === PRE_WAREHOUSE_LAYOUT_SESSIONS_SCHEMA_VERSION) {

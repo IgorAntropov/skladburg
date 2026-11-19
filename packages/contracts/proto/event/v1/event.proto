@@ -14,6 +14,7 @@ import "wms/v1/layout_events.proto";
 import "wms/v1/picking_events.proto";
 import "wms/v1/receiving_events.proto";
 import "wms/v1/stock_events.proto";
+import "wms/v1/yard_queue_policy_events.proto";
 
 message Event {
   string channel = 1;
@@ -34,5 +35,6 @@ message Event {
     wms.v1.PickingTasksChanged picking_tasks_changed = 20;
     wms.v1.ReceivingTasksChanged receiving_tasks_changed = 21;
     wms.v1.WarehouseLayoutDraftsChanged warehouse_layout_drafts_changed = 22;
+    wms.v1.YardQueuePolicyChanged yard_queue_policy_changed = 23;
   }
 }

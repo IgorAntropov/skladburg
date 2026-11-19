@@ -9,6 +9,8 @@ import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import {
   AddWarehouseCellsResponseSchema,
   GetWarehouseTopologyResponseSchema,
+  InitializeWarehouseLayoutResponseSchema,
+  WarehouseTopologySchema,
   WarehouseTopologyService,
 } from '@skladburg/contracts/wms/v1/topology';
 
@@ -25,6 +27,7 @@ import {
   normalizeWarehouseCellCodes,
   planWarehouseCells,
 } from './warehouseCellPlan';
+import { collectWarehouseLayoutBoundsViolations } from './warehouseLayoutBoundsValidation';
 import {
   areLayoutDraftBytesEqual,
   encodeLayoutDraftCells,
@@ -41,6 +44,8 @@ import {
   readOwnedWarehouseTopology,
   saveWarehouseTopology,
 } from './warehouseTopologyRecords';
+
+const MAX_LAYOUT_REVISION = 4_294_967_295;
 
 export const createWarehouseTopologyService = (runtime: IModuleRuntime): ServiceImpl<typeof WarehouseTopologyService> => {
   const { command, errors, getRealTimeMs, guard, idempotency, random, read } = runtime;
@@ -118,6 +123,49 @@ export const createWarehouseTopologyService = (runtime: IModuleRuntime): Service
 
       return create(GetWarehouseTopologyResponseSchema, { topology });
     },
+    initializeWarehouseLayout: (request, context) => command((transaction) => {
+      const { initializeWarehouseLayout } = method;
+      const caller = guard.guardPermissionCall(transaction, initializeWarehouseLayout, request, context.requestHeader);
+      const { organizationId: tenantId } = caller;
+      const { expectedRevision, idempotencyKey, warehouseDepthMm, warehouseId, warehouseWidthMm, zoneBounds } = request;
+
+      return idempotency.run(transaction, {
+        handler: () => {
+          const current = readOwnedWarehouseTopology(transaction, errors, warehouseId, tenantId);
+          const revision = current?.revision ?? 0;
+          if (expectedRevision !== revision || revision === MAX_LAYOUT_REVISION) {
+            throw errors.versionConflict(EntityKind.WAREHOUSE, revision);
+          }
+          const hasExistingLayout = current !== undefined
+            && (current.bounds !== undefined || current.receivingArea !== undefined || current.storageZones.length > 0);
+          if (hasExistingLayout) {
+            throw errors.validationFailed([{ fieldPath: 'warehouse_id', ruleId: 'warehouse.layout_already_initialized' }]);
+          }
+          if (zoneBounds === undefined) {
+            throw errors.validationFailed([{ fieldPath: 'zone_bounds', ruleId: 'required' }]);
+          }
+          const violations = collectWarehouseLayoutBoundsViolations(request, zoneBounds);
+          if (violations.length > 0) {
+            throw errors.validationFailed(violations);
+          }
+
+          const topology = create(WarehouseTopologySchema, {
+            bounds: { depthMm: warehouseDepthMm, origin: { xMm: 0, zMm: 0 }, widthMm: warehouseWidthMm },
+            revision: revision + 1,
+            storageZones: [{ bounds: zoneBounds, code: 'Z01', id: random.uuid(), rows: [{ code: 'R01', id: random.uuid() }] }],
+            tenantId,
+            warehouseId,
+          });
+          saveWarehouseTopology(transaction, runtime, topology);
+
+          return create(InitializeWarehouseLayoutResponseSchema, { revision: topology.revision });
+        },
+        idempotencyKey,
+        method: initializeWarehouseLayout,
+        request,
+        scope: tenantId,
+      });
+    }),
   };
 };
 

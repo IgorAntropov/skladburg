@@ -48,6 +48,7 @@ const DIRECTIONS = new Map<string, WarehouseRackPositionValue>([
 
 const RACK = 'border border-line-strong bg-line';
 const RECEIVING = 'border border-dashed border-line-strong bg-skeleton';
+const ZONE = 'border border-dashed border-line-strong';
 const DRAFT = 'border-2 border-dashed border-indicator bg-indicator/10';
 const SELECTION = 'border-2 border-indicator bg-indicator/20';
 const BLOCKED_SELECTION = 'border-2 border-dashed border-status-alarm bg-status-alarm/25';
@@ -81,12 +82,28 @@ const getBoardStyle = (grid: WarehouseRackGridValue): CSSProperties => ({
   aspectRatio: grid.widthMm / grid.depthMm,
   backgroundImage: GRID_IMAGE,
   backgroundSize: `${getGridSpacing(grid.widthMm)} ${getGridSpacing(grid.depthMm)}`,
+  ...(grid.zones === undefined
+    ? {}
+    : {
+        minHeight: '2.75rem',
+        width: `clamp(2.75rem, calc(var(--warehouse-rack-grid-height, 24rem) * ${String(grid.widthMm / grid.depthMm)}), 100%)`,
+      }),
 });
 
 type RackMarkersProps = Pick<RackGridSurfaceProps, 'drafts' | 'grid'>;
 
 const RackMarkers = ({ drafts, grid }: RackMarkersProps): ReactElement => (
   <>
+    {grid.zones?.map(({ footprint, id }) => (
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none absolute ${ZONE}`}
+        data-testid="warehouse-rack-grid-zone"
+        data-zone-id={id}
+        key={id}
+        style={getMarkerStyle(footprint, grid)}
+      />
+    ))}
     {grid.obstacles.map(({ footprint, id, kind }) => (
       <span
         aria-hidden="true"
@@ -114,21 +131,30 @@ const RackMarkers = ({ drafts, grid }: RackMarkersProps): ReactElement => (
 );
 
 interface RackLegendProps {
+  grid: WarehouseRackGridValue;
   hasDrafts: boolean;
   selectionClassName?: string | undefined;
   t: WarehouseWorkTranslate;
 }
 
-const RackLegend = ({ hasDrafts, selectionClassName, t }: RackLegendProps): ReactElement => (
+const RackLegend = ({ grid, hasDrafts, selectionClassName, t }: RackLegendProps): ReactElement => (
   <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-on-panel-muted">
     <li className="flex items-center gap-2">
       <span aria-hidden="true" className={`size-3 ${RACK}`} />
       {t('warehouseWork.rackGridExisting')}
     </li>
-    <li className="flex items-center gap-2">
-      <span aria-hidden="true" className={`size-3 ${RECEIVING}`} />
-      {t('warehouseWork.receivingArea')}
-    </li>
+    {(grid.zones === undefined || grid.obstacles.some(obstacle => obstacle.kind === 'receiving')) && (
+      <li className="flex items-center gap-2">
+        <span aria-hidden="true" className={`size-3 ${RECEIVING}`} />
+        {t('warehouseWork.receivingArea')}
+      </li>
+    )}
+    {grid.zones !== undefined && (
+      <li className="flex items-center gap-2">
+        <span aria-hidden="true" className={`size-3 ${ZONE}`} />
+        {t('warehouseWork.rackGridZone')}
+      </li>
+    )}
     {selectionClassName !== undefined && (
       <li className="flex items-center gap-2">
         <span aria-hidden="true" className={`size-3 ${selectionClassName}`} />
@@ -153,7 +179,7 @@ export const WarehouseRackOverview = ({ drafts, grid, t }: RackGridSurfaceProps)
     >
       <RackMarkers drafts={drafts} grid={grid} />
     </div>
-    <RackLegend hasDrafts={drafts !== undefined && drafts.length > 0} t={t} />
+    <RackLegend grid={grid} hasDrafts={drafts !== undefined && drafts.length > 0} t={t} />
   </div>
 );
 
@@ -170,9 +196,12 @@ export const WarehouseRackGrid = ({
   const { formatNumber } = useI18n();
   const hintId = useId();
   const { origin } = footprint;
-  const status = obstacle?.kind === 'rack'
-    ? t('warehouseWork.rackGridBlockedRack')
-    : obstacle === undefined ? t('warehouseWork.rackGridFree') : t('warehouseWork.rackGridBlockedReceiving');
+  const statusKeys = {
+    'outside-zone': 'warehouseWork.rackGridBlockedZone',
+    'rack': 'warehouseWork.rackGridBlockedRack',
+    'receiving': 'warehouseWork.rackGridBlockedReceiving',
+  } as const;
+  const status = t(obstacle === undefined ? 'warehouseWork.rackGridFree' : statusKeys[obstacle.kind]);
   const selectionClassName = obstacle === undefined ? SELECTION : BLOCKED_SELECTION;
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>): void => {
@@ -223,7 +252,7 @@ export const WarehouseRackGrid = ({
           style={getMarkerStyle(footprint, grid)}
         />
       </Button>
-      <RackLegend hasDrafts={drafts !== undefined && drafts.length > 0} selectionClassName={selectionClassName} t={t} />
+      <RackLegend grid={grid} hasDrafts={drafts !== undefined && drafts.length > 0} selectionClassName={selectionClassName} t={t} />
       <p className="text-sm font-semibold" data-obstacle-kind={obstacle?.kind} data-testid="warehouse-rack-grid-status" role="status">
         <span className="sr-only">
           {t('warehouseWork.rackPosition', { x: formatNumber(origin.xMm), z: formatNumber(origin.zMm) })}

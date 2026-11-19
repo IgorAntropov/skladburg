@@ -23,6 +23,23 @@ const topology = create(WarehouseTopologySchema, {
 });
 
 describe('warehouse construction scene layout', () => {
+  it('draws the exact outline of a selected empty zone at its saved offset', () => {
+    const boundedTopology = create(WarehouseTopologySchema, {
+      storageZones: [{
+        bounds: { depthMm: 4_000, origin: { xMm: 1_000, zMm: 2_000 }, widthMm: 6_000 },
+        id: 'first',
+      }],
+    });
+
+    const { zones } = buildWarehouseConstruction(boundedTopology, { racks: [], selectedZoneId: 'first' });
+
+    expect(zones).toHaveLength(4);
+    expect(Math.min(...zones.map(({ position, size }) => position[0] - size[0] / 2))).toBeCloseTo(1);
+    expect(Math.max(...zones.map(({ position, size }) => position[0] + size[0] / 2))).toBeCloseTo(7);
+    expect(Math.min(...zones.map(({ position, size }) => position[2] - size[2] / 2))).toBeCloseTo(2);
+    expect(Math.max(...zones.map(({ position, size }) => position[2] + size[2] / 2))).toBeCloseTo(6);
+  });
+
   it('fits the preview posts and both shelf outlines to the saved rack', () => {
     const { previews } = buildWarehouseConstruction(topology, {
       racks: [{ baseRevision: 3, footprint, isBlocked: false, zoneId: 'near' }],

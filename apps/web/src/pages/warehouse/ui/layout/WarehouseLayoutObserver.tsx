@@ -35,7 +35,8 @@ export const WarehouseLayoutObserver = ({ onPreviewChange, t, topology, warehous
     () => createWarehouseRackGrid(topology, EMPTY_FOOTPRINT, undefined, drafts.map(({ footprint }) => footprint)),
     [drafts, topology],
   );
-  useWarehouseConstructionPreview(onPreviewChange, drafts);
+  const selectedBoundedZoneId = topology?.storageZones.find(zone => zone.bounds !== undefined)?.id;
+  useWarehouseConstructionPreview(onPreviewChange, drafts, undefined, undefined, selectedBoundedZoneId);
 
   if (isDenied) {
     return <EmptyState icon={Package} text={t('warehouseWork.noAccess')} />;

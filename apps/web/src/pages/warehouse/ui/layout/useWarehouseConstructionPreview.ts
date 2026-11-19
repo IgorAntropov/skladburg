@@ -16,9 +16,10 @@ export const useWarehouseConstructionPreview = (
   drafts: readonly WarehouseLayoutPreviewValue[],
   placement?: WarehouseRackPlacementValue,
   isBlocked = false,
+  selectedBoundedZoneId?: string,
 ): void => {
   const baseRevision = placement?.expectedRevision;
-  const selectedZoneId = placement?.zoneId;
+  const selectedZoneId = placement?.zoneId ?? selectedBoundedZoneId;
   const depthMm = placement?.footprint.depthMm;
   const widthMm = placement?.footprint.widthMm;
   const xMm = placement?.footprint.origin.xMm;
@@ -32,7 +33,7 @@ export const useWarehouseConstructionPreview = (
       racks.push({ baseRevision, footprint: { depthMm, origin: { xMm, zMm }, widthMm }, isBlocked, zoneId: selectedZoneId });
     }
 
-    return racks.length === 0 ? undefined : { racks, selectedZoneId };
+    return racks.length === 0 && selectedZoneId === undefined ? undefined : { racks, selectedZoneId };
   }, [baseRevision, depthMm, drafts, isBlocked, selectedZoneId, widthMm, xMm, zMm]);
 
   useEffect(() => {

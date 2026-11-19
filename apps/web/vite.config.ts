@@ -528,6 +528,11 @@ const ENGINE_WORKER_ENTRIES = ['packages/demo-engine/src/host/worker.ts'];
 
 const ENGINE_WORKER_DYNAMIC_ENTRIES = ['packages/demo-engine/src/core/engine/index.ts'];
 
+const ENGINE_WAREHOUSE_TOPOLOGY_MODULES = [
+  'packages/contracts/src/gen/wms/v1/topology_pb.ts',
+  'packages/demo-engine/src/core/modules/wms/warehouseTopologyCodec.ts',
+];
+
 const ENGINE_IMPORT_ENTRY = 'packages/demo-engine/src/core/modules/import/importService.ts';
 
 const DEFERRED_PRELOAD_ENTRIES = [...ENGINE_WORKER_ENTRIES, ...ENGINE_WORKER_DYNAMIC_ENTRIES];
@@ -1542,6 +1547,10 @@ export default defineConfig({
             includeDependenciesRecursively: false,
             name: 'engine-seed-topologies',
             test: /[\\/]core[\\/](?:engine[\\/]migrateWarehouseTopologies|seed[\\/]seed(?:SnapshotWithTopology|WarehouseTopologies))\.ts$/,
+          }, {
+            includeDependenciesRecursively: false,
+            name: 'engine-warehouse-topology',
+            test: (moduleId: string): boolean => ENGINE_WAREHOUSE_TOPOLOGY_MODULES.some(entry => hasEntryModule([moduleId], entry)),
           }, {
             includeDependenciesRecursively: false,
             name: 'engine-transport-shared',

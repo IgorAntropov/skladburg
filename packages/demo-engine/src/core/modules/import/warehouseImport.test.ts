@@ -182,8 +182,73 @@ it('previews and applies one workbook to a new layout, then safely rolls it back
     expectedVersion: applied.job?.version, idempotencyKey: nextUuid(), jobId, warehouseScope,
   }, CUSTOMER);
   expect(rollback.job?.status).toBe(ImportStatus.ROLLED_BACK);
-  expect((await createClient(WarehouseTopologyService, reopenedTransport).getWarehouseTopology({ warehouseId }, CUSTOMER)).topology)
-    .toMatchObject({ revision: 2, storageZones: [] });
+  const restored = createClient(WarehouseTopologyService, reopenedTransport);
+  expect((await restored.getWarehouseTopology({ warehouseId }, CUSTOMER)).topology).toMatchObject({ revision: 2, storageZones: [] });
+  expect(await restored.initializeWarehouseLayout({
+    expectedRevision: 2,
+    idempotencyKey: nextUuid(),
+    warehouseDepthMm: 8_000,
+    warehouseId,
+    warehouseWidthMm: 12_000,
+    zoneBounds: { depthMm: 4_000, origin: { xMm: 1_000, zMm: 1_000 }, widthMm: 6_000 },
+  }, CUSTOMER)).toMatchObject({ revision: 3 });
+});
+
+it('applies bounded layout rules to XLSX and restores the original contours and IDs on rollback', async () => {
+  const { engine } = await createTestEngine();
+  const transport = createEngineTransport(engine, true);
+  const imports = createClient(ImportService, transport);
+  const topology = createClient(WarehouseTopologyService, transport);
+  const warehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2;
+  const warehouseScope = { ...CELLS, warehouseId };
+  const preview = (rows: string[][]): ReturnType<typeof imports.previewImport> => imports.previewImport({
+    fileBytes: buildImportXlsx(CELL_HEADERS, rows), fileName: 'cells.xlsx', idempotencyKey: nextUuid(), warehouseScope,
+  }, CUSTOMER);
+  const oldPreview = await preview([CELL_ROW]);
+  await topology.initializeWarehouseLayout({
+    expectedRevision: 0,
+    idempotencyKey: nextUuid(),
+    warehouseDepthMm: 8_000,
+    warehouseId,
+    warehouseWidthMm: 12_000,
+    zoneBounds: { depthMm: 4_000, origin: { xMm: 1_000, zMm: 1_000 }, widthMm: 6_000 },
+  }, CUSTOMER);
+  const original = (await topology.getWarehouseTopology({ warehouseId }, CUSTOMER)).topology;
+  expect(readErrorDetail(await captureError(imports.commitImport({
+    expectedVersion: oldPreview.job?.version, idempotencyKey: nextUuid(), jobId: oldPreview.job?.id, warehouseScope,
+  }, CUSTOMER))).code).toBe(ErrorCode.VERSION_CONFLICT);
+
+  const outsideZone = CELL_ROW.map((value, index) => index === 3 ? '900' : value);
+  const invalid = await preview([outsideZone, NEW_ZONE_ROW]);
+  const { rows } = await imports.getImportJob({ hasErrorsOnly: true, jobId: invalid.job?.id, warehouseScope }, CUSTOMER);
+  expect(rows.flatMap(row => row.errors)).toEqual(expect.arrayContaining([
+    expect.objectContaining({ rowNumber: 2, ruleId: 'warehouse.rack_outside_zone' }),
+    expect.objectContaining({ rowNumber: 3, ruleId: 'warehouse.zone_not_defined' }),
+  ]));
+  expect((await topology.getWarehouseTopology({ warehouseId }, CUSTOMER)).topology).toEqual(original);
+
+  const otherCell = CELL_ROW.map((value, index) => {
+    switch (index) {
+      case 3:
+      case 4:
+      case 5:
+      case 6: return '';
+      case 9: return 'Z01-R01-S01-Y03-C02';
+      case 10: return '600';
+      default: return value;
+    }
+  });
+  const valid = await preview([otherCell, CELL_ROW]);
+  expect(valid.job?.errorCount).toBe(0);
+  const applied = await imports.commitImport({
+    expectedVersion: valid.job?.version, idempotencyKey: nextUuid(), jobId: valid.job?.id, warehouseScope,
+  }, CUSTOMER);
+  expect(applied.job?.status).toBe(ImportStatus.COMMITTED);
+  const rollback = await imports.rollbackImport({
+    expectedVersion: applied.job?.version, idempotencyKey: nextUuid(), jobId: valid.job?.id, warehouseScope,
+  }, CUSTOMER);
+  expect(rollback.job?.status).toBe(ImportStatus.ROLLED_BACK);
+  expect((await topology.getWarehouseTopology({ warehouseId }, CUSTOMER)).topology).toEqual({ ...original, revision: 3 });
 });
 
 it('retains physical row numbers and writes no layout if the last row overlaps', async () => {

@@ -28,10 +28,7 @@ import {
   FORKLIFT_FORK_HEIGHT,
 } from './warehouseForkliftRoute';
 import { canAdvanceWarehouseForklift } from './warehouseForkliftTraffic';
-import {
-  buildWarehouseLayout,
-  getWarehouseLayout,
-} from './warehouseLayout';
+import { getWarehouseLayout } from './warehouseLayout';
 
 const topology = create(WarehouseTopologySchema, {
   receivingArea: {
@@ -55,14 +52,15 @@ const topology = create(WarehouseTopologySchema, {
 const layout = getWarehouseLayout(topology);
 const primary = { x: 1, z: 0 };
 const secondary = { x: 7.2, z: 0 };
-const wideLayout = buildWarehouseLayout(create(WarehouseTopologySchema, {
+const wideLayout = getWarehouseLayout(create(WarehouseTopologySchema, {
   receivingArea: {
+    additionalUnloadingPoints: [{ id: 'dock-2', position: { xMm: 7200, zMm: 0 } }],
     footprint: { depthMm: 3000, origin: { xMm: 1000, zMm: 1000 }, widthMm: 9000 },
     id: 'receiving',
     unloadingPoint: { position: { xMm: 1000, zMm: 0 } },
   },
   storageZones: topology.storageZones,
-}), [secondary]);
+}));
 
 const expectedUnit = {
   cellId: undefined, expectedUnitId: 'planned', id: 'planned', location: 'truck', slot: 0, taskId: 'receiving-task', truckSlot: 0,

@@ -30,6 +30,18 @@ const getTruckBounds = (): NonNullable<ReturnType<typeof createWarehouseTruckGeo
 };
 
 describe('warehouse scene layout', () => {
+  it('uses the saved warehouse dimensions for the slab and frames its grounds on an empty plan', () => {
+    const topology = create(WarehouseTopologySchema, { bounds: { depthMm: 8_000, origin: {}, widthMm: 12_000 } });
+
+    const { floor, world } = getWarehouseLayout(topology);
+    const ground = floor.get('ground')?.[0];
+
+    expect(floor.get('road')).toContainEqual({ position: [6, -0.17, 4], size: [12, 0.22, 8] });
+    expect(world.home.radius).toBeGreaterThanOrEqual(Math.hypot(12, 8) / 2);
+    expect(ground?.size[0]).toBeCloseTo(world.bounds.maxX - world.bounds.minX);
+    expect(ground?.size[2]).toBeCloseTo(world.bounds.maxZ - world.bounds.minZ);
+  });
+
   it('reads the rack footprint, cell offset and tier elevation from imported topology', () => {
     const topology = create(WarehouseTopologySchema, {
       storageZones: [{

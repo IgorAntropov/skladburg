@@ -19,6 +19,8 @@ import {
   WarehouseTopologySchema,
 } from '@skladburg/contracts/wms/v1/topology';
 
+import { containsWarehouseFloorRect } from './warehouseLayoutBounds';
+
 export interface WarehouseCellPlanValue {
   materialize: (warehouseId: string, tenantId: string, allocateId: () => string) => {
     addedCellIds: string[];
@@ -189,6 +191,7 @@ const stageCell = (
   cellCodes: Set<string>,
   input: WarehouseCellInput,
   index: number,
+  hasLayoutBounds: boolean,
   report: ReportViolation,
 ): void => {
   const cell = normalizeWarehouseCellCodes(input);
@@ -212,6 +215,11 @@ const stageCell = (
   }
 
   if (!hasZone || !hasRow || !hasRack || !hasTier) {
+    return;
+  }
+  if (hasLayoutBounds && !zones.has(cell.zoneCode)) {
+    report(index, 'zone_code', 'warehouse.zone_not_defined');
+
     return;
   }
 
@@ -405,6 +413,14 @@ const findOverlappingRacks = (rectangles: readonly RackRectangleValue[]): Set<Ra
   return overlapping;
 };
 
+const reportRackFootprint = (rack: RackValue, ruleId: string, report: ReportViolation): void => {
+  for (const tier of rack.tiers.values()) {
+    for (const { index } of tier.cells) {
+      report(index, 'rack_footprint', ruleId);
+    }
+  }
+};
+
 const checkRacks = (
   zones: Map<string, ZoneValue>,
   current: undefined | WarehouseTopology,
@@ -423,6 +439,10 @@ const checkRacks = (
         checkRackTiers(rack, report);
 
         if (rack.footprint !== undefined) {
+          if (rack.current === undefined && current?.bounds !== undefined
+            && !containsWarehouseFloorRect(zone.current?.bounds, rack.footprint)) {
+            reportRackFootprint(rack, 'warehouse.rack_outside_zone', report);
+          }
           rectangles.push(createRectangle(rack.footprint, rack.current === undefined ? rack : undefined));
         }
       }
@@ -430,11 +450,7 @@ const checkRacks = (
   }
 
   for (const rack of findOverlappingRacks(rectangles)) {
-    for (const tier of rack.tiers.values()) {
-      for (const { index } of tier.cells) {
-        report(index, 'rack_footprint', 'warehouse.rack_overlap');
-      }
-    }
+    reportRackFootprint(rack, 'warehouse.rack_overlap', report);
   }
 };
 
@@ -487,7 +503,7 @@ export const planWarehouseCells = (
   }
 
   cells.slice(0, MAX_CELLS).forEach((cell, index) => {
-    stageCell(zones, cellCodes, cell, index, report);
+    stageCell(zones, cellCodes, cell, index, current?.bounds !== undefined, report);
   });
   checkRacks(zones, current, report);
   violations.sort((current, prev) => current.index - prev.index);

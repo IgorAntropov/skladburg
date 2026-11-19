@@ -70,6 +70,10 @@ const lazyWarehouseReceiveFormFiles = [
   'apps/web/src/pages/warehouse/api/useReceiveUnitForm.ts',
   'apps/web/src/pages/warehouse/ui/workspace/WarehouseReceiveForm.tsx',
 ];
+const lazyWarehouseInitializeFormFiles = [
+  'apps/web/src/pages/warehouse/api/useInitializeWarehouseLayoutForm.ts',
+  'apps/web/src/pages/warehouse/ui/layout/WarehouseLayoutInitializeForm.tsx',
+];
 const warehousePageFiles = ['apps/web/src/pages/warehouse/**/*.{ts,tsx}'];
 const lazyCreateWarehouseFeatureFiles: string[] = ['apps/web/src/features/create-warehouse/**/*.{ts,tsx}'];
 const globalSearchFeatureFiles: string[] = ['apps/web/src/features/global-search/**/*.{ts,tsx}'];
@@ -479,6 +483,11 @@ const createWarehouseFormChunkLazyRestriction: LazyModuleRestrictionValue = {
 const warehouseReceiveFormChunkLazyRestriction: LazyModuleRestrictionValue = {
   moduleLabel: 'the warehouse receipt form chunk',
   regex: '(^|/)(WarehouseReceiveForm|useReceiveUnitForm)(\\.[^/]+)?$',
+};
+
+const warehouseInitializeFormChunkLazyRestriction: LazyModuleRestrictionValue = {
+  moduleLabel: 'the warehouse layout initialization form chunk',
+  regex: '(^|/)(WarehouseLayoutInitializeForm|useInitializeWarehouseLayoutForm)(\\.[^/]+)?$',
 };
 
 const sceneCameraControlsChunkLazyRestriction: LazyModuleRestrictionValue = {
@@ -1164,7 +1173,7 @@ export default defineConfig(
     ),
   },
   {
-    files: [...lazyDealFormFiles, ...transportFormHookFiles, ...lazyWarehouseReceiveFormFiles],
+    files: [...lazyDealFormFiles, ...transportFormHookFiles, ...lazyWarehouseReceiveFormFiles, ...lazyWarehouseInitializeFormFiles],
     ignores: webTestFiles,
     rules: createBoundaryRules(
       [
@@ -1263,8 +1272,21 @@ export default defineConfig(
   },
   {
     files: warehousePageFiles,
-    ignores: [...webTestFiles, ...lazyWarehouseReceiveFormFiles],
+    ignores: [...webTestFiles, ...lazyWarehouseReceiveFormFiles, ...lazyWarehouseInitializeFormFiles],
+    rules: createLazyModuleRules(
+      [warehouseReceiveFormChunkLazyRestriction, warehouseInitializeFormChunkLazyRestriction],
+      sourceBoundaryImportRestrictions,
+    ),
+  },
+  {
+    files: lazyWarehouseInitializeFormFiles,
+    ignores: webTestFiles,
     rules: createLazyModuleRules([warehouseReceiveFormChunkLazyRestriction], sourceBoundaryImportRestrictions),
+  },
+  {
+    files: lazyWarehouseReceiveFormFiles,
+    ignores: webTestFiles,
+    rules: createLazyModuleRules([warehouseInitializeFormChunkLazyRestriction], sourceBoundaryImportRestrictions),
   },
   {
     files: globalSearchFeatureFiles,

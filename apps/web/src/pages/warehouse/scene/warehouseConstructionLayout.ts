@@ -32,11 +32,23 @@ interface WarehouseZoneMarkersValue {
   zoneIds: ReadonlySet<string>;
 }
 
-const rackMarkers = new WeakMap<WarehouseStorageZone, WarehouseBoxValue[]>();
+const storageZoneMarkers = new WeakMap<WarehouseStorageZone, WarehouseBoxValue[]>();
 const zoneMarkers = new WeakMap<WarehouseTopology, WarehouseZoneMarkersValue>();
 const MARKER_LINE = 0.045;
 const MARKER_PADDING = 0.09;
 const MARKER_ELEVATION = 0.028;
+
+const buildOutline = (
+  [x, y, z]: WarehouseBoxValue['position'],
+  width: number,
+  depth: number,
+  thickness: number,
+): WarehouseBoxValue[] => [
+  { position: [x, y, z - (depth - thickness) / 2], size: [width, thickness, thickness] },
+  { position: [x, y, z + (depth - thickness) / 2], size: [width, thickness, thickness] },
+  { position: [x - (width - thickness) / 2, y, z], size: [thickness, thickness, depth - 2 * thickness] },
+  { position: [x + (width - thickness) / 2, y, z], size: [thickness, thickness, depth - 2 * thickness] },
+];
 
 const buildRackCorners = ({ depth, width, x, z }: WarehouseFloorValue): WarehouseBoxValue[] => {
   const boxes: WarehouseBoxValue[] = [];
@@ -54,13 +66,16 @@ const buildRackCorners = ({ depth, width, x, z }: WarehouseFloorValue): Warehous
   return boxes;
 };
 
-const getRackMarkers = (zone: WarehouseStorageZone): readonly WarehouseBoxValue[] => {
-  const current = rackMarkers.get(zone);
+const getStorageZoneMarkers = (zone: WarehouseStorageZone): readonly WarehouseBoxValue[] => {
+  const current = storageZoneMarkers.get(zone);
   if (current !== undefined) {
     return current;
   }
 
-  const boxes: WarehouseBoxValue[] = [];
+  const bounds = readWarehouseFloor(zone.bounds);
+  const boxes = bounds === undefined
+    ? []
+    : buildOutline([bounds.x + bounds.width / 2, MARKER_ELEVATION, bounds.z + bounds.depth / 2], bounds.width, bounds.depth, MARKER_LINE);
   for (const { racks } of zone.rows) {
     for (const { footprint } of racks) {
       const rect = readWarehouseFloor(footprint);
@@ -69,7 +84,7 @@ const getRackMarkers = (zone: WarehouseStorageZone): readonly WarehouseBoxValue[
       }
     }
   }
-  rackMarkers.set(zone, boxes);
+  storageZoneMarkers.set(zone, boxes);
   return boxes;
 };
 
@@ -79,22 +94,10 @@ const getZoneMarkers = (topology: WarehouseTopology, zoneIds: ReadonlySet<string
     return current.boxes;
   }
 
-  const boxes = topology.storageZones.flatMap(zone => zoneIds.has(zone.id) ? getRackMarkers(zone) : []);
+  const boxes = topology.storageZones.flatMap(zone => zoneIds.has(zone.id) ? getStorageZoneMarkers(zone) : []);
   zoneMarkers.set(topology, { boxes, zoneIds });
   return boxes;
 };
-
-const buildOutline = (
-  [x, y, z]: WarehouseBoxValue['position'],
-  width: number,
-  depth: number,
-  thickness: number,
-): WarehouseBoxValue[] => [
-  { position: [x, y, z - (depth - thickness) / 2], size: [width, thickness, thickness] },
-  { position: [x, y, z + (depth - thickness) / 2], size: [width, thickness, thickness] },
-  { position: [x - (width - thickness) / 2, y, z], size: [thickness, thickness, depth - 2 * thickness] },
-  { position: [x + (width - thickness) / 2, y, z], size: [thickness, thickness, depth - 2 * thickness] },
-];
 
 const buildRackPreview = ({ depth, width, x, z }: WarehouseFloorValue): WarehouseBoxValue[] => {
   const elevations = WAREHOUSE_RACK_TIER_ELEVATIONS_MM.map(elevationMm => elevationMm / WAREHOUSE_MM_PER_METER);

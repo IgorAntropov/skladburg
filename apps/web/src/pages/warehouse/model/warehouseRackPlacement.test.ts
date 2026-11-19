@@ -162,6 +162,24 @@ describe('createWarehouseRackPlacement', () => {
     expect(createWarehouseRackPlacement(topology, 'row-1')?.footprint.origin).toEqual({ xMm: 1_800, zMm: 0 });
   });
 
+  it('uses the zone origin as the first rack position in an empty bounded row', () => {
+    const topology = makeTopology({
+      bounds: footprint(0, 0, 12_000, 8_000),
+      storageZones: [{ ...defaultZone, bounds: footprint(900, 1_300, 1_200, 1_000), rows: [{ code: 'R01', id: 'row-1' }] }],
+    });
+
+    expect(createWarehouseRackPlacement(topology, 'row-1')?.footprint).toEqual(footprint(900, 1_300, 1_200, 1_000));
+  });
+
+  it('looks for another free depth inside the bounded zone when the first depth is full', () => {
+    const topology = makeTopology({
+      bounds: footprint(0, 0, 12_000, 8_000),
+      storageZones: [{ ...defaultZone, bounds: footprint(2_400, 1_000, 1_200, 2_000) }],
+    });
+
+    expect(createWarehouseRackPlacement(topology, 'row-1')?.footprint).toEqual(footprint(2_400, 2_000, 1_200, 1_000));
+  });
+
   it('does not produce cells for an absent row or when the next footprint exceeds the coordinate range', () => {
     const topology = makeTopology({
       storageZones: [{

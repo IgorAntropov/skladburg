@@ -54,6 +54,20 @@ describe('warehouse rack grid', () => {
     expect(findWarehouseRackObstacle(grid, rackAt(2_000, 1_600))).toBeUndefined();
   });
 
+  it('uses declared floor dimensions and blocks a rack that crosses its own zone boundary', () => {
+    const bounds = footprint(600, 800, 4_000, 3_000);
+    const warehouse = create(WarehouseTopologySchema, {
+      bounds: footprint(0, 0, 8_000, 6_000),
+      storageZones: [{ bounds, id: 'zone' }],
+    });
+    const grid = createWarehouseRackGrid(warehouse, rackAt(7_000, 5_000), { depthMm: 12_000, widthMm: 12_000 }, [], 'zone');
+
+    expect(grid).toMatchObject({ depthMm: 6_000, widthMm: 8_000, zones: [{ footprint: bounds, id: 'zone' }] });
+    expect(findWarehouseRackObstacle(grid, rackAt(3_400, 2_800))).toBeUndefined();
+    expect(findWarehouseRackObstacle(grid, rackAt(3_500, 2_800))?.kind).toBe('outside-zone');
+    expect(findWarehouseRackObstacle(grid, rackAt(500, 800))?.kind).toBe('outside-zone');
+  });
+
   it('snaps to 100 mm and keeps the complete rack inside the floor', () => {
     const grid = createWarehouseRackGrid(create(WarehouseTopologySchema), rackAt(0, 0));
 

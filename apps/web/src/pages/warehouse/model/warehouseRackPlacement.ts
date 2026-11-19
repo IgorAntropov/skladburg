@@ -21,6 +21,7 @@ import {
   WAREHOUSE_RACK_DEPTH_MM,
   WAREHOUSE_RACK_GRID_STEP_MM,
   WAREHOUSE_RACK_WIDTH_MM,
+  warehouseRackBottomEdgeMm,
   warehouseRackRightEdgeMm,
 } from './warehouseRackGrid';
 import { WAREHOUSE_RACK_TIER_ELEVATIONS_MM } from './warehouseRackTemplate';
@@ -74,6 +75,40 @@ const suggestRackOrigin = (topology: WarehouseTopology, row: WarehouseRow): Ware
   return { xMm, zMm };
 };
 
+const suggestBoundedRackOrigin = (topology: WarehouseTopology, bounds: WarehouseRackFootprintValue): WarehouseRackPositionValue => {
+  const lastX = warehouseRackRightEdgeMm(bounds) - WAREHOUSE_RACK_WIDTH_MM;
+  const lastZ = warehouseRackBottomEdgeMm(bounds) - WAREHOUSE_RACK_DEPTH_MM;
+  const startX = snapForward(bounds.origin.xMm);
+  const startZ = snapForward(bounds.origin.zMm);
+  const obstacles = getWarehouseRackObstacles(topology)
+    .map(({ footprint }) => footprint)
+    .filter(obstacle => obstacle.origin.xMm < lastX + WAREHOUSE_RACK_WIDTH_MM && warehouseRackRightEdgeMm(obstacle) > startX
+      && obstacle.origin.zMm < lastZ + WAREHOUSE_RACK_DEPTH_MM && warehouseRackBottomEdgeMm(obstacle) > startZ)
+    .sort((current, prev) => current.origin.xMm - prev.origin.xMm);
+  const depths = new Set([startZ, ...obstacles.map(obstacle => snapForward(warehouseRackBottomEdgeMm(obstacle)))]);
+
+  for (const zMm of [...depths].filter(depth => depth <= lastZ).sort((current, prev) => current - prev)) {
+    let xMm = startX;
+    for (const obstacle of obstacles) {
+      if (obstacle.origin.xMm >= xMm + WAREHOUSE_RACK_WIDTH_MM) {
+        break;
+      }
+      const right = warehouseRackRightEdgeMm(obstacle);
+      if (right > xMm && obstacle.origin.zMm < zMm + WAREHOUSE_RACK_DEPTH_MM && warehouseRackBottomEdgeMm(obstacle) > zMm) {
+        xMm = snapForward(right);
+      }
+      if (xMm > lastX) {
+        break;
+      }
+    }
+    if (xMm <= lastX) {
+      return { xMm, zMm };
+    }
+  }
+
+  return { xMm: startX, zMm: startZ };
+};
+
 const isRackCoordinateAllowed = (coordinateMm: number, rackSizeMm: number): boolean =>
   coordinateMm >= 0 && coordinateMm % WAREHOUSE_RACK_GRID_STEP_MM === 0 && coordinateMm + rackSizeMm <= MAX_WAREHOUSE_COORDINATE_MM;
 
@@ -123,7 +158,10 @@ export const createWarehouseRackPlacement = (
     return undefined;
   }
 
-  const footprint = createFootprint(initialOrigin ?? suggestRackOrigin(topology, row));
+  const bounds = zone.bounds;
+  const footprint = createFootprint(initialOrigin ?? (hasWarehouseRackOrigin(bounds)
+    ? suggestBoundedRackOrigin(topology, bounds)
+    : suggestRackOrigin(topology, row)));
   if (footprint === undefined) {
     return undefined;
   }

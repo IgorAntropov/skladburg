@@ -18,6 +18,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import {
   afterEach,
@@ -47,10 +48,14 @@ const INITIAL_TOPOLOGY = create(WarehouseTopologySchema, {
   warehouseId: WAREHOUSE_ID,
 });
 
-const Harness = (): ReactElement => {
+interface HarnessProps {
+  topology: null | WarehouseTopology;
+}
+
+const Harness = ({ topology }: HarnessProps): ReactElement => {
   const query = useQuery<null | WarehouseTopology>({
-    initialData: INITIAL_TOPOLOGY,
-    queryFn: () => INITIAL_TOPOLOGY,
+    initialData: topology,
+    queryFn: () => topology,
     queryKey: TOPOLOGY_KEY,
     staleTime: Infinity,
   });
@@ -66,12 +71,10 @@ const Harness = (): ReactElement => {
   );
 };
 
-afterEach(cleanup);
-
-it.each([
-  { name: 'an empty topology', topology: create(WarehouseTopologySchema, { revision: 3, warehouseId: WAREHOUSE_ID }) },
-  { name: 'no topology', topology: null },
-])('keeps the draft protected when a rollback leaves the warehouse with $name', async ({ topology }) => {
+const renderWarehouseLayout = (topology: null | WarehouseTopology): {
+  location: ReturnType<typeof createMemoryLocation>;
+  queryClient: ReturnType<typeof createQueryClient>;
+} => {
   const location = createMemoryLocation(WAREHOUSE_PATH);
   const queryClient = createQueryClient({ networkMode: 'always' });
   const runtime = createTestRuntime({
@@ -88,11 +91,22 @@ it.each([
     <RoutingProvider location={location}>
       <ApiRuntimeProvider runtime={runtime}>
         <QueryClientProvider client={queryClient}>
-          <Harness />
+          <Harness topology={topology} />
         </QueryClientProvider>
       </ApiRuntimeProvider>
     </RoutingProvider>,
   ));
+
+  return { location, queryClient };
+};
+
+afterEach(cleanup);
+
+it.each([
+  { name: 'an empty topology', topology: create(WarehouseTopologySchema, { revision: 3, warehouseId: WAREHOUSE_ID }) },
+  { name: 'no topology', topology: null },
+])('keeps the draft protected when a rollback leaves the warehouse with $name', async ({ topology }) => {
+  const { location, queryClient } = renderWarehouseLayout(INITIAL_TOPOLOGY);
 
   const submit = await screen.findByTestId('warehouse-rack-submit');
   await waitFor(() => {
@@ -113,5 +127,27 @@ it.each([
     location.navigate('/deals');
   });
   expect(screen.getByTestId('warehouse-rack-leave')).toBeTruthy();
+  expect(location.read().path).toBe(WAREHOUSE_PATH);
+});
+
+it('preserves the first-zone draft and blocks saving when another editor initializes the warehouse', async () => {
+  const { location, queryClient } = renderWarehouseLayout(null);
+  const form = await screen.findByTestId('warehouse-layout-initialize');
+  const offsetInput = within(within(form).getByTestId('warehouse-layout-zone-x')).getByRole('textbox');
+  fireEvent.change(offsetInput, { target: { value: '1800' } });
+  await screen.findByTestId('warehouse-layout-initialize-cancel');
+
+  act(() => {
+    queryClient.setQueryData(TOPOLOGY_KEY, INITIAL_TOPOLOGY);
+  });
+  await screen.findByText(catalog['warehouseWork.initializeChanged']);
+  expect(offsetInput).toHaveProperty('value', '1800');
+  expect(screen.getByTestId('warehouse-layout-initialize-submit').getAttribute('aria-disabled')).toBe('true');
+  expect(screen.queryByTestId('warehouse-rack-submit')).toBeNull();
+
+  act(() => {
+    location.navigate('/deals');
+  });
+  expect(screen.getByTestId('warehouse-layout-initialize-leave')).toBeTruthy();
   expect(location.read().path).toBe(WAREHOUSE_PATH);
 });

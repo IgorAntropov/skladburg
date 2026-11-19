@@ -211,11 +211,12 @@ const addParking = (
 };
 
 export const buildWarehouseFloor = (
-  { depth, width, x, z }: WarehouseFloorValue,
+  framing: WarehouseFloorValue,
   receiving: undefined | WarehouseReceivingLayoutValue,
   yard: undefined | WarehouseYardRoadsValue,
   aisleMarks: readonly WarehouseBoxValue[],
   padding: number,
+  { depth, width, x, z }: WarehouseFloorValue = framing,
 ): ReadonlyMap<WorldPaletteKeyValue, readonly WarehouseBoxValue[]> => {
   const floor: BoxLayersValue = new Map();
   const docks = receiving?.docks ?? [];
@@ -225,7 +226,9 @@ export const buildWarehouseFloor = (
   const centerX = x + width / 2;
   const centerZ = z + depth / 2;
 
-  addWarehouseBox(floor, 'ground', [centerX, -0.33, centerZ], [width + 2 * padding, 0.1, depth + 2 * padding]);
+  addWarehouseBox(floor, 'ground', [framing.x + framing.width / 2, -0.33, framing.z + framing.depth / 2], [
+    framing.width + 2 * padding, 0.1, framing.depth + 2 * padding,
+  ]);
   addSlab(floor, centerX, centerZ, width, depth);
   if (backWallZ > z) {
     const outdoorDepth = backWallZ - z;

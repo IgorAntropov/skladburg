@@ -156,6 +156,112 @@ const createAddition = (
   warehouseId,
 });
 
+describe('InitializeWarehouseLayout', () => {
+  const admin = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
+  const request = {
+    expectedRevision: 0,
+    idempotencyKey: 'f0000000-0000-4000-8000-000000000080',
+    warehouseDepthMm: 8_000,
+    warehouseId: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2,
+    warehouseWidthMm: 12_000,
+    zoneBounds: { depthMm: 4_000, origin: { xMm: 1_000, zMm: 1_000 }, widthMm: 6_000 },
+  };
+
+  it('saves the first zone and empty row once, survives restart and rejects a competing revision', async () => {
+    const { engine, storage } = await createTestEngine();
+    const client = createClient(WarehouseTopologyService, createEngineTransport(engine, true));
+    const results = await Promise.allSettled([
+      client.initializeWarehouseLayout(request, admin),
+      client.initializeWarehouseLayout({ ...request, idempotencyKey: 'f0000000-0000-4000-8000-000000000081' }, admin),
+    ]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find(result => result.status === 'rejected');
+    expect(readErrorDetail(ConnectError.from(rejected?.reason)).code).toBe(ErrorCode.VERSION_CONFLICT);
+
+    const restarted = await createTestEngine({ storage });
+    const restored = createClient(WarehouseTopologyService, createEngineTransport(restarted.engine, true));
+    const accepted = results[0].status === 'fulfilled' ? request : { ...request, idempotencyKey: 'f0000000-0000-4000-8000-000000000081' };
+    expect(await restored.initializeWarehouseLayout(accepted, admin)).toMatchObject({ revision: 1 });
+    const { topology } = await restored.getWarehouseTopology({ warehouseId: request.warehouseId }, admin);
+    expect(topology).toMatchObject({
+      bounds: { depthMm: 8_000, origin: { xMm: 0, zMm: 0 }, widthMm: 12_000 },
+      revision: 1,
+      storageZones: [{ bounds: request.zoneBounds, code: 'Z01', rows: [{ code: 'R01', racks: [] }] }],
+    });
+    const firstZone = topology?.storageZones[0];
+    expect(firstZone?.id).toBeTruthy();
+    expect(firstZone?.rows[0]?.id).toBeTruthy();
+  });
+
+  it('rejects setup outside the permitted warehouse and preserves existing topology', async () => {
+    const { engine } = await createTestEngine();
+    const client = createClient(WarehouseTopologyService, createEngineTransport(engine, true));
+    const storekeeper = callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1);
+    const supplier = callAs(SeedUserId.ADMIN_2, SeedOrganizationId.SUPPLIER_1);
+    expect(readErrorDetail(await captureError(client.initializeWarehouseLayout(request, storekeeper))).code)
+      .toBe(ErrorCode.PERMISSION_DENIED);
+    expect(readErrorDetail(await captureError(client.initializeWarehouseLayout(request, supplier))).code).toBe(ErrorCode.NOT_FOUND);
+
+    const warehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1;
+    const existing = await client.getWarehouseTopology({ warehouseId }, admin);
+    const error = await captureError(client.initializeWarehouseLayout({ ...request, expectedRevision: 1, warehouseId }, admin));
+    expect(readErrorDetail(error)).toMatchObject({
+      code: ErrorCode.VALIDATION_FAILED,
+      params: { value: { violations: [expect.objectContaining({ ruleId: 'warehouse.layout_already_initialized' })] } },
+    });
+    expect(await client.getWarehouseTopology({ warehouseId }, admin)).toEqual(existing);
+  });
+
+  it.each([
+    { patch: { warehouseWidthMm: 100_100 }, ruleId: 'uint32.gte_lte' },
+    { patch: { warehouseWidthMm: 12_001 }, ruleId: 'warehouse.layout_grid_step' },
+    { patch: { zoneBounds: { ...request.zoneBounds, widthMm: 1_100 } }, ruleId: 'warehouse.zone_min_size' },
+    { patch: { zoneBounds: { ...request.zoneBounds, origin: { xMm: 1_001, zMm: 1_000 } } }, ruleId: 'warehouse.layout_grid_step' },
+    { patch: { zoneBounds: { ...request.zoneBounds, origin: { xMm: 7_000, zMm: 1_000 } } }, ruleId: 'warehouse.zone_outside_warehouse' },
+  ])('validates $ruleId before changing the topology', async ({ patch, ruleId }) => {
+    const { engine } = await createTestEngine();
+    const client = createClient(WarehouseTopologyService, createEngineTransport(engine, true));
+    const error = await captureError(client.initializeWarehouseLayout({ ...request, ...patch }, admin));
+
+    expect(readErrorDetail(error)).toMatchObject({
+      code: ErrorCode.VALIDATION_FAILED,
+      params: { value: { violations: [expect.objectContaining({ ruleId })] } },
+    });
+    expect((await client.getWarehouseTopology({ warehouseId: request.warehouseId }, admin)).topology).toBeUndefined();
+  });
+
+  it('allows touching each zone edge and rejects out-of-zone footprints and unknown zones', async () => {
+    const { engine } = await createTestEngine();
+    const client = createClient(WarehouseTopologyService, createEngineTransport(engine, true));
+    await client.initializeWarehouseLayout(request, admin);
+    const addition = { expectedRevision: 1, idempotencyKey: 'f0000000-0000-4000-8000-000000000082', warehouseId: request.warehouseId };
+    const cell = { cellCode: 'C01', rackCode: 'S01', rowCode: 'R01', tierCode: 'Y01', tierElevationMm: 0, widthMm: 600, zoneCode: 'Z01' };
+    const { zoneBounds } = request;
+
+    for (const [xMm, zMm] of [[999, 1_000], [1_001, 1_000], [1_000, 999], [1_000, 1_001]] as const) {
+      const error = await captureError(client.addWarehouseCells({
+        ...addition, cells: [{ ...cell, rackFootprint: { ...zoneBounds, origin: { xMm, zMm } } }],
+      }, admin));
+      expect(readErrorDetail(error)).toMatchObject({
+        code: ErrorCode.VALIDATION_FAILED,
+        params: { value: { violations: [expect.objectContaining({ ruleId: 'warehouse.rack_outside_zone' })] } },
+      });
+    }
+
+    const unknown = await captureError(client.addWarehouseCells({
+      ...addition, cells: [{ ...cell, rackFootprint: zoneBounds, zoneCode: 'Z02' }],
+    }, admin));
+    expect(readErrorDetail(unknown)).toMatchObject({
+      code: ErrorCode.VALIDATION_FAILED,
+      params: { value: { violations: [expect.objectContaining({ ruleId: 'warehouse.zone_not_defined' })] } },
+    });
+    expect(await client.addWarehouseCells({ ...addition, cells: [{ ...cell, rackFootprint: zoneBounds }] }, admin))
+      .toMatchObject({ revision: 2 });
+    const result = await client.getWarehouseTopology({ warehouseId: request.warehouseId }, admin);
+    expect(result.topology?.storageZones[0]?.bounds).toMatchObject(zoneBounds);
+  });
+});
+
 describe('AddWarehouseCells', () => {
   const admin = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
 

@@ -101,19 +101,15 @@ const readDock = (point: undefined | WarehouseUnloadingPoint): undefined | Wareh
 const readDocks = (
   primary: WarehouseDockLayoutValue,
   points: readonly WarehouseUnloadingPoint[],
-  extraDocks: readonly WarehouseDockPointValue[],
 ): readonly WarehouseDockLayoutValue[] => {
   const docks = [primary];
-  const candidates = [
-    ...points.filter(point => point.id !== '').map(readDock),
-    ...extraDocks.map(point => ({ ...point, id: '' })),
-  ];
 
-  for (const point of candidates) {
-    if (point === undefined || !Number.isFinite(point.x) || point.z !== primary.z) {
+  for (const candidate of points) {
+    const point = readDock(candidate);
+    if (point?.z !== primary.z || point.id === '') {
       continue;
     }
-    const hasConflict = docks.some(dock => (point.id !== '' && dock.id === point.id)
+    const hasConflict = docks.some(dock => dock.id === point.id
       || Math.abs(Math.round((point.x - dock.x) * WAREHOUSE_MM_PER_METER)) < DOCK_MIN_SPACING_MM);
     if (!hasConflict) {
       docks.push(point);
@@ -123,10 +119,7 @@ const readDocks = (
   return docks;
 };
 
-export const buildWarehouseLayout = (
-  topology: WarehouseTopology,
-  additionalDocks: readonly WarehouseDockPointValue[] = [],
-): WarehouseLayoutValue => {
+const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue => {
   const cells: WarehouseCellVisualValue[] = [];
   const aisleMarks: WarehouseBoxValue[] = [];
   const decks: WarehouseBoxValue[] = [];
@@ -138,7 +131,7 @@ export const buildWarehouseLayout = (
   const floor = readWarehouseFloor(area?.footprint);
   const point = floor === undefined ? undefined : readDock(area?.unloadingPoint);
   const dock = point === undefined ? undefined : { x: point.x, z: point.z };
-  const docks = point === undefined ? [] : readDocks(point, area?.additionalUnloadingPoints ?? [], additionalDocks);
+  const docks = point === undefined ? [] : readDocks(point, area?.additionalUnloadingPoints ?? []);
   const receiving = floor === undefined || area === undefined
     ? undefined
     : {
@@ -147,10 +140,12 @@ export const buildWarehouseLayout = (
         docks,
         id: area.id,
       };
-  let minX = 0;
-  let minZ = 0;
-  let maxX = receiving === undefined ? 6 : receiving.x + receiving.width;
-  let maxZ = receiving === undefined ? 4 : receiving.z + receiving.depth;
+  const warehouse = readWarehouseFloor(topology.bounds);
+  const extent = warehouse ?? receiving;
+  let minX = warehouse?.x ?? 0;
+  let minZ = warehouse?.z ?? 0;
+  let maxX = extent === undefined ? 6 : extent.x + extent.width;
+  let maxZ = extent === undefined ? 4 : extent.z + extent.depth;
   let maxHeight = 2.43;
 
   if (docks.length === 0) {
@@ -243,7 +238,7 @@ export const buildWarehouseLayout = (
   return {
     cells,
     cellsById: new Map(cells.map(cell => [cell.id, cell])),
-    floor: buildWarehouseFloor({ depth, width, x: minX, z: minZ }, receiving, yard, aisleMarks, padding),
+    floor: buildWarehouseFloor({ depth, width, x: minX, z: minZ }, receiving, yard, aisleMarks, padding, warehouse),
     navigation: { bounds, obstacles },
     racks: { decks, dividers, frames, guards },
     receiving,

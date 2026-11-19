@@ -9,6 +9,7 @@ import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import { Package } from 'lucide-react';
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -28,11 +29,16 @@ import {
   parseApiError,
 } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
+import {
+  createCachedModuleLoader,
+  useChunkLoader,
+} from '@/shared/lib/module-loader';
 import { useViewportClass } from '@/shared/lib/viewport';
 import { useNavigationGuard } from '@/shared/routing';
 import {
   ActionButton,
   Button,
+  ChunkLoadNotice,
   EmptyState,
   ErrorNotice,
   LeaveConfirm,
@@ -50,10 +56,12 @@ import type {
 } from '../../model/warehouseRackGrid';
 import type { WarehouseRackPlacementValue } from '../../model/warehouseRackPlacement';
 import type { WarehouseConstructionChangeValue } from '../../model/warehouseSceneInteraction';
+import type { WarehouseLayoutInitializeFormProps } from './WarehouseLayoutInitializeForm';
 
 import { useAddWarehouseRack } from '../../api/useAddWarehouseRack';
 import { useWarehouseLayoutDrafts } from '../../api/useWarehouseLayoutDrafts';
 import { useWarehouseRackDraftSession } from '../../api/useWarehouseRackDraftSession';
+import { canInitializeWarehouseLayout } from '../../model/canInitializeWarehouseLayout';
 import { getWarehouseCells } from '../../model/warehouseCells';
 import {
   createWarehouseRackGrid,
@@ -82,6 +90,7 @@ const suggestPlacement = (topology: WarehouseTopology, rowId: string): undefined
   createWarehouseRackPlacement(topology, rowId) ?? createWarehouseRackPlacement(topology, rowId, { xMm: 0, zMm: 0 });
 
 interface WarehouseRackEditorProps extends WarehouseRackPlacementProps {
+  shouldFocusGrid: boolean;
   topology: null | WarehouseTopology;
 }
 
@@ -97,6 +106,35 @@ const COMPACT_LAYOUT = [
   'max-h-[30dvh] overflow-y-auto overscroll-contain pr-2 pb-1 scroll-shadow-y [--warehouse-rack-grid-height:10rem]',
   'xl:max-h-[34dvh] xl:[--warehouse-placement-columns:minmax(0,3fr)_minmax(0,2fr)]',
 ].join(' ');
+
+const loadLayoutInitialization = createCachedModuleLoader(() => import('./WarehouseLayoutInitializeForm'));
+
+const WarehouseLayoutInitialization = (props: WarehouseLayoutInitializeFormProps): ReactElement => {
+  const { t } = useI18n();
+  const { load, state } = useChunkLoader(loadLayoutInitialization);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (state.kind === 'loaded') {
+    const Form = state.module.WarehouseLayoutInitializeForm;
+
+    return <Form {...props} />;
+  }
+  if (state.kind === 'failed') {
+    return (
+      <ChunkLoadNotice
+        message={t('routing.chunkError.message')}
+        onRetry={load}
+        recovery={state.recovery}
+        repeatedMessage={t('routing.chunkError.repeated')}
+      />
+    );
+  }
+
+  return <Skeleton className="h-28 w-full" />;
+};
 
 const RackPreview = ({ draft, t }: RackPreviewProps): ReactElement => {
   const { formatNumber } = useI18n();
@@ -164,7 +202,7 @@ const RackSaved = ({ onNext, query, saved, t, topology }: RackSavedProps): React
 };
 
 const WarehouseRackEditor = ({
-  onEditingChange, onPreviewChange, query, t, topology, warehouseId,
+  onEditingChange, onPreviewChange, query, shouldFocusGrid, t, topology, warehouseId,
 }: WarehouseRackEditorProps): ReactElement => {
   const { t: baseText } = useI18n();
   const [requestedRowId, setRequestedRowId] = useState<string>();
@@ -175,10 +213,15 @@ const WarehouseRackEditor = ({
   const { session, state: live } = useWarehouseRackDraftSession();
   const { drafts } = useWarehouseLayoutDrafts(topology, warehouseId);
   const otherDrafts = useMemo(() => drafts.filter(draft => draft.zoneId !== live.zoneId), [drafts, live.zoneId]);
-  const options = topology?.storageZones.flatMap(zone => zone.rows.map(row => ({ row, zone }))) ?? [];
-  const rowId = selection?.draft.rowId ?? options.find(({ row }) => row.id === requestedRowId)?.row.id ?? options[0]?.row.id;
-  const canSuggest = topology !== null && rowId !== undefined && selection === undefined && saved === undefined;
-  const suggestion = canSuggest ? suggestPlacement(topology, rowId) : undefined;
+  const selectedRowId = selection?.draft.rowId;
+  const hasSaved = saved !== undefined;
+  const { options, rowId, suggestion } = useMemo(() => {
+    const options = topology?.storageZones.flatMap(zone => zone.rows.map(row => ({ row, zone }))) ?? [];
+    const rowId = selectedRowId ?? options.find(({ row }) => row.id === requestedRowId)?.row.id ?? options[0]?.row.id;
+    const canSuggest = topology !== null && rowId !== undefined && selectedRowId === undefined && !hasSaved;
+
+    return { options, rowId, suggestion: canSuggest ? suggestPlacement(topology, rowId) : undefined };
+  }, [hasSaved, requestedRowId, selectedRowId, topology]);
   const draft = selection?.draft ?? suggestion;
 
   const handleSaved = (result: WarehouseRackSavedValue): void => {
@@ -201,11 +244,12 @@ const WarehouseRackEditor = ({
   const displayedDraft = isAttemptActive ? attemptedDraft ?? draft : draft;
   const gridAnchor = selection?.gridAnchor ?? displayedDraft?.footprint;
   const gridSize = selection?.gridSize;
+  const zoneId = displayedDraft?.zoneId;
   const grid = useMemo(
     () => gridAnchor === undefined
       ? undefined
-      : createWarehouseRackGrid(topology, gridAnchor, gridSize, otherDrafts.map(draft => draft.footprint)),
-    [gridAnchor, gridSize, otherDrafts, topology],
+      : createWarehouseRackGrid(topology, gridAnchor, gridSize, otherDrafts.map(draft => draft.footprint), zoneId),
+    [gridAnchor, gridSize, otherDrafts, topology, zoneId],
   );
   const obstacle = grid === undefined || displayedDraft === undefined
     ? undefined
@@ -217,7 +261,8 @@ const WarehouseRackEditor = ({
   const isSaveBlocked = displayedDraft === undefined || isLeavePending || isLeaving || isPlacementBlocked;
   const canRetryDraft = selection !== undefined && !isGridReadOnly && obstacle === undefined;
   const constructionPlacement = saved === undefined && !isRowMissing ? displayedDraft : undefined;
-  useWarehouseConstructionPreview(onPreviewChange, otherDrafts, constructionPlacement, obstacle !== undefined);
+  const boundedZoneId = options.find(option => option.row.id === rowId && option.zone.bounds !== undefined)?.zone.id;
+  useWarehouseConstructionPreview(onPreviewChange, otherDrafts, constructionPlacement, obstacle !== undefined, boundedZoneId);
 
   const handleRowChange = (event: ChangeEvent<HTMLSelectElement>): void => {
     setRequestedRowId(event.currentTarget.value);
@@ -231,7 +276,7 @@ const WarehouseRackEditor = ({
           const updated = suggestPlacement(result.data, selection.draft.rowId);
           if (updated !== undefined) {
             const refreshed = moveWarehouseRackPlacement(updated, selection.draft.footprint.origin);
-            const refreshedGrid = createWarehouseRackGrid(result.data, selection.gridAnchor, selection.gridSize);
+            const refreshedGrid = createWarehouseRackGrid(result.data, selection.gridAnchor, selection.gridSize, [], refreshed.zoneId);
             setSelection({ ...selection, draft: refreshed });
             session.select(findWarehouseRackObstacle(refreshedGrid, refreshed.footprint) === undefined ? refreshed : undefined);
           }
@@ -304,6 +349,12 @@ const WarehouseRackEditor = ({
       onEditingChange(false);
     };
   }, [isEditing, onEditingChange]);
+
+  useEffect(() => {
+    if (shouldFocusGrid) {
+      boardRef.current?.focus();
+    }
+  }, [shouldFocusGrid]);
 
   if (options.length === 0 && saved === undefined && displayedDraft === undefined) {
     return <EmptyState icon={Package} text={t('warehouseWork.layoutEmpty')} />;
@@ -423,10 +474,55 @@ export const WarehouseRackPlacement = ({
   const canEdit = useCan(PermissionCode.LAYOUT_EDIT, { kind: 'warehouse', warehouseId });
   const viewportClass = useViewportClass();
   const canShowScene = useSceneSettingsStore(state => state.preference !== 'off' && !state.isSceneUnavailable);
+  const [dirtyEditor, setDirtyEditor] = useState<'initialize' | 'rack' | undefined>();
+  const [didInitialize, setDidInitialize] = useState(false);
   const isCompact = canShowScene && viewportClass !== 'phone';
+
+  const handleInitializeEditing = useCallback((isEditing: boolean): void => {
+    setDirtyEditor(isEditing ? 'initialize' : undefined);
+    onEditingChange(isEditing);
+  }, [onEditingChange]);
+
+  const handleRackEditing = useCallback((isEditing: boolean): void => {
+    setDirtyEditor(isEditing ? 'rack' : undefined);
+    onEditingChange(isEditing);
+  }, [onEditingChange]);
+
+  const handleInitialized = (): void => {
+    setDidInitialize(true);
+  };
 
   const handleRetry = (): void => {
     void query.refetch();
+  };
+
+  const renderLayout = (topology: null | WarehouseTopology): ReactElement => {
+    if (!canEdit) {
+      return <WarehouseLayoutObserver onPreviewChange={onPreviewChange} t={t} topology={topology} warehouseId={warehouseId} />;
+    }
+    if (dirtyEditor === 'initialize' || (dirtyEditor !== 'rack' && canInitializeWarehouseLayout(topology))) {
+      return (
+        <WarehouseLayoutInitialization
+          onEditingChange={handleInitializeEditing}
+          onInitialized={handleInitialized}
+          query={query}
+          t={t}
+          warehouseId={warehouseId}
+        />
+      );
+    }
+
+    return (
+      <WarehouseRackEditor
+        onEditingChange={handleRackEditing}
+        onPreviewChange={onPreviewChange}
+        query={query}
+        shouldFocusGrid={didInitialize}
+        t={t}
+        topology={topology}
+        warehouseId={warehouseId}
+      />
+    );
   };
 
   if (isReadAccessDenied(query.error)) {
@@ -448,18 +544,7 @@ export const WarehouseRackPlacement = ({
         onRetry={handleRetry}
         skeleton={<Skeleton className="h-28 w-full" />}
       >
-        {topology => canEdit
-          ? (
-              <WarehouseRackEditor
-                onEditingChange={onEditingChange}
-                onPreviewChange={onPreviewChange}
-                query={query}
-                t={t}
-                topology={topology}
-                warehouseId={warehouseId}
-              />
-            )
-          : <WarehouseLayoutObserver onPreviewChange={onPreviewChange} t={t} topology={topology} warehouseId={warehouseId} />}
+        {renderLayout}
       </WidgetStates>
     </div>
   );

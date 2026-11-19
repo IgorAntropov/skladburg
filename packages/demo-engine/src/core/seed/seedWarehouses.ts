@@ -17,144 +17,111 @@ import {
   YEKATERINBURG_TIME_ZONE,
 } from './seedNetwork';
 
+type SeedWarehouseCityValue = keyof typeof SeedCityId;
+
 interface SeedWarehouseDefinitionValue {
-  capabilities: readonly WarehouseCapability[];
-  cityId: string;
+  capabilities?: readonly WarehouseCapability[] | undefined;
+  city: SeedWarehouseCityValue;
   id: string;
-  mapNodeId: string;
-  name: string;
+  name?: string | undefined;
   tenantId: string;
-  timeZone: string;
+  timeZone?: string | undefined;
 }
+
+const RAMP_AND_COLD = [WarehouseCapability.RAMP, WarehouseCapability.COLD] as const;
 
 const SEED_WAREHOUSE_DEFINITIONS: readonly SeedWarehouseDefinitionValue[] = [
   {
-    capabilities: [WarehouseCapability.RAMP, WarehouseCapability.COLD],
-    cityId: SeedCityId.MOSCOW,
+    city: 'MOSCOW',
     id: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1,
-    mapNodeId: SeedMapNodeId.MOSCOW,
-    name: 'Склад 1',
     tenantId: SeedOrganizationId.CUSTOMER_1,
-    timeZone: MOSCOW_TIME_ZONE,
   },
   {
     capabilities: [WarehouseCapability.RAMP],
-    cityId: SeedCityId.SAINT_PETERSBURG,
+    city: 'SAINT_PETERSBURG',
     id: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2,
-    mapNodeId: SeedMapNodeId.SAINT_PETERSBURG,
     name: 'Склад 2',
     tenantId: SeedOrganizationId.CUSTOMER_1,
-    timeZone: MOSCOW_TIME_ZONE,
   },
   {
     capabilities: [WarehouseCapability.COLD],
-    cityId: SeedCityId.KAZAN,
+    city: 'KAZAN',
     id: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3,
-    mapNodeId: SeedMapNodeId.KAZAN,
     name: 'Склад 3',
     tenantId: SeedOrganizationId.CUSTOMER_1,
-    timeZone: MOSCOW_TIME_ZONE,
   },
   {
-    capabilities: [WarehouseCapability.RAMP, WarehouseCapability.COLD],
-    cityId: SeedCityId.KRASNODAR,
+    city: 'KRASNODAR',
     id: SeedWarehouseId.SUPPLIER_1_WAREHOUSE_1,
-    mapNodeId: SeedMapNodeId.KRASNODAR,
-    name: 'Склад 1',
     tenantId: SeedOrganizationId.SUPPLIER_1,
-    timeZone: MOSCOW_TIME_ZONE,
   },
   {
-    capabilities: [WarehouseCapability.RAMP, WarehouseCapability.COLD],
-    cityId: SeedCityId.KRASNODAR,
+    city: 'KRASNODAR',
     id: SeedWarehouseId.SUPPLIER_1_WAREHOUSE_2,
-    mapNodeId: SeedMapNodeId.KRASNODAR,
     name: 'Склад 2',
     tenantId: SeedOrganizationId.SUPPLIER_1,
-    timeZone: MOSCOW_TIME_ZONE,
   },
   {
-    capabilities: [WarehouseCapability.RAMP, WarehouseCapability.COLD],
-    cityId: SeedCityId.VORONEZH,
+    city: 'VORONEZH',
     id: SeedWarehouseId.SUPPLIER_2_WAREHOUSE_1,
-    mapNodeId: SeedMapNodeId.VORONEZH,
-    name: 'Склад 1',
     tenantId: SeedOrganizationId.SUPPLIER_2,
-    timeZone: MOSCOW_TIME_ZONE,
   },
   {
     capabilities: [WarehouseCapability.RAMP],
-    cityId: SeedCityId.KRASNODAR,
+    city: 'KRASNODAR',
     id: SeedWarehouseId.SUPPLIER_5_WAREHOUSE_1,
-    mapNodeId: SeedMapNodeId.KRASNODAR,
-    name: 'Склад 1',
     tenantId: SeedOrganizationId.SUPPLIER_5,
-    timeZone: MOSCOW_TIME_ZONE,
   },
   {
     capabilities: [WarehouseCapability.RAMP, WarehouseCapability.OVERSIZE],
-    cityId: SeedCityId.YEKATERINBURG,
+    city: 'YEKATERINBURG',
     id: SeedWarehouseId.CUSTOMER_2_SITE_1,
-    mapNodeId: SeedMapNodeId.YEKATERINBURG,
     name: 'Площадка 1',
     tenantId: SeedOrganizationId.CUSTOMER_2,
     timeZone: YEKATERINBURG_TIME_ZONE,
   },
   {
     capabilities: [WarehouseCapability.OVERSIZE],
-    cityId: SeedCityId.NOVOSIBIRSK,
+    city: 'NOVOSIBIRSK',
     id: SeedWarehouseId.CUSTOMER_2_SITE_2,
-    mapNodeId: SeedMapNodeId.NOVOSIBIRSK,
     name: 'Площадка 2',
     tenantId: SeedOrganizationId.CUSTOMER_2,
     timeZone: NOVOSIBIRSK_TIME_ZONE,
   },
   {
     capabilities: [WarehouseCapability.RAMP, WarehouseCapability.OVERSIZE],
-    cityId: SeedCityId.CHELYABINSK,
+    city: 'CHELYABINSK',
     id: SeedWarehouseId.SUPPLIER_3_WAREHOUSE_1,
-    mapNodeId: SeedMapNodeId.CHELYABINSK,
-    name: 'Склад 1',
     tenantId: SeedOrganizationId.SUPPLIER_3,
     timeZone: YEKATERINBURG_TIME_ZONE,
   },
   {
     capabilities: [WarehouseCapability.RAMP, WarehouseCapability.OVERSIZE],
-    cityId: SeedCityId.NIZHNY_NOVGOROD,
+    city: 'NIZHNY_NOVGOROD',
     id: SeedWarehouseId.SUPPLIER_4_WAREHOUSE_1,
-    mapNodeId: SeedMapNodeId.NIZHNY_NOVGOROD,
-    name: 'Склад 1',
     tenantId: SeedOrganizationId.SUPPLIER_4,
-    timeZone: MOSCOW_TIME_ZONE,
   },
   {
-    capabilities: [WarehouseCapability.RAMP, WarehouseCapability.COLD],
-    cityId: SeedCityId.MOSCOW,
+    city: 'MOSCOW',
     id: SeedWarehouseId.SUPPLIER_6_WAREHOUSE_1,
-    mapNodeId: SeedMapNodeId.MOSCOW,
-    name: 'Склад 1',
     tenantId: SeedOrganizationId.SUPPLIER_6,
-    timeZone: MOSCOW_TIME_ZONE,
   },
   {
     capabilities: [WarehouseCapability.RAMP, WarehouseCapability.OVERSIZE],
-    cityId: SeedCityId.NOVOSIBIRSK,
+    city: 'NOVOSIBIRSK',
     id: SeedWarehouseId.SUPPLIER_7_WAREHOUSE_1,
-    mapNodeId: SeedMapNodeId.NOVOSIBIRSK,
-    name: 'Склад 1',
     tenantId: SeedOrganizationId.SUPPLIER_7,
     timeZone: NOVOSIBIRSK_TIME_ZONE,
   },
 ];
 
 export const createSeedWarehouses = (): Warehouse[] => SEED_WAREHOUSE_DEFINITIONS.map(definition => create(WarehouseSchema, {
-  address: '',
-  capabilities: [...definition.capabilities],
-  cityId: definition.cityId,
+  capabilities: [...(definition.capabilities ?? RAMP_AND_COLD)],
+  cityId: SeedCityId[definition.city],
   id: definition.id,
   isWmsEnabled: true,
-  mapNodeId: definition.mapNodeId,
-  name: definition.name,
+  mapNodeId: SeedMapNodeId[definition.city],
+  name: definition.name ?? 'Склад 1',
   tenantId: definition.tenantId,
-  timeZone: definition.timeZone,
+  timeZone: definition.timeZone ?? MOSCOW_TIME_ZONE,
 }));

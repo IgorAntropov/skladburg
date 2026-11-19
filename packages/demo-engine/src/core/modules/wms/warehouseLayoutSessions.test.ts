@@ -117,6 +117,43 @@ const prepareDraft = async (first: LayoutTabClientValue): Promise<PutWarehouseLa
   });
 };
 
+it('publishes a draft inside the initialized zone and hides a rejected position from other tabs', async () => {
+  const { first, second } = await setup();
+  const scope = { warehouseId: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2 };
+  await first.initializeWarehouseLayout({
+    ...scope,
+    expectedRevision: 0,
+    idempotencyKey: key('61'),
+    warehouseDepthMm: 8_000,
+    warehouseWidthMm: 12_000,
+    zoneBounds: { depthMm: 4_000, origin: { xMm: 1_000, zMm: 1_000 }, widthMm: 6_000 },
+  }, admin);
+  const { topology } = await first.getWarehouseTopology(scope, admin);
+  const firstZone = topology?.storageZones[0];
+  const row = firstZone?.rows[0];
+  if (firstZone === undefined || row === undefined) {
+    throw new Error('Missing first layout row');
+  }
+
+  const firstZoneScope = { ...scope, zoneId: firstZone.id };
+  const { layoutSessionId } = await first.openWarehouseLayoutSession({ ...firstZoneScope, idempotencyKey: key('62') }, admin);
+  const request = {
+    ...firstZoneScope, expectedDraftRevision: 0, expectedRevision: 1, idempotencyKey: key('63'), layoutSessionId, rowId: row.id,
+  };
+  const detail = readErrorDetail(await captureError(first.putWarehouseLayoutDraft({ ...request, cells: rackCells(900) }, admin)));
+  expect(detail.code).toBe(ErrorCode.VALIDATION_FAILED);
+  if (detail.params.case !== 'validationFailed') {
+    throw new Error('Missing validation violations');
+  }
+  expect(detail.params.value.violations.map(violation => violation.ruleId)).toContain('warehouse.rack_outside_zone');
+  expect((await second.getWarehouseLayoutDrafts(scope, admin)).drafts).toEqual([]);
+  expect(await first.putWarehouseLayoutDraft({ ...request, cells: rackCells(1_000), idempotencyKey: key('64') }, admin))
+    .toMatchObject({ draftRevision: 1 });
+  expect((await second.getWarehouseLayoutDrafts(scope, admin)).drafts).toMatchObject([
+    { baseRevision: 1, footprint: { origin: { xMm: 1_000 } }, rowId: row.id, zoneId: firstZone.id },
+  ]);
+});
+
 it('projects the latest accepted draft, bounds replay and removes the projection on cancellation', async () => {
   const { engine, first, realTime, second, storage } = await setup();
   const observer = callAs(SeedUserId.STOREKEEPER_1, SeedOrganizationId.CUSTOMER_1);

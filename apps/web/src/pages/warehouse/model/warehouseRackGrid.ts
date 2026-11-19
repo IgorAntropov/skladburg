@@ -9,16 +9,23 @@ export type WarehouseRackFootprintValue = Pick<WarehouseFloorRect, 'depthMm' | '
 export interface WarehouseRackGridObstacleValue {
   footprint: WarehouseRackFootprintValue;
   id: string;
-  kind: 'rack' | 'receiving';
+  kind: 'outside-zone' | 'rack' | 'receiving';
 }
 
 export interface WarehouseRackGridValue {
+  activeZone?: undefined | WarehouseRackGridZoneValue;
   depthMm: number;
   obstacles: readonly WarehouseRackGridObstacleValue[];
   widthMm: number;
+  zones?: readonly WarehouseRackGridZoneValue[] | undefined;
 }
 
 export type WarehouseRackPositionValue = Pick<WarehouseFloorPoint, 'xMm' | 'zMm'>;
+
+interface WarehouseRackGridZoneValue {
+  footprint: WarehouseRackFootprintValue;
+  id: string;
+}
 
 export const WAREHOUSE_RACK_GRID_STEP_MM = 100;
 export const WAREHOUSE_RACK_CELL_WIDTH_MM = 600;
@@ -37,7 +44,12 @@ export const hasWarehouseRackOrigin = (
 
 export const warehouseRackRightEdgeMm = ({ origin, widthMm }: WarehouseRackFootprintValue): number => origin.xMm + widthMm;
 
-const bottomEdgeMm = ({ depthMm, origin }: WarehouseRackFootprintValue): number => origin.zMm + depthMm;
+export const warehouseRackBottomEdgeMm = ({ depthMm, origin }: WarehouseRackFootprintValue): number => origin.zMm + depthMm;
+
+const containsFootprint = (bounds: WarehouseRackFootprintValue, footprint: WarehouseRackFootprintValue): boolean =>
+  footprint.origin.xMm >= bounds.origin.xMm && footprint.origin.zMm >= bounds.origin.zMm
+  && warehouseRackRightEdgeMm(footprint) <= warehouseRackRightEdgeMm(bounds)
+  && warehouseRackBottomEdgeMm(footprint) <= warehouseRackBottomEdgeMm(bounds);
 
 export const getWarehouseRackObstacles = (topology: WarehouseTopology): WarehouseRackGridObstacleValue[] => {
   const obstacles: WarehouseRackGridObstacleValue[] = [];
@@ -69,18 +81,28 @@ export const createWarehouseRackGrid = (
   footprint: WarehouseRackFootprintValue,
   minimumSize?: Pick<WarehouseRackGridValue, 'depthMm' | 'widthMm'>,
   draftFootprints: readonly WarehouseRackFootprintValue[] = [],
+  activeZoneId?: string,
 ): WarehouseRackGridValue => {
   const obstacles = topology === null ? [] : getWarehouseRackObstacles(topology);
+  const bounds = topology?.bounds;
+  if (hasWarehouseRackOrigin(bounds)) {
+    const zones = topology?.storageZones.flatMap(zone => hasWarehouseRackOrigin(zone.bounds)
+      ? [{ footprint: zone.bounds, id: zone.id }]
+      : []) ?? [];
+
+    return { activeZone: zones.find(zone => zone.id === activeZoneId), depthMm: bounds.depthMm, obstacles, widthMm: bounds.widthMm, zones };
+  }
+
   let maxX = warehouseRackRightEdgeMm(footprint);
-  let maxZ = bottomEdgeMm(footprint);
+  let maxZ = warehouseRackBottomEdgeMm(footprint);
 
   for (const obstacle of obstacles) {
     maxX = Math.max(maxX, warehouseRackRightEdgeMm(obstacle.footprint));
-    maxZ = Math.max(maxZ, bottomEdgeMm(obstacle.footprint));
+    maxZ = Math.max(maxZ, warehouseRackBottomEdgeMm(obstacle.footprint));
   }
   for (const draft of draftFootprints) {
     maxX = Math.max(maxX, warehouseRackRightEdgeMm(draft));
-    maxZ = Math.max(maxZ, bottomEdgeMm(draft));
+    maxZ = Math.max(maxZ, warehouseRackBottomEdgeMm(draft));
   }
 
   return {
@@ -104,9 +126,15 @@ export const snapWarehouseRackPosition = (
 });
 
 export const findWarehouseRackObstacle = (
-  { obstacles }: WarehouseRackGridValue,
+  { activeZone, obstacles }: WarehouseRackGridValue,
   footprint: WarehouseRackFootprintValue,
-): undefined | WarehouseRackGridObstacleValue => obstacles.find(({ footprint: obstacle }) => (
-  obstacle.origin.xMm < warehouseRackRightEdgeMm(footprint) && footprint.origin.xMm < warehouseRackRightEdgeMm(obstacle)
-  && obstacle.origin.zMm < bottomEdgeMm(footprint) && footprint.origin.zMm < bottomEdgeMm(obstacle)
-));
+): undefined | WarehouseRackGridObstacleValue => {
+  if (activeZone !== undefined && !containsFootprint(activeZone.footprint, footprint)) {
+    return { ...activeZone, kind: 'outside-zone' };
+  }
+
+  return obstacles.find(({ footprint: obstacle }) => (
+    obstacle.origin.xMm < warehouseRackRightEdgeMm(footprint) && footprint.origin.xMm < warehouseRackRightEdgeMm(obstacle)
+    && obstacle.origin.zMm < warehouseRackBottomEdgeMm(footprint) && footprint.origin.zMm < warehouseRackBottomEdgeMm(obstacle)
+  ));
+};

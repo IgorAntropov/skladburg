@@ -1,10 +1,16 @@
+import type { WarehouseAisleRectValue } from './warehouseAislePath';
 import type { WarehouseDockPointValue } from './warehouseLayout';
 
-import { readWarehouseParkingOffset } from './warehouseYardParking';
+import {
+  WAREHOUSE_YARD_PARKING_LIMIT,
+  WAREHOUSE_YARD_PARKING_SPACING,
+} from './warehouseYardParking';
 
 export interface WarehouseYardRoadsValue {
+  apron: WarehouseAisleRectValue;
   entrance: WarehouseDockPointValue;
   junctionZ: number;
+  parkingMouthZ: number;
   throatZ: number;
 }
 
@@ -17,22 +23,40 @@ interface WarehouseYardPoseValue {
 export const WAREHOUSE_PARKING_EXIT_ADVANCE = 0.65;
 export const WAREHOUSE_TRUCK_CENTER_Z = -3;
 export const WAREHOUSE_TRUCK_RUNUP = 3.2;
+export const WAREHOUSE_TRUCK_SWEEP_RADIUS = 3.25;
 const ENTRANCE_LANE_SPACING = 3.2;
-const JUNCTURE_Z = -13.5;
+const JUNCTION_Z = -13.5;
 const DOCK_THROAT_Z = -7;
+const PARKING_CLEARANCE = 6.1;
+const SHOULDER = WAREHOUSE_TRUCK_SWEEP_RADIUS + 0.25;
+const TURN_RADIUS = (DOCK_THROAT_Z - JUNCTION_Z) / 2;
+const QUARTER_CIRCLE = Math.PI / 2;
+const TURN_LENGTH = TURN_RADIUS * QUARTER_CIRCLE;
 
 export const buildWarehouseYardRoads = (docks: readonly WarehouseDockPointValue[]): undefined | WarehouseYardRoadsValue => {
   const primary = docks[0];
   if (primary === undefined) {
     return undefined;
   }
-  let left = primary.x;
+  let left = -ENTRANCE_LANE_SPACING;
+  let right = 0;
   for (const dock of docks) {
-    left = Math.min(left, dock.x);
+    const x = dock.x - primary.x;
+    left = Math.min(left, x);
+    right = Math.max(right, x);
   }
+  const parkingMouthZ = JUNCTION_Z - PARKING_CLEARANCE;
+  const minZ = parkingMouthZ - (WAREHOUSE_YARD_PARKING_LIMIT + 1) * WAREHOUSE_YARD_PARKING_SPACING;
   return {
-    entrance: { x: left - primary.x - ENTRANCE_LANE_SPACING, z: readWarehouseParkingOffset(0) - 2 },
-    junctionZ: JUNCTURE_Z,
+    apron: {
+      maxX: right + SHOULDER,
+      maxZ: DOCK_THROAT_Z + WAREHOUSE_TRUCK_CENTER_Z + SHOULDER,
+      minX: left - SHOULDER,
+      minZ,
+    },
+    entrance: { x: -ENTRANCE_LANE_SPACING, z: minZ - 0.5 },
+    junctionZ: JUNCTION_Z,
+    parkingMouthZ,
     throatZ: DOCK_THROAT_Z,
   };
 };
@@ -55,19 +79,60 @@ const readYardTurn = (
   pose.yaw = Math.atan(6 * distanceX * progress * (1 - progress) / span) || 0;
 };
 
-export const readWarehouseYardApproach = (
-  { entrance, junctionZ, throatZ }: WarehouseYardRoadsValue,
+export const readWarehouseParkingExit = (
+  roads: WarehouseYardRoadsValue,
   start: WarehouseDockPointValue,
   dock: WarehouseDockPointValue,
   z: number,
   pose: WarehouseYardPoseValue,
-  usesParkingExit: boolean,
+): void => { readYardTurn(pose, dock, start.x, roads.entrance.x, start.z, start.z + WAREHOUSE_PARKING_EXIT_ADVANCE, z); };
+
+export const readWarehouseYardApproach = (
+  { junctionZ, throatZ }: WarehouseYardRoadsValue,
+  startX: number,
+  startZ: number,
+  dock: WarehouseDockPointValue,
+  progress: number,
+  pose: WarehouseYardPoseValue,
 ): void => {
-  const parkingExitZ = start.z + WAREHOUSE_PARKING_EXIT_ADVANCE;
-  if (usesParkingExit && z < parkingExitZ) {
-    readYardTurn(pose, dock, start.x, entrance.x, start.z, parkingExitZ, z);
+  const difference = dock.x - startX;
+  const crossing = Math.abs(difference) - 2 * TURN_RADIUS;
+  if (crossing <= 0) {
+    const z = startZ + (dock.z - startZ) * progress;
+    readYardTurn(pose, dock, startX, dock.x, junctionZ, throatZ, z);
+    return;
   }
-  else {
-    readYardTurn(pose, dock, usesParkingExit ? entrance.x : start.x, dock.x, junctionZ, throatZ, z);
+
+  const lead = junctionZ - startZ;
+  const finish = lead + 2 * TURN_LENGTH + crossing;
+  const distance = (finish + dock.z - throatZ) * progress;
+  const direction = Math.sign(difference);
+  const middleZ = junctionZ + TURN_RADIUS;
+  let x = startX;
+  let z = startZ + distance;
+  let yaw = 0;
+  if (distance >= finish) {
+    x = dock.x;
+    z = throatZ + distance - finish;
   }
+  else if (distance >= finish - TURN_LENGTH) {
+    const angle = (finish - distance) / TURN_RADIUS;
+    x = dock.x - direction * TURN_RADIUS * (1 - Math.cos(angle));
+    z = throatZ - TURN_RADIUS * Math.sin(angle);
+    yaw = direction * angle;
+  }
+  else if (distance >= lead + TURN_LENGTH) {
+    x = startX + direction * (TURN_RADIUS + distance - lead - TURN_LENGTH);
+    z = middleZ;
+    yaw = direction * QUARTER_CIRCLE;
+  }
+  else if (distance >= lead) {
+    const angle = (distance - lead) / TURN_RADIUS;
+    x = startX + direction * TURN_RADIUS * (1 - Math.cos(angle));
+    z = junctionZ + TURN_RADIUS * Math.sin(angle);
+    yaw = direction * angle;
+  }
+  pose.offsetX = x - dock.x;
+  pose.offsetZ = z - dock.z;
+  pose.yaw = yaw;
 };

@@ -2,6 +2,7 @@ import type { WarehouseDockPointValue } from './warehouseLayout';
 import type { WarehouseYardRoadsValue } from './warehouseYardRoads';
 
 import {
+  readWarehouseParkingExit,
   readWarehouseYardApproach,
   WAREHOUSE_PARKING_EXIT_ADVANCE,
   WAREHOUSE_TRUCK_RUNUP,
@@ -19,7 +20,7 @@ export interface WarehouseDockTruckValue {
 }
 
 const APPROACH_SECONDS = 2.8;
-const DEPARTURE_SECONDS = 1.35;
+const DEPARTURE_SECONDS = 2.8;
 const PARKING_EXIT_SECONDS = 1.15;
 const MAX_FRAME_DELTA = 0.05;
 
@@ -90,13 +91,15 @@ export const advanceWarehouseDockTruck = (
   }
 
   const eased = progress * progress * (3 - 2 * progress);
-  if (isApproaching) {
-    const exitDistance = truck.usesParkingExit ? WAREHOUSE_PARKING_EXIT_ADVANCE : 0;
-    const approachZ = truck.start.z + exitDistance;
-    const z = isLeavingParking ? truck.start.z + exitDistance * eased : approachZ + (dock.z - approachZ) * eased;
-    readWarehouseYardApproach(roads, truck.start, dock, z, truck, truck.usesParkingExit);
+  if (isLeavingParking) {
+    readWarehouseParkingExit(roads, truck.start, dock, truck.start.z + WAREHOUSE_PARKING_EXIT_ADVANCE * eased, truck);
+  }
+  else if (isApproaching) {
+    const startX = truck.usesParkingExit ? roads.entrance.x : truck.start.x;
+    const startZ = truck.usesParkingExit ? truck.start.z + WAREHOUSE_PARKING_EXIT_ADVANCE : truck.start.z;
+    readWarehouseYardApproach(roads, startX, startZ, dock, eased, truck);
   }
   else {
-    truck.offsetZ = -WAREHOUSE_TRUCK_RUNUP * eased;
+    readWarehouseYardApproach(roads, roads.entrance.x, roads.entrance.z, dock, 1 - eased, truck);
   }
 };

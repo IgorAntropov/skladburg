@@ -151,7 +151,7 @@ describe('warehouse scene layout', () => {
     }));
 
     const roads = layout.floor.get('road') ?? [];
-    const lanes = roads.filter(({ size }) => size[2] === WAREHOUSE_DOCK_LANE_LENGTH);
+    const lanes = roads.filter(({ size }) => size[2] === -(layout.yard?.apron.maxZ ?? 0));
     expect(lanes.map(({ position }) => position[0])).toEqual([first.x, second.x]);
     const driven = lanes.map(({ position, size }) => ({ left: position[0] - size[0] / 2, right: position[0] + size[0] / 2 }));
     expect(driven[1]?.right).toBeLessThan(driven[0]?.left ?? 0);
@@ -165,7 +165,7 @@ describe('warehouse scene layout', () => {
       expect(x - width / 2).toBeLessThan(second.x - halfTruckWidth);
       expect(x - width / 2).toBeLessThan(first.x + (layout.yard?.entrance.x ?? 0) - halfTruckWidth);
       expect(x + width / 2).toBeGreaterThan(first.x + halfTruckWidth);
-      expect(z + length / 2).toBeCloseTo(first.z - WAREHOUSE_DOCK_LANE_LENGTH);
+      expect(z + length / 2).toBeCloseTo(first.z + (layout.yard?.apron.maxZ ?? 0));
 
       const slabs = roads.filter(({ position }) => position[1] === -0.17);
       for (const edgeX of [x - width / 2, x + width / 2]) {
@@ -267,5 +267,71 @@ describe('warehouse scene layout', () => {
     }
     expect(layout.world.home.centerZ).toBeCloseTo(2.73);
     expect(layout.world.home.radius).toBeCloseTo(Math.hypot(16.1, 15.84) * 0.52);
+  });
+
+  it.each([
+    { coordinates: [1] },
+    { coordinates: [1, 7.2] },
+    { coordinates: [1, 7.2, 13.6, 20, 26.4, 32.8] },
+  ])(
+    'has room to frame the apron at the maximum zoom-out on a 390px viewport for $coordinates',
+    ({ coordinates }) => {
+      const docks = coordinates.map((x, index) => ({ id: `dock-${String(index + 1)}`, position: { xMm: Math.round(x * 1_000), zMm: 0 } }));
+      const { world, yard } = getWarehouseLayout(create(WarehouseTopologySchema, {
+        receivingArea: {
+          additionalUnloadingPoints: docks.slice(1),
+          footprint: { depthMm: 3_000, origin: { xMm: 1_000, zMm: 1_000 }, widthMm: 2_000 },
+          unloadingPoint: docks[0],
+        },
+      }));
+      if (yard === undefined) {
+        throw new Error('Expected a warehouse apron');
+      }
+
+      const { apron } = yard;
+      const viewportWidth = 390;
+      const viewportHeight = 844;
+      const freeWidth = viewportWidth - 20;
+      const panelBottom = 170;
+      const floorElevation = Math.atan(1 / Math.SQRT2);
+      const viewportFootprint = Math.hypot(viewportWidth / 2, (viewportHeight + panelBottom) / 2 / Math.sin(floorElevation));
+      const { maxX, maxZ, minX, minZ } = world.bounds;
+      const worldEdgeAndPanMargin = 18;
+      const zoomOut = viewportFootprint / (Math.min(maxX - minX, maxZ - minZ) / 2 - worldEdgeAndPanMargin);
+      const yardAtIsometricAngle = (apron.maxX - apron.minX + apron.maxZ - apron.minZ) / Math.SQRT2;
+
+      expect(yardAtIsometricAngle * zoomOut).toBeLessThan(freeWidth);
+    },
+  );
+
+  it('frames a shifted six-dock yard and draws the apron at the bounds used by the routes', () => {
+    const coordinates = [18_000, 6_000, 12_000, 23_000, 30_000, 47_000];
+    const docks = coordinates.map((xMm, index) => ({ id: `dock-${String(index + 1)}`, position: { xMm, zMm: 5_000 } }));
+    const primary = { x: 18, z: 5 };
+    const layout = getWarehouseLayout(create(WarehouseTopologySchema, {
+      bounds: { depthMm: 15_000, origin: { xMm: 5_000, zMm: 5_000 }, widthMm: 45_000 },
+      receivingArea: {
+        additionalUnloadingPoints: docks.slice(1),
+        footprint: { depthMm: 3_000, origin: { xMm: 5_000, zMm: 5_000 }, widthMm: 44_000 },
+        unloadingPoint: docks[0],
+      },
+    }));
+    const { apron, entrance, parkingMouthZ } = layout.yard ?? {};
+    if (apron === undefined || entrance === undefined || parkingMouthZ === undefined) {
+      throw new Error('Expected geometry for the six-dock yard');
+    }
+    expect(layout.receiving?.docks.map(dock => dock.x)).toEqual(coordinates.map(x => x / 1_000));
+    expect(layout.floor.get('road')).toContainEqual({
+      position: [primary.x + (apron.minX + apron.maxX) / 2, 0.01, primary.z + (apron.maxZ + parkingMouthZ) / 2],
+      size: [apron.maxX - apron.minX, 0.02, apron.maxZ - parkingMouthZ],
+    });
+
+    for (const x of [apron.minX, apron.maxX]) {
+      for (const z of [apron.minZ, apron.maxZ]) {
+        expect(Math.hypot(primary.x + x - layout.world.home.centerX, primary.z + z - layout.world.home.centerZ))
+          .toBeLessThan(layout.world.home.radius);
+      }
+    }
+    expect(layout.world.bounds.minZ).toBeLessThan(primary.z + entrance.z);
   });
 });

@@ -24,7 +24,11 @@ import {
   WAREHOUSE_RACK_HEADROOM,
   WAREHOUSE_RACK_MIN_HEIGHT,
 } from './warehouseRackGeometry';
-import { buildWarehouseYardRoads } from './warehouseYardRoads';
+import {
+  buildWarehouseYardRoads,
+  WAREHOUSE_TRUCK_CENTER_Z,
+  WAREHOUSE_TRUCK_SWEEP_RADIUS,
+} from './warehouseYardRoads';
 
 export interface WarehouseBoxValue {
   position: VectorValue;
@@ -230,27 +234,37 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
   minZ -= 0.55;
   maxX += 1.55;
   maxZ += 1.65;
-  const width = maxX - minX;
-  const depth = maxZ - minZ;
-  const centerX = (minX + maxX) / 2;
-  const centerZ = (minZ + maxZ) / 2;
-  const radius = Math.max(4.5, Math.hypot(width, depth) * 0.52);
-  const padding = 18 + radius * 5;
+  const building = { depth: maxZ - minZ, width: maxX - minX, x: minX, z: minZ };
+  const yard = buildWarehouseYardRoads(docks);
+  const grounds = { ...building };
+  if (yard !== undefined && dock !== undefined) {
+    grounds.x = Math.min(minX, dock.x + yard.apron.minX);
+    grounds.z = Math.min(minZ, dock.z + yard.entrance.z + WAREHOUSE_TRUCK_CENTER_Z - WAREHOUSE_TRUCK_SWEEP_RADIUS);
+    grounds.width = Math.max(maxX, dock.x + yard.apron.maxX) - grounds.x;
+    grounds.depth = maxZ - grounds.z;
+  }
+  const home = docks.length > 2 ? grounds : building;
+  const radius = Math.max(4.5, Math.hypot(home.width, home.depth) * 0.52);
+  const padding = 18 + Math.max(4.5, Math.hypot(grounds.width, grounds.depth) * 0.52) * 5;
   for (const { x, z } of docks) {
     obstacles.push({ maxX: x + 0.93, maxZ: z + WAREHOUSE_DOCK_RAMP_END, minX: x - 0.93, minZ: z - 0.145 });
   }
   const bounds = { maxX, maxZ, minX: minX + 0.19, minZ: (dock?.z ?? minZ) + 0.11 };
-  const yard = buildWarehouseYardRoads(docks);
   return {
     cells,
     cellsById: new Map(cells.map(cell => [cell.id, cell])),
-    floor: buildWarehouseFloor({ depth, width, x: minX, z: minZ }, receiving, yard, aisleMarks, padding, warehouse),
+    floor: buildWarehouseFloor(grounds, receiving, yard, aisleMarks, padding, warehouse ?? building),
     navigation: { bounds, obstacles },
     racks: { decks, dividers, frames, guards },
     receiving,
     world: {
-      bounds: { maxX: maxX + padding, maxZ: maxZ + padding, minX: minX - padding, minZ: minZ - padding },
-      home: { centerX, centerZ, radius },
+      bounds: {
+        maxX: grounds.x + grounds.width + padding,
+        maxZ: grounds.z + grounds.depth + padding,
+        minX: grounds.x - padding,
+        minZ: grounds.z - padding,
+      },
+      home: { centerX: home.x + home.width / 2, centerZ: home.z + home.depth / 2, radius },
       maxHeight,
     },
     yard,

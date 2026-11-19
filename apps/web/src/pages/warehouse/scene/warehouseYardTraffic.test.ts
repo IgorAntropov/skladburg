@@ -6,7 +6,10 @@ import {
 
 import type { WarehouseYardLaneValue } from './warehouseYardTraffic';
 
-import { createWarehouseDockTruck } from './warehouseDockTruckMotion';
+import {
+  createWarehouseDockTruck,
+  isWarehouseDockTruckMoving,
+} from './warehouseDockTruckMotion';
 import { readWarehouseParkingOffset } from './warehouseYardParking';
 import { buildWarehouseYardRoads } from './warehouseYardRoads';
 import {
@@ -26,6 +29,52 @@ const buildLane = (x: number, taskId: string | undefined, target = taskId): Ware
 });
 
 describe('warehouse yard traffic', () => {
+  it('reserves the route from the rear parking place to D06 and runs the other assignment after it', () => {
+    const docks = [0, -5, 5, 11, 20, 34];
+    const wideRoads = buildWarehouseYardRoads(docks.map(x => ({ x, z: 0 })));
+    const traffic = createWarehouseYardTraffic();
+    const first = buildLane(0, 'unloading');
+    const fifth = buildLane(20, undefined);
+    const sixth = buildLane(34, undefined);
+    traffic.lanes = [first, ...docks.slice(1, 4).map(x => buildLane(x, undefined)), fifth, sixth];
+    traffic.visits = visits;
+    advanceWarehouseYardTraffic(traffic, wideRoads, 0, false);
+    expect(traffic.yard.parked.map(slot => slot.taskId)).toEqual(['first', 'second', 'third']);
+
+    fifth.target = 'second';
+    sixth.target = 'third';
+    traffic.visits = visits.slice(0, 1);
+    advanceWarehouseYardTraffic(traffic, wideRoads, 0, false);
+    expect(traffic.reservation).toBe(fifth);
+    const routeStarts: number[] = [];
+    let hasStartedSixth = false;
+    for (let frame = 0; frame < 240; frame += 1) {
+      const current = advanceWarehouseYardTraffic(traffic, wideRoads, 0.05, false);
+      expect(traffic.lanes.filter(lane => lane !== undefined && isWarehouseDockTruckMoving(lane.truck)).length).toBeLessThanOrEqual(1);
+      if (sixth.truck.phase === 'approaching' && !hasStartedSixth) {
+        hasStartedSixth = true;
+        routeStarts.push(sixth.truck.start.z);
+      }
+      if (!current) {
+        break;
+      }
+    }
+    expect(routeStarts).toEqual([readWarehouseParkingOffset(2)]);
+    expect([fifth.truck, sixth.truck]).toMatchObject([{ phase: 'docked', taskId: 'second' }, { phase: 'docked', taskId: 'third' }]);
+    expect(first.truck).toMatchObject({ phase: 'docked', taskId: 'unloading' });
+
+    sixth.hasConfirmedDeparture = true;
+    sixth.target = undefined;
+    advanceWarehouseYardTraffic(traffic, wideRoads, 0, false);
+    expect(traffic.reservation).toBe(sixth);
+    for (let frame = 0; frame < 120 && sixth.truck.phase === 'departing'; frame += 1) {
+      advanceWarehouseYardTraffic(traffic, wideRoads, 0.05, false);
+      expect(first.truck).toMatchObject({ phase: 'docked', taskId: 'unloading' });
+    }
+    expect(sixth.truck.phase).toBe('away');
+    expect(advanceWarehouseYardTraffic(traffic, wideRoads, 0.05, false)).toBe(false);
+  });
+
   it.each([false, true])('switches the yard after departure with reduced motion %s', (isReducedMotion) => {
     const traffic = createWarehouseYardTraffic();
     const lane = buildLane(0, 'departing');

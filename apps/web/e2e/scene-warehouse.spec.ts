@@ -5,6 +5,7 @@ import type {
   MessageShape,
 } from '@bufbuild/protobuf';
 import type {
+  JSHandle,
   Locator,
   Page,
   TestInfo,
@@ -17,12 +18,16 @@ import {
   toBinary,
 } from '@bufbuild/protobuf';
 import { expect } from '@playwright/test';
+import { DealService } from '@skladburg/contracts/deal/v1/deal';
 import { VehicleCargoKind } from '@skladburg/contracts/fleet/v1/fleet';
 import { TripStatus } from '@skladburg/contracts/logistics/v1/trip_records';
+import { OrganizationService } from '@skladburg/contracts/organization/v1/organization';
 import {
   ReceivingTaskStatus,
   WarehouseReceivingService,
+  YardAdmissionStatus,
 } from '@skladburg/contracts/wms/v1/receiving';
+import { WarehouseTopologyService } from '@skladburg/contracts/wms/v1/topology';
 import { randomUUID } from 'node:crypto';
 
 import type { EngineWorkerRobotValue } from './robots/engine-worker-robot.ts';
@@ -38,6 +43,7 @@ import {
   toObjectHash,
   toWarehouseRoute,
 } from './fixtures/routes.ts';
+import { storeSixDockWarehouse } from './fixtures/sixDockWarehouse.ts';
 import { test } from './fixtures/test.ts';
 import { createStoreSystemThemeScript } from './fixtures/themePreference.ts';
 import { DESKTOP_VIEWPORT } from './fixtures/viewports.ts';
@@ -75,6 +81,8 @@ const RACK_GRID_STEP_MM = 100;
 const MIN_DOCK_MOTION_FRAMES = 10;
 const MIN_WAREHOUSE_MOTION_FRAMES = 5;
 const MIN_YARD_HANDOFF_FRAMES = 32;
+const SIX_DOCK_PROMOTIONS_TIMEOUT_MS = 60_000;
+const CAB_POSITION_TOLERANCE_PX = 10;
 const CANVAS_ONLY_STYLE = 'body * { visibility: hidden !important; } canvas { visibility: visible !important; }';
 const KAZAN_WAREHOUSE_ID = OWN_NETWORK_SITES[2].id;
 const COTTAGE_SSCC = '000000000000000017';
@@ -110,6 +118,11 @@ const callReceiving = async <TInput extends DescMessage, TOutput extends DescMes
   return fromBinary(method.output, await worker.call(`${method.parent.typeName}/${method.name}`, body));
 };
 
+interface DockHandoffTraceValue {
+  frame: string | undefined;
+  stop: () => void;
+}
+
 interface TruckCabPositionValue {
   x: number;
   y: number;
@@ -120,7 +133,8 @@ const projectCabDepth = ({ x, y }: TruckCabPositionValue): number => y * Math.sq
 const readTruckCabPositions = (
   page: Page,
   screenshot: Buffer,
-): Promise<TruckCabPositionValue[]> => page.evaluate(async (base64): Promise<TruckCabPositionValue[]> => {
+  minimumCabPixels = 100,
+): Promise<TruckCabPositionValue[]> => page.evaluate(async ({ base64, minimumCabPixels }): Promise<TruckCabPositionValue[]> => {
   const image = new Image();
   image.src = `data:image/png;base64,${base64}`;
   await image.decode();
@@ -169,13 +183,95 @@ const readTruckCabPositions = (
         }
       }
     }
-    if (component.length >= 100) {
+    if (component.length >= minimumCabPixels) {
       cabs.push({ x: sumX / component.length, y: sumY / component.length });
     }
   }
 
   return cabs;
-}, screenshot.toString('base64'));
+}, { base64: screenshot.toString('base64'), minimumCabPixels });
+
+const projectCabLane = ({ x, y }: TruckCabPositionValue): number => y * Math.sqrt(3) + x;
+
+const hasCabAt = (cabs: readonly TruckCabPositionValue[], target: TruckCabPositionValue): boolean =>
+  cabs.some(cab => Math.hypot(cab.x - target.x, cab.y - target.y) < CAB_POSITION_TOLERANCE_PX);
+
+const watchDockHandoff = (
+  canvas: Locator,
+  d04: TruckCabPositionValue,
+  d06: TruckCabPositionValue,
+  rearParking: TruckCabPositionValue,
+): Promise<JSHandle<DockHandoffTraceValue>> => canvas.evaluateHandle((element, anchors): DockHandoffTraceValue => {
+  if (!(element instanceof HTMLCanvasElement)) {
+    throw new Error('Expected the warehouse canvas to track the handoff');
+  }
+  const context = element.getContext('webgl2');
+  if (context === null) {
+    throw new Error('Expected a WebGL2 context to track the handoff');
+  }
+  const { height, width } = element.getBoundingClientRect();
+  const { drawingBufferHeight, drawingBufferWidth } = context;
+  const size = 7;
+  const radius = Math.floor(size / 2);
+  const [middleDock, farDock, rearSlot] = anchors.map(({ x, y }) => ({
+    x: Math.floor(x * drawingBufferWidth / width) - radius,
+    y: drawingBufferHeight - Math.floor(y * drawingBufferHeight / height) - radius - 1,
+  }));
+  if (middleDock === undefined || farDock === undefined || rearSlot === undefined) {
+    throw new Error('Could not locate the handoff landmarks in the WebGL buffer');
+  }
+  const pixels = new Uint8Array(size * size * 4);
+  const drawElements = context.drawElements.bind(context);
+  const drawElementsInstanced = context.drawElementsInstanced.bind(context);
+  const trace: DockHandoffTraceValue = {
+    frame: undefined,
+    stop: () => {
+      Reflect.deleteProperty(context, 'drawElements');
+      Reflect.deleteProperty(context, 'drawElementsInstanced');
+    },
+  };
+  let isSampleQueued = false;
+  let sawBothDocksVacant = false;
+
+  const hasCabAtPosition = ({ x, y }: TruckCabPositionValue): boolean => {
+    context.readPixels(x, y, size, size, context.RGBA, context.UNSIGNED_BYTE, pixels);
+    let cabPixels = 0;
+    for (let offset = 0; offset < pixels.length; offset += 4) {
+      const green = pixels[offset + 1] ?? 0;
+      if ((pixels[offset] ?? 0) - green >= 20 && (pixels[offset + 2] ?? 0) - green >= 16) {
+        cabPixels += 1;
+      }
+    }
+    return cabPixels > size;
+  };
+
+  const scheduleSample = (): void => {
+    if (isSampleQueued || trace.frame !== undefined) {
+      return;
+    }
+    isSampleQueued = true;
+    queueMicrotask(() => {
+      isSampleQueued = false;
+      const isD04Occupied = hasCabAtPosition(middleDock);
+      if (!sawBothDocksVacant) {
+        sawBothDocksVacant = !isD04Occupied && !hasCabAtPosition(farDock);
+        return;
+      }
+      if (isD04Occupied && !hasCabAtPosition(farDock) && hasCabAtPosition(rearSlot)) {
+        trace.frame = element.toDataURL('image/png');
+      }
+    });
+  };
+  context.drawElements = (...args): void => {
+    drawElements(...args);
+    scheduleSample();
+  };
+  context.drawElementsInstanced = (...args): void => {
+    drawElementsInstanced(...args);
+    scheduleSample();
+  };
+  return trace;
+}, [d04, d06, rearParking]);
 
 test('moves a rack preview and renders the saved rack on the same warehouse canvas', async ({ page }, testInfo) => {
   test.setTimeout(90_000);
@@ -649,6 +745,214 @@ test('receives goods at two assigned docks and advances the waiting truck', asyn
     }, testInfo, 'kazan-third-departure');
     expect(await readTruckCabPositions(page, emptyYard)).toHaveLength(0);
     await expectNoAxeViolations(page);
+    expect(scene.readPageErrors()).toEqual([]);
+  }
+  finally {
+    await worker.stop();
+    await workerPage.close();
+  }
+});
+
+test('uses the rear parking place and keeps both new assignments on a six-dock yard', async ({ context, page }, testInfo) => {
+  test.setTimeout(150_000);
+  const { method } = WarehouseReceivingService;
+  const scope = { warehouseId: KAZAN_WAREHOUSE_ID };
+  const warehouseHash = toObjectHash(toWarehouseRoute(KAZAN_WAREHOUSE_ID));
+  const seedPage = await context.newPage();
+  const seedWorker = await createEngineWorkerRobot(seedPage, DEAL_CUSTOMER);
+  const [{ tasks: seeded }, { topology }, { warehouses }] = await Promise.all([
+    callReceiving(seedWorker, method.listReceivingTasks, scope),
+    callReceiving(seedWorker, WarehouseTopologyService.method.getWarehouseTopology, scope),
+    callReceiving(seedWorker, OrganizationService.method.listWarehouses, {}),
+  ]);
+  const warehouse = warehouses.find(entry => entry.id === KAZAN_WAREHOUSE_ID);
+  if (topology === undefined || warehouse === undefined) {
+    throw new Error('Could not find the seeded Kazan warehouse');
+  }
+  const deliveries = await Promise.all(seeded.map(async (task) => {
+    const { deal } = await callReceiving(seedWorker, DealService.method.getDeal, { dealId: task.dealId });
+    if (deal === undefined) {
+      throw new Error(`Missing the seeded receipt deal ${task.dealId}`);
+    }
+    return { deal, task };
+  }));
+  await seedWorker.stop();
+  const fixture = await storeSixDockWarehouse(seedPage, topology, warehouse, deliveries);
+  await seedPage.close();
+
+  await page.addInitScript({ content: DRAW_COUNTER_INIT_SCRIPT });
+  await page.addInitScript({ content: createStoreSystemThemeScript() });
+  await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+  const scene = createSceneRobot(page);
+  scene.watchPageErrors();
+  scene.watchSceneChunkRequests();
+  await createPersonaRobot(page).openAsPersona(warehouseHash, PERSONAS.freshCustomer.id);
+  const receipts = page.getByTestId('warehouse-receiving-task');
+  const taskCard = (id: string): Locator => receipts.filter({ has: page.locator(`a[href="#/deals/${id}"]`) });
+  const dockStatus = (id: string): Locator => taskCard(id).getByTestId('warehouse-receiving-dock');
+  await expect(receipts).toHaveCount(6);
+  await scene.expectNoCanvas();
+  expect(scene.countRequestedSceneChunks()).toBe(0);
+  expect(await scene.readDrawFrames()).toBe(0);
+  await scene.chooseGraphicsPreference('low');
+  await scene.expectSceneState('ready');
+  await scene.expectOneCanvas();
+  await scene.waitForCameraControls();
+  await scene.pressCameraButton('home');
+
+  const workerPage = await context.newPage();
+  const worker = await createEngineWorkerRobot(workerPage, DEAL_CUSTOMER);
+  try {
+    await page.bringToFront();
+    const { topology: persisted } = await callReceiving(worker, WarehouseTopologyService.method.getWarehouseTopology, scope);
+    const area = persisted?.receivingArea;
+    expect([area?.unloadingPoint, ...(area?.additionalUnloadingPoints ?? [])].map(dock => dock?.id)).toEqual(fixture.dockIds);
+    const readReceipts = (): Promise<ListReceivingTasksResponse> => callReceiving(worker, method.listReceivingTasks, scope);
+    const { tasks: arrivals } = await readReceipts();
+    const waiting = arrivals.filter(task => task.unloadingPointId === undefined);
+    expect(waiting.map(task => task.id)).toEqual([fixture.frontId, fixture.middleId, fixture.rearId]);
+    expect(waiting.map(task => task.yardAdmissionStatus)).toEqual([
+      YardAdmissionStatus.WAITING_DOCUMENTS,
+      YardAdmissionStatus.WAITING_DOCK,
+      YardAdmissionStatus.WAITING_DOCK,
+    ]);
+
+    const neighbor = taskCard(fixture.neighborId);
+    const neighborScan = await scanDeliveredPallet(neighbor, COTTAGE_SSCC);
+    await neighborScan.click();
+    await expect(neighbor.getByTestId('warehouse-placement')).toBeVisible();
+    await expect(dockStatus(fixture.neighborId)).toContainText('D05');
+    await Promise.all([fixture.releaseFarId, fixture.releaseMiddleId].map(async (taskId): Promise<void> => {
+      const arrival = arrivals.find(task => task.id === taskId);
+      if (arrival === undefined) {
+        throw new Error('Missing a seeded dock assignment');
+      }
+      const { task } = await callReceiving(worker, method.claimReceivingTask, {
+        ...scope, expectedVersion: arrival.version, idempotencyKey: randomUUID(), taskId,
+      });
+      expect(task?.status).toBe(ReceivingTaskStatus.IN_PROGRESS);
+    }));
+
+    const canvas = page.getByTestId('scene-viewport').locator('canvas');
+    const readCabs = (snapshot: Buffer): Promise<TruckCabPositionValue[]> => readTruckCabPositions(page, snapshot, 35);
+    await scene.waitForIdle();
+    await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
+    const initial = await canvas.screenshot({ path: testInfo.outputPath('warehouse-six-dock-overview.png'), style: CANVAS_ONLY_STYLE });
+    const initialCabs = (await readCabs(initial)).toSorted((first, second) => projectCabDepth(first) - projectCabDepth(second));
+    expect(initialCabs).toHaveLength(6);
+    const [rearParking, middleParking, frontParking] = initialCabs;
+    const [d04, d05, d06] = initialCabs.slice(3).toSorted((first, second) => first.x - second.x);
+    if (rearParking === undefined || middleParking === undefined || frontParking === undefined
+      || d04 === undefined || d05 === undefined || d06 === undefined) {
+      throw new Error('Could not identify the three parking spots and the cab positions of D04, D05 and D06');
+    }
+    const parkingLane = projectCabLane(frontParking);
+    const dockAnchors = [d04, d05, d06];
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await scene.waitForIdle();
+    const watch = await watchDockHandoff(canvas, d04, d06, rearParking);
+
+    const { tasks: claimed } = await readReceipts();
+    const finished = await Promise.all([fixture.releaseFarId, fixture.releaseMiddleId].map(async (taskId) => {
+      const task = claimed.find(candidate => candidate.id === taskId);
+      if (task === undefined) {
+        throw new Error('Missing a claimed blocker');
+      }
+      return callReceiving(worker, method.finishReceivingTask, {
+        ...scope, expectedVersion: task.version, idempotencyKey: randomUUID(), taskId,
+      });
+    }));
+    expect(finished.map(({ task }) => task?.status)).toEqual([
+      ReceivingTaskStatus.READY_FOR_RECONCILIATION, ReceivingTaskStatus.READY_FOR_RECONCILIATION,
+    ]);
+    await expect(dockStatus(fixture.middleId)).toContainText('D04');
+    await expect(dockStatus(fixture.rearId)).toContainText('D06');
+
+    let sawRearMoveAfterD04Docked = false;
+    let didFrontAndNeighborStay = true;
+    let maxCabsOnSharedRoad = 0;
+    await expect.poll(async () => {
+      const frame = await canvas.screenshot({ style: CANVAS_ONLY_STYLE });
+      const cabs = await readCabs(frame);
+      const isD04Occupied = hasCabAt(cabs, d04);
+      const isD06Occupied = hasCabAt(cabs, d06);
+      const isRearParked = hasCabAt(cabs, rearParking);
+      const sharedRoadCabs = cabs.filter(cab => !dockAnchors.some(dock => hasCabAt([cab], dock))
+        && Math.abs(projectCabLane(cab) - parkingLane) > 2 * CAB_POSITION_TOLERANCE_PX).length;
+      maxCabsOnSharedRoad = Math.max(maxCabsOnSharedRoad, sharedRoadCabs);
+      didFrontAndNeighborStay &&= hasCabAt(cabs, frontParking) && hasCabAt(cabs, d05);
+      const sawD04DockedBeforeRearLeftParking = await watch.evaluate(trace => trace.frame !== undefined);
+      if (!sawRearMoveAfterD04Docked && sawD04DockedBeforeRearLeftParking && isD04Occupied && !isD06Occupied && !isRearParked
+        && sharedRoadCabs === 1) {
+        sawRearMoveAfterD04Docked = true;
+        await testInfo.attach('warehouse-six-dock-rear-truck-on-shared-road', { body: frame, contentType: 'image/png' });
+      }
+      const areBothDocked = isD04Occupied && isD06Occupied && !isRearParked && !hasCabAt(cabs, middleParking) && cabs.length === 4;
+      return { areBothDocked, didFrontAndNeighborStay, maxCabsOnSharedRoad, sawD04DockedBeforeRearLeftParking, sawRearMoveAfterD04Docked };
+    }, { intervals: [200], message: 'each truck must take the shared road in sequence', timeout: SIX_DOCK_PROMOTIONS_TIMEOUT_MS }).toEqual({
+      areBothDocked: true,
+      didFrontAndNeighborStay: true,
+      maxCabsOnSharedRoad: 1,
+      sawD04DockedBeforeRearLeftParking: true,
+      sawRearMoveAfterD04Docked: true,
+    });
+    const handoffFrame = await watch.evaluate((trace) => {
+      trace.stop();
+      return trace.frame;
+    });
+    await watch.dispose();
+    if (handoffFrame !== undefined) {
+      const data = handoffFrame.slice('data:image/png;base64,'.length);
+      await testInfo.attach('warehouse-six-dock-middle-arrived-rear-parked', {
+        body: Buffer.from(data, 'base64'), contentType: 'image/png',
+      });
+    }
+    await scene.waitForIdle();
+    await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
+    await canvas.screenshot({ path: testInfo.outputPath('warehouse-six-dock-promotions-settled.png'), style: CANVAS_ONLY_STYLE });
+
+    const { tasks: promoted } = await readReceipts();
+    expect(promoted.find(task => task.id === fixture.frontId)?.unloadingPointId).toBeUndefined();
+    expect(promoted.find(task => task.id === fixture.middleId)?.unloadingPointId).toBe(fixture.dockIds[3]);
+    expect(promoted.find(task => task.id === fixture.rearId)?.unloadingPointId).toBe(fixture.dockIds[5]);
+    const rear = taskCard(fixture.rearId);
+    const rearScan = await scanDeliveredPallet(rear, '000000000000000031');
+    await rearScan.click();
+    await expect(rear.getByTestId('warehouse-placement')).toBeVisible();
+
+    const afterDeparture = await expectDockTruckMotion(scene, canvas, async () => {
+      const finish = rear.getByTestId('warehouse-finish-receiving');
+      await finish.click();
+      await expect(finish).toHaveCount(0);
+      await expect(neighbor.getByTestId('warehouse-placement')).toBeVisible();
+      await expect(dockStatus(fixture.neighborId)).toContainText('D05');
+    }, testInfo, 'warehouse-six-dock-rear-truck-exit');
+    const remainingCabs = await readCabs(afterDeparture);
+    expect(remainingCabs).toHaveLength(3);
+    expect([frontParking, d04, d05].every(position => hasCabAt(remainingCabs, position))).toBe(true);
+    expect(hasCabAt(remainingCabs, d06)).toBe(false);
+    const { tasks: final } = await readReceipts();
+    expect(final.find(task => task.id === fixture.rearId)).toMatchObject({ status: ReceivingTaskStatus.READY_FOR_RECONCILIATION });
+    expect(final.find(task => task.id === fixture.middleId)?.unloadingPointId).toBe(fixture.dockIds[3]);
+    expect(final.find(task => task.id === fixture.neighborId)).toMatchObject({
+      receivedUnits: [expect.any(Object)], status: ReceivingTaskStatus.IN_PROGRESS, unloadingPointId: fixture.dockIds[4],
+    });
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.reload();
+    await scene.expectSceneState('ready');
+    await expect(dockStatus(fixture.middleId)).toContainText('D04');
+    await expect(dockStatus(fixture.neighborId)).toContainText('D05');
+    await scene.waitForCameraControls();
+    await scene.pressCameraButton('home');
+    await scene.waitForIdle();
+    const reducedFrame = await canvas.screenshot({
+      path: testInfo.outputPath('warehouse-six-dock-reduced-motion.png'), style: CANVAS_ONLY_STYLE,
+    });
+    const reducedCabs = await readCabs(reducedFrame);
+    expect(reducedCabs).toHaveLength(3);
+    expect([frontParking, d04, d05].every(position => hasCabAt(reducedCabs, position))).toBe(true);
+    await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
     expect(scene.readPageErrors()).toEqual([]);
   }
   finally {

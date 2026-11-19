@@ -242,11 +242,13 @@ test('moves a rack preview and renders the saved rack on the same warehouse canv
   expect(saved.equals(initial), 'the committed rack is missing from the warehouse scene').toBe(false);
   expect(await scene.readTriangles()).toBeGreaterThan(initialTriangles);
 
+  const beforeAddresses = await scene.readDrawFrames();
   await workspace.locator('button[id$="-trigger-addresses"]').click();
   const cellLinks = workspace.getByTestId('warehouse-addresses').locator('a[href^="#/cells/"]');
   for (const code of newAddresses) {
     await expect(cellLinks.filter({ hasText: new RegExp(`(?:^|\\s)${code}$`, 'u') })).toHaveCount(1);
   }
+  await scene.waitForDrawFramesToExceed(beforeAddresses, 'opening the addresses tab did not redraw the scene');
   await scene.waitForIdle();
   await scene.expectNoDrawFramesFor(REST_PERIOD_MS);
   await canvas.screenshot({ path: testInfo.outputPath('warehouse-saved-addresses.png'), style: CANVAS_ONLY_STYLE });

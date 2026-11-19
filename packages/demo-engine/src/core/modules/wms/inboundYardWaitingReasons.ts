@@ -8,8 +8,11 @@ import {
   YardWaitingReasonSchema,
 } from '@skladburg/contracts/wms/v1/receiving';
 
+import type { PermissionCallerValue } from '../../access/index';
 import type { IModuleRuntime } from '../moduleRuntime';
+import type { InboundDockCandidateValue } from './inboundDockSchedule';
 
+import { isWarehouseInScope } from '../../access/index';
 import { canUseInboundDock } from './inboundDockQueue';
 import { isInboundDockSlotExpired } from './inboundDockSlots';
 import {
@@ -28,43 +31,56 @@ import {
   readInboundYardGate,
 } from './inboundYardGate';
 import { usesOutboundDock } from './outboundDockOccupancy';
+import { readWarehouseReceivingLayoutOccupancy } from './warehouseReceivingLayoutOccupancy';
 import { readOwnedWarehouseTopology } from './warehouseTopologyRecords';
-import { scoreYardQueueCandidate } from './yardQueueScoring';
+import {
+  readYardDispatchVisitBlock,
+  readYardDockAssignment,
+  readYardPromotionBlock,
+} from './yardDispatchAvailability';
+import {
+  rankYardQueue,
+  scoreYardQueueCandidate,
+} from './yardQueueScoring';
 
 export const listInboundYardWaitingReasons = (
   { errors, getWorldTimeMs, read }: Pick<IModuleRuntime, 'errors' | 'getWorldTimeMs' | 'read'>,
   warehouseId: string,
-  tenantId: string,
+  { admission, organizationId: tenantId, permissions }: PermissionCallerValue,
 ): YardWaitingReason[] => {
   const tasks = read.listBy('warehouseInbound', 'scopeId', warehouseId)
     .filter(record => record.lookupKey === tenantId)
     .map(record => readInboundTask(record, errors))
     .filter(task => task.version > 0);
-  const area = readOwnedWarehouseTopology(read, errors, warehouseId, tenantId)?.receivingArea;
+  const topology = readOwnedWarehouseTopology(read, errors, warehouseId, tenantId);
+  const area = topology?.receivingArea;
   const docks = area === undefined ? [] : readInboundDocks(read, errors, { receivingAreaId: area.id, tenantId, warehouseId });
+  const canManage = admission.kind === 'membership'
+    && permissions.some(permission => permission.permission === 'yard_manage' && isWarehouseInScope(permission, warehouseId));
+  const occupiedDockIds = canManage && topology !== undefined && docks.length > 0
+    ? readWarehouseReceivingLayoutOccupancy(read, topology, errors, false).occupiedDockIds
+    : undefined;
   const worldTimeMs = getWorldTimeMs();
   const warehouseDate = readInboundWarehouseDate(read, warehouseId, worldTimeMs);
+  const active = tasks.filter(isReceivingTaskActive).map(task => ({ gate: readInboundYardGate(read, task, tenantId), task }));
   const { occupied, reservations } = readInboundDockUsage(
     tasks.filter(task => task.receivingAreaId === area?.id), docks, area?.id ?? '', worldTimeMs,
   );
   discardUnavailableInboundReservations(read, tenantId, docks, reservations, worldTimeMs, warehouseDate);
   const weights = readYardQueueWeights(read, tenantId);
   const primary = docks[0];
-  const hasDispatchConstraints = reservations.size > 0 || tasks.some(task =>
-    (task.dockSchedule !== undefined || read.get('warehouseInbound', task.id)?.manualPrioritySequence !== undefined)
-    && task.receivingAreaId === area?.id && isReceivingTaskActive(task)
-    && !isInboundYardBlocked(readInboundYardGate(read, task, tenantId)));
+  const hasDispatchConstraints = reservations.size > 0 || active.some(({ gate, task }) =>
+    task.receivingAreaId === area?.id && !isInboundYardBlocked(gate)
+    && (task.dockSchedule !== undefined || read.get('warehouseInbound', task.id)?.manualPrioritySequence !== undefined
+      || gate === YardAdmissionStatus.ADMITTED));
   if (primary !== undefined && hasDispatchConstraints && usesOutboundDock(read, tenantId, warehouseId, errors)) {
     occupied.set(primary.id, undefined);
   }
 
   const reasons: YardWaitingReason[] = [];
-  for (const task of tasks) {
-    if (!isReceivingTaskActive(task)) {
-      continue;
-    }
-    const gate = readInboundYardGate(read, task, tenantId);
-    const row = { receivingTaskId: task.id, taskVersion: task.version };
+  const candidates: InboundDockCandidateValue[] = [];
+  for (const { gate, task } of active) {
+    const row = { dispatchOptions: canManage ? {} : undefined, receivingTaskId: task.id, taskVersion: task.version };
     if (isInboundYardBlocked(gate)) {
       reasons.push(create(YardWaitingReasonSchema, {
         ...row,
@@ -86,7 +102,8 @@ export const listInboundYardWaitingReasons = (
     const isBusy = compatible.length > 0 && compatible.every(({ id }) => occupied.has(id)
       || [...reservations].some(([owner, booked]) => owner !== task && booked.dockId === id
         && booked.startsAtMs <= worldTimeMs && worldTimeMs < booked.endsAtMs));
-    if (!hasNoCompatibleDock && !isBusy && task.dockSchedule === undefined
+    const canAct = isInCurrentArea && task.version < MAX_RECEIVING_VERSION && readYardDispatchVisitBlock(task, gate) === undefined;
+    if ((!canAct || compatible.length === 0) && !hasNoCompatibleDock && !isBusy && task.dockSchedule === undefined
       && task.yardAdmissionStatus !== YardAdmissionStatus.WAITING_DOCK && areaDocks.length <= 1) {
       continue;
     }
@@ -106,8 +123,26 @@ export const listInboundYardWaitingReasons = (
     const priorityFactors = compatible.length === 0 || task.version >= MAX_RECEIVING_VERSION
       ? []
       : scoreYardQueueCandidate(candidate, weights, worldTimeMs, warehouseDate, false).reasonCodes.map(code => YardPriorityFactor[code]);
-    reasons.push(create(YardWaitingReasonSchema, { ...row, priorityFactors, reason }));
+    if (compatible.length > 0 && !hasValidSlot && task.version < MAX_RECEIVING_VERSION) {
+      candidates.push(candidate);
+    }
+    const dispatchOptions = occupiedDockIds !== undefined && canAct
+      ? {
+          assignableUnloadingPointIds: compatible
+            .filter(({ id }) => readYardDockAssignment({
+              candidate, docks, occupiedDockIds, reservations, worldTimeMs,
+            }, id).kind === 'available')
+            .map(({ id }) => id),
+          canPromote: readYardPromotionBlock(candidate, docks, slot) === undefined,
+        }
+      : row.dispatchOptions;
+    reasons.push(create(YardWaitingReasonSchema, { ...row, dispatchOptions, priorityFactors, reason }));
   }
 
+  const queue = rankYardQueue(candidates, weights, worldTimeMs, warehouseDate);
+  const positions = new Map(queue.map(({ id }, index) => [id, index + 1]));
+  for (const row of reasons) {
+    row.queuePosition = positions.get(row.receivingTaskId);
+  }
   return reasons;
 };

@@ -142,11 +142,18 @@ enum YardPriorityFactor {
   YARD_PRIORITY_FACTOR_MANUAL_PROMOTION = 8;
 }
 
+message YardDispatchOptions {
+  bool can_promote = 1;
+  repeated string assignable_unloading_point_ids = 2;
+}
+
 message YardWaitingReason {
   string receiving_task_id = 1;
   int32 task_version = 2;
   YardWaitingReasonCode reason = 3;
   repeated YardPriorityFactor priority_factors = 4;
+  optional uint32 queue_position = 5;
+  YardDispatchOptions dispatch_options = 6;
 }
 
 message ListYardWaitingReasonsRequest {

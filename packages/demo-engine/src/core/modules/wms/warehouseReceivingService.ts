@@ -166,8 +166,8 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
     listYardDispatchEntries: async (request, context) => (await loadYardDispatch()).listYardDispatchEntries(request, context),
     listYardWaitingReasons: async (request, context) => {
       const { listInboundYardWaitingReasons } = await import('./inboundYardWaitingReasons');
-      const { organizationId } = guard.guardPermissionCall(read, method.listYardWaitingReasons, request, context.requestHeader);
-      const reasons = listInboundYardWaitingReasons(runtime, request.warehouseId, organizationId);
+      const caller = guard.guardPermissionCall(read, method.listYardWaitingReasons, request, context.requestHeader);
+      const reasons = listInboundYardWaitingReasons(runtime, request.warehouseId, caller);
       const { items, page } = paginate(reasons, ({ receivingTaskId }) => receivingTaskId, request.page, errors);
       return create(ListYardWaitingReasonsResponseSchema, { page, reasons: items });
     },

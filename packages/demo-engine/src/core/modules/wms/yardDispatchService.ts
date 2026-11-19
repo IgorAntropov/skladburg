@@ -18,10 +18,7 @@ import {
   fromBinary,
   toBinary,
 } from '@bufbuild/protobuf';
-import {
-  timestampFromMs,
-  timestampMs,
-} from '@bufbuild/protobuf/wkt';
+import { timestampFromMs } from '@bufbuild/protobuf/wkt';
 import { EntityKind } from '@skladburg/contracts/common/v1/entity';
 import {
   ErrorCode,
@@ -53,13 +50,10 @@ import type { InboundDockCandidateValue } from './inboundDockSchedule';
 import type { InboundDockSlotValue } from './inboundDockSlots';
 
 import { paginate } from '../pagination';
-import { canUseInboundDock } from './inboundDockQueue';
 import { assignInboundDock } from './inboundDockSchedule';
-import { findInboundDockSlot } from './inboundDockSlots';
 import {
   assignAvailableInboundDocks,
   discardUnavailableInboundReservations,
-  isReceivingTaskActive,
   MAX_RECEIVING_VERSION,
   readInboundDockCandidate,
   readInboundDocks,
@@ -71,6 +65,11 @@ import {
 import { readInboundYardGate } from './inboundYardGate';
 import { readWarehouseReceivingLayoutOccupancy } from './warehouseReceivingLayoutOccupancy';
 import { readOwnedWarehouseTopology } from './warehouseTopologyRecords';
+import {
+  readYardDispatchVisitBlock,
+  readYardDockAssignment,
+  readYardPromotionBlock,
+} from './yardDispatchAvailability';
 
 interface YardDispatchCommandValue<TInput extends DescMessage, TOutput extends DescMessage> {
   action: YardDispatchAction;
@@ -112,26 +111,6 @@ const refuseYardDispatch = (errors: IDomainErrors, reason: YardDispatchBlockedRe
     case: 'yardDispatchBlocked',
     value: create(YardDispatchBlockedParamsSchema, { reason: YardDispatchBlockedReason[reason] }),
   });
-};
-
-const requireWaitingYardVisit = (transaction: IStateTransaction, errors: IDomainErrors, task: ReceivingTask, tenantId: string): void => {
-  if (task.unloadingPointId !== undefined || task.receivedUnits.length > 0) {
-    refuseYardDispatch(errors, YardDispatchBlockedReason.ALREADY_ASSIGNED);
-  }
-  if (!isReceivingTaskActive(task)) {
-    refuseYardDispatch(errors, YardDispatchBlockedReason.VISIT_NOT_WAITING);
-  }
-  const gate = readInboundYardGate(transaction, task, tenantId);
-  switch (gate) {
-    case YardAdmissionStatus.ADMITTED:
-      return;
-    case YardAdmissionStatus.PASS_REJECTED:
-      return refuseYardDispatch(errors, YardDispatchBlockedReason.PASS_REJECTED);
-    case YardAdmissionStatus.WAITING_DOCUMENTS:
-      return refuseYardDispatch(errors, YardDispatchBlockedReason.WAITING_DOCUMENTS);
-    default:
-      return refuseYardDispatch(errors, YardDispatchBlockedReason.VISIT_NOT_WAITING);
-  }
 };
 
 const readDispatchEntry = (record: WarehouseStockRecordValue, errors: IDomainErrors): YardDispatchEntry => {
@@ -183,15 +162,9 @@ const prepareYardDispatch = (
 const promoteYardVisit = ({
   candidate, docks, record, reservations, runtime, sequence, task, transaction,
 }: YardDispatchContextValue): void => {
-  const { errors } = runtime;
-  if (record.manualPrioritySequence !== undefined) {
-    refuseYardDispatch(errors, YardDispatchBlockedReason.ALREADY_PROMOTED);
-  }
-  if (reservations.has(task)) {
-    refuseYardDispatch(errors, YardDispatchBlockedReason.RESERVATION_PROTECTED);
-  }
-  if (!docks.some(dock => canUseInboundDock(dock, candidate))) {
-    refuseYardDispatch(errors, YardDispatchBlockedReason.INCOMPATIBLE_DOCK);
+  const block = readYardPromotionBlock(candidate, docks, reservations.get(task));
+  if (block !== undefined) {
+    refuseYardDispatch(runtime.errors, block);
   }
   if (task.dockSchedule === undefined) {
     task.yardAdmissionStatus = YardAdmissionStatus.WAITING_DOCK;
@@ -205,42 +178,19 @@ const assignYardVisitToDock = (
   unloadingPointId: string,
 ): void => {
   const { errors } = runtime;
-  const dock = docks.find(point => point.id === unloadingPointId);
-  if (dock === undefined) {
-    return refuseYardDispatch(errors, YardDispatchBlockedReason.DOCK_NOT_FOUND);
+  const { occupiedDockIds } = readWarehouseReceivingLayoutOccupancy(transaction, topology, errors, false);
+  const assignment = readYardDockAssignment({
+    candidate, docks, occupiedDockIds, reservations, worldTimeMs: transaction.worldTimeMs,
+  }, unloadingPointId);
+  if (assignment.kind === 'blocked') {
+    return refuseYardDispatch(errors, assignment.reason);
   }
-  if (!canUseInboundDock(dock, candidate)) {
-    refuseYardDispatch(errors, YardDispatchBlockedReason.INCOMPATIBLE_DOCK);
-  }
-  const { worldTimeMs } = transaction;
-  const current = reservations.get(task);
-  const preferred = task.dockSchedule?.preferredStartsAt;
-  if (current !== undefined && current.dockId !== unloadingPointId) {
-    refuseYardDispatch(errors, YardDispatchBlockedReason.RESERVATION_PROTECTED);
-  }
-  const startsAt = current?.startsAtMs ?? (preferred === undefined ? worldTimeMs : Math.ceil(timestampMs(preferred)));
-  if (worldTimeMs < startsAt) {
-    refuseYardDispatch(errors, YardDispatchBlockedReason.SLOT_NOT_STARTED);
-  }
-  if (readWarehouseReceivingLayoutOccupancy(transaction, topology, errors, false).occupiedDockIds.has(unloadingPointId)) {
-    refuseYardDispatch(errors, YardDispatchBlockedReason.DOCK_BUSY);
-  }
-  const otherSlots = [...reservations].filter(([owner]) => owner !== task).map(([, slot]) => slot);
-  if (current === undefined) {
-    const slot = findInboundDockSlot([{ ...dock, availableFromMs: worldTimeMs }], candidate, otherSlots, worldTimeMs);
-    if (slot?.startsAtMs !== worldTimeMs) {
-      return refuseYardDispatch(errors, YardDispatchBlockedReason.RESERVATION_PROTECTED);
-    }
-    if (task.dockSchedule !== undefined) {
-      task.dockSchedule.reservation = create(DockSlotReservationSchema, {
-        endsAt: timestampFromMs(slot.endsAtMs),
-        startsAt: timestampFromMs(slot.startsAtMs),
-        unloadingPointId,
-      });
-    }
-  }
-  else if (otherSlots.some(slot => slot.dockId === unloadingPointId && slot.startsAtMs < current.endsAtMs && worldTimeMs < slot.endsAtMs)) {
-    refuseYardDispatch(errors, YardDispatchBlockedReason.RESERVATION_PROTECTED);
+  if (assignment.slot !== undefined && task.dockSchedule !== undefined) {
+    task.dockSchedule.reservation = create(DockSlotReservationSchema, {
+      endsAt: timestampFromMs(assignment.slot.endsAtMs),
+      startsAt: timestampFromMs(assignment.slot.startsAtMs),
+      unloadingPointId,
+    });
   }
   task.yardAdmissionStatus = YardAdmissionStatus.ADMITTED;
   assignInboundDock(task, unloadingPointId);
@@ -277,7 +227,10 @@ const runYardDispatchCommand = <TInput extends DescMessage, TOutput extends Desc
       if (reason === '') {
         throw errors.validationFailed([{ fieldPath: 'reason', ruleId: 'yard_dispatch.reason_required' }]);
       }
-      requireWaitingYardVisit(transaction, errors, task, tenantId);
+      const block = readYardDispatchVisitBlock(task, readInboundYardGate(transaction, task, tenantId));
+      if (block !== undefined) {
+        refuseYardDispatch(errors, block);
+      }
       const context = prepareYardDispatch(transaction, runtime, task, record);
       const before = captureYardDispatchState(task, record.manualPrioritySequence);
       apply(context);

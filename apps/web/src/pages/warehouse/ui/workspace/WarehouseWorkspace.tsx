@@ -16,6 +16,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 
@@ -54,10 +55,16 @@ import type {
   WarehouseConstructionPreviewValue,
   WarehouseSceneScanValue,
 } from '../../model/warehouseSceneInteraction';
+import type {
+  WarehouseYardDockChoiceValue,
+  WarehouseYardDragOptionsValue,
+  WarehouseYardDragValue,
+} from '../../model/warehouseYardDockChoice';
 
 import { useWarehouseWorkspace } from '../../api/useWarehouseWorkspace';
 import { warehouseWorkSection } from '../../i18n/workspaceSection';
 import { getWarehouseCells } from '../../model/warehouseCells';
+import { isWarehouseYardDockChoiceAllowed } from '../../model/warehouseYardDockChoice';
 import { readCells } from './warehouseFormatting';
 
 export type WarehouseLayoutRenderValue = (panel: ReactNode, scene?: ReactNode, sceneControls?: ReactNode) => ReactElement;
@@ -78,6 +85,7 @@ interface WarehouseWorkspaceProps {
 
 const loadWarehousePanels = createCachedModuleLoader(() => import('./warehousePanels'));
 const loadWarehouseRackPlacement = createCachedModuleLoader(() => import('../layout/WarehouseRackPlacement'));
+const loadWarehouseYardDispatch = createCachedModuleLoader(() => import('./WarehouseYardDispatch'));
 const loadWarehouseYardPolicy = createCachedModuleLoader(() => import('./WarehouseYardPolicyEditor'));
 const loadWarehouseSceneView = createCachedModuleLoader(() => import('../WarehouseWorkspaceScene'));
 const WarehouseWorkspaceScene = createLazyComponent(loadWarehouseSceneView);
@@ -101,7 +109,12 @@ const WarehouseSkeleton = (): ReactElement => (
 );
 
 interface WarehouseWorkspaceContentProps extends Omit<WarehouseWorkspaceProps, 'renderLayout'> {
+  dockChoice: undefined | WarehouseYardDockChoiceValue;
+  isEditingYard: boolean;
   onCellSelect: (id: string, taskId: string) => void;
+  onConsumeDockChoice: (choice: WarehouseYardDockChoiceValue) => void;
+  onDragOptionsChange: (options: undefined | WarehouseYardDragOptionsValue) => void;
+  onEditingYardChange: (isEditing: boolean) => void;
   onPreviewChange: WarehouseConstructionChangeValue;
   t: WarehouseWorkTranslate;
   workspace: WarehouseWorkspaceValue;
@@ -159,7 +172,8 @@ function WarehouseQuery<TData>({ children, empty, isEmpty, query, t }: Warehouse
 }
 
 const WarehouseWorkspaceContent = ({
-  focus, onCellSelect, onPreviewChange, t, warehouse, workspace,
+  dockChoice, focus, isEditingYard, onCellSelect, onConsumeDockChoice, onDragOptionsChange, onEditingYardChange, onPreviewChange,
+  t, warehouse, workspace,
 }: WarehouseWorkspaceContentProps): ReactElement => {
   const { t: baseText } = useI18n();
   const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
@@ -170,6 +184,7 @@ const WarehouseWorkspaceContent = ({
   const [isPolicyOpen, setIsPolicyOpen] = useState(false);
   const hasEditor = editingTaskId !== undefined && workspace.receiving.data?.some(task => task.id === editingTaskId
     && task.status === ReceivingTaskStatus.IN_PROGRESS) === true;
+  const isEditing = hasEditor || isEditingLayout || isEditingYard;
   const cells = readCells(workspace.topology.data);
   const productNames = new Map(workspace.receiving.data?.flatMap(task =>
     task.orderLines.map(({ productId, productName }) => [productId, productName] as const)));
@@ -235,6 +250,26 @@ const WarehouseWorkspaceContent = ({
       count: count === undefined || receivingCount === undefined ? undefined : count + receivingCount,
       id: 'tasks',
       label: t('warehouseWork.tasks'),
+    });
+    tabs.push({
+      content: (
+        <WarehousePanelSlot key="yard" loader={loadWarehouseYardDispatch}>
+          {({ WarehouseYardDispatch }) => (
+            <WarehouseYardDispatch
+              dockChoice={dockChoice}
+              onConsumeDockChoice={onConsumeDockChoice}
+              onDragOptionsChange={onDragOptionsChange}
+              onEditingChange={onEditingYardChange}
+              receiving={workspace.receiving}
+              t={t}
+              topology={workspace.canViewTopology ? workspace.topology : undefined}
+              warehouse={warehouse}
+            />
+          )}
+        </WarehousePanelSlot>
+      ),
+      id: 'yard',
+      label: t('warehouseWork.yardDispatchTab'),
     });
   }
 
@@ -343,7 +378,7 @@ const WarehouseWorkspaceContent = ({
               <AccessButton
                 access={{ status: 'allowed' }}
                 data-testid="yard-queue-policy-open"
-                isDisabled={hasEditor || isEditingLayout}
+                isDisabled={isEditing}
                 onClick={handleOpenPolicy}
                 ref={policyButtonRef}
                 variant="secondary"
@@ -367,7 +402,7 @@ const WarehouseWorkspaceContent = ({
       {tabs.length > 0
         ? (
             <Tabs
-              className={hasEditor || isEditingLayout ? '[&>[role=tablist]]:hidden' : undefined}
+              className={isEditing ? '[&>[role=tablist]]:hidden' : undefined}
               defaultTabId={defaultTabId}
               items={tabs}
               label={t('warehouseWork.tabs')}
@@ -383,12 +418,38 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
   const { retry, status, t } = useCatalogSection(warehouseWorkSection);
   const workspace = useWarehouseWorkspace(warehouse.id);
   const [construction, setConstruction] = useState<WarehouseConstructionPreviewValue>();
+  const [dockChoice, setDockChoice] = useState<WarehouseYardDockChoiceValue>();
+  const [dragOptions, setDragOptions] = useState<WarehouseYardDragOptionsValue>();
+  const [isEditingYard, setIsEditingYard] = useState(false);
   const [scannedCell, setScannedCell] = useState<WarehouseSceneScanValue>();
   const focusId = focus?.id;
 
   const handleCellSelect = useCallback((id: string): void => {
     setScannedCell({ cellId: id, focusId });
   }, [focusId]);
+
+  const handleDragOptionsChange = useCallback((options: undefined | WarehouseYardDragOptionsValue): void => {
+    setDragOptions(options);
+    if (options === undefined) {
+      setDockChoice(undefined);
+    }
+  }, []);
+
+  const handleDockDrop = useCallback((choice: WarehouseYardDockChoiceValue): void => {
+    if (isWarehouseYardDockChoiceAllowed(dragOptions, choice)) {
+      setDockChoice(choice);
+    }
+  }, [dragOptions]);
+
+  const handleConsumeDockChoice = useCallback((choice: WarehouseYardDockChoiceValue): void => {
+    setDockChoice(current => current === choice ? undefined : current);
+  }, []);
+
+  const yardDrag = useMemo<undefined | WarehouseYardDragValue>(() => (
+    !workspace.canViewTasks || isEditingYard || construction !== undefined || dragOptions === undefined || dragOptions.size === 0
+      ? undefined
+      : { onDockDrop: handleDockDrop, options: dragOptions }
+  ), [construction, dragOptions, handleDockDrop, isEditingYard, workspace.canViewTasks]);
 
   const topology = workspace.canViewTopology && !isReadAccessDenied(workspace.topology.error)
     ? workspace.topology.data
@@ -409,9 +470,14 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
   if (t !== undefined) {
     const panel = (
       <WarehouseWorkspaceContent
+        dockChoice={dockChoice}
         focus={focus}
+        isEditingYard={isEditingYard}
         key={focusId}
         onCellSelect={handleCellSelect}
+        onConsumeDockChoice={handleConsumeDockChoice}
+        onDragOptionsChange={handleDragOptionsChange}
+        onEditingYardChange={setIsEditingYard}
         onPreviewChange={setConstruction}
         t={t}
         warehouse={warehouse}
@@ -432,6 +498,7 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
           selectedCellId={focusCellId}
           topology={topology}
           warehouseId={warehouse.id}
+          yardDrag={yardDrag}
         />
       </Suspense>,
       topology == null ? undefined : <Suspense fallback={null}><WarehouseSceneControls /></Suspense>,

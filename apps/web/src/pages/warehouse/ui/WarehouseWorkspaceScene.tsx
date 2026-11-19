@@ -78,7 +78,7 @@ const WarehouseConstructionLayer = (props: WarehouseConstructionLayerProps): nul
 };
 
 const WarehouseWorkspaceScene = ({
-  balances, construction, isLoading, label, picking, receiving, scannedCell, selectedCellId, topology, warehouseId,
+  balances, construction, isLoading, label, picking, receiving, scannedCell, selectedCellId, topology, warehouseId, yardDrag,
 }: WarehouseWorkspaceSceneProps): ReactElement => {
   const { createSectionTranslator, t } = useI18n();
   const navigate = useNavigate();
@@ -147,6 +147,7 @@ const WarehouseWorkspaceScene = ({
         parkingCapacity: parking.capacity,
         scannedCell,
         selectedCellId,
+        yardDrag,
       }}
       key={yardsScope}
       label={label}

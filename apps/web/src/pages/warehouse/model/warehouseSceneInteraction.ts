@@ -6,6 +6,7 @@ import type { BufferGeometry } from 'three';
 import type { WarehouseInstancesProps } from '../scene/WarehouseInstances';
 import type { WarehouseRackFootprintValue } from './warehouseRackGrid';
 import type { WarehouseCargoValue } from './warehouseSceneCargo';
+import type { WarehouseYardDragValue } from './warehouseYardDockChoice';
 
 export type WarehouseConstructionChangeValue = (preview: undefined | WarehouseConstructionPreviewValue) => void;
 
@@ -44,6 +45,7 @@ export interface WarehouseSceneInteractionValue {
   parkingCapacity: number;
   scannedCell: undefined | WarehouseSceneScanValue;
   selectedCellId: string | undefined;
+  yardDrag?: undefined | WarehouseYardDragValue;
 }
 
 export interface WarehouseSceneScanValue {

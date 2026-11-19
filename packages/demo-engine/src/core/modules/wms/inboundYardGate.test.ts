@@ -242,6 +242,56 @@ const saveDispatchQueue = (
   return { dockId: dock.id, first, holder, second };
 };
 
+it('ranks waiting visits before pagination and shows manual options only to warehouse dispatchers', async () => {
+  const harness = createModuleHarness();
+  const { commits, events, runtime, transport } = harness;
+  const dispatcherId = await addTestMember(harness, {
+    organizationId: TENANT, permissions: ['task_view', 'yard_manage'], warehouseIds: [WAREHOUSE],
+  });
+  const viewerId = await addTestMember(harness, {
+    organizationId: TENANT, permissions: ['task_view'], warehouseIds: [WAREHOUSE],
+  });
+  const otherDispatcherId = await addTestMember(harness, {
+    organizationId: TENANT, permissions: ['yard_manage'], warehouseIds: [SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2],
+  });
+  await runtime.command((transaction) => {
+    const viewer = transaction.listBy('memberships', 'userId', viewerId)[0];
+    const otherDispatcher = transaction.listBy('memberships', 'userId', otherDispatcherId)[0];
+    if (viewer === undefined || otherDispatcher === undefined) {
+      throw new Error('Missing dispatch test members');
+    }
+    transaction.put('memberships', { ...viewer, roleAssignments: [...viewer.roleAssignments, ...otherDispatcher.roleAssignments] });
+  });
+  const dispatcher = callAs(dispatcherId, TENANT);
+  const viewer = callAs(viewerId, TENANT);
+  const client = createClient(WarehouseReceivingService, transport);
+  const { first, second } = await runtime.command(transaction => saveDispatchQueue(transaction, runtime, true));
+  const request = { warehouseId: WAREHOUSE };
+  const readCount = { commits: commits.length, events: events.length };
+  const initial = await client.listYardWaitingReasons(request, dispatcher);
+  expect(initial.reasons.filter(row => row.receivingTaskId === first.id || row.receivingTaskId === second.id)).toMatchObject([
+    { dispatchOptions: { assignableUnloadingPointIds: [], canPromote: true }, queuePosition: 1, receivingTaskId: first.id },
+    { dispatchOptions: { assignableUnloadingPointIds: [], canPromote: true }, queuePosition: 2, receivingTaskId: second.id },
+  ]);
+  const readOnly = await client.listYardWaitingReasons(request, viewer);
+  expect(readOnly.reasons.map(row => [row.queuePosition, row.dispatchOptions])).toEqual([
+    [1, undefined], [2, undefined], [undefined, undefined],
+  ]);
+  expect({ commits: commits.length, events: events.length }).toEqual(readCount);
+
+  await client.promoteYardVisit({
+    ...request, expectedVersion: second.version, idempotencyKey: nextUuid(), reason: 'В начало очереди', taskId: second.id,
+  }, dispatcher);
+  const page1 = await client.listYardWaitingReasons({ ...request, page: { pageSize: 1 } }, dispatcher);
+  const page2 = await client.listYardWaitingReasons({
+    ...request, page: { pageSize: 1, pageToken: page1.page?.nextPageToken },
+  }, dispatcher);
+  expect([...page1.reasons, ...page2.reasons]).toMatchObject([
+    { dispatchOptions: { canPromote: true }, queuePosition: 2, receivingTaskId: first.id },
+    { dispatchOptions: { canPromote: false }, queuePosition: 1, receivingTaskId: second.id },
+  ]);
+});
+
 it('records scoped promotions once and spends their order when a dock becomes free', async () => {
   const harness = createModuleHarness();
   const { events, runtime, transport } = harness;
@@ -356,7 +406,9 @@ it('keeps manual dispatch and its journal inaccessible from an active warehouse 
     warehouseId: WAREHOUSE,
   };
   const count = events.length;
-  await client.listYardWaitingReasons({ warehouseId: WAREHOUSE }, { headers });
+  const { reasons } = await client.listYardWaitingReasons({ warehouseId: WAREHOUSE }, { headers });
+  expect(reasons).toHaveLength(2);
+  expect(reasons.every(row => row.dispatchOptions === undefined)).toBe(true);
   const denied = await Promise.all([
     captureError(client.promoteYardVisit(request, { headers })),
     captureError(client.assignYardVisitToDock({ ...request, unloadingPointId: dockId }, { headers })),
@@ -399,11 +451,17 @@ it('protects a confirmed reservation and admits its visit exactly ten minutes af
     taskId: task.id, warehouseId: WAREHOUSE };
   const count = events.length;
   worldTime.mockReturnValue(start - 1);
+  const beforeSlot = await client.listYardWaitingReasons({ warehouseId: WAREHOUSE }, caller);
+  const beforeVisit = beforeSlot.reasons.find(row => row.receivingTaskId === task.id);
+  expect(beforeVisit?.queuePosition).toBeUndefined();
+  expect(beforeVisit?.dispatchOptions).toMatchObject({ assignableUnloadingPointIds: [], canPromote: false });
   const tooEarly = await captureError(client.assignYardVisitToDock({ ...request, unloadingPointId: dockId }, caller));
   expect(readErrorDetail(tooEarly).params).toMatchObject({ value: { reason: 'SLOT_NOT_STARTED' } });
   const promote = await captureError(client.promoteYardVisit(request, caller));
   expect(readErrorDetail(promote).params).toMatchObject({ value: { reason: 'RESERVATION_PROTECTED' } });
   worldTime.mockReturnValue(start + 10 * MINUTE_MS);
+  const atGraceLimit = await client.listYardWaitingReasons({ warehouseId: WAREHOUSE }, caller);
+  expect(atGraceLimit.reasons.find(row => row.receivingTaskId === task.id)?.dispatchOptions?.assignableUnloadingPointIds).toEqual([dockId]);
   const reassign = await captureError(client.assignYardVisitToDock({ ...request, unloadingPointId: otherDockId }, caller));
   expect(readErrorDetail(reassign).params).toMatchObject({ value: { reason: 'RESERVATION_PROTECTED' } });
   expect(requireStoredTask(runtime, task.id)).toEqual(task);
@@ -426,6 +484,9 @@ it.each([29, 30])('checks a full immediate interval before a reservation %i minu
   const client = createClient(WarehouseReceivingService, transport);
   const request = { expectedVersion: first.version, idempotencyKey: nextUuid(), reason: 'Ручная подача',
     taskId: first.id, unloadingPointId: dockId, warehouseId: WAREHOUSE };
+  const { reasons } = await client.listYardWaitingReasons({ warehouseId: WAREHOUSE }, caller);
+  expect(reasons.find(row => row.receivingTaskId === first.id)?.dispatchOptions?.assignableUnloadingPointIds)
+    .toEqual(minutes === 29 ? [] : [dockId]);
   if (minutes === 29) {
     const error = await captureError(client.assignYardVisitToDock(request, caller));
     expect(readErrorDetail(error).params).toMatchObject({ value: { reason: 'RESERVATION_PROTECTED' } });
@@ -501,6 +562,15 @@ it('blocks manual action for missing admission, cargo incompatibility and outbou
   const caller = callAs(SeedUserId.ADMIN_1, TENANT);
   const client = createClient(WarehouseReceivingService, transport);
   const count = events.length;
+  const { reasons: initialReasons } = await client.listYardWaitingReasons({ warehouseId: WAREHOUSE }, caller);
+  const dockOptions = (task: ReceivingTask): string[] | undefined =>
+    initialReasons.find(row => row.receivingTaskId === task.id)?.dispatchOptions?.assignableUnloadingPointIds;
+  expect(dockOptions(standard)).toEqual([]);
+  expect(initialReasons.find(row => row.receivingTaskId === standard.id)?.queuePosition).toBe(1);
+  for (const task of [docs, invalid, reefer, oversized]) {
+    expect(initialReasons.find(row => row.receivingTaskId === task.id)?.queuePosition).toBeUndefined();
+    expect(dockOptions(task)).toEqual([]);
+  }
   for (const { reason, task } of [
     { reason: 'WAITING_DOCUMENTS', task: docs },
     { reason: 'PASS_REJECTED', task: invalid },
@@ -557,6 +627,11 @@ it('opens a new manual slot after the old reserved start exceeds the grace perio
   const client = createClient(WarehouseReceivingService, transport);
   const request = { expectedVersion: task.version, idempotencyKey: nextUuid(), reason: 'Окно освобождено',
     taskId: task.id, unloadingPointId, warehouseId: WAREHOUSE };
+  const { reasons } = await client.listYardWaitingReasons({ warehouseId: WAREHOUSE }, caller);
+  const expired = reasons.find(row => row.receivingTaskId === task.id);
+  expect(expired).toMatchObject({
+    dispatchOptions: { assignableUnloadingPointIds: [unloadingPointId], canPromote: true }, queuePosition: 1,
+  });
   const assigned = await client.assignYardVisitToDock(request, caller);
   expect(assigned.reservation).toEqual({
     ...task.dockSchedule?.reservation, endsAt: timestampFromMs(now + 30 * MINUTE_MS), startsAt: timestampFromMs(now),

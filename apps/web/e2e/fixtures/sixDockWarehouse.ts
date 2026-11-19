@@ -48,6 +48,7 @@ import {
 
 const DATABASE_NAME = 'skladburg-demo-engine';
 const CARRIER_ORGANIZATION_ID = '10000004-0000-4000-8000-000000000000';
+const CARRIER_USER_ID = '20000004-0000-4000-8000-000000000000';
 const DOCK_SPACING_MM = 6_400;
 const DOCK_LEFT_MM = 1_000;
 const SCALED_ARRIVAL_START_MS = Date.UTC(2026, 9, 6, 8);
@@ -79,6 +80,12 @@ export interface SixDockFixtureValue {
   rearId: string;
   releaseFarId: string;
   releaseMiddleId: string;
+}
+
+export interface YardSceneDispatchFixtureValue {
+  dockId: string;
+  taskId: string;
+  visitCount: number;
 }
 
 interface SixDockDeliveryValue {
@@ -184,13 +191,16 @@ const fixtureTripPut = (
   cargoKind: VehicleCargoKind,
   isWaitingForTitle = false,
   arrivalAt = reachedAt(deal),
+  titleSubmittedAt?: Timestamp,
 ): StoredSeedPutValue => {
   const id = fixtureId(number);
   const arrivedAt = arrivalAt;
   const trip = create(TripRecordSchema, {
     arrivedAt,
     assignment: { arrivalAt: arrivedAt, driverId: fixtureId(number + 200), registrationNumber: 'ДЕМО', vehicleId: fixtureId(number + 300) },
-    carrierTitle: isWaitingForTitle ? {} : undefined,
+    carrierTitle: titleSubmittedAt === undefined
+      ? isWaitingForTitle ? {} : undefined
+      : { submittedAt: titleSubmittedAt, submittedByUserId: CARRIER_USER_ID },
     customerOrganizationId: deal.customerOrganizationId,
     dealId: deal.id,
     id,
@@ -324,6 +334,63 @@ const createNextArrival = (source: SixDockDeliveryValue): SixDockDeliveryValue =
 const fixturePaymentPut = ({ id }: Deal): StoredSeedPutValue => {
   const payment = create(SafeDealPaymentRecordSchema, { id, payment: { dealId: id, status: SafeDealPaymentStatus.HELD, version: 1 } });
   return { bytes: Array.from(toBinary(SafeDealPaymentRecordSchema, payment)), id, table: 'payments' };
+};
+
+export const storeYardSceneDispatchQueue = async (
+  page: Page,
+  topology: WarehouseTopology,
+  warehouse: Warehouse,
+  deliveries: readonly SixDockDeliveryValue[],
+): Promise<YardSceneDispatchFixtureValue> => {
+  const [sample] = deliveries;
+  const wideTopology = createWideDockTopology(topology);
+  const coldDock = wideTopology.receivingArea?.additionalUnloadingPoints[4];
+  if (sample === undefined || coldDock === undefined) {
+    throw new Error('The dispatcher scene needs a seeded receipt and dock D06');
+  }
+
+  const source = {
+    ...sample,
+    task: create(ReceivingTaskSchema, {
+      ...sample.task, assigneeUserId: undefined, dockSchedule: undefined, receivedUnits: [], status: ReceivingTaskStatus.OPEN, version: 1,
+    }),
+  };
+  const arrivalAtMs = SCALED_ARRIVAL_START_MS;
+  const submittedAt = timestampFromMs(arrivalAtMs);
+  const visitCount = 25;
+  const visits = Array.from({ length: visitCount }, (_unused, index) => {
+    const status = index === 0 ? YardAdmissionStatus.WAITING_DOCK : YardAdmissionStatus.WAITING_DOCUMENTS;
+    const delivery = createFixtureDelivery(source, 1_500 + index, status, undefined, DeliveryMethod.EXCHANGE);
+    return giveArrivalTime(delivery, arrivalAtMs + index * 60_000);
+  });
+  const [ready] = visits;
+  if (ready?.task.updDocumentId === undefined) {
+    throw new Error('The first parked truck needs an approved invoice');
+  }
+  const dispatchTitle = create(DocumentSchema, {
+    content: { terms: {
+      case: 'dispatchTitle',
+      value: { shippedAt: timestampFromMs(arrivalAtMs - 30 * 60_000), updDocumentId: ready.task.updDocumentId },
+    } },
+    dealId: ready.deal.id,
+    displayNumber: 'ДВОР-ОТГРУЗКА-1',
+    id: fixtureId(1_950),
+    issuerOrganizationId: ready.deal.supplierOrganizationId,
+    status: DocumentStatus.APPROVED,
+    type: DocumentType.DISPATCH_TITLE,
+    version: 1,
+  });
+  const hidden = deliveries.map(({ task }) => create(ReceivingTaskSchema, {
+    ...task, status: ReceivingTaskStatus.UNSPECIFIED, unloadingPointId: undefined, version: 0,
+  }));
+  const blockedTrips = visits.slice(1).map(({ deal }, index) => fixtureTripPut(4_501 + index, deal, VehicleCargoKind.GENERAL, true));
+  await commitFixture(page, warehouse, wideTopology, [...hidden, ...visits.map(({ task }) => task)], [
+    ...visits.flatMap(fixtureDeliveryPuts),
+    ...blockedTrips,
+    fixtureTripPut(4_500, ready.deal, VehicleCargoKind.TEMPERATURE_CONTROLLED, false, submittedAt, submittedAt),
+    { bytes: Array.from(toBinary(DocumentSchema, dispatchTitle)), id: dispatchTitle.id, table: 'documents' },
+  ]);
+  return { dockId: coldDock.id, taskId: ready.task.id, visitCount };
 };
 
 export const storeScaledDockWarehouse = async (

@@ -6,6 +6,8 @@ import {
   useThree,
 } from '@react-three/fiber';
 import {
+  lazy,
+  Suspense,
   useEffect,
   useMemo,
   useRef,
@@ -48,6 +50,7 @@ import {
 } from './warehouseYardTraffic';
 
 const TAP_SLOP_PX = 5;
+const WarehouseYardDragLayer = lazy(() => import('./WarehouseYardDragLayer'));
 
 export const prepare = ({ parkingCapacity, topology }: WarehouseSceneDataValue): Promise<void> => {
   getWarehouseLayout(topology, parkingCapacity);
@@ -91,7 +94,7 @@ const WarehouseWorldScene = ({
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const lastFocus = useRef<{ request: number; scan: WarehouseSceneInteractionValue['scannedCell'] }>(undefined);
   const {
-    balances, cargo, construction, constructionLayer: ConstructionLayer, focusRequest, onCellSelect, scannedCell, selectedCellId,
+    balances, cargo, construction, constructionLayer: ConstructionLayer, focusRequest, onCellSelect, scannedCell, selectedCellId, yardDrag,
   } = interaction;
   const layout = motionLayout ?? desiredLayout;
   const hasPendingLayout = layout !== desiredLayout || data.parkingCapacity !== interaction.parkingCapacity;
@@ -101,6 +104,8 @@ const WarehouseWorldScene = ({
   const activeCellId = scannedCell?.cellId ?? selectedCellId;
   const selection = activeCellId === undefined ? undefined : layout.cellsById.get(activeCellId);
   const selectionBoxes = useMemo(() => buildSelectionBoxes(selection), [selection]);
+  const canDragInYard = yardDrag !== undefined && yardDrag.options.size > 0 && docks !== undefined && layout.yard !== undefined
+    && !hasPendingLayout && interaction.isRefreshingYardFacts !== true;
 
   const handleCellClick = (event: ThreeEvent<MouseEvent>): void => {
     const cell = event.instanceId === undefined ? undefined : layout.cells[event.instanceId];
@@ -220,6 +225,17 @@ const WarehouseWorldScene = ({
           truckModel={truckModel}
         />
       ))}
+      {canDragInYard && (
+        <Suspense fallback={null}>
+          <WarehouseYardDragLayer
+            docks={docks}
+            drag={yardDrag}
+            geometry={geometry}
+            receivingArea={data.topology.receivingArea}
+            yard={traffic.yard}
+          />
+        </Suspense>
+      )}
       {selectionBoxes.length > 0 && <WarehouseInstances boxes={selectionBoxes} geometry={geometry} materialKey="lampGlow" />}
     </>
   );

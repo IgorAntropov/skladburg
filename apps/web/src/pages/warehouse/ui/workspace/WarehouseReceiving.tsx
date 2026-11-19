@@ -2,7 +2,10 @@ import type {
   ExpectedReceivingUnit,
   ReceivingTask,
 } from '@skladburg/contracts/wms/v1/receiving';
-import type { ReactElement } from 'react';
+import type {
+  ComponentType,
+  ReactElement,
+} from 'react';
 
 import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import { MarkingMode } from '@skladburg/contracts/catalog/v1/catalog';
@@ -40,14 +43,22 @@ import {
 
 import type { ReceiveUnitSelectionValue } from '../../api/useReceiveUnitForm';
 import type { WarehouseWorkTranslate } from '../../i18n/workspaceSection';
+import type { WarehouseReceiveFormProps } from './WarehouseReceiveForm';
 
 import {
   receivingMethods,
   useClaimReceiving,
   useFinishReceiving,
+  useReceiveUnitCommand,
 } from '../../api/useWarehouseCommands';
 import { RECEIVING_TEXT } from './warehouseFormatting';
 import { WarehousePlacement } from './WarehousePlacement';
+import { WarehouseScanner } from './WarehouseScanner';
+
+interface WarehouseReceiveActionProps extends Omit<WarehouseReceiveFormProps, 'command' | 'scanner'> {
+  form: ComponentType<WarehouseReceiveFormProps>;
+  onReceived: () => void;
+}
 
 interface WarehouseReceivingProps {
   canViewDeals: boolean;
@@ -63,6 +74,12 @@ interface WarehouseReceivingProps {
 
 const loadReceiveForm = createCachedModuleLoader(() => import('./WarehouseReceiveForm'));
 const WarehouseReceiptPrint = createLazyComponent(createCachedModuleLoader(() => import('./WarehouseReceiptPrint')));
+
+const WarehouseReceiveAction = ({ form: Form, onReceived, task, ...props }: WarehouseReceiveActionProps): ReactElement => {
+  const command = useReceiveUnitCommand(task, onReceived);
+
+  return <Form {...props} command={command} scanner={WarehouseScanner} task={task} />;
+};
 
 export const WarehouseReceiving = ({
   canViewDeals, cells, dockCode, editingTaskId, onCellSelect, onChanged, onEditingChange, t, task,
@@ -83,10 +100,11 @@ export const WarehouseReceiving = ({
   const isAssigned = task.assigneeUserId === userId;
   const isOpen = task.status === ReceivingTaskStatus.OPEN;
   const isReceiving = task.status === ReceivingTaskStatus.IN_PROGRESS;
-  const isWaitingDock = (isOpen || isReceiving) && (dockCode === null || task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCK);
-  const isWaitingForDocuments = (isOpen || isReceiving) && task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCUMENTS;
-  const isPassRejected = (isOpen || isReceiving) && task.yardAdmissionStatus === YardAdmissionStatus.PASS_REJECTED;
-  const isYardAdmitted = (isOpen || isReceiving) && task.yardAdmissionStatus === YardAdmissionStatus.ADMITTED && dockCode === undefined;
+  const isActive = isOpen || isReceiving;
+  const isWaitingDock = isActive && (dockCode === null || task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCK);
+  const isWaitingForDocuments = isActive && task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCUMENTS;
+  const isPassRejected = isActive && task.yardAdmissionStatus === YardAdmissionStatus.PASS_REJECTED;
+  const isYardAdmitted = isActive && task.yardAdmissionStatus === YardAdmissionStatus.ADMITTED && dockCode === undefined;
   const canReceive = isAssigned && isReceiving && !isWaitingDock && !isWaitingForDocuments && !isPassRejected
     && (editingTaskId === undefined || editingTaskId === task.id);
   const canPlace = isAssigned && !isOpen && editingTaskId === undefined;
@@ -208,7 +226,8 @@ export const WarehouseReceiving = ({
         </>
       )}
       {canReceive && selected !== undefined && Form !== undefined && (
-        <Form
+        <WarehouseReceiveAction
+          form={Form}
           hasEvidence={hasEvidence}
           hasMarking={hasMarking}
           key={selected.expectedUnitId ?? 'manual'}

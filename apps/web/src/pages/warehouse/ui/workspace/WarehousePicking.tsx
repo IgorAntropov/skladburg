@@ -22,7 +22,7 @@ import {
   useClaimPicking,
   useConfirmPicking,
   useConfirmWarehouseShipment,
-} from '../../api/useWarehouseCommands';
+} from '../../api/useWarehousePickingCommands';
 import { PICKING_TEXT } from './warehouseFormatting';
 import { WarehouseScanner } from './WarehouseScanner';
 import { WarehouseStockLines } from './WarehouseStockLines';

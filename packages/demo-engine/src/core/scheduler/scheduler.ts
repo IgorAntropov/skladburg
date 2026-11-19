@@ -17,6 +17,7 @@ export interface IScheduler {
 export interface SchedulerCommandTaskValue {
   id: string;
   intervalMs: number;
+  isCoalesced?: boolean | undefined;
   runCommands: (dueAtMs: number) => Promise<void>;
 }
 
@@ -75,9 +76,10 @@ export const createScheduler = (options: CreateSchedulerOptionsValue): ISchedule
   const readDueAtMs = (): Record<string, number> =>
     Object.fromEntries(entries.map(entry => [entry.task.id, entry.dueAtMs]));
 
-  const runEntry = async (entry: ScheduledEntryValue): Promise<void> => {
+  const runEntry = async (entry: ScheduledEntryValue, nowMs: number): Promise<void> => {
     const { dueAtMs, task } = entry;
-    entry.dueAtMs += task.intervalMs;
+    const intervals = 'runCommands' in task && task.isCoalesced === true ? Math.floor((nowMs - dueAtMs) / task.intervalMs) + 1 : 1;
+    entry.dueAtMs += intervals * task.intervalMs;
 
     try {
       if ('runCommands' in task) {
@@ -104,7 +106,7 @@ export const createScheduler = (options: CreateSchedulerOptionsValue): ISchedule
         return;
       }
 
-      await runEntry(entry);
+      await runEntry(entry, nowMs);
     }
   };
 

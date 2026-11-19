@@ -17,4 +17,12 @@ export const createEngineTasks = (runtime: IModuleRuntime): readonly SchedulerTa
   createDeferredPaymentTask(runtime),
   createDeferredSupplierBotTask(runtime),
   createDeferredCarrierBotTask(runtime),
+  ...(runtime.refreshInboundDockSchedules === undefined
+    ? []
+    : [{
+        id: 'inbound-dock-schedules',
+        intervalMs: 1_000,
+        isCoalesced: true,
+        runCommands: async (): Promise<void> => runtime.refreshInboundDockSchedules?.(runtime),
+      }]),
 ];

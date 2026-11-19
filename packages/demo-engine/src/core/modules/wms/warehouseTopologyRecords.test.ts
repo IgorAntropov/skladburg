@@ -114,7 +114,7 @@ describe('createWarehouseTopologyRecord', () => {
     });
     const task = create(ReceivingTaskSchema, { receivingAreaId: area.id, warehouseId: topology.warehouseId });
     expect(() => {
-      requireInboundDock(runtime.read, runtime.errors, task, topology.tenantId, 'ReceiveHandlingUnit');
+      requireInboundDock(runtime.read, runtime.errors, task, topology.tenantId, 'ReceiveHandlingUnit', runtime.getWorldTimeMs());
     }).not.toThrow();
   });
 

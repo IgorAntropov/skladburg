@@ -68,6 +68,28 @@ message ReceivedHandlingUnit {
   repeated ReceivingBatchFact batch_facts = 6;
 }
 
+enum DockSlotRescheduleReason {
+  DOCK_SLOT_RESCHEDULE_REASON_UNSPECIFIED = 0;
+  DOCK_SLOT_RESCHEDULE_REASON_LATE_ARRIVAL = 1;
+  DOCK_SLOT_RESCHEDULE_REASON_LATE_DOCUMENTS = 2;
+  DOCK_SLOT_RESCHEDULE_REASON_SLOT_UNAVAILABLE = 3;
+  DOCK_SLOT_RESCHEDULE_REASON_DOCK_BUSY = 4;
+  DOCK_SLOT_RESCHEDULE_REASON_DOCK_CHANGED = 5;
+  DOCK_SLOT_RESCHEDULE_REASON_SLOT_EXPIRED = 6;
+}
+
+message DockSlotReservation {
+  string unloading_point_id = 1;
+  google.protobuf.Timestamp starts_at = 2;
+  google.protobuf.Timestamp ends_at = 3;
+}
+
+message ReceivingDockSchedule {
+  google.protobuf.Timestamp preferred_starts_at = 1;
+  DockSlotReservation reservation = 2;
+  DockSlotRescheduleReason last_reschedule_reason = 3;
+}
+
 message ReceivingTask {
   string id = 1;
   string warehouse_id = 2;
@@ -84,6 +106,7 @@ message ReceivingTask {
   optional string upd_document_id = 13;
   optional string unloading_point_id = 14;
   YardAdmissionStatus yard_admission_status = 15;
+  ReceivingDockSchedule dock_schedule = 16;
 }
 
 message ListReceivingTasksRequest {

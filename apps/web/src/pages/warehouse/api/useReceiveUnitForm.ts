@@ -6,11 +6,9 @@ import {
   ReceivingBatchEvidenceFormRules,
   UnlabelledReceivingUnitFormRules,
 } from '@skladburg/contracts/forms/wms/v1/receiving';
-import { WarehouseReceivingService } from '@skladburg/contracts/wms/v1/receiving';
 
 import type { CommandFormValue } from '@/shared/lib/form';
 
-import { useApiClient } from '@/shared/api';
 import { useCommandForm } from '@/shared/lib/form';
 
 import type {
@@ -19,16 +17,12 @@ import type {
   ReceiveUnitOutputValue,
   ReceiveUnitSelectionValue,
 } from '../model/receiveUnitInput';
+import type { ReceiveUnitCommandValue } from './useWarehouseCommands';
 
 import {
   createReceiveUnitRequest,
   validateReceiveUnit,
 } from '../model/receiveUnitInput';
-import {
-  useRefreshWarehouseWorkspace,
-  useWarehouseCommandAttempt,
-  warehouseTaskCommandRequest,
-} from './useWarehouseCommands';
 
 export type {
   ReceiveUnitFormValue,
@@ -79,12 +73,9 @@ const mapViolationPath = (path: string, selection: ReceiveUnitSelectionValue): s
 export const useReceiveUnitForm = (
   task: ReceivingTask,
   selection: ReceiveUnitSelectionValue,
-  onSuccess: () => void,
+  command: ReceiveUnitCommandValue,
   options: ReceiveUnitFormOptionsValue = {},
 ): CommandFormValue<ReceiveUnitFormValue> => {
-  const client = useApiClient();
-  const refresh = useRefreshWarehouseWorkspace(task.warehouseId, onSuccess);
-  const attempt = useWarehouseCommandAttempt();
   const isLabelled = selection.kind === 'labelled';
   const expected = task.expectedUnits.find(unit => unit.id === selection.expectedUnitId);
   const rules: FormRulesValue = {
@@ -105,13 +96,10 @@ export const useReceiveUnitForm = (
       quantityBase: '',
       sscc: isLabelled ? expected?.sscc ?? '' : '',
     },
-    execute: (values, idempotencyKey) => attempt(idempotencyKey, () => client.service(WarehouseReceivingService).receiveHandlingUnit({
-      ...warehouseTaskCommandRequest(task, idempotencyKey),
-      ...createReceiveUnitRequest(task, selection, values, options),
-    })),
+    execute: (values, idempotencyKey) => command.execute(createReceiveUnitRequest(task, selection, values, options), idempotencyKey),
     mapViolationPath: path => mapViolationPath(path, selection),
-    method: WarehouseReceivingService.method.receiveHandlingUnit,
-    onSuccess: refresh,
+    method: command.method,
+    onSuccess: command.onSuccess,
     rules,
     translateViolation: options.translateViolation,
     validateValues: values => validateReceiveUnit(task, selection, values, options),

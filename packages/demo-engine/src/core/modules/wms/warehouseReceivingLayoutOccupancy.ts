@@ -1,7 +1,5 @@
 import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
 
-import { TripStatus } from '@skladburg/contracts/logistics/v1/trip_records';
-import { PickingTaskStatus } from '@skladburg/contracts/wms/v1/picking';
 import {
   ReceivingTaskStatus,
   YardAdmissionStatus,
@@ -10,9 +8,8 @@ import {
 import type { IDomainErrors } from '../../errors/index';
 import type { IStateReader } from '../../state/index';
 
-import { readTripForDeal } from '../logistics/tripRecords';
 import { readInboundTask } from './inboundRecords';
-import { readOutboundTask } from './outboundRecords';
+import { usesOutboundDock } from './outboundDockOccupancy';
 import { readStockBalance } from './stockRecords';
 import { readEffectiveWarehouseDocks } from './warehouseTopologyRecords';
 
@@ -21,24 +18,6 @@ interface WarehouseReceivingLayoutOccupancyValue {
   hasWaitingTrucks: boolean;
   occupiedDockIds: ReadonlySet<string>;
 }
-
-const usesOutboundDock = (read: IStateReader, { tenantId, warehouseId }: WarehouseTopology, errors: IDomainErrors): boolean =>
-  read.listBy('warehouseOutbound', 'scopeId', warehouseId).some((record) => {
-    if (record.lookupKey !== tenantId) {
-      return false;
-    }
-    const { dealId, status } = readOutboundTask(record, errors);
-    if (status !== PickingTaskStatus.PICKED && status !== PickingTaskStatus.SHIPPED) {
-      return false;
-    }
-    const trip = readTripForDeal(read, dealId);
-    if (trip === undefined) {
-      return status === PickingTaskStatus.PICKED;
-    }
-
-    return trip.transportOrder?.pickup?.warehouseId === warehouseId
-      && (trip.status === TripStatus.ASSIGNED || trip.status === TripStatus.LOADED);
-  });
 
 export const readWarehouseReceivingLayoutOccupancy = (
   read: IStateReader,
@@ -73,7 +52,7 @@ export const readWarehouseReceivingLayoutOccupancy = (
       hasWaitingTrucks = true;
     }
   }
-  if (primary !== undefined && usesOutboundDock(read, topology, errors)) {
+  if (primary !== undefined && usesOutboundDock(read, tenantId, warehouseId, errors)) {
     occupiedDockIds.add(primary.id);
   }
   const hasStagedStock = shouldCheckStock && read.listBy('stockBalances', 'scopeId', warehouseId).some((record) => {

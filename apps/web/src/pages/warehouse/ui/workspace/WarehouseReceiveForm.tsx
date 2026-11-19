@@ -17,17 +17,21 @@ import {
 } from '@/shared/ui';
 
 import type { ReceiveUnitSelectionValue } from '../../api/useReceiveUnitForm';
+import type { ReceiveUnitCommandValue } from '../../api/useWarehouseCommands';
 import type { WarehouseWorkTranslate } from '../../i18n/workspaceSection';
-import type { WarehouseScanHandlerValue } from './WarehouseScanner';
+import type {
+  WarehouseScanHandlerValue,
+  WarehouseScanner,
+} from './WarehouseScanner';
 
 import { useReceiveUnitForm } from '../../api/useReceiveUnitForm';
-import { WarehouseScanner } from './WarehouseScanner';
 
-interface WarehouseReceiveFormProps {
+export interface WarehouseReceiveFormProps {
+  command: ReceiveUnitCommandValue;
   hasEvidence: boolean;
   hasMarking: boolean;
   onCancel: () => void;
-  onReceived: () => void;
+  scanner: typeof WarehouseScanner;
   selection: ReceiveUnitSelectionValue;
   t: WarehouseWorkTranslate;
   task: ReceivingTask;
@@ -44,9 +48,9 @@ const FIELDS = {
 } as const;
 
 export const WarehouseReceiveForm = ({
-  hasEvidence, hasMarking, onCancel, onReceived, selection, t, task,
+  command, hasEvidence, hasMarking, onCancel, scanner: Scanner, selection, t, task,
 }: WarehouseReceiveFormProps): ReactElement => {
-  const form = useReceiveUnitForm(task, selection, onReceived, {
+  const form = useReceiveUnitForm(task, selection, command, {
     hasEvidence,
     hasMarking,
     translateViolation: (ruleId) => {
@@ -121,7 +125,7 @@ export const WarehouseReceiveForm = ({
           spellCheck={false}
         />
       ))}
-      {access.status === 'allowed' && <WarehouseScanner isReadOnly={isPending || isLeavePending} onScan={handleScan} t={t} />}
+      {access.status === 'allowed' && <Scanner isReadOnly={isPending || isLeavePending} onScan={handleScan} t={t} />}
       <div className="flex flex-wrap gap-2">
         <ActionButton
           access={access}

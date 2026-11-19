@@ -303,6 +303,7 @@ export const createEngineWithTasks = async (
     paymentProvider: createDemoPaymentProvider(random),
     random,
     read: state.read,
+    refreshInboundDockSchedules: inbound?.refreshInboundDockSchedules,
     wmsInboundManifests: options.wmsInboundManifests,
     wmsInboundWarehouseIds: wmsInboundWarehouseIds === undefined ? undefined : new Set(wmsInboundWarehouseIds),
     wmsManualInboundWarehouseIds: options.wmsInboundWarehouseIds === undefined ? undefined : new Set(options.wmsInboundWarehouseIds),

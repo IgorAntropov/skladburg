@@ -130,7 +130,7 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
         allowedStatuses: [ReceivingTaskStatus.IN_PROGRESS],
         handle: (transaction, caller, task) => {
           const tenantId = caller.organizationId;
-          requireInboundDock(transaction, errors, task, tenantId, method.finishReceivingTask.name);
+          requireInboundDock(transaction, errors, task, tenantId, method.finishReceivingTask.name, transaction.worldTimeMs);
           task.status = ReceivingTaskStatus.READY_FOR_RECONCILIATION;
           task.finishedAt = timestampFromMs(transaction.worldTimeMs);
           finishInboundReceipt(transaction, runtime, task);
@@ -174,7 +174,7 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
     receiveHandlingUnit: (request, context) => runReceivingCommand(runtime, {
       allowedStatuses: [ReceivingTaskStatus.IN_PROGRESS],
       handle: (transaction, caller, task) => {
-        requireInboundDock(transaction, errors, task, caller.organizationId, method.receiveHandlingUnit.name);
+        requireInboundDock(transaction, errors, task, caller.organizationId, method.receiveHandlingUnit.name, transaction.worldTimeMs);
         receiveHandlingUnit(transaction, runtime, caller, task, request);
         return create(ReceiveHandlingUnitResponseSchema, { task });
       },

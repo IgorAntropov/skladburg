@@ -2,7 +2,6 @@ import type { DescMethod } from '@bufbuild/protobuf';
 import type { PickingTask } from '@skladburg/contracts/wms/v1/picking';
 import type { ReceivingTask } from '@skladburg/contracts/wms/v1/receiving';
 
-import { WarehousePickingService } from '@skladburg/contracts/wms/v1/picking';
 import { WarehouseReceivingService } from '@skladburg/contracts/wms/v1/receiving';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -15,6 +14,7 @@ import {
   useCommand,
 } from '@/shared/api';
 
+import type { createReceiveUnitRequest } from '../model/receiveUnitInput';
 import type { WarehouseCommandAttemptValue } from '../model/warehouseCommandAttempt';
 
 import { createWarehouseCommandAttempt } from '../model/warehouseCommandAttempt';
@@ -22,8 +22,13 @@ import { warehouseWorkspaceKey } from './warehouseWorkspaceKey';
 
 type WarehouseTaskValue = Pick<PickingTask, 'id' | 'version' | 'warehouseId'>;
 
-const pickingMethods = WarehousePickingService.method;
 export const receivingMethods = WarehouseReceivingService.method;
+
+export interface ReceiveUnitCommandValue {
+  execute: (request: ReturnType<typeof createReceiveUnitRequest>, idempotencyKey: string) => Promise<unknown>;
+  method: typeof receivingMethods.receiveHandlingUnit;
+  onSuccess: () => void;
+}
 
 export const warehouseTaskCommandRequest = (task: WarehouseTaskValue, idempotencyKey: string): {
   expectedVersion: number;
@@ -53,7 +58,7 @@ export const useWarehouseCommandAttempt = <TResult>(): WarehouseCommandAttemptVa
   return attempt;
 };
 
-const useWarehouseTaskCommand = (
+export const useWarehouseTaskCommand = (
   task: WarehouseTaskValue,
   method: DescMethod,
   execute: (idempotencyKey: string) => Promise<unknown>,
@@ -63,32 +68,6 @@ const useWarehouseTaskCommand = (
   const refresh = useRefreshWarehouseWorkspace(task.warehouseId, onSuccess);
 
   return useCommand({ execute: idempotencyKey => attempt(idempotencyKey, () => execute(idempotencyKey)), method, onSuccess: refresh });
-};
-
-export const useClaimPicking = (task: PickingTask, onSuccess: () => void): CommandValue => {
-  const client = useApiClient();
-
-  return useWarehouseTaskCommand(task, pickingMethods.claimPickingTask, idempotencyKey =>
-    client.service(WarehousePickingService).claimPickingTask(warehouseTaskCommandRequest(task, idempotencyKey)), onSuccess);
-};
-
-export const useConfirmPicking = (
-  task: PickingTask, handlingUnitIds: readonly string[], onSuccess: () => void,
-): CommandValue => {
-  const client = useApiClient();
-
-  return useWarehouseTaskCommand(task, pickingMethods.confirmPicking, idempotencyKey =>
-    client.service(WarehousePickingService).confirmPicking({
-      ...warehouseTaskCommandRequest(task, idempotencyKey),
-      handlingUnitIds: [...handlingUnitIds],
-    }), onSuccess);
-};
-
-export const useConfirmWarehouseShipment = (task: PickingTask, onSuccess: () => void): CommandValue => {
-  const client = useApiClient();
-
-  return useWarehouseTaskCommand(task, pickingMethods.confirmWarehouseShipment, idempotencyKey =>
-    client.service(WarehousePickingService).confirmWarehouseShipment(warehouseTaskCommandRequest(task, idempotencyKey)), onSuccess);
 };
 
 export const useClaimReceiving = (task: ReceivingTask, onSuccess: () => void): CommandValue => {
@@ -103,6 +82,21 @@ export const useFinishReceiving = (task: ReceivingTask, onSuccess: () => void): 
 
   return useWarehouseTaskCommand(task, receivingMethods.finishReceivingTask, idempotencyKey =>
     client.service(WarehouseReceivingService).finishReceivingTask(warehouseTaskCommandRequest(task, idempotencyKey)), onSuccess);
+};
+
+export const useReceiveUnitCommand = (task: ReceivingTask, onSuccess: () => void): ReceiveUnitCommandValue => {
+  const client = useApiClient();
+  const attempt = useWarehouseCommandAttempt();
+  const refresh = useRefreshWarehouseWorkspace(task.warehouseId, onSuccess);
+
+  return {
+    execute: (request, idempotencyKey) => attempt(idempotencyKey, () => client.service(WarehouseReceivingService).receiveHandlingUnit({
+      ...warehouseTaskCommandRequest(task, idempotencyKey),
+      ...request,
+    })),
+    method: receivingMethods.receiveHandlingUnit,
+    onSuccess: refresh,
+  };
 };
 
 export const usePutAway = (

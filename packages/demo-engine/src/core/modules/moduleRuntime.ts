@@ -14,6 +14,7 @@ import type { ReceivingManifestValue } from './wms/inboundPlan';
 import type {
   hasInboundProduct,
   openInboundTask,
+  refreshInboundDockSchedules,
 } from './wms/inboundRecords';
 import type { openOutboundTask } from './wms/outboundRecords';
 
@@ -37,6 +38,7 @@ export interface IModuleRuntime {
   paymentProvider: IPaymentProvider;
   random: IRandom;
   read: IStateReader;
+  refreshInboundDockSchedules?: typeof refreshInboundDockSchedules | undefined;
   wmsInboundManifests?: ReadonlyMap<string, ReceivingManifestValue> | undefined;
   wmsInboundWarehouseIds?: ReadonlySet<string> | undefined;
   wmsManualInboundWarehouseIds?: ReadonlySet<string> | undefined;

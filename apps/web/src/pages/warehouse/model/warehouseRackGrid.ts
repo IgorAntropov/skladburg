@@ -4,23 +4,31 @@ import type {
   WarehouseTopology,
 } from '@skladburg/contracts/wms/v1/topology';
 
+import { readReceivingLayoutDocks } from './warehouseReceivingLayout';
+
 export type WarehouseRackFootprintValue = Pick<WarehouseFloorRect, 'depthMm' | 'widthMm'> & { origin: WarehouseRackPositionValue };
 
 export interface WarehouseRackGridObstacleValue {
   footprint: WarehouseRackFootprintValue;
   id: string;
-  kind: 'outside-zone' | 'rack' | 'receiving';
+  kind: 'dock-approach' | 'outside-zone' | 'rack' | 'receiving';
 }
 
 export interface WarehouseRackGridValue {
   activeZone?: undefined | WarehouseRackGridZoneValue;
   depthMm: number;
+  docks?: readonly WarehouseRackGridDockValue[] | undefined;
   obstacles: readonly WarehouseRackGridObstacleValue[];
   widthMm: number;
   zones?: readonly WarehouseRackGridZoneValue[] | undefined;
 }
 
 export type WarehouseRackPositionValue = Pick<WarehouseFloorPoint, 'xMm' | 'zMm'>;
+
+interface WarehouseRackGridDockValue {
+  id: string;
+  position: WarehouseRackPositionValue;
+}
 
 interface WarehouseRackGridZoneValue {
   footprint: WarehouseRackFootprintValue;
@@ -37,6 +45,9 @@ export const MAX_WAREHOUSE_COORDINATE_MM = 4_294_967_295;
 const MIN_GRID_WIDTH_MM = 6_000;
 const MIN_GRID_DEPTH_MM = 4_000;
 const GRID_MARGIN_MM = 2_000;
+const DOCK_MIN_SPACING_MM = 2_660;
+const DOCK_APPROACH_HALF_WIDTH_MM = 1_250;
+const DOCK_APPROACH_DEPTH_MM = 1_880;
 
 export const hasWarehouseRackOrigin = (
   footprint: undefined | WarehouseFloorRect,
@@ -51,11 +62,37 @@ const containsFootprint = (bounds: WarehouseRackFootprintValue, footprint: Wareh
   && warehouseRackRightEdgeMm(footprint) <= warehouseRackRightEdgeMm(bounds)
   && warehouseRackBottomEdgeMm(footprint) <= warehouseRackBottomEdgeMm(bounds);
 
+const readDockPositions = (topology: null | WarehouseTopology): WarehouseRackGridDockValue[] => {
+  const area = topology?.receivingArea;
+  const footprint = area?.footprint;
+  const primary = area?.unloadingPoint?.position;
+  if (!hasWarehouseRackOrigin(footprint) || footprint.widthMm === 0 || footprint.depthMm === 0 || primary === undefined) {
+    return [];
+  }
+
+  const results: WarehouseRackGridDockValue[] = [];
+  for (const { id, position } of readReceivingLayoutDocks(area)) {
+    if (position?.zMm === primary.zMm
+      && !results.some(result => result.id === id || Math.abs(result.position.xMm - position.xMm) < DOCK_MIN_SPACING_MM)) {
+      results.push({ id, position });
+    }
+  }
+  return results;
+};
+
 export const getWarehouseRackObstacles = (topology: WarehouseTopology): WarehouseRackGridObstacleValue[] => {
   const obstacles: WarehouseRackGridObstacleValue[] = [];
   const receiving = topology.receivingArea;
   if (receiving !== undefined && hasWarehouseRackOrigin(receiving.footprint)) {
     obstacles.push({ footprint: receiving.footprint, id: receiving.id, kind: 'receiving' });
+  }
+  for (const { id, position: { xMm, zMm } } of readDockPositions(topology)) {
+    obstacles.push({
+      footprint: { depthMm: DOCK_APPROACH_DEPTH_MM, origin: { xMm: xMm - DOCK_APPROACH_HALF_WIDTH_MM, zMm },
+        widthMm: DOCK_APPROACH_HALF_WIDTH_MM * 2 },
+      id,
+      kind: 'dock-approach',
+    });
   }
 
   for (const zone of topology.storageZones) {
@@ -84,13 +121,22 @@ export const createWarehouseRackGrid = (
   activeZoneId?: string,
 ): WarehouseRackGridValue => {
   const obstacles = topology === null ? [] : getWarehouseRackObstacles(topology);
+  const docks = readDockPositions(topology);
+  const dockMarkers = docks.length === 0 ? {} : { docks };
   const bounds = topology?.bounds;
   if (hasWarehouseRackOrigin(bounds)) {
     const zones = topology?.storageZones.flatMap(zone => hasWarehouseRackOrigin(zone.bounds)
       ? [{ footprint: zone.bounds, id: zone.id }]
       : []) ?? [];
 
-    return { activeZone: zones.find(zone => zone.id === activeZoneId), depthMm: bounds.depthMm, obstacles, widthMm: bounds.widthMm, zones };
+    return {
+      ...dockMarkers,
+      activeZone: zones.find(zone => zone.id === activeZoneId),
+      depthMm: bounds.depthMm,
+      obstacles,
+      widthMm: bounds.widthMm,
+      zones,
+    };
   }
 
   let maxX = warehouseRackRightEdgeMm(footprint);
@@ -104,8 +150,13 @@ export const createWarehouseRackGrid = (
     maxX = Math.max(maxX, warehouseRackRightEdgeMm(draft));
     maxZ = Math.max(maxZ, warehouseRackBottomEdgeMm(draft));
   }
+  for (const { position } of docks) {
+    maxX = Math.max(maxX, position.xMm);
+    maxZ = Math.max(maxZ, position.zMm);
+  }
 
   return {
+    ...dockMarkers,
     depthMm: gridDimensionMm(maxZ, minimumSize?.depthMm ?? MIN_GRID_DEPTH_MM),
     obstacles,
     widthMm: gridDimensionMm(maxX, minimumSize?.widthMm ?? MIN_GRID_WIDTH_MM),

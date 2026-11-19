@@ -33,7 +33,7 @@ export const catalog = {
   'dataImport.rule.warehouse.invalid_millimeters': 'Укажи целое число миллиметров в допустимом диапазоне.',
   'dataImport.rule.warehouse.rack_geometry_conflict': 'Координаты или размеры этого стеллажа отличаются от указанных ранее.',
   'dataImport.rule.warehouse.rack_outside_zone': 'Стеллаж должен целиком помещаться в указанной зоне хранения.',
-  'dataImport.rule.warehouse.rack_overlap': 'Стеллаж пересекается с другим стеллажом или зоной приёмки.',
+  'dataImport.rule.warehouse.rack_overlap': 'Стеллаж пересекается с другим стеллажом, зоной приёмки или проходом от дока.',
   'dataImport.rule.warehouse.tier_elevation_conflict': 'Высота этого яруса отличается от указанной ранее.',
   'dataImport.rule.warehouse.tier_elevation_duplicate': 'На этой высоте уже есть ярус.',
   'dataImport.rule.warehouse.zone_not_defined': 'Укажите код существующей зоны хранения.',

@@ -131,9 +131,10 @@ const fit = ({ x, y, z }: Vector3): Vector3 => new Vector3(
 );
 
 const positions: number[] = [];
-const indices: number[] = [];
+const indexDeltas: number[] = [];
 const colors: number[] = [];
 const indexByPosition = new Map<string, number>();
+let previousIndex = 0;
 
 const addTriangles = (triangles: readonly TriangleValue[], material: ColorValue): void => {
   const color = WAREHOUSE_TRUCK_COLORS.indexOf(material);
@@ -162,7 +163,8 @@ const addTriangles = (triangles: readonly TriangleValue[], material: ColorValue)
         positions.push(...position);
         colors.push(color);
       }
-      indices.push(index);
+      indexDeltas.push(index - previousIndex);
+      previousIndex = index;
     }
   }
 };
@@ -242,4 +244,4 @@ for (const part of flatbed) {
   }
 }
 
-await writeFile(outputPath, `${JSON.stringify({ colors, indices, positions })}\n`);
+await writeFile(outputPath, `${JSON.stringify({ colors, indexDeltas, positions })}\n`);

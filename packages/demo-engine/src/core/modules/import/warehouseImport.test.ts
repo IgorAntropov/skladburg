@@ -6,6 +6,7 @@ import {
   ImportStatus,
 } from '@skladburg/contracts/import/v1/import';
 import { WarehouseLayoutSessionService } from '@skladburg/contracts/wms/v1/layout_session';
+import { WarehouseReceivingLayoutService } from '@skladburg/contracts/wms/v1/receiving_layout';
 import {
   HandlingUnitKind,
   StockStatus,
@@ -249,6 +250,44 @@ it('applies bounded layout rules to XLSX and restores the original contours and 
   }, CUSTOMER);
   expect(rollback.job?.status).toBe(ImportStatus.ROLLED_BACK);
   expect((await topology.getWarehouseTopology({ warehouseId }, CUSTOMER)).topology).toEqual({ ...original, revision: 3 });
+});
+
+it('protects a newer receiving layout from XLSX rollback and excludes the new dock approach from further imports', async () => {
+  const { engine } = await createTestEngine();
+  const transport = createEngineTransport(engine, true);
+  const imports = createClient(ImportService, transport);
+  const topologyClient = createClient(WarehouseTopologyService, transport);
+  const layout = createClient(WarehouseReceivingLayoutService, transport);
+  const { warehouseId } = CELLS;
+  const warehouse = { warehouseId };
+  const preview = (row: string[]): ReturnType<typeof imports.previewImport> => imports.previewImport({
+    fileBytes: buildImportXlsx(CELL_HEADERS, [row]), fileName: 'cells.xlsx', idempotencyKey: nextUuid(), warehouseScope: CELLS,
+  }, CUSTOMER);
+  const { job } = await preview(CELL_ROW);
+  const committed = await imports.commitImport({
+    expectedVersion: job?.version, idempotencyKey: nextUuid(), jobId: job?.id, warehouseScope: CELLS,
+  }, CUSTOMER);
+  const { topology } = await topologyClient.getWarehouseTopology(warehouse, CUSTOMER);
+  const area = topology?.receivingArea;
+  await expect(layout.configureWarehouseReceivingLayout({
+    docks: [{ unloadingPointId: area?.unloadingPoint?.id, xMm: 1_500 }],
+    expectedRevision: topology?.revision,
+    idempotencyKey: nextUuid(),
+    receivingFootprint: area?.footprint,
+    warehouseId,
+  }, CUSTOMER)).resolves.toMatchObject({ revision: 3 });
+  const confirmed = (await topologyClient.getWarehouseTopology(warehouse, CUSTOMER)).topology;
+  const rollback = await captureError(imports.rollbackImport({
+    expectedVersion: committed.job?.version, idempotencyKey: nextUuid(), jobId: job?.id, warehouseScope: CELLS,
+  }, CUSTOMER));
+  expect(readErrorDetail(rollback).code).toBe(ErrorCode.IMPORT_ROLLBACK_BLOCKED);
+  expect((await topologyClient.getWarehouseTopology(warehouse, CUSTOMER)).topology).toEqual(confirmed);
+
+  const { job: obstructing } = await preview([
+    'Z01', 'R01', 'S02', '2600', '100', '1200', '600', 'Y01', '0', 'Z01-R01-S02-Y01-C01', '0', '600',
+  ]);
+  const { rows } = await imports.getImportJob({ hasErrorsOnly: true, jobId: obstructing?.id, warehouseScope: CELLS }, CUSTOMER);
+  expect(rows.flatMap(row => row.errors)).toMatchObject([{ fieldPath: 'rack_footprint', ruleId: 'warehouse.rack_overlap' }]);
 });
 
 it('retains physical row numbers and writes no layout if the last row overlaps', async () => {

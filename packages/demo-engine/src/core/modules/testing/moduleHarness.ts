@@ -49,6 +49,7 @@ import { SupportTicketService } from '@skladburg/contracts/support/v1/support_ti
 import { WarehouseLayoutSessionService } from '@skladburg/contracts/wms/v1/layout_session';
 import { WarehousePickingService } from '@skladburg/contracts/wms/v1/picking';
 import { WarehouseReceivingService } from '@skladburg/contracts/wms/v1/receiving';
+import { WarehouseReceivingLayoutService } from '@skladburg/contracts/wms/v1/receiving_layout';
 import { WarehouseStockService } from '@skladburg/contracts/wms/v1/stock';
 import { WarehouseTopologyService } from '@skladburg/contracts/wms/v1/topology';
 
@@ -83,6 +84,7 @@ import {
 } from '../platform/index';
 import { createWarehouseLayoutSessionHandlers } from '../wms/warehouseLayoutSessionHandlers';
 import { createWarehousePickingService } from '../wms/warehousePickingService';
+import { createWarehouseReceivingLayoutService } from '../wms/warehouseReceivingLayoutService';
 import { createWarehouseReceivingService } from '../wms/warehouseReceivingService';
 import { createWarehouseStockService } from '../wms/warehouseStockService';
 import { createWarehouseTopologyService } from '../wms/warehouseTopologyService';
@@ -182,6 +184,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(SupportTicketService, createSupportTicketService(testRuntime.runtime));
     service(UserProfileService, createUserProfileService(testRuntime.runtime));
     service(WarehouseLayoutSessionService, createWarehouseLayoutSessionHandlers(testRuntime.runtime));
+    service(WarehouseReceivingLayoutService, createWarehouseReceivingLayoutService(testRuntime.runtime));
     service(WarehousePickingService, createWarehousePickingService(testRuntime.runtime));
     service(WarehouseReceivingService, createWarehouseReceivingService(testRuntime.runtime));
     service(WarehouseStockService, createWarehouseStockService(testRuntime.runtime));

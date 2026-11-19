@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package wms.v1;
+
+import "buf/validate/validate.proto";
+import "common/v1/method_options.proto";
+import "organization/v1/organization.proto";
+import "wms/v1/topology.proto";
+
+message WarehouseDockPlacementInput {
+  optional string unloading_point_id = 1 [(buf.validate.field).string.uuid = true];
+  optional uint32 x_mm = 2 [(buf.validate.field).required = true];
+  repeated organization.v1.WarehouseCapability capabilities = 3 [(buf.validate.field).repeated = {
+    max_items: 3
+    unique: true
+    items: {
+      enum: {
+        defined_only: true
+        not_in: 0
+      }
+    }
+  }];
+}
+
+message ConfigureWarehouseReceivingLayoutRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 2 [(buf.validate.field).string.uuid = true];
+  optional uint32 expected_revision = 3 [(buf.validate.field).required = true];
+  WarehouseFloorRect receiving_footprint = 4 [(buf.validate.field).required = true];
+  repeated WarehouseDockPlacementInput docks = 5 [(buf.validate.field).repeated = {
+    min_items: 1
+    max_items: 6
+  }];
+}
+
+message ConfigureWarehouseReceivingLayoutResponse {
+  uint32 revision = 1;
+}
+
+service WarehouseReceivingLayoutService {
+  rpc ConfigureWarehouseReceivingLayout(ConfigureWarehouseReceivingLayoutRequest) returns (ConfigureWarehouseReceivingLayoutResponse) {
+    option (common.v1.access).permission = {
+      name: "layout_edit"
+      scope_field: "warehouse_id"
+    };
+  }
+}

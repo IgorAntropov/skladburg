@@ -12,7 +12,7 @@ import {
   encodeWarehouseTopology,
   readWarehouseTopology,
 } from '../modules/wms/warehouseTopologyCodec';
-import { readEffectiveWarehouseDockIds } from '../modules/wms/warehouseTopologyRecords';
+import { readEffectiveWarehouseDocks } from '../modules/wms/warehouseTopologyRecords';
 import { createRandom } from '../ports/index';
 import {
   createEngineState,
@@ -45,7 +45,7 @@ export const addSeedReceivingDock = (topology: WarehouseTopology): boolean => {
   const secondDock = create(WarehouseUnloadingPointSchema, {
     capabilities: [WarehouseCapability.COLD], code: 'D02', id: SECOND_DOCK_ID, position: SECOND_DOCK_POSITION,
   });
-  if (readEffectiveWarehouseDockIds({ ...area, additionalUnloadingPoints: [secondDock] }).length < 2 || hasRackInApproach(topology)) {
+  if (readEffectiveWarehouseDocks({ ...area, additionalUnloadingPoints: [secondDock] }).length < 2 || hasRackInApproach(topology)) {
     return false;
   }
   area.footprint.widthMm = Math.max(area.footprint.widthMm, 8_000);

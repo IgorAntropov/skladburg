@@ -42,12 +42,11 @@ import {
 } from './src/shared/theme/themeConstants.ts';
 
 const HUD_SHARED_MODULES = [
-  'node_modules/@connectrpc/connect/dist/esm/code.js',
-  'node_modules/@connectrpc/connect/dist/esm/connect-error.js',
-  'node_modules/@connectrpc/connect/dist/esm/protocol-connect/code-string.js',
   'node_modules/@tanstack/react-query/build/modern/queryOptions.js',
   'node_modules/lucide-react/dist/esm/icons/ban.mjs',
   'node_modules/lucide-react/dist/esm/icons/chevron-down.mjs',
+  'node_modules/lucide-react/dist/esm/icons/shopping-cart.mjs',
+  'node_modules/lucide-react/dist/esm/icons/store.mjs',
   'node_modules/lucide-react/dist/esm/icons/truck.mjs',
   'packages/contracts/src/gen/access/v1/permission_pb.ts',
   'packages/contracts/src/gen/network/v1/network_pb.ts',
@@ -65,12 +64,6 @@ const HUD_SHARED_MODULES = [
   'src/features/scene-settings/model/graphicsPreference.ts',
   'src/features/scene-settings/model/graphicsPreferenceStorage.ts',
   'src/features/scene-settings/model/useSceneSettingsStore.ts',
-  'src/shared/api/errors/apiErrorFromDetail.ts',
-  'src/shared/api/errors/getErrorMessageKey.ts',
-  'src/shared/api/errors/isKnownErrorCode.ts',
-  'src/shared/api/errors/parseApiError.ts',
-  'src/shared/api/errors/translateApiError.ts',
-  'src/shared/api/errors/translatePermissionDenial.ts',
   'src/shared/api/pagination/collectPages.ts',
   'src/shared/api/permissions/getPermissionMessageKey.ts',
   'src/shared/api/query/organizationQueryScope.ts',
@@ -117,18 +110,32 @@ const STARTUP_CONTRACT_MODULES = [
   'node_modules/@bufbuild/protobuf/dist/esm/wire/text-encoding.js',
   'node_modules/@bufbuild/protobuf/dist/esm/wire/text-format.js',
   'node_modules/@bufbuild/protobuf/dist/esm/wire/varint.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/wkt/any.js',
+  'node_modules/@bufbuild/protobuf/dist/esm/wkt/google/protobuf/any_pb.js',
   'node_modules/@bufbuild/protobuf/dist/esm/wkt/google/protobuf/descriptor_pb.js',
   'node_modules/@bufbuild/protobuf/dist/esm/wkt/google/protobuf/timestamp_pb.js',
   'node_modules/@bufbuild/protobuf/dist/esm/wkt/timestamp.js',
   'node_modules/@bufbuild/protobuf/dist/esm/wkt/wrappers.js',
+  'node_modules/@connectrpc/connect/dist/esm/code.js',
+  'node_modules/@connectrpc/connect/dist/esm/connect-error.js',
+  'node_modules/@connectrpc/connect/dist/esm/protocol-connect/code-string.js',
   'packages/contracts/src/gen/common/v1/entity_pb.ts',
   'packages/contracts/src/gen/common/v1/error_pb.ts',
   'packages/contracts/src/gen/common/v1/field_options_pb.ts',
+  'packages/contracts/src/gen/common/v1/method_options_pb.ts',
   'packages/contracts/src/gen/common/v1/money_pb.ts',
+  'packages/contracts/src/gen/common/v1/page_pb.ts',
+  'packages/contracts/src/gen/organization/v1/organization_pb.ts',
   'packages/contracts/src/runtime/channels.ts',
   'packages/contracts/src/runtime/compareCodeUnits.ts',
   'packages/contracts/src/runtime/errorTraits.ts',
   'packages/contracts/src/runtime/index.ts',
+  'src/shared/api/errors/apiErrorFromDetail.ts',
+  'src/shared/api/errors/getErrorMessageKey.ts',
+  'src/shared/api/errors/isKnownErrorCode.ts',
+  'src/shared/api/errors/parseApiError.ts',
+  'src/shared/api/errors/translateApiError.ts',
+  'src/shared/api/errors/translatePermissionDenial.ts',
 ];
 
 const CATALOG_CONTRACT_MODULES = [
@@ -144,12 +151,6 @@ const LISTING_SHARED_MODULES = [
   'src/entities/listing/ui/PublicationBadge.tsx',
   'src/entities/organization/lib/isProfileVerified.ts',
   'node_modules/lucide-react/dist/esm/icons/pencil-line.mjs',
-];
-
-const ORGANIZATION_CONTRACT_MODULES = [
-  'packages/contracts/src/gen/common/v1/method_options_pb.ts',
-  'packages/contracts/src/gen/common/v1/page_pb.ts',
-  'packages/contracts/src/gen/organization/v1/organization_pb.ts',
 ];
 
 const CATALOG_EDIT_SHARED_MODULES = [
@@ -1366,11 +1367,6 @@ export default defineConfig({
               includeDependenciesRecursively: false,
               name: 'listing-shared',
               test: (moduleId: string): boolean => LISTING_SHARED_MODULES.some(entry => hasEntryModule([moduleId], entry)),
-            },
-            {
-              includeDependenciesRecursively: false,
-              name: 'organization-contract',
-              test: (moduleId: string): boolean => ORGANIZATION_CONTRACT_MODULES.some(entry => hasEntryModule([moduleId], entry)),
             },
             {
               includeDependenciesRecursively: false,

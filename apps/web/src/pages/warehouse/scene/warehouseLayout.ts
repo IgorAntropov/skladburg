@@ -83,7 +83,13 @@ export interface WarehouseReceivingLayoutValue extends WarehouseFloorValue {
 
 type VectorValue = [number, number, number];
 
-const layouts = new WeakMap<WarehouseTopology, WarehouseLayoutValue>();
+interface WarehouseLayoutCacheValue {
+  key: string;
+  layout: WarehouseLayoutValue;
+}
+
+const layouts = new WeakMap<WarehouseTopology, WarehouseLayoutCacheValue>();
+let recentLayout: undefined | WarehouseLayoutCacheValue;
 const DOCK_MIN_SPACING_MM = 2660;
 export const WAREHOUSE_DOCK_RAMP_END = 0.505;
 export const WAREHOUSE_DOCK_HANDOFF_Z = 0.4;
@@ -254,10 +260,13 @@ const buildWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue
 export const getWarehouseLayout = (topology: WarehouseTopology): WarehouseLayoutValue => {
   const current = layouts.get(topology);
   if (current !== undefined) {
-    return current;
+    recentLayout = current;
+    return current.layout;
   }
 
-  const layout = buildWarehouseLayout(topology);
-  layouts.set(topology, layout);
-  return layout;
+  const key = JSON.stringify(topology, (field, value: unknown) => field === 'revision' || field === 'capabilities' ? undefined : value);
+  const next = recentLayout?.key === key ? recentLayout : { key, layout: buildWarehouseLayout(topology) };
+  layouts.set(topology, next);
+  recentLayout = next;
+  return next.layout;
 };

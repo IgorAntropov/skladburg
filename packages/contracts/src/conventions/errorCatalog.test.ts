@@ -37,6 +37,7 @@ const expectedTraits: Record<ErrorCode, ErrorTraitsSnapshotValue> = {
   [ErrorCode.VERSION_CONFLICT]: { category: ErrorCategory.ABORTED, isRetryable: false },
   [ErrorCode.WAREHOUSE_LAYOUT_BUSY]: { category: ErrorCategory.FAILED_PRECONDITION, isRetryable: false },
   [ErrorCode.WAREHOUSE_LAYOUT_SESSION_INVALID]: { category: ErrorCategory.FAILED_PRECONDITION, isRetryable: false },
+  [ErrorCode.WAREHOUSE_RECEIVING_LAYOUT_BLOCKED]: { category: ErrorCategory.FAILED_PRECONDITION, isRetryable: false },
 };
 
 const readActualTraits = (code: number): ErrorTraitsSnapshotValue => {

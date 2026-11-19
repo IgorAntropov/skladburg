@@ -22,6 +22,7 @@ import { SupportTicketService } from '@skladburg/contracts/support/v1/support_ti
 import { WarehouseLayoutSessionService } from '@skladburg/contracts/wms/v1/layout_session';
 import { WarehousePickingService } from '@skladburg/contracts/wms/v1/picking';
 import { WarehouseReceivingService } from '@skladburg/contracts/wms/v1/receiving';
+import { WarehouseReceivingLayoutService } from '@skladburg/contracts/wms/v1/receiving_layout';
 import { WarehouseStockService } from '@skladburg/contracts/wms/v1/stock';
 import { WarehouseTopologyService } from '@skladburg/contracts/wms/v1/topology';
 
@@ -47,6 +48,7 @@ export const ENGINE_SERVICES: readonly DescService[] = [
   UserProfileService,
   WarehouseLayoutSessionService,
   WarehousePickingService,
+  WarehouseReceivingLayoutService,
   WarehouseReceivingService,
   WarehouseStockService,
   WarehouseTopologyService,

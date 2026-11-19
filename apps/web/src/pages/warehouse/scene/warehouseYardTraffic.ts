@@ -38,18 +38,16 @@ export interface WarehouseYardTrafficValue {
   lanes: (undefined | WarehouseYardLaneValue)[];
   queue: string[];
   reservation: undefined | WarehouseYardLaneValue;
-  roads: undefined | WarehouseYardRoadsValue;
   visits: readonly WarehouseDockVisitValue[];
   yard: WarehouseYardMotionValue;
 }
 
-export const createWarehouseYardTraffic = (roads: undefined | WarehouseYardRoadsValue): WarehouseYardTrafficValue => ({
+export const createWarehouseYardTraffic = (): WarehouseYardTrafficValue => ({
   forklifts: [],
   hasParkingChanged: false,
   lanes: [],
   queue: [],
   reservation: undefined,
-  roads,
   visits: [],
   yard: createWarehouseYardMotion(),
 });
@@ -187,8 +185,14 @@ const reserveApproach = (
   return undefined;
 };
 
-export const advanceWarehouseYardTraffic = (traffic: WarehouseYardTrafficValue, delta: number, isReducedMotion: boolean): boolean => {
-  const { roads, yard } = traffic;
+export const advanceWarehouseYardTraffic = (
+  traffic: WarehouseYardTrafficValue,
+  roads: undefined | WarehouseYardRoadsValue,
+  delta: number,
+  isReducedMotion: boolean,
+  hasPendingLayout = false,
+): boolean => {
+  const { yard } = traffic;
   traffic.hasParkingChanged = false;
   yard.hasChanged = false;
   if (roads === undefined || traffic.lanes[0] === undefined) {
@@ -207,6 +211,10 @@ export const advanceWarehouseYardTraffic = (traffic: WarehouseYardTrafficValue, 
   const { reservation } = traffic;
   if (isReducedMotion) {
     traffic.reservation = undefined;
+    if (hasPendingLayout && reservation !== undefined) {
+      settleWarehouseDockTruck(reservation.truck, undefined);
+      reservation.hasChanged = true;
+    }
   }
   else if (reservation !== undefined) {
     advanceWarehouseDockTruck(reservation.truck, roads, reservation.dock, delta);
@@ -215,6 +223,10 @@ export const advanceWarehouseYardTraffic = (traffic: WarehouseYardTrafficValue, 
       traffic.reservation = undefined;
     }
   }
+  if (hasPendingLayout) {
+    return traffic.reservation !== undefined;
+  }
+
   reserveDeparture(traffic, isReducedMotion);
   syncParking(traffic, isReducedMotion);
   if (!isReducedMotion && traffic.reservation === undefined) {

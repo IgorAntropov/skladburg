@@ -22,6 +22,20 @@ const makeUnit = (
 });
 
 describe('warehouse dock cargo assignments', () => {
+  it('keeps a promotion waiting while its assigned dock is absent from the displayed layout', () => {
+    const promotion = { taskId: 'waiting', tripId: 'waiting-trip', unloadingPointId: 'D02' };
+    const cargo: WarehouseCargoValue = {
+      dockTaskId: promotion.taskId, dockVisits: [promotion], hasDock: true, units: [],
+    };
+
+    const [oldPrimary] = splitWarehouseDockCargo(cargo, undefined, ['D01']);
+    const [, newDock] = splitWarehouseDockCargo(cargo, undefined, ['D01', 'D02']);
+
+    expect(oldPrimary?.cargo?.dockTaskId).toBeUndefined();
+    expect(oldPrimary?.cargo?.dockVisits).toEqual([{ ...promotion, isWaitingInYard: true, unloadingPointId: undefined }]);
+    expect(newDock?.cargo?.dockTaskId).toBe(promotion.taskId);
+  });
+
   it('preserves parallel assignments and puts a waiting truck at the released dock only when it is assigned', () => {
     const first = { taskId: 'first', tripId: 'first-trip', unloadingPointId: 'D01' };
     const second = { taskId: 'second', tripId: 'second-trip', unloadingPointId: 'D02' };

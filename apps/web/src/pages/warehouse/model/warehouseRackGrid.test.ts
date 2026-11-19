@@ -54,6 +54,24 @@ describe('warehouse rack grid', () => {
     expect(findWarehouseRackObstacle(grid, rackAt(2_000, 1_600))).toBeUndefined();
   });
 
+  it('keeps the walkway from each dock clear inside the warehouse', () => {
+    const warehouse = create(WarehouseTopologySchema, {
+      receivingArea: {
+        additionalUnloadingPoints: [{ id: 'second-dock', position: { xMm: 5_500, zMm: 0 } }],
+        footprint: footprint(0, 2_500, 7_000, 2_000),
+        id: 'receiving',
+        unloadingPoint: { id: 'first-dock', position: { xMm: 1_500, zMm: 0 } },
+      },
+    });
+    const grid = createWarehouseRackGrid(warehouse, rackAt(4_000, 0));
+
+    expect(findWarehouseRackObstacle(grid, rackAt(400, 100))?.kind).toBe('dock-approach');
+    expect(findWarehouseRackObstacle(grid, rackAt(4_000, 0))?.kind).toBe('dock-approach');
+    expect(findWarehouseRackObstacle(grid, rackAt(4_000, 1_880))?.kind).toBe('receiving');
+    expect(findWarehouseRackObstacle(grid, footprint(4_000, 1_880, 1_200, 600))).toBeUndefined();
+    expect(grid.docks).toMatchObject([{ id: 'first-dock' }, { id: 'second-dock' }]);
+  });
+
   it('uses declared floor dimensions and blocks a rack that crosses its own zone boundary', () => {
     const bounds = footprint(600, 800, 4_000, 3_000);
     const warehouse = create(WarehouseTopologySchema, {

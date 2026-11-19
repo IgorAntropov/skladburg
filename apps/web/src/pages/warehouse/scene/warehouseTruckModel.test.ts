@@ -22,6 +22,18 @@ import { WAREHOUSE_TRUCK_DECK_Y } from './warehouseTruckDimensions';
 import { WAREHOUSE_TRUCK_CENTER_Z } from './warehouseYardRoads';
 
 describe('warehouse truck model', () => {
+  it('reconstructs the original truck triangle indices', async () => {
+    const geometry = createWarehouseTruckGeometry();
+    const indices = geometry.getIndex()?.array;
+    geometry.dispose();
+    const encoded = new TextEncoder().encode(JSON.stringify(Array.from(indices ?? [])));
+    const digest = await crypto.subtle.digest('SHA-256', encoded);
+    const hex = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+
+    expect(indices).toBeInstanceOf(Uint16Array);
+    expect(hex).toBe('2799384cd5fb2b4ce8976d911afd7bac0842798c3395df01a0f111c95330dcec');
+  });
+
   it('supports the full footprint of every loaded pallet in the open trailer', () => {
     const geometry = createWarehouseTruckGeometry();
     const material = new MeshBasicMaterial();

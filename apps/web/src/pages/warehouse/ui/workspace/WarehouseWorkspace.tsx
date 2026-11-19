@@ -301,6 +301,7 @@ const WarehouseWorkspaceContent = ({
               onPreviewChange={onPreviewChange}
               query={workspace.topology}
               t={t}
+              warehouseCapabilities={warehouse.capabilities}
               warehouseId={warehouse.id}
             />
           )}

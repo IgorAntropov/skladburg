@@ -1,3 +1,4 @@
+import type { ConfigureWarehouseReceivingLayoutRequest } from '@skladburg/contracts/wms/v1/receiving_layout';
 import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
 import type { ReactElement } from 'react';
 
@@ -6,6 +7,10 @@ import {
   AccessService,
   GetSessionResponseSchema,
 } from '@skladburg/contracts/access/v1/access';
+import {
+  ConfigureWarehouseReceivingLayoutResponseSchema,
+  WarehouseReceivingLayoutService,
+} from '@skladburg/contracts/wms/v1/receiving_layout';
 import { WarehouseTopologySchema } from '@skladburg/contracts/wms/v1/topology';
 import {
   QueryClientProvider,
@@ -24,6 +29,7 @@ import {
   afterEach,
   expect,
   it,
+  vi,
 } from 'vitest';
 
 import {
@@ -66,12 +72,16 @@ const Harness = ({ topology }: HarnessProps): ReactElement => {
       onPreviewChange={NO_CHANGE}
       query={query}
       t={(key, ..._params) => catalog[key]}
+      warehouseCapabilities={[]}
       warehouseId={WAREHOUSE_ID}
     />
   );
 };
 
-const renderWarehouseLayout = (topology: null | WarehouseTopology): {
+const renderWarehouseLayout = (
+  topology: null | WarehouseTopology,
+  configure?: ((request: ConfigureWarehouseReceivingLayoutRequest) => void),
+): {
   location: ReturnType<typeof createMemoryLocation>;
   queryClient: ReturnType<typeof createQueryClient>;
 } => {
@@ -83,6 +93,13 @@ const renderWarehouseLayout = (topology: null | WarehouseTopology): {
         getSession: () => create(GetSessionResponseSchema, {
           permissions: [{ permission: 'layout_edit', warehouseIds: [WAREHOUSE_ID] }],
         }),
+      });
+      router.service(WarehouseReceivingLayoutService, {
+        configureWarehouseReceivingLayout: (request) => {
+          configure?.(request);
+
+          return create(ConfigureWarehouseReceivingLayoutResponseSchema, { revision: (topology?.revision ?? 0) + 1 });
+        },
       });
     },
   });
@@ -150,4 +167,39 @@ it('preserves the first-zone draft and blocks saving when another editor initial
   });
   expect(screen.getByTestId('warehouse-layout-initialize-leave')).toBeTruthy();
   expect(location.read().path).toBe(WAREHOUSE_PATH);
+});
+
+it('sends the configured footprint and only visible docks with the current revision', async () => {
+  const configure = vi.fn<(request: ConfigureWarehouseReceivingLayoutRequest) => void>();
+  renderWarehouseLayout(INITIAL_TOPOLOGY, configure);
+  fireEvent.click(screen.getByTestId('warehouse-receiving-layout-open'));
+  const edit = await screen.findByTestId('warehouse-receiving-layout-edit');
+  await waitFor(() => {
+    expect(edit.getAttribute('aria-disabled')).toBeNull();
+  });
+  fireEvent.click(edit);
+
+  const form = await screen.findByTestId('warehouse-receiving-layout-form');
+  const fields = within(form);
+  const width = within(fields.getByTestId('warehouse-receiving-layout-width')).getByRole('textbox');
+  fireEvent.change(width, { target: { value: '6200' } });
+  fireEvent.click(fields.getByTestId('warehouse-receiving-layout-add-dock'));
+  const entries = fields.getAllByTestId('warehouse-receiving-layout-dock-entry');
+  const secondDock = entries.at(1);
+  if (secondDock === undefined) {
+    throw new Error('Expected an editable second dock');
+  }
+  const secondX = within(within(secondDock).getByTestId('warehouse-receiving-layout-dock-x')).getByRole('textbox');
+  fireEvent.change(secondX, { target: { value: '4600' } });
+  fireEvent.click(fields.getByTestId('warehouse-receiving-layout-submit'));
+
+  await waitFor(() => {
+    expect(configure).toHaveBeenCalledOnce();
+  });
+  const request = configure.mock.lastCall?.[0];
+  expect(request?.docks.map(({ xMm }) => xMm)).toEqual([1_300, 4_600]);
+  expect(request?.expectedRevision).toBe(2);
+  expect(request?.receivingFootprint).toMatchObject({ origin: { xMm: 0, zMm: 0 }, widthMm: 6_200 });
+  expect(request?.warehouseId).toBe(WAREHOUSE_ID);
+  expect(await screen.findByTestId('warehouse-receiving-layout-edit')).toBeTruthy();
 });

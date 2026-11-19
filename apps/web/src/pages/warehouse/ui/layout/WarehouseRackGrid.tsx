@@ -48,6 +48,8 @@ const DIRECTIONS = new Map<string, WarehouseRackPositionValue>([
 
 const RACK = 'border border-line-strong bg-line';
 const RECEIVING = 'border border-dashed border-line-strong bg-skeleton';
+const DOCK = 'rounded-control border border-line-strong bg-on-panel';
+const DOCK_APPROACH = 'border border-dotted border-line-strong';
 const ZONE = 'border border-dashed border-line-strong';
 const DRAFT = 'border-2 border-dashed border-indicator bg-indicator/10';
 const SELECTION = 'border-2 border-indicator bg-indicator/20';
@@ -92,6 +94,8 @@ const getBoardStyle = (grid: WarehouseRackGridValue): CSSProperties => ({
 
 type RackMarkersProps = Pick<RackGridSurfaceProps, 'drafts' | 'grid'>;
 
+const OBSTACLE_STYLE = { 'dock-approach': DOCK_APPROACH, 'outside-zone': ZONE, 'rack': RACK, 'receiving': RECEIVING } as const;
+
 const RackMarkers = ({ drafts, grid }: RackMarkersProps): ReactElement => (
   <>
     {grid.zones?.map(({ footprint, id }) => (
@@ -107,12 +111,21 @@ const RackMarkers = ({ drafts, grid }: RackMarkersProps): ReactElement => (
     {grid.obstacles.map(({ footprint, id, kind }) => (
       <span
         aria-hidden="true"
-        className={`pointer-events-none absolute ${kind === 'rack' ? RACK : RECEIVING}`}
-        data-testid="warehouse-rack-grid-obstacle"
+        className={`pointer-events-none absolute ${OBSTACLE_STYLE[kind]}`}
+        data-testid={kind === 'dock-approach' ? 'warehouse-rack-grid-dock-approach' : 'warehouse-rack-grid-obstacle'}
         data-x-mm={footprint.origin.xMm}
         data-z-mm={footprint.origin.zMm}
-        key={id}
+        key={`${kind}-${id}`}
         style={getMarkerStyle(footprint, grid)}
+      />
+    ))}
+    {grid.docks?.map(({ id, position }) => (
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none absolute h-2 w-4 -translate-x-1/2 ${DOCK}`}
+        data-testid="warehouse-rack-grid-dock"
+        key={`dock-${id}`}
+        style={{ left: asPercent(position.xMm, grid.widthMm), top: asPercent(position.zMm, grid.depthMm) }}
       />
     ))}
     {drafts?.map(({ footprint, zoneId }) => (
@@ -147,6 +160,12 @@ const RackLegend = ({ grid, hasDrafts, selectionClassName, t }: RackLegendProps)
       <li className="flex items-center gap-2">
         <span aria-hidden="true" className={`size-3 ${RECEIVING}`} />
         {t('warehouseWork.receivingArea')}
+      </li>
+    )}
+    {grid.docks !== undefined && (
+      <li className="flex items-center gap-2">
+        <span aria-hidden="true" className={`h-2 w-4 ${DOCK}`} />
+        {t('warehouseWork.receivingLayoutDockLegend')}
       </li>
     )}
     {grid.zones !== undefined && (
@@ -197,6 +216,7 @@ export const WarehouseRackGrid = ({
   const hintId = useId();
   const { origin } = footprint;
   const statusKeys = {
+    'dock-approach': 'warehouseWork.rackGridBlockedDockApproach',
     'outside-zone': 'warehouseWork.rackGridBlockedZone',
     'rack': 'warehouseWork.rackGridBlockedRack',
     'receiving': 'warehouseWork.rackGridBlockedReceiving',

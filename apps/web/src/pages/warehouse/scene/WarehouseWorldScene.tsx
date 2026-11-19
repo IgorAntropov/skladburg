@@ -10,6 +10,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import { BoxGeometry } from 'three';
 
@@ -27,6 +28,7 @@ import type { WarehouseSceneInteractionValue } from '../model/warehouseSceneInte
 import type {
   WarehouseBoxValue,
   WarehouseCellVisualValue,
+  WarehouseLayoutValue,
 } from './warehouseLayout';
 
 import { createWarehouseGeometryKit } from './createWarehouseGeometryKit';
@@ -72,22 +74,26 @@ const WarehouseWorldScene = ({
   const rig = useSceneCameraRig();
   const invalidate = useThree(state => state.invalidate);
   const motion = useRef<MediaQueryList | undefined>(undefined);
-  const layout = getWarehouseLayout(data);
+  const isDepartureActive = useRef(false);
+  const desiredLayout = getWarehouseLayout(data);
+  const [departureLayout, setDepartureLayout] = useState<WarehouseLayoutValue>();
+  const traffic = useMemo(() => createWarehouseYardTraffic(), []);
   const geometry = useMemo(() => new BoxGeometry(1, 1, 1), []);
   const kit = useMemo(() => createWarehouseGeometryKit(), []);
   const truckModel = useWarehouseTruckModel();
-  const traffic = useMemo(() => createWarehouseYardTraffic(layout.yard), [layout.yard]);
   const { hasShadows } = QUALITY_LEVEL_SETTINGS[level];
   const lastFocus = useRef<{ request: number; scan: WarehouseSceneInteractionValue['scannedCell'] }>(undefined);
   const {
     balances, cargo, construction, constructionLayer: ConstructionLayer, focusRequest, onCellSelect, scannedCell, selectedCellId,
   } = interaction;
+  const layout = departureLayout ?? desiredLayout;
+  const hasPendingLayout = layout !== desiredLayout;
   const docks = layout.receiving?.docks;
-  const lanes = splitWarehouseDockCargo(cargo, balances, docks?.map(dock => dock.id) ?? []);
+  const lanes = useMemo(() => splitWarehouseDockCargo(cargo, balances, docks?.map(dock => dock.id) ?? []), [balances, cargo, docks]);
   const hasAssignedDocks = (docks?.length ?? 0) > 1;
   const activeCellId = scannedCell?.cellId ?? selectedCellId;
   const selection = activeCellId === undefined ? undefined : layout.cellsById.get(activeCellId);
-  const selectionBoxes = buildSelectionBoxes(selection);
+  const selectionBoxes = useMemo(() => buildSelectionBoxes(selection), [selection]);
 
   const handleCellClick = (event: ThreeEvent<MouseEvent>): void => {
     const cell = event.instanceId === undefined ? undefined : layout.cells[event.instanceId];
@@ -95,6 +101,10 @@ const WarehouseWorldScene = ({
       event.stopPropagation();
       onCellSelect(cell.id);
     }
+  };
+
+  const handleDepartureChange = (): void => {
+    setDepartureLayout(isDepartureActive.current ? layout : undefined);
   };
 
   useEffect(() => (): void => {
@@ -129,8 +139,13 @@ const WarehouseWorldScene = ({
   }, [focusRequest, rig, scannedCell, selection]);
 
   useFrame((_, delta) => {
-    if (advanceWarehouseYardTraffic(traffic, delta, motion.current?.matches === true)) {
+    if (advanceWarehouseYardTraffic(traffic, layout.yard, delta, motion.current?.matches === true, hasPendingLayout)) {
       invalidate();
+    }
+    const isDeparting = traffic.reservation?.truck.phase === 'departing';
+    if (isDeparting !== isDepartureActive.current) {
+      isDepartureActive.current = isDeparting;
+      queueMicrotask(handleDepartureChange);
     }
   }, -1);
 

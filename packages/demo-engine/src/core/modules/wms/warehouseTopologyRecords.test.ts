@@ -29,7 +29,7 @@ import { requireInboundDock } from './inboundRecords';
 import { encodeWarehouseTopology } from './warehouseTopologyCodec';
 import {
   createWarehouseTopologyRecord,
-  readEffectiveWarehouseDockIds,
+  readEffectiveWarehouseDocks,
   readWarehouseTopology,
 } from './warehouseTopologyRecords';
 
@@ -146,7 +146,7 @@ describe('createWarehouseTopologyRecord', () => {
       create(WarehouseUnloadingPointSchema, { code: 'D04', id: lastId, position: { xMm: 9_160, zMm: 0 } }),
     );
 
-    expect(readEffectiveWarehouseDockIds(area)).toEqual([area.unloadingPoint.id, firstId, lastId]);
+    expect(readEffectiveWarehouseDocks(area).map(({ id }) => id)).toEqual([area.unloadingPoint.id, firstId, lastId]);
   });
 
   it.each(['code', 'id'] as const)('rejects duplicate cell %s', (key) => {

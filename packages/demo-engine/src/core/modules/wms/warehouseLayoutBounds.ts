@@ -1,6 +1,27 @@
-import type { WarehouseFloorRect } from '@skladburg/contracts/wms/v1/topology';
+import type {
+  WarehouseFloorPoint,
+  WarehouseFloorRect,
+} from '@skladburg/contracts/wms/v1/topology';
 
-export const containsWarehouseFloorRect = (bounds: undefined | WarehouseFloorRect, rect: undefined | WarehouseFloorRect): boolean => {
+export interface WarehouseFloorRectangleValue extends Pick<WarehouseFloorRect, 'depthMm' | 'widthMm'> {
+  origin?: undefined | WarehouseFloorPositionValue;
+}
+
+type WarehouseFloorPositionValue = Pick<WarehouseFloorPoint, 'xMm' | 'zMm'>;
+
+const DOCK_APPROACH_HALF_WIDTH_MM = 1_250;
+const DOCK_APPROACH_DEPTH_MM = 1_880;
+
+export const readWarehouseDockApproach = ({ xMm, zMm }: WarehouseFloorPositionValue): WarehouseFloorRectangleValue => ({
+  depthMm: DOCK_APPROACH_DEPTH_MM,
+  origin: { xMm: xMm - DOCK_APPROACH_HALF_WIDTH_MM, zMm },
+  widthMm: DOCK_APPROACH_HALF_WIDTH_MM * 2,
+});
+
+export const containsWarehouseFloorRect = (
+  bounds: undefined | WarehouseFloorRectangleValue,
+  rect: undefined | WarehouseFloorRectangleValue,
+): boolean => {
   const origin = rect?.origin;
   const outer = bounds?.origin;
 

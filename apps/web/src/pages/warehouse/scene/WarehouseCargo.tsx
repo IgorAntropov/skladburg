@@ -403,8 +403,8 @@ export const WarehouseCargo = ({
     const displayedTruckId = isSameLayout && prior.truck.phase !== 'departing' ? prior.truck.taskId : undefined;
     const cargo = retainWarehouseDockDuringShipment(previousCargo, orderedCargo, displayedTruckId);
     const playback = isSameLayout ? prior.playback : createWarehouseForkliftPlayback(layout, dock);
-    const truck = isSameLayout ? prior.truck : createWarehouseDockTruck(cargo.dockTaskId);
     const { yard } = traffic;
+    const truck = isSameLayout ? prior.truck : createWarehouseDockTruck(yard.hasInitialized ? undefined : cargo.dockTaskId);
     const primaryDock = layout.receiving?.dock;
     const lane = !cargo.hasDock || dock === undefined || primaryDock === undefined
       ? undefined

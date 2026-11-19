@@ -29,10 +29,15 @@ const CHANNEL_MAX = 255;
 export const createWarehouseTruckGeometry = (): BufferGeometry => {
   const geometry = new BufferGeometry();
   const positions = Float32Array.from(truck.positions, value => value / WAREHOUSE_TRUCK_POSITION_SCALE);
+  let previousIndex = 0;
+  const indices = truck.indexDeltas.map((delta) => {
+    previousIndex += delta;
+    return previousIndex;
+  });
 
   geometry.setAttribute('position', new BufferAttribute(positions, 3));
   geometry.setAttribute('color', new BufferAttribute(new Uint8Array(truck.colors.length * 3), 3, true));
-  geometry.setIndex(truck.indices);
+  geometry.setIndex(indices);
   geometry.computeBoundingSphere();
 
   return geometry;

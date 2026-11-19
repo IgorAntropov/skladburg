@@ -51,6 +51,7 @@ enum ErrorCode {
   ERROR_CODE_IMPORT_ROLLBACK_BLOCKED = 13 [(error_traits) = {category: ERROR_CATEGORY_FAILED_PRECONDITION}];
   ERROR_CODE_WAREHOUSE_LAYOUT_BUSY = 14 [(error_traits) = {category: ERROR_CATEGORY_FAILED_PRECONDITION}];
   ERROR_CODE_WAREHOUSE_LAYOUT_SESSION_INVALID = 15 [(error_traits) = {category: ERROR_CATEGORY_FAILED_PRECONDITION}];
+  ERROR_CODE_WAREHOUSE_RECEIVING_LAYOUT_BLOCKED = 16 [(error_traits) = {category: ERROR_CATEGORY_FAILED_PRECONDITION}];
 }
 
 message FieldViolation {
@@ -118,6 +119,18 @@ message WarehouseLayoutBusyParams {
   google.protobuf.Timestamp expires_at = 2;
 }
 
+enum WarehouseReceivingLayoutBlockedReason {
+  WAREHOUSE_RECEIVING_LAYOUT_BLOCKED_REASON_UNSPECIFIED = 0;
+  WAREHOUSE_RECEIVING_LAYOUT_BLOCKED_REASON_DOCK_OCCUPIED = 1;
+  WAREHOUSE_RECEIVING_LAYOUT_BLOCKED_REASON_YARD_ACTIVE = 2;
+  WAREHOUSE_RECEIVING_LAYOUT_BLOCKED_REASON_RECEIVING_AREA_OCCUPIED = 3;
+}
+
+message WarehouseReceivingLayoutBlockedParams {
+  WarehouseReceivingLayoutBlockedReason reason = 1;
+  optional string unloading_point_id = 2;
+}
+
 message ErrorDetail {
   ErrorCode code = 1;
   string trace_id = 2;
@@ -131,5 +144,6 @@ message ErrorDetail {
     ImportFileInvalidParams import_file_invalid = 16;
     ImportRollbackBlockedParams import_rollback_blocked = 17;
     WarehouseLayoutBusyParams warehouse_layout_busy = 18;
+    WarehouseReceivingLayoutBlockedParams warehouse_receiving_layout_blocked = 19;
   }
 }

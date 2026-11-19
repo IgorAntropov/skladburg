@@ -31,7 +31,7 @@ export const createSeedWarehouseTopology = ({ prefix, tenantId, warehouseId }: S
       code: 'PR01',
       footprint: { depthMm: 3_000, origin: { xMm: 1_000, zMm: 1_000 }, widthMm: 2_000 },
       id: id(10),
-      unloadingPoint: { code: 'D01', id: id(11), position: { xMm: 1_000, zMm: 0 } },
+      unloadingPoint: { code: 'D01', id: id(11), position: { xMm: 1_000 } },
     },
     revision: 1,
     storageZones: [{
@@ -47,16 +47,15 @@ export const createSeedWarehouseTopology = ({ prefix, tenantId, warehouseId }: S
           tiers: [
             {
               cells: [
-                { code: 'Z01-R01-S01-Y01-C01', id: id(6), widthMm: 600, xOffsetMm: 0 },
+                { code: 'Z01-R01-S01-Y01-C01', id: id(6), widthMm: 600 },
                 { code: 'Z01-R01-S01-Y01-C02', id: id(7), widthMm: 600, xOffsetMm: 600 },
               ],
               code: 'Y01',
-              elevationMm: 0,
               id: id(4),
             },
             {
               cells: [
-                { code: 'Z01-R01-S01-Y02-C01', id: id(8), widthMm: 600, xOffsetMm: 0 },
+                { code: 'Z01-R01-S01-Y02-C01', id: id(8), widthMm: 600 },
                 { code: 'Z01-R01-S01-Y02-C02', id: id(9), widthMm: 600, xOffsetMm: 600 },
               ],
               code: 'Y02',

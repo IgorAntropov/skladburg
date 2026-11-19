@@ -262,7 +262,7 @@ export const createImportService = (runtime: IModuleRuntime, validator: IRequest
     },
     rollbackImport: async (request, context) => {
       const { warehouseScope } = request;
-      const warehouseImport = await loadWarehouseImport(warehouseScope);
+      const warehouseImport = warehouseScope === undefined ? undefined : await import('./warehouseImportRollback');
       return command((transaction) => {
         const caller = authorize(transaction, method.rollbackImport, request, context.requestHeader, warehouseImport);
         return idempotency.run(transaction, {

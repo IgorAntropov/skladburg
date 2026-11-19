@@ -701,6 +701,9 @@ const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
   'wms.v1.ListReceivingTasksRequest.page',
   'wms.v1.ReceiveHandlingUnitRequest.batchEvidence',
   'wms.v1.ReceiveHandlingUnitRequest.unlabelledUnit',
+  'wms.v1.ConfigureWarehouseReceivingLayoutRequest.docks',
+  'wms.v1.ConfigureWarehouseReceivingLayoutRequest.receivingFootprint',
+  'wms.v1.ConfigureWarehouseReceivingLayoutRequest.receivingFootprint.origin',
 ];
 const EXPECTED_SERVER_ONLY_MESSAGES: readonly string[] = [
   'common.v1.MethodAccess',

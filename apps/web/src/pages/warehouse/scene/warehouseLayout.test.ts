@@ -1,4 +1,7 @@
+import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
+
 import { create } from '@bufbuild/protobuf';
+import { WarehouseCapability } from '@skladburg/contracts/organization/v1/organization';
 import { WarehouseTopologySchema } from '@skladburg/contracts/wms/v1/topology';
 import {
   describe,
@@ -30,6 +33,26 @@ const getTruckBounds = (): NonNullable<ReturnType<typeof createWarehouseTruckGeo
 };
 
 describe('warehouse scene layout', () => {
+  it('keeps the same geometry and camera when only the revision and dock capabilities change', () => {
+    const makeTopology = (revision: number, capabilities: WarehouseCapability[], xMm: number): WarehouseTopology =>
+      create(WarehouseTopologySchema, {
+        receivingArea: {
+          footprint: { depthMm: 4_000, origin: { xMm: 0, zMm: 1_000 }, widthMm: 8_000 },
+          unloadingPoint: { capabilities, id: 'dock', position: { xMm, zMm: 0 } },
+        },
+        revision,
+        warehouseId: 'warehouse',
+      });
+
+    const before = getWarehouseLayout(makeTopology(1, [WarehouseCapability.RAMP], 2_000));
+    const unchanged = getWarehouseLayout(makeTopology(2, [WarehouseCapability.RAMP, WarehouseCapability.COLD], 2_000));
+    const moved = getWarehouseLayout(makeTopology(3, [WarehouseCapability.RAMP, WarehouseCapability.COLD], 3_000));
+
+    expect(unchanged).toBe(before);
+    expect(moved.receiving?.dock?.x).toBe(3);
+    expect(moved.yard).not.toBe(before.yard);
+  });
+
   it('uses the saved warehouse dimensions for the slab and frames its grounds on an empty plan', () => {
     const topology = create(WarehouseTopologySchema, { bounds: { depthMm: 8_000, origin: {}, widthMm: 12_000 } });
 

@@ -1,3 +1,4 @@
+import type { WarehouseCapability } from '@skladburg/contracts/organization/v1/organization';
 import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type {
@@ -29,16 +30,12 @@ import {
   parseApiError,
 } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
-import {
-  createCachedModuleLoader,
-  useChunkLoader,
-} from '@/shared/lib/module-loader';
+import { createCachedModuleLoader } from '@/shared/lib/module-loader';
 import { useViewportClass } from '@/shared/lib/viewport';
 import { useNavigationGuard } from '@/shared/routing';
 import {
   ActionButton,
   Button,
-  ChunkLoadNotice,
   EmptyState,
   ErrorNotice,
   LeaveConfirm,
@@ -56,7 +53,6 @@ import type {
 } from '../../model/warehouseRackGrid';
 import type { WarehouseRackPlacementValue } from '../../model/warehouseRackPlacement';
 import type { WarehouseConstructionChangeValue } from '../../model/warehouseSceneInteraction';
-import type { WarehouseLayoutInitializeFormProps } from './WarehouseLayoutInitializeForm';
 
 import { useAddWarehouseRack } from '../../api/useAddWarehouseRack';
 import { useWarehouseLayoutDrafts } from '../../api/useWarehouseLayoutDrafts';
@@ -73,6 +69,7 @@ import {
 } from '../../model/warehouseRackPlacement';
 import { useWarehouseConstructionPreview } from './useWarehouseConstructionPreview';
 import { WarehouseLayoutObserver } from './WarehouseLayoutObserver';
+import { WarehouseLayoutSlot } from './WarehouseLayoutSlot';
 import { WarehouseRackGrid } from './WarehouseRackGrid';
 
 interface RackPreviewProps {
@@ -89,7 +86,7 @@ interface RackSelectionValue {
 const suggestPlacement = (topology: WarehouseTopology, rowId: string): undefined | WarehouseRackPlacementValue =>
   createWarehouseRackPlacement(topology, rowId) ?? createWarehouseRackPlacement(topology, rowId, { xMm: 0, zMm: 0 });
 
-interface WarehouseRackEditorProps extends WarehouseRackPlacementProps {
+interface WarehouseRackEditorProps extends Omit<WarehouseRackPlacementProps, 'warehouseCapabilities'> {
   shouldFocusGrid: boolean;
   topology: null | WarehouseTopology;
 }
@@ -99,6 +96,7 @@ interface WarehouseRackPlacementProps {
   onPreviewChange: WarehouseConstructionChangeValue;
   query: UseQueryResult<null | WarehouseTopology>;
   t: WarehouseWorkTranslate;
+  warehouseCapabilities: readonly WarehouseCapability[];
   warehouseId: string;
 }
 
@@ -108,33 +106,7 @@ const COMPACT_LAYOUT = [
 ].join(' ');
 
 const loadLayoutInitialization = createCachedModuleLoader(() => import('./WarehouseLayoutInitializeForm'));
-
-const WarehouseLayoutInitialization = (props: WarehouseLayoutInitializeFormProps): ReactElement => {
-  const { t } = useI18n();
-  const { load, state } = useChunkLoader(loadLayoutInitialization);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  if (state.kind === 'loaded') {
-    const Form = state.module.WarehouseLayoutInitializeForm;
-
-    return <Form {...props} />;
-  }
-  if (state.kind === 'failed') {
-    return (
-      <ChunkLoadNotice
-        message={t('routing.chunkError.message')}
-        onRetry={load}
-        recovery={state.recovery}
-        repeatedMessage={t('routing.chunkError.repeated')}
-      />
-    );
-  }
-
-  return <Skeleton className="h-28 w-full" />;
-};
+const loadReceivingLayout = createCachedModuleLoader(() => import('./WarehouseReceivingLayoutPanel'));
 
 const RackPreview = ({ draft, t }: RackPreviewProps): ReactElement => {
   const { formatNumber } = useI18n();
@@ -468,7 +440,7 @@ const WarehouseRackEditor = ({
 };
 
 export const WarehouseRackPlacement = ({
-  onEditingChange, onPreviewChange, query, t, warehouseId,
+  onEditingChange, onPreviewChange, query, t, warehouseCapabilities, warehouseId,
 }: WarehouseRackPlacementProps): ReactElement => {
   const { t: baseText } = useI18n();
   const canEdit = useCan(PermissionCode.LAYOUT_EDIT, { kind: 'warehouse', warehouseId });
@@ -476,6 +448,9 @@ export const WarehouseRackPlacement = ({
   const canShowScene = useSceneSettingsStore(state => state.preference !== 'off' && !state.isSceneUnavailable);
   const [dirtyEditor, setDirtyEditor] = useState<'initialize' | 'rack' | undefined>();
   const [didInitialize, setDidInitialize] = useState(false);
+  const [isReceivingOpen, setIsReceivingOpen] = useState(false);
+  const receivingTriggerRef = useRef<HTMLButtonElement>(null);
+  const isReturningToRacks = useRef(false);
   const isCompact = canShowScene && viewportClass !== 'phone';
 
   const handleInitializeEditing = useCallback((isEditing: boolean): void => {
@@ -496,34 +471,82 @@ export const WarehouseRackPlacement = ({
     void query.refetch();
   };
 
+  const handleOpenReceiving = (): void => {
+    setDidInitialize(false);
+    setIsReceivingOpen(true);
+  };
+
+  const handleCloseReceiving = (): void => {
+    isReturningToRacks.current = true;
+    setIsReceivingOpen(false);
+  };
+
   const renderLayout = (topology: null | WarehouseTopology): ReactElement => {
-    if (!canEdit) {
-      return <WarehouseLayoutObserver onPreviewChange={onPreviewChange} t={t} topology={topology} warehouseId={warehouseId} />;
-    }
-    if (dirtyEditor === 'initialize' || (dirtyEditor !== 'rack' && canInitializeWarehouseLayout(topology))) {
+    if (isReceivingOpen) {
       return (
-        <WarehouseLayoutInitialization
-          onEditingChange={handleInitializeEditing}
-          onInitialized={handleInitialized}
-          query={query}
-          t={t}
-          warehouseId={warehouseId}
-        />
+        <WarehouseLayoutSlot loader={loadReceivingLayout}>
+          {({ WarehouseReceivingLayoutPanel }) => (
+            <WarehouseReceivingLayoutPanel
+              onBack={handleCloseReceiving}
+              onEditingChange={onEditingChange}
+              query={query}
+              t={t}
+              topology={topology}
+              warehouseCapabilities={warehouseCapabilities}
+              warehouseId={warehouseId}
+            />
+          )}
+        </WarehouseLayoutSlot>
+      );
+    }
+    const needsInitialization = canInitializeWarehouseLayout(topology);
+    const canOpenReceiving = !needsInitialization && dirtyEditor === undefined;
+    if (canEdit && (dirtyEditor === 'initialize' || (dirtyEditor !== 'rack' && needsInitialization))) {
+      return (
+        <WarehouseLayoutSlot loader={loadLayoutInitialization}>
+          {({ WarehouseLayoutInitializeForm }) => (
+            <WarehouseLayoutInitializeForm
+              onEditingChange={handleInitializeEditing}
+              onInitialized={handleInitialized}
+              query={query}
+              t={t}
+              warehouseId={warehouseId}
+            />
+          )}
+        </WarehouseLayoutSlot>
       );
     }
 
     return (
-      <WarehouseRackEditor
-        onEditingChange={handleRackEditing}
-        onPreviewChange={onPreviewChange}
-        query={query}
-        shouldFocusGrid={didInitialize}
-        t={t}
-        topology={topology}
-        warehouseId={warehouseId}
-      />
+      <div className="space-y-3">
+        {canOpenReceiving && (
+          <Button data-testid="warehouse-receiving-layout-open" onClick={handleOpenReceiving} ref={receivingTriggerRef} variant="secondary">
+            {t('warehouseWork.receivingLayout')}
+          </Button>
+        )}
+        {canEdit
+          ? (
+              <WarehouseRackEditor
+                onEditingChange={handleRackEditing}
+                onPreviewChange={onPreviewChange}
+                query={query}
+                shouldFocusGrid={didInitialize}
+                t={t}
+                topology={topology}
+                warehouseId={warehouseId}
+              />
+            )
+          : <WarehouseLayoutObserver onPreviewChange={onPreviewChange} t={t} topology={topology} warehouseId={warehouseId} />}
+      </div>
     );
   };
+
+  useEffect(() => {
+    if (!isReceivingOpen && isReturningToRacks.current) {
+      isReturningToRacks.current = false;
+      receivingTriggerRef.current?.focus();
+    }
+  }, [isReceivingOpen]);
 
   if (isReadAccessDenied(query.error)) {
     return <EmptyState icon={Package} text={t('warehouseWork.noAccess')} />;

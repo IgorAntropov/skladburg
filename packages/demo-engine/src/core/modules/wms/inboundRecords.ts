@@ -154,12 +154,18 @@ export const assignAvailableInboundDocks = (
   runtime: Pick<IModuleRuntime, 'errors' | 'outbox'>,
   scope: InboundDockScopeValue,
   updatedTask?: ReceivingTask,
+  reservedDockIds?: ReadonlySet<string>,
 ): void => {
   const docks = readInboundDocks(transaction, runtime.errors, scope);
   if (docks.length === 0) {
     return;
   }
   const available = new Map(docks.map(dock => [dock.id, dock] as const));
+  if (reservedDockIds !== undefined) {
+    for (const dockId of reservedDockIds) {
+      available.delete(dockId);
+    }
+  }
   if (updatedTask?.yardAdmissionStatus === YardAdmissionStatus.ADMITTED
     && (updatedTask.unloadingPointId === undefined || !available.has(updatedTask.unloadingPointId))) {
     updatedTask.yardAdmissionStatus = YardAdmissionStatus.WAITING_DOCK;

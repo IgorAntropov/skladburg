@@ -15,17 +15,24 @@ export const splitWarehouseDockCargo = (
   balances: readonly StockBalance[] | undefined,
   dockIds: readonly string[],
 ): WarehouseDockCargoValue[] => {
-  if (cargo === undefined || dockIds.length < 2) {
+  const primaryId = dockIds[0];
+  const isSingleDock = dockIds.length === 1;
+  const hasUnknownDock = cargo?.dockVisits?.some(({ unloadingPointId }) => (
+    unloadingPointId !== undefined && unloadingPointId !== primaryId
+  ));
+  if (cargo === undefined || primaryId === undefined || (isSingleDock && !hasUnknownDock)) {
     return [{ balances, cargo }];
   }
-  const primaryId = dockIds[0];
   const configuredIds = new Set(dockIds);
   const nextByDock = new Map<string, WarehouseDockVisitValue>();
   const waiting: WarehouseDockVisitValue[] = [];
   let outbound: undefined | WarehouseDockVisitValue;
   for (const visit of cargo.dockVisits ?? []) {
-    const { unloadingPointId } = visit;
-    if (visit.isWaitingInYard !== true && unloadingPointId !== undefined && configuredIds.has(unloadingPointId)) {
+    const unloadingPointId = visit.unloadingPointId ?? (isSingleDock ? primaryId : undefined);
+    if (unloadingPointId !== undefined && !configuredIds.has(unloadingPointId)) {
+      waiting.push({ ...visit, isWaitingInYard: true, unloadingPointId: undefined });
+    }
+    else if (visit.isWaitingInYard !== true && unloadingPointId !== undefined) {
       if (!nextByDock.has(unloadingPointId)) {
         nextByDock.set(unloadingPointId, visit);
       }
@@ -37,7 +44,7 @@ export const splitWarehouseDockCargo = (
       waiting.push(visit);
     }
   }
-  if (primaryId !== undefined && outbound !== undefined) {
+  if (outbound !== undefined) {
     if (nextByDock.has(primaryId)) {
       waiting.push(outbound);
     }

@@ -30,7 +30,7 @@ export { readWarehouseTopology } from './warehouseTopologyCodec';
 
 type PositionedWarehouseDockValue = WarehouseUnloadingPoint & { position: WarehouseFloorPoint };
 
-const DOCK_MIN_SPACING_MM = 2_660;
+export const WAREHOUSE_DOCK_MIN_SPACING_MM = 2_660;
 
 const hasDockPosition = (point: undefined | WarehouseUnloadingPoint): point is PositionedWarehouseDockValue => {
   const position = point?.position;
@@ -38,7 +38,7 @@ const hasDockPosition = (point: undefined | WarehouseUnloadingPoint): point is P
     && Number.isInteger(position.zMm) && position.zMm >= 0;
 };
 
-export const readEffectiveWarehouseDocks = (area: WarehouseReceivingArea): WarehouseUnloadingPoint[] => {
+export const readEffectiveWarehouseDocks = (area: WarehouseReceivingArea): PositionedWarehouseDockValue[] => {
   const primary = area.unloadingPoint;
   const footprint = area.footprint;
   if (footprint?.origin === undefined || footprint.widthMm === 0 || footprint.depthMm === 0 || !hasDockPosition(primary)) {
@@ -48,15 +48,13 @@ export const readEffectiveWarehouseDocks = (area: WarehouseReceivingArea): Wareh
   const berths = [primary];
   for (const point of area.additionalUnloadingPoints) {
     if (point.id !== '' && hasDockPosition(point) && point.position.zMm === primary.position.zMm
-      && !berths.some(berth => berth.id === point.id || Math.abs(point.position.xMm - berth.position.xMm) < DOCK_MIN_SPACING_MM)) {
+      && !berths.some(berth => berth.id === point.id
+        || Math.abs(point.position.xMm - berth.position.xMm) < WAREHOUSE_DOCK_MIN_SPACING_MM)) {
       berths.push(point);
     }
   }
   return berths;
 };
-
-export const readEffectiveWarehouseDockIds = (area: WarehouseReceivingArea): string[] =>
-  readEffectiveWarehouseDocks(area).map(point => point.id);
 
 const addUnique = (seen: Set<string>, key: string): void => {
   if (seen.has(key)) {
@@ -89,7 +87,7 @@ const checkTopology = (topology: WarehouseTopology): void => {
       }
     }
     if (receiving.additionalUnloadingPoints.length > 0
-      && readEffectiveWarehouseDockIds(receiving).length !== receiving.additionalUnloadingPoints.length + 1) {
+      && readEffectiveWarehouseDocks(receiving).length !== receiving.additionalUnloadingPoints.length + 1) {
       throw new Error('Warehouse unloading points require a primary point, a shared facade and 2660 mm spacing');
     }
   }

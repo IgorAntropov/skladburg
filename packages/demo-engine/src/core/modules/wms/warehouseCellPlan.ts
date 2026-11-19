@@ -19,7 +19,13 @@ import {
   WarehouseTopologySchema,
 } from '@skladburg/contracts/wms/v1/topology';
 
-import { containsWarehouseFloorRect } from './warehouseLayoutBounds';
+import type { WarehouseFloorRectangleValue } from './warehouseLayoutBounds';
+
+import {
+  containsWarehouseFloorRect,
+  readWarehouseDockApproach,
+} from './warehouseLayoutBounds';
+import { readEffectiveWarehouseDocks } from './warehouseTopologyRecords';
 
 export interface WarehouseCellPlanValue {
   materialize: (warehouseId: string, tenantId: string, allocateId: () => string) => {
@@ -330,7 +336,7 @@ const checkRackTiers = (rack: RackValue, report: ReportViolation): void => {
   }
 };
 
-const createRectangle = (footprint: WarehouseFloorRect, rack: RackValue | undefined): RackRectangleValue => {
+const createRectangle = (footprint: WarehouseFloorRectangleValue, rack: RackValue | undefined): RackRectangleValue => {
   const { origin } = footprint;
 
   if (origin === undefined) {
@@ -427,10 +433,13 @@ const checkRacks = (
   report: ReportViolation,
 ): void => {
   const rectangles: RackRectangleValue[] = [];
-  const receiving = current?.receivingArea?.footprint;
+  const receiving = current?.receivingArea;
 
-  if (receiving !== undefined) {
-    rectangles.push(createRectangle(receiving, undefined));
+  if (receiving?.footprint !== undefined) {
+    rectangles.push(createRectangle(receiving.footprint, undefined));
+    for (const { position } of readEffectiveWarehouseDocks(receiving)) {
+      rectangles.push(createRectangle(readWarehouseDockApproach(position), undefined));
+    }
   }
 
   for (const zone of zones.values()) {

@@ -22,10 +22,11 @@ const PRE_FLEET_SCHEMA_VERSION = 15;
 interface MetadataChangeValue {
   isClockPaused: boolean;
   seedVersionOffset: number;
+  worldTimeMs?: number | undefined;
 }
 
 export const changeStoredEngineMetadata = async (page: Page, change: MetadataChangeValue): Promise<void> => {
-  await page.evaluate(async ({ databaseName, isClockPaused, seedVersionOffset }): Promise<void> => {
+  await page.evaluate(async ({ databaseName, isClockPaused, seedVersionOffset, worldTimeMs }): Promise<void> => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open(databaseName);
       request.onsuccess = (): void => {
@@ -63,6 +64,7 @@ export const changeStoredEngineMetadata = async (page: Page, change: MetadataCha
             ...meta,
             ...(isClockPaused ? { timeScale: 0 } : {}),
             seedVersion: meta.seedVersion + seedVersionOffset,
+            ...(worldTimeMs === undefined ? {} : { worldTimeMs }),
           }, 'engineMeta');
         };
       });

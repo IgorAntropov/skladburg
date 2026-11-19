@@ -40,6 +40,7 @@ export interface WarehouseSceneInteractionValue {
   construction: undefined | WarehouseConstructionPreviewValue;
   constructionLayer: ComponentType<WarehouseConstructionLayerProps>;
   focusRequest: number;
+  isNight: boolean;
   isRefreshingYardFacts?: boolean | undefined;
   onCellSelect: (id: string) => void;
   parkingCapacity: number;

@@ -273,14 +273,16 @@ test('renders the dock and the confirmed receiving movements, then returns to re
   await scene.waitForIdle();
   await scene.expectNoDrawFramesFor(700);
   await receiving.getByTestId('warehouse-finish-receiving').click();
+  await expect(receiving.getByTestId('warehouse-finish-receiving')).toHaveCount(0);
 
-  const beforeNight = await scene.readDrawFrames();
+  await scene.waitForIdle();
+  const beforeThemeChange = await canvas.screenshot({ style: CANVAS_ONLY_STYLE });
   await scene.switchColorScheme('dark');
   await scene.expectThemeAttribute('dark');
-  await scene.waitForDrawFramesToExceed(beforeNight + 4, 'the night transition did not draw');
   await scene.waitForIdle();
   await scene.expectNoDrawFramesFor(700);
-  await canvas.screenshot({ path: testInfo.outputPath('warehouse-night.png') });
+  const afterThemeChange = await canvas.screenshot({ path: testInfo.outputPath('warehouse-dark-hud.png'), style: CANVAS_ONLY_STYLE });
+  expect(afterThemeChange.equals(beforeThemeChange)).toBe(true);
   await scene.tapFreeAreaCenter();
   await expect.poll(() => new URL(storePage.url()).hash).toBe(`#/cells/${cellId}`);
 

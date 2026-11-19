@@ -97,7 +97,6 @@ export const SceneStage = <TData, TInteraction>({
     return null;
   }
 
-  const isNight = resolvedTheme === 'dark';
   const { rootModule, sceneModule } = modulesState;
   const SceneRoot = rootModule.default;
   const SceneContent = sceneModule.default;
@@ -110,7 +109,7 @@ export const SceneStage = <TData, TInteraction>({
           content={<SceneContent data={preparedState.data} interaction={interaction} level={level} />}
           dprCeiling={dprCeiling}
           focusInsets={focusInsets}
-          isNight={isNight}
+          isNight={sceneModule.resolveIsNight?.(interaction) ?? resolvedTheme === 'dark'}
           isReducedMotion={isReducedMotion}
           isStatsShown={isStatsShown}
           level={level}

@@ -35,6 +35,7 @@ import type {
   WarehouseCellVisualValue,
   WarehouseLayoutValue,
 } from './warehouseLayout';
+import type { IWarehouseYardLightingRig } from './WarehouseYardLightingLayer';
 
 import { createWarehouseGeometryKit } from './createWarehouseGeometryKit';
 import { useWarehouseTruckModel } from './useWarehouseTruckModel';
@@ -51,11 +52,14 @@ import {
 
 const TAP_SLOP_PX = 5;
 const WarehouseYardDragLayer = lazy(() => import('./WarehouseYardDragLayer'));
+const WarehouseYardLightingLayer = lazy(() => import('./WarehouseYardLightingLayer'));
 
 export const prepare = ({ parkingCapacity, topology }: WarehouseSceneDataValue): Promise<void> => {
   getWarehouseLayout(topology, parkingCapacity);
   return Promise.resolve();
 };
+
+export const resolveIsNight = ({ isNight }: WarehouseSceneInteractionValue): boolean => isNight;
 
 export const resolveWorld = ({ parkingCapacity, topology }: WarehouseSceneDataValue): SceneWorldValue =>
   getWarehouseLayout(topology, parkingCapacity).world;
@@ -85,6 +89,7 @@ const WarehouseWorldScene = ({
   const desiredLayout = getWarehouseLayout(data.topology, data.parkingCapacity);
   const [motionLayout, setMotionLayout] = useState<WarehouseLayoutValue>();
   const traffic = useMemo(() => createWarehouseYardTraffic(), []);
+  const lighting = useRef<IWarehouseYardLightingRig>(null);
   const playbackClock = useRef<WarehouseYardPlaybackClockValue>({
     delta: 0, isCatchingUp: false, isPaused: false, isResuming: false,
   });
@@ -99,6 +104,7 @@ const WarehouseWorldScene = ({
   const layout = motionLayout ?? desiredLayout;
   const hasPendingLayout = layout !== desiredLayout || data.parkingCapacity !== interaction.parkingCapacity;
   const docks = layout.receiving?.docks;
+  const primaryDock = layout.receiving?.dock;
   const lanes = useMemo(() => splitWarehouseDockCargo(cargo, balances, docks?.map(dock => dock.id) ?? []), [balances, cargo, docks]);
   const hasAssignedDocks = (docks?.length ?? 0) > 1;
   const activeCellId = scannedCell?.cellId ?? selectedCellId;
@@ -187,6 +193,7 @@ const WarehouseWorldScene = ({
     const isMoving = advanceWarehouseYardTraffic(
       traffic, layout.yard, clock.delta, motion.current?.matches === true, hasPendingLayout, clock.isCatchingUp,
     );
+    lighting.current?.paint();
     if (isMoving) {
       invalidate();
     }
@@ -211,7 +218,7 @@ const WarehouseWorldScene = ({
       )}
       {lanes.map((lane, index) => (
         <WarehouseDockLane
-          dock={docks?.[index] ?? layout.receiving?.dock}
+          dock={docks?.[index] ?? primaryDock}
           geometry={geometry}
           hasAssignedDocks={hasAssignedDocks}
           hasShadows={hasShadows}
@@ -225,6 +232,19 @@ const WarehouseWorldScene = ({
           truckModel={truckModel}
         />
       ))}
+      {primaryDock !== undefined && docks !== undefined && layout.yard !== undefined && (
+        <Suspense fallback={null}>
+          <WarehouseYardLightingLayer
+            dock={primaryDock}
+            docks={docks}
+            geometry={geometry}
+            level={level}
+            rig={lighting}
+            roads={layout.yard}
+            traffic={traffic}
+          />
+        </Suspense>
+      )}
       {canDragInYard && (
         <Suspense fallback={null}>
           <WarehouseYardDragLayer

@@ -8,5 +8,6 @@ import type {
 export interface SceneModuleValue<TData, TInteraction = undefined> {
   default: ComponentType<SceneContentProps<TData, TInteraction>>;
   prepare: (data: TData) => Promise<void>;
+  resolveIsNight?: ((interaction: TInteraction) => boolean | undefined) | undefined;
   resolveWorld: (data: TData) => SceneWorldValue;
 }

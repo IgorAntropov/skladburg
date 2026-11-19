@@ -341,6 +341,7 @@ export const storeYardSceneDispatchQueue = async (
   topology: WarehouseTopology,
   warehouse: Warehouse,
   deliveries: readonly SixDockDeliveryValue[],
+  visitCount: 25 | 30 = 25,
 ): Promise<YardSceneDispatchFixtureValue> => {
   const [sample] = deliveries;
   const wideTopology = createWideDockTopology(topology);
@@ -357,7 +358,6 @@ export const storeYardSceneDispatchQueue = async (
   };
   const arrivalAtMs = SCALED_ARRIVAL_START_MS;
   const submittedAt = timestampFromMs(arrivalAtMs);
-  const visitCount = 25;
   const visits = Array.from({ length: visitCount }, (_unused, index) => {
     const status = index === 0 ? YardAdmissionStatus.WAITING_DOCK : YardAdmissionStatus.WAITING_DOCUMENTS;
     const delivery = createFixtureDelivery(source, 1_500 + index, status, undefined, DeliveryMethod.EXCHANGE);

@@ -496,6 +496,7 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
           receiving={receiving}
           scannedCell={currentScan}
           selectedCellId={focusCellId}
+          timeZone={warehouse.timeZone}
           topology={topology}
           warehouseId={warehouse.id}
           yardDrag={yardDrag}

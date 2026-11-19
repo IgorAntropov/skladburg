@@ -82,6 +82,7 @@ vi.mock('../scene/SceneRoot', () => {
   const SceneRoot = ({
     autoQuality,
     content,
+    isNight,
     onAutoLevelChange,
     onContextLost,
     onReady,
@@ -89,6 +90,7 @@ vi.mock('../scene/SceneRoot', () => {
   }: {
     autoQuality: undefined | { ceiling: QualityLevelValue; changeCount: number };
     content: ReactNode;
+    isNight: boolean;
     onAutoLevelChange: (level: QualityLevelValue) => void;
     onContextLost: () => void;
     onReady: () => void;
@@ -110,6 +112,7 @@ vi.mock('../scene/SceneRoot', () => {
       <div
         data-auto-ceiling={autoQuality?.ceiling}
         data-change-count={autoQuality?.changeCount}
+        data-night={isNight}
         data-testid="scene-root-probe"
         data-world-radius={world.home.radius}
       >
@@ -138,7 +141,7 @@ interface TestSceneDataValue {
   value: string;
 }
 
-type TestSceneModuleValue = SceneModuleValue<TestSceneDataValue>;
+type TestSceneModuleValue = SceneModuleValue<TestSceneDataValue, boolean | undefined>;
 
 const SCENE_DATA: TestSceneDataValue = { radius: 1, value: 'first' };
 
@@ -148,7 +151,7 @@ const createWorld = (radius: number): SceneWorldValue => ({
   maxHeight: 1,
 });
 
-const SceneContent = ({ data, level }: SceneContentProps<TestSceneDataValue>): ReactElement => (
+const SceneContent = ({ data, level }: SceneContentProps<TestSceneDataValue, boolean | undefined>): ReactElement => (
   <span data-level={level} data-testid="scene-content" data-value={data.value} />
 );
 
@@ -199,10 +202,11 @@ const themeStore = createThemePreferenceStore({ colorSchemeQuery: undefined, sto
 const createViewportTree = (
   loadScene: CachedModuleLoader<TestSceneModuleValue>,
   sceneData: TestSceneDataValue | undefined,
+  isNight: boolean | undefined,
 ): ReactElement => (
   <ThemePreferenceProvider store={themeStore}>
     <RoutingProvider location={memoryLocation}>
-      <SceneViewport interaction={undefined} label={LABEL} loadScene={loadScene} sceneData={sceneData} />
+      <SceneViewport interaction={isNight} label={LABEL} loadScene={loadScene} sceneData={sceneData} />
     </RoutingProvider>
   </ThemePreferenceProvider>
 );
@@ -210,7 +214,7 @@ const createViewportTree = (
 const renderViewportWithData = (
   loadScene: CachedModuleLoader<TestSceneModuleValue>,
   sceneData: TestSceneDataValue | undefined,
-): RenderResult => render(withTestLocalizer(createViewportTree(loadScene, sceneData)));
+): RenderResult => render(withTestLocalizer(createViewportTree(loadScene, sceneData, undefined)));
 
 const renderViewport = (loadScene: CachedModuleLoader<TestSceneModuleValue>): RenderResult => {
   return renderViewportWithData(loadScene, SCENE_DATA);
@@ -242,6 +246,7 @@ describe('SceneViewport', () => {
   afterEach(() => {
     cleanup();
     installedViewport?.restore();
+    themeStore.setPreference('system');
     vi.restoreAllMocks();
   });
 
@@ -313,6 +318,22 @@ describe('SceneViewport', () => {
   });
 
   describe('3D mode', () => {
+    it('lets a scene use world light instead of the HUD theme without remounting its canvas', async () => {
+      themeStore.setPreference('dark');
+      const loadScene = createCachedModuleLoader(() => Promise.resolve({
+        ...createSceneModule(),
+        resolveIsNight: (isNight: boolean | undefined): boolean | undefined => isNight,
+      }));
+      const view = render(withTestLocalizer(createViewportTree(loadScene, SCENE_DATA, false)));
+
+      expect((await screen.findByTestId('scene-root-probe')).dataset.night).toBe('false');
+      view.rerender(withTestLocalizer(createViewportTree(loadScene, SCENE_DATA, true)));
+      expect(screen.getByTestId('scene-root-probe').dataset.night).toBe('true');
+      view.rerender(withTestLocalizer(createViewportTree(loadScene, SCENE_DATA, undefined)));
+      expect(screen.getByTestId('scene-root-probe').dataset.night).toBe('true');
+      expect(sceneRootControl.mountCount).toBe(1);
+    });
+
     it('is loading until the scene is ready, then ready', async () => {
       let openGate: () => void = () => undefined;
       const gate = new Promise<void>((resolve) => {
@@ -425,7 +446,7 @@ describe('SceneViewport', () => {
       loadScene: CachedModuleLoader<TestSceneModuleValue>,
       sceneData: TestSceneDataValue | undefined,
     ): void => {
-      view.rerender(withTestLocalizer(createViewportTree(loadScene, sceneData)));
+      view.rerender(withTestLocalizer(createViewportTree(loadScene, sceneData, undefined)));
     };
 
     it('stays loading without data and does not prepare the scene', async () => {

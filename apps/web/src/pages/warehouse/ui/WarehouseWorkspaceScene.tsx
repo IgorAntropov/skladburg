@@ -28,6 +28,7 @@ import {
   SceneCameraControls,
   ScenePlaceholder,
   SceneViewport,
+  useIsSceneCameraReady,
 } from '@/widgets/scene-viewport';
 
 import type { WarehouseWorkspaceValue } from '../api/useWarehouseWorkspace';
@@ -39,6 +40,7 @@ import type {
 import type { WarehouseSceneParkingValue } from '../model/warehouseSceneParking';
 import type { WarehouseYardFactsValue } from '../model/warehouseYardFacts';
 
+import { useWarehouseYardLight } from '../api/useWarehouseYardLight';
 import { useWarehouseYardRefresh } from '../api/useWarehouseYardRefresh';
 import { warehouseWorkspaceKey } from '../api/warehouseWorkspaceKey';
 import { warehouseSceneMessages } from '../i18n/warehouseSceneRu';
@@ -52,12 +54,13 @@ const loadWarehouseConstruction = createCachedModuleLoader(() => import('../scen
 
 interface WarehouseWorkspaceSceneProps extends Omit<
   WarehouseSceneInteractionValue,
-  'cargo' | 'constructionLayer' | 'focusRequest' | 'isRefreshingYardFacts' | 'onCellSelect' | 'parkingCapacity'
+  'cargo' | 'constructionLayer' | 'focusRequest' | 'isNight' | 'isRefreshingYardFacts' | 'onCellSelect' | 'parkingCapacity'
 > {
   isLoading: boolean;
   label: string;
   picking: undefined | WarehouseWorkspaceValue['picking'];
   receiving: undefined | WarehouseWorkspaceValue['receiving'];
+  timeZone: string;
   topology: null | undefined | WarehouseTopology;
   warehouseId: string;
 }
@@ -78,13 +81,15 @@ const WarehouseConstructionLayer = (props: WarehouseConstructionLayerProps): nul
 };
 
 const WarehouseWorkspaceScene = ({
-  balances, construction, isLoading, label, picking, receiving, scannedCell, selectedCellId, topology, warehouseId, yardDrag,
+  balances, construction, isLoading, label, picking, receiving, scannedCell, selectedCellId, timeZone, topology, warehouseId, yardDrag,
 }: WarehouseWorkspaceSceneProps): ReactElement => {
   const { createSectionTranslator, t } = useI18n();
   const navigate = useNavigate();
   const { focusRequest } = useAddress();
   const { organizationId, userId } = useActingContext();
   const canViewTrips = useCan(PermissionCode.TRIP_VIEW, { kind: 'organization' });
+  const isSceneCameraReady = useIsSceneCameraReady();
+  const isNight = useWarehouseYardLight(timeZone, isSceneCameraReady && topology != null);
   const [lastParking, setLastParking] = useState<WarehouseSceneParkingValue>();
   const [lastFacts, setLastFacts] = useState<WarehouseYardFactsValue>();
   const receivingArea = topology?.receivingArea;
@@ -142,6 +147,7 @@ const WarehouseWorkspaceScene = ({
         construction,
         constructionLayer: WarehouseConstructionLayer,
         focusRequest,
+        isNight,
         isRefreshingYardFacts,
         onCellSelect: handleCellSelect,
         parkingCapacity: parking.capacity,

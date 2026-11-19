@@ -7,7 +7,6 @@ import { useAddress } from '@/shared/routing';
 
 import type { SceneModuleValue } from '../model/sceneViewportTypes';
 
-import { readIsStatsShown } from '../lib/readIsStatsShown';
 import { SCENE_DPR_CEILING } from '../lib/sceneDprCeiling';
 import { SCENE_SHADOW_MAP_SIZE } from '../lib/sceneShadowMapSize';
 import { useSceneMode } from '../model/useSceneMode';
@@ -33,7 +32,7 @@ export const SceneViewport = <TData, TInteraction>({
   const mode = useSceneMode(viewportClass);
   const { searchParams } = useAddress();
 
-  const isStatsShown = readIsStatsShown(searchParams, import.meta.env.DEV);
+  const isStatsShown = import.meta.env.DEV && searchParams.has('perf');
 
   if (mode.kind === 'off') {
     return (

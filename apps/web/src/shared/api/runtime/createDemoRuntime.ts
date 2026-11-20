@@ -12,7 +12,7 @@ import { selectInitialPersona } from './selectInitialPersona';
 
 export const createDemoRuntime = async (options: CreateApiRuntimeOptionsValue): Promise<ApiRuntimeValue> => {
   const demo = await import('../transport/demo');
-  const connection = options.connection ?? await demo.createEngineWorkerConnection();
+  const connection = options.connection ?? await demo.createEngineWorkerConnection(undefined, options.demoScenario);
   const actingContext = createActingContextStore({ organizationId: undefined, userId: undefined });
   const demoControl = demo.createDemoControl(connection);
 

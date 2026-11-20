@@ -25,11 +25,17 @@ import type { ObjectRefValue } from '@/shared/routing';
 import type { TabsItemValue } from '@/shared/ui';
 
 import { useCan } from '@/entities/session';
-import { isReadAccessDenied } from '@/shared/api';
+import {
+  isReadAccessDenied,
+  useDemoScenario,
+  WAREHOUSE_YARD_MORNING,
+  WAREHOUSE_YARD_MORNING_WAREHOUSE_ID,
+} from '@/shared/api';
 import {
   useCatalogSection,
   useI18n,
 } from '@/shared/i18n';
+import { cn } from '@/shared/lib/cn';
 import {
   createCachedModuleLoader,
   createLazyComponent,
@@ -179,6 +185,7 @@ const WarehouseWorkspaceContent = ({
   t, vehicleMarkings, warehouse, workspace,
 }: WarehouseWorkspaceContentProps): ReactElement => {
   const { t: baseText } = useI18n();
+  const demoScenario = useDemoScenario();
   const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
   const canViewPolicy = useCan(PermissionCode.YARD_VIEW, { kind: 'organization' });
   const { ref: policyButtonRef, requestFocus: requestPolicyFocus } = useFocusHandoff<HTMLButtonElement>('warehouse-yard-policy');
@@ -372,7 +379,9 @@ const WarehouseWorkspaceContent = ({
 
   const isCell = focus?.type === 'cell';
   const isUnit = focus?.type === 'handling_unit';
-  const defaultTabId = isUnit || (isCell && workspace.canViewInventory) ? 'stock' : isCell ? 'addresses' : undefined;
+  const isMorningYard = demoScenario?.current === WAREHOUSE_YARD_MORNING && warehouse.id === WAREHOUSE_YARD_MORNING_WAREHOUSE_ID;
+  const detailTabId = isUnit || (isCell && workspace.canViewInventory) ? 'stock' : isCell ? 'addresses' : undefined;
+  const defaultTabId = detailTabId ?? (isMorningYard ? 'yard' : undefined);
   const cellLabel = isCell ? cells.get(focus.id) : undefined;
 
   return (
@@ -414,7 +423,7 @@ const WarehouseWorkspaceContent = ({
       {tabs.length > 0
         ? (
             <Tabs
-              className={isEditing ? '[&>[role=tablist]]:hidden' : undefined}
+              className={cn('[&>[role=tablist]>[role=tab]]:shrink-0', isEditing && '[&>[role=tablist]]:hidden')}
               defaultTabId={defaultTabId}
               items={tabs}
               label={t('warehouseWork.tabs')}

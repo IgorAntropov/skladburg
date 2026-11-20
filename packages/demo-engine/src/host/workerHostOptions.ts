@@ -9,6 +9,7 @@ import type {
   ILockManager,
 } from './hostTypes';
 
+import { WAREHOUSE_YARD_MORNING } from '../protocol/demoScenario';
 import { ENGINE_DATABASE_NAME } from './constants';
 import { openEngineStorage } from './storage/index';
 import { createSystemTimers } from './systemTimers';
@@ -16,18 +17,29 @@ import { createSystemTimers } from './systemTimers';
 export interface IWorkerScope extends IEnginePort {
   BroadcastChannel: new (name: string) => IBroadcastChannel;
   crypto: IUuidSource;
+  name?: string | undefined;
   navigator: { locks?: ILockManager | undefined };
   performance: { now: () => number; timeOrigin: number };
 }
 
-export const createWorkerHostOptions = (scope: IWorkerScope): CreateEngineHostOptionsValue => ({
-  broadcastChannelFactory: name => new scope.BroadcastChannel(name),
-  generateId: createUuidGenerator(scope.crypto),
-  isDemoWarehouseEnabled: true,
-  loadCore: () => import('../core/engine/index'),
-  lockManager: scope.navigator.locks,
-  openStorage: () => openEngineStorage({ databaseName: ENGINE_DATABASE_NAME }),
-  port: scope,
-  realTime: { now: () => scope.performance.timeOrigin + scope.performance.now() },
-  timers: createSystemTimers(),
-});
+export const createWorkerHostOptions = (scope: IWorkerScope): CreateEngineHostOptionsValue => {
+  const demoScenario = scope.name === WAREHOUSE_YARD_MORNING ? WAREHOUSE_YARD_MORNING : undefined;
+  const locks = scope.navigator.locks;
+  const namespace = (name: string): string => demoScenario === undefined ? name : `${name}:${demoScenario}`;
+  const lockManager: ILockManager | undefined = locks === undefined || demoScenario === undefined
+    ? locks
+    : { request: (name, options, callback) => locks.request(namespace(name), options, callback) };
+
+  return {
+    broadcastChannelFactory: name => new scope.BroadcastChannel(namespace(name)),
+    demoScenario,
+    generateId: createUuidGenerator(scope.crypto),
+    isDemoWarehouseEnabled: true,
+    loadCore: () => import('../core/engine/index'),
+    lockManager,
+    openStorage: () => openEngineStorage({ databaseName: namespace(ENGINE_DATABASE_NAME) }),
+    port: scope,
+    realTime: { now: () => scope.performance.timeOrigin + scope.performance.now() },
+    timers: createSystemTimers(),
+  };
+};

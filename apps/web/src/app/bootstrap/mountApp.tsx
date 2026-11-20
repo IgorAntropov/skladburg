@@ -4,6 +4,7 @@ import { StrictMode } from 'react';
 import { defaultTenant } from 'virtual:build-profile';
 
 import type { IInstallPromptSource } from '@/features/install-app';
+import type { DemoScenarioControlValue } from '@/shared/api';
 import type { ILocalizer } from '@/shared/i18n';
 import type { ILocationSource } from '@/shared/routing';
 import type { IThemePreferenceStore } from '@/shared/theme';
@@ -11,11 +12,13 @@ import type { IThemePreferenceStore } from '@/shared/theme';
 import {
   createApiRuntime,
   createQueryClient,
+  getDemoScenarioContextKey,
   getTabStorage,
   persistActingContext,
   readPersistedActingContext,
   returnToDefaultPersonaOnDemoReset,
   syncQueriesWithRealtime,
+  WAREHOUSE_YARD_MORNING_ORGANIZATION_ID,
 } from '@/shared/api';
 
 import type { SectionLoadersValue } from '../routing/sectionPages';
@@ -33,6 +36,7 @@ import { removeSearchParam } from './removeSearchParam';
 const PERSONA_PARAM = 'as';
 
 export interface MountAppOptionsValue {
+  demoScenario?: DemoScenarioControlValue | undefined;
   installPromptSource: IInstallPromptSource;
   localizer: ILocalizer;
   locationSource: ILocationSource;
@@ -56,6 +60,7 @@ const runReleaseStep = ({ release, step }: ReleaseStepValue): void => {
 };
 
 export const mountApp = async ({
+  demoScenario,
   installPromptSource,
   localizer,
   locationSource,
@@ -64,6 +69,9 @@ export const mountApp = async ({
   themeStore,
 }: MountAppOptionsValue): Promise<() => void> => {
   const tabStorage = getTabStorage(window);
+  const scenario = demoScenario?.current;
+  const contextKey = getDemoScenarioContextKey(scenario);
+  const defaultOrganizationId = scenario === undefined ? defaultTenant.tenantId : WAREHOUSE_YARD_MORNING_ORGANIZATION_ID;
   const releaseSteps: ReleaseStepValue[] = [];
 
   const release = (): void => {
@@ -78,8 +86,9 @@ export const mountApp = async ({
     prewarmStartSection({ loaders: sectionLoaders, path: addressSnapshot.path });
 
     const runtime = await createApiRuntime({
-      defaultOrganizationId: defaultTenant.tenantId,
-      preferredContext: readPersistedActingContext(tabStorage),
+      defaultOrganizationId,
+      demoScenario: scenario,
+      preferredContext: readPersistedActingContext(tabStorage, contextKey),
       preferredPersonaId: addressSnapshot.searchParams.get(PERSONA_PARAM) ?? undefined,
     });
 
@@ -90,7 +99,7 @@ export const mountApp = async ({
       step: 'close',
     });
     releaseSteps.push({
-      release: persistActingContext(runtime.actingContext, tabStorage),
+      release: persistActingContext(runtime.actingContext, tabStorage, contextKey),
       step: 'stopPersist',
     });
 
@@ -111,7 +120,7 @@ export const mountApp = async ({
     releaseSteps.push({
       release: returnToDefaultPersonaOnDemoReset({
         actingContext: runtime.actingContext,
-        defaultOrganizationId: defaultTenant.tenantId,
+        defaultOrganizationId,
         demoControl: runtime.demoControl,
         errorJournal: runtime.errorJournal,
         queryClient,
@@ -143,7 +152,7 @@ export const mountApp = async ({
           localizer={localizer}
           location={locationSource}
           queryClient={queryClient}
-          runtime={runtime}
+          runtime={{ ...runtime, demoScenario }}
           sectionLoaders={sectionLoaders}
           themeStore={themeStore}
         />

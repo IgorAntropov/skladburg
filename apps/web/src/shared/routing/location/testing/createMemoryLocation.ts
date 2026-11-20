@@ -2,6 +2,7 @@ import type { BlockerValue } from '../blockers';
 import type {
   BlockedHandlerValue,
   ILocationSource,
+  LeaveScopeValue,
   LocationSnapshotValue,
   NavigateOptionsValue,
   ShouldBlockValue,
@@ -130,7 +131,7 @@ export const createMemoryLocation = (initialPath: string): IMemoryLocation => {
     get reloadCount(): number {
       return reloadCount;
     },
-    requestLeave: (action): void => { requestGuardedLeave(blockers, action); },
+    requestLeave: (action, scope: LeaveScopeValue | undefined): void => { requestGuardedLeave(blockers, action, scope); },
     subscribe,
   };
 };

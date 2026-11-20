@@ -181,6 +181,16 @@ const ORGANIZATION_BADGE_MODULES = [
   'src/entities/organization/ui/VerificationBadge.tsx',
 ];
 
+const PROFILE_SUMMARY_MODULES = [
+  'src/features/switch-persona/api/personaKeys.ts',
+  'src/features/switch-persona/api/usePersonasQuery.ts',
+  'src/features/switch-persona/lib/findCurrentPersona.ts',
+  'src/features/switch-persona/model/useCurrentPersona.ts',
+  'src/widgets/profile-menu/ui/menu/ProfileMyProfileSkeleton.tsx',
+  'src/widgets/profile-menu/ui/menu/SideBadges.tsx',
+  'src/widgets/profile-menu/ui/menu/useProfileSecondLine.ts',
+];
+
 const DEAL_FORM_MODULES = [
   'src/pages/deals/api/commands/dealFormValidation.ts',
   'src/pages/deals/api/commands/useDealWarehouseOptions.ts',
@@ -1401,6 +1411,11 @@ export default defineConfig({
               includeDependenciesRecursively: false,
               name: 'organization-showcase-utils',
               test: /[\\/]pages[\\/]network[\\/](?:api[\\/]organizationShowcaseKeys|lib[\\/]sortOrganizationProfiles)\.ts$/u,
+            },
+            {
+              includeDependenciesRecursively: false,
+              name: 'profile-summary',
+              test: (moduleId: string): boolean => PROFILE_SUMMARY_MODULES.some(entry => hasEntryModule([moduleId], entry)),
             },
             {
               includeDependenciesRecursively: false,

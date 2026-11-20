@@ -1,4 +1,5 @@
 import { StrictMode } from 'react';
+import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import {
   bundledLocales,
@@ -7,10 +8,16 @@ import {
   defaultTenant,
 } from 'virtual:build-profile';
 
+import type { DemoScenarioValue } from '@/shared/api';
 import type { ILocalizer } from '@/shared/i18n';
 import type { ChunkRecoveryValue } from '@/shared/lib/module-loader';
 
 import { createInstallPromptSource } from '@/features/install-app';
+import {
+  getTabStorage,
+  readDemoScenario,
+  writeDemoScenario,
+} from '@/shared/api';
 import {
   createLocalizer,
   LocalizerProvider,
@@ -91,6 +98,7 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
   const userTimeZone = readDeviceTimeZone();
   const locationSource = createHashLocation(window);
   const loadMountApp = createCachedModuleLoader(() => import('./mountApp'));
+  const tabStorage = import.meta.env.VITE_API_TRANSPORT === 'connect' ? undefined : getTabStorage(window);
 
   let localizer: ILocalizer | undefined;
   let startErrorLocalizer: ILocalizer | undefined;
@@ -155,6 +163,22 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
     }
   };
 
+  const handleChangeDemoScenario = (scenario: DemoScenarioValue | undefined, path: string): boolean => {
+    if (tabStorage === undefined || !writeDemoScenario(tabStorage, scenario)) {
+      return false;
+    }
+
+    flushSync(() => {
+      root.render(null);
+    });
+    releaseApp?.();
+    releaseApp = undefined;
+    locationSource.navigate(path, { isReplace: true });
+    locationSource.reload();
+
+    return true;
+  };
+
   const tryStart = async (loadingParts: Promise<StartPartsOutcomeValue> = beginLoadingStartParts()): Promise<void> => {
     releaseApp?.();
     releaseApp = undefined;
@@ -167,6 +191,12 @@ export const startApp = async (rootElement: HTMLElement): Promise<void> => {
       }
 
       releaseApp = await outcome.parts.mountApp({
+        demoScenario: tabStorage === undefined
+          ? undefined
+          : {
+              change: handleChangeDemoScenario,
+              current: readDemoScenario(tabStorage),
+            },
         installPromptSource,
         localizer: outcome.parts.appLocalizer,
         locationSource,

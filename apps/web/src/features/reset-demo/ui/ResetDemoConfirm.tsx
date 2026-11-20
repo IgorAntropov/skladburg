@@ -25,10 +25,18 @@ const GROUP_CLASS_NAME = 'flex gap-x-4 gap-y-3';
 
 interface ResetDemoConfirmProps {
   isStacked?: boolean | undefined;
+  messages?: ResetDemoMessagesValue | undefined;
   onClose: () => void;
+  onResetSuccess?: (() => void) | undefined;
 }
 
-export const ResetDemoConfirm = ({ isStacked = false, onClose }: ResetDemoConfirmProps): ReactElement => {
+interface ResetDemoMessagesValue {
+  done: string;
+  hint: string;
+  prompt: string;
+}
+
+export const ResetDemoConfirm = ({ isStacked = false, messages, onClose, onResetSuccess }: ResetDemoConfirmProps): ReactElement => {
   const { t } = useI18n();
   const announce = useAnnounce();
   const promptId = useId();
@@ -36,13 +44,14 @@ export const ResetDemoConfirm = ({ isStacked = false, onClose }: ResetDemoConfir
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const access = useCommandAccess();
 
-  const prompt = t('demo.reset.confirm.prompt');
-  const doneMessage = t('demo.reset.done');
+  const prompt = messages?.prompt ?? t('demo.reset.confirm.prompt');
+  const doneMessage = messages?.done ?? t('demo.reset.done');
 
   const handleResetDone = (): void => {
     console.log('> ResetDemoConfirm -> handleResetDone:', { doneMessage });
     announce(doneMessage);
     onClose();
+    onResetSuccess?.();
   };
 
   const command = useResetDemoCommand({ onSuccess: handleResetDone });
@@ -82,7 +91,7 @@ export const ResetDemoConfirm = ({ isStacked = false, onClose }: ResetDemoConfir
       >
         <div className="flex flex-col">
           <p className="text-base font-medium whitespace-nowrap" id={promptId}>{prompt}</p>
-          <p className="text-sm text-on-panel-muted" id={hintId}>{t('demo.reset.confirm.hint')}</p>
+          <p className="text-sm text-on-panel-muted" id={hintId}>{messages?.hint ?? t('demo.reset.confirm.hint')}</p>
         </div>
         <div className="flex items-center gap-3">
           <Button

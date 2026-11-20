@@ -15,7 +15,10 @@ import {
   vi,
 } from 'vitest';
 
-import type { IDemoControl } from '@/shared/api';
+import type {
+  DemoScenarioControlValue,
+  IDemoControl,
+} from '@/shared/api';
 import type { IFakeViewport } from '@/shared/lib/viewport/index.testing';
 import type { IMemoryLocation } from '@/shared/routing/index.testing';
 
@@ -48,6 +51,7 @@ interface RenderedLauncherValue {
 }
 
 interface RenderLauncherOptionsValue {
+  demoScenario?: DemoScenarioControlValue;
   hasDemo?: boolean;
   menuGate?: GateValue;
   rejectedLoadCount?: number;
@@ -56,6 +60,7 @@ interface RenderLauncherOptionsValue {
 let installedViewport: IFakeViewport | undefined;
 
 const renderLauncher = async ({
+  demoScenario,
   hasDemo = false,
   menuGate,
   rejectedLoadCount = 0,
@@ -109,6 +114,7 @@ const renderLauncher = async ({
     demoControl: hasDemo ? demoControl : undefined,
     routes: harness.createProfileRoutes(),
   });
+  runtime.demoScenario = demoScenario;
   runtime.actingContext.set(harness.PROFILE_ACTING_CONTEXT);
 
   render(
@@ -324,6 +330,62 @@ describe('ProfileMenuLauncher', () => {
 
       expect(await screen.findByRole('menu', { name: MENU_NAME })).toBeDefined();
       expect(loadProfileMenu).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('demo scenario', () => {
+    it('waits for the navigation-only editor before changing the world', async () => {
+      const change = vi.fn<DemoScenarioControlValue['change']>(() => true);
+      const { location } = await renderLauncher({ demoScenario: { change, current: undefined }, hasDemo: true });
+      let proceed: (() => void) | undefined;
+      const unblock = location.block((action) => {
+        proceed = action;
+      });
+
+      const menu = await openMenu();
+      chooseWithEnter(within(menu).getByTestId('profile-menu-yard-morning'));
+
+      expect(change).not.toHaveBeenCalled();
+      expect(proceed).toBeDefined();
+      unblock();
+      act(() => {
+        proceed?.();
+      });
+      expect(change).toHaveBeenCalledExactlyOnceWith('warehouse-yard-morning', '/warehouses/80000003-0000-4000-8000-000000000000');
+    });
+
+    it('reports when the browser could not save a world switch', async () => {
+      const change = vi.fn<DemoScenarioControlValue['change']>(() => false);
+      await renderLauncher({ demoScenario: { change, current: 'warehouse-yard-morning' }, hasDemo: true });
+
+      const menu = await openMenu();
+      chooseWithEnter(within(menu).getByTestId('profile-menu-yard-morning-exit'));
+
+      expect(change).toHaveBeenCalledExactlyOnceWith(undefined, '/');
+      expect((await within(menu).findByRole('alert')).textContent).toContain('Не удалось переключить демо');
+    });
+
+    it('returns to the morning yard only after the confirmed reset succeeds', async () => {
+      const change = vi.fn<DemoScenarioControlValue['change']>(() => true);
+      const { demoControl } = await renderLauncher({ demoScenario: { change, current: 'warehouse-yard-morning' }, hasDemo: true });
+      const resetGate = createGate();
+      vi.mocked(demoControl.reset).mockImplementation(() => resetGate.promise);
+
+      const menu = await openMenu();
+      chooseWithEnter(within(menu).getByTestId('profile-menu-reset'));
+      const confirm = await screen.findByTestId('reset-confirm-accept');
+      fireEvent.click(confirm);
+
+      await waitFor(() => {
+        expect(demoControl.reset).toHaveBeenCalledOnce();
+      });
+      expect(change).not.toHaveBeenCalled();
+
+      await act(async () => {
+        resetGate.open();
+        await resetGate.promise;
+      });
+      expect(change).toHaveBeenCalledExactlyOnceWith('warehouse-yard-morning', '/warehouses/80000003-0000-4000-8000-000000000000');
     });
   });
 

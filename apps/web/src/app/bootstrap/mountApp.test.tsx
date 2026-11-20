@@ -10,6 +10,7 @@ import {
   vi,
 } from 'vitest';
 
+import type { DemoScenarioControlValue } from '@/shared/api';
 import type { AppSectionValue } from '@/shared/routing';
 
 import { createInstallPromptSource } from '@/features/install-app';
@@ -45,8 +46,9 @@ const createLoaders = (): MockSectionLoadersValue => ({
 
 const createRoot = (): Root => ({ render: vi.fn(), unmount: vi.fn() });
 
-const mountAt = async (path: string, sectionLoaders: MockSectionLoadersValue): Promise<void> => {
+const mountAt = async (path: string, sectionLoaders: MockSectionLoadersValue, demoScenario?: DemoScenarioControlValue): Promise<void> => {
   await mountApp({
+    demoScenario,
     installPromptSource: createInstallPromptSource(window),
     localizer: await createTestLocalizer(),
     locationSource: createMemoryLocation(path),
@@ -90,6 +92,26 @@ describe('mountApp', () => {
     await expect(mountAt('/', loaders)).rejects.toBe(START_FAILURE);
 
     expect(loaders.network.mock.calls).toHaveLength(1);
+  });
+
+  it('uses the selected demo world and reads its persona separately from the standard world', async () => {
+    const loaders = createLoaders();
+    const standardContext = { organizationId: 'standard-org', userId: 'standard-user' };
+    const morningContext = { organizationId: 'morning-org', userId: 'morning-user' };
+    window.sessionStorage.setItem('acting-context', JSON.stringify(standardContext));
+    window.sessionStorage.setItem('acting-context:warehouse-yard-morning', JSON.stringify(morningContext));
+    vi.mocked(createApiRuntime).mockRejectedValue(START_FAILURE);
+
+    await expect(mountAt('/warehouse', loaders, { change: () => true, current: 'warehouse-yard-morning' })).rejects.toBe(START_FAILURE);
+
+    expect(createApiRuntime).toHaveBeenLastCalledWith(expect.objectContaining({
+      demoScenario: 'warehouse-yard-morning',
+      preferredContext: morningContext,
+    }));
+
+    await expect(mountAt('/warehouse', loaders)).rejects.toBe(START_FAILURE);
+
+    expect(createApiRuntime).toHaveBeenLastCalledWith(expect.objectContaining({ preferredContext: standardContext }));
   });
 
   it('keeps starting when the section chunk fails to load', async () => {

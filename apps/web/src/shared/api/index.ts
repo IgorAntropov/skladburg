@@ -64,6 +64,7 @@ export { useActingContext } from './react/useActingContext';
 export { useApiClient } from './react/useApiClient';
 export { useRealtimeChannel } from './react/useApiRuntime';
 export { useDemoControl } from './react/useDemoControl';
+export { useDemoScenario } from './react/useDemoScenario';
 export { useErrorJournal } from './react/useErrorJournal';
 export type { SwitchActingContextResultValue } from './react/useSwitchActingContext';
 export { useSwitchActingContext } from './react/useSwitchActingContext';
@@ -78,15 +79,25 @@ export type {
 export type {
   ApiRuntimeValue,
   CreateApiRuntimeOptionsValue,
+  DemoScenarioControlValue,
   QueryNetworkModeValue,
 } from './runtime/apiRuntimeTypes';
 export { createApiRuntime } from './runtime/createApiRuntime';
+export {
+  getDemoScenarioContextKey,
+  readDemoScenario,
+  WAREHOUSE_YARD_MORNING_ORGANIZATION_ID,
+  WAREHOUSE_YARD_MORNING_WAREHOUSE_ID,
+  writeDemoScenario,
+} from './runtime/demoScenarioStorage';
 export type { InitialPersonaPreferenceValue } from './runtime/selectInitialPersona';
 export { selectInitialPersona } from './runtime/selectInitialPersona';
 export type {
   DemoEngineStatusValue,
   DemoPersonaListItemValue,
+  DemoScenarioValue,
   IDemoControl,
 } from './transport/demo';
 export { DemoPersonaGroup } from './transport/demo/demoPersonaGroup';
 export { DemoPersonaKind } from './transport/demo/demoPersonaKind';
+export { WAREHOUSE_YARD_MORNING } from './transport/demo/demoScenario';

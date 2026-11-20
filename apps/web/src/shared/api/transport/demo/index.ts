@@ -10,5 +10,6 @@ export { DemoPersonaGroup } from './demoPersonaGroup';
 export { DemoPersonaKind } from './demoPersonaKind';
 export type {
   DemoPersonaListItemValue,
+  DemoScenarioValue,
   IEngineConnection,
 } from '@skladburg/demo-engine/client';

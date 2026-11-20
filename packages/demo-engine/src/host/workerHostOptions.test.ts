@@ -197,6 +197,51 @@ describe('worker host options', () => {
     }
   });
 
+  it('isolates the morning yard database and coordination from the standard world', async () => {
+    const lockManager = createFakeLockManager();
+    const channelNames: string[] = [];
+    const scope = {
+      ...fakeScope.scope,
+      BroadcastChannel: class extends BroadcastChannel {
+        public constructor(name: string) {
+          super(name);
+          channelNames.push(name);
+        }
+      },
+      navigator: { locks: lockManager },
+    };
+    const standard = createWorkerHostOptions(scope);
+    const morning = createWorkerHostOptions({ ...scope, name: 'warehouse-yard-morning' });
+    const standardStorage = await standard.openStorage();
+    const morningStorage = await morning.openStorage();
+    const standardChannel = standard.broadcastChannelFactory('engine-test-channel');
+    const morningChannel = morning.broadcastChannelFactory('engine-test-channel');
+    const { signal } = new AbortController();
+
+    try {
+      await standard.lockManager?.request('engine-test-lock', { signal }, () => Promise.resolve());
+      await morning.lockManager?.request('engine-test-lock', { signal }, () => Promise.resolve());
+
+      expect(morning).toMatchObject({ demoScenario: 'warehouse-yard-morning' });
+      expect((await indexedDB.databases()).map(database => database.name)).toEqual(expect.arrayContaining([
+        'skladburg-demo-engine',
+        'skladburg-demo-engine:warehouse-yard-morning',
+      ]));
+      expect(channelNames).toEqual(['engine-test-channel', 'engine-test-channel:warehouse-yard-morning']);
+      expect(lockManager.requestedNames()).toEqual(['engine-test-lock', 'engine-test-lock:warehouse-yard-morning']);
+    }
+    finally {
+      standardChannel.close();
+      morningChannel.close();
+      if (standardStorage.kind === 'indexed-db') {
+        standardStorage.storage.close();
+      }
+      if (morningStorage.kind === 'indexed-db') {
+        morningStorage.storage.close();
+      }
+    }
+  });
+
   it('runs a working leader host over the scope', async () => {
     host = createEngineHost(createWorkerHostOptions(fakeScope.scope));
     const organization = createOrganizationClient();

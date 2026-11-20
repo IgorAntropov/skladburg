@@ -1,5 +1,6 @@
 import type { Event } from '@skladburg/contracts/event/v1/event';
 
+import type { DemoScenarioValue } from '../../protocol/demoScenario';
 import type { EngineSubscriptionValue } from '../events/index';
 import type { ReceivingManifestValue } from '../modules/wms/inboundPlan';
 import type {
@@ -11,6 +12,7 @@ import type { DemoPersonaListItemValue } from '../protocol';
 import type { EngineSeedValue } from '../seed/seedConfig';
 
 export interface CreateEngineOptionsValue {
+  demoScenario?: DemoScenarioValue | undefined;
   epoch: string;
   generateLayoutSessionId?: (() => string) | undefined;
   isDemoWarehouseEnabled?: boolean | undefined;

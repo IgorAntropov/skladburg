@@ -2,6 +2,7 @@ import type { BlockerValue } from './blockers';
 import type {
   BlockedHandlerValue,
   ILocationSource,
+  LeaveScopeValue,
   LocationSnapshotValue,
   NavigateOptionsValue,
   ShouldBlockValue,
@@ -220,7 +221,7 @@ export const createHashLocation = (target: Window): ILocationSource => {
     navigate,
     read,
     reload,
-    requestLeave: (action): void => { requestGuardedLeave(blockers, action); },
+    requestLeave: (action, scope: LeaveScopeValue | undefined): void => { requestGuardedLeave(blockers, action, scope); },
     subscribe,
   };
 };

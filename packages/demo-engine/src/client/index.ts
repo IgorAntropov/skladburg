@@ -1,6 +1,10 @@
 export type { EngineChannelPositionValue } from '../core/events/index';
 export type { DemoPersonaValue } from '../core/state/index';
 export {
+  type DemoScenarioValue,
+  WAREHOUSE_YARD_MORNING,
+} from '../protocol/demoScenario';
+export {
   DEMO_USER_HEADER,
   DemoPersonaGroup,
   DemoPersonaKind,

@@ -18,13 +18,16 @@ export const getTabStorage = (target: Window): Storage | undefined => {
   }
 };
 
-export const readPersistedActingContext = (storage: Storage | undefined): ActingContextValue | undefined => {
+export const readPersistedActingContext = (
+  storage: Storage | undefined,
+  key: string = ACTING_CONTEXT_STORAGE_KEY,
+): ActingContextValue | undefined => {
   if (storage === undefined) {
     return undefined;
   }
 
   try {
-    const raw = storage.getItem(ACTING_CONTEXT_STORAGE_KEY);
+    const raw = storage.getItem(key);
 
     if (raw === null) {
       return undefined;
@@ -52,14 +55,18 @@ export const readPersistedActingContext = (storage: Storage | undefined): Acting
   }
 };
 
-export const writePersistedActingContext = (storage: Storage | undefined, context: ActingContextValue): void => {
+export const writePersistedActingContext = (
+  storage: Storage | undefined,
+  context: ActingContextValue,
+  key: string = ACTING_CONTEXT_STORAGE_KEY,
+): void => {
   if (storage === undefined) {
     return;
   }
 
   try {
     storage.setItem(
-      ACTING_CONTEXT_STORAGE_KEY,
+      key,
       JSON.stringify({ organizationId: context.organizationId, userId: context.userId }),
     );
   }
@@ -68,10 +75,10 @@ export const writePersistedActingContext = (storage: Storage | undefined, contex
   }
 };
 
-export const persistActingContext = (store: IActingContextStore, storage: Storage | undefined): () => void => {
-  writePersistedActingContext(storage, store.get());
+export const persistActingContext = (store: IActingContextStore, storage: Storage | undefined, key?: string): () => void => {
+  writePersistedActingContext(storage, store.get(), key);
 
   return store.subscribe(() => {
-    writePersistedActingContext(storage, store.get());
+    writePersistedActingContext(storage, store.get(), key);
   });
 };

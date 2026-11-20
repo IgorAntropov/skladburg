@@ -7,11 +7,13 @@ import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import {
   Building2,
   RotateCcw,
+  Truck,
   UserRound,
 } from 'lucide-react';
 import {
   useEffect,
   useRef,
+  useState,
 } from 'react';
 
 import type { AppSectionValue } from '@/shared/routing';
@@ -32,10 +34,15 @@ import { ThemeMenuRadioGroup } from '@/features/switch-theme';
 import {
   useActingContext,
   useDemoControl,
+  useDemoScenario,
+  WAREHOUSE_YARD_MORNING,
 } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
 import { useViewportClass } from '@/shared/lib/viewport';
-import { useNavigate } from '@/shared/routing';
+import {
+  useNavigate,
+  useRequestLeave,
+} from '@/shared/routing';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +52,8 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/ui';
 
+import { demoScenarioCatalog } from '../../i18n/demoScenarioRu';
+import { MORNING_YARD_PATH } from '../../lib/morningYardPath';
 import { PROFILE_MENU_FOCUS_KEY } from '../../lib/profileMenuFocusKey';
 import { ProfileButton } from '../ProfileButton';
 import { ProfileMenuHeader } from './ProfileMenuHeader';
@@ -80,7 +89,10 @@ export interface ProfileMenuProps {
   sections: readonly AppSectionValue[];
 }
 
-type ProfileMenuItemsProps = Omit<ProfileMenuProps, 'buttonRef' | 'isOpen' | 'onOpenChange'>;
+interface ProfileMenuItemsProps extends Omit<ProfileMenuProps, 'buttonRef' | 'isOpen' | 'onOpenChange'> {
+  hasScenarioChangeFailed: boolean;
+  onScenarioChangeFailure: () => void;
+}
 
 const focusFirstMenuItem = (root: HTMLElement): void => {
   for (const item of root.querySelectorAll<HTMLElement>(MENU_ITEM_SELECTOR)) {
@@ -94,17 +106,21 @@ const focusFirstMenuItem = (root: HTMLElement): void => {
 
 const ProfileMenuItems = ({
   currentSection,
+  hasScenarioChangeFailed,
   isFirstItemFocused,
   onInstallInstructionsRequest,
   onMyProfileRequest,
   onResetRequest,
+  onScenarioChangeFailure,
   sections,
 }: ProfileMenuItemsProps): ReactElement => {
-  const { t } = useI18n();
+  const { createSectionTranslator, t } = useI18n();
   const demoControl = useDemoControl();
+  const demoScenario = useDemoScenario();
   const { organizationId } = useActingContext();
   const canViewNetwork = useCan(PermissionCode.NETWORK_VIEW);
   const navigate = useNavigate();
+  const requestLeave = useRequestLeave();
   const { open: openRequisites } = useRequisitesView();
   const viewportClass = useViewportClass();
   const isDemoResetAvailable = useIsDemoResetAvailable();
@@ -115,7 +131,10 @@ const ProfileMenuItems = ({
   const isSectionsShown = viewportClass === 'phone' && sections.length > 0;
   const isScrollPartShown = isSectionsShown || isDemoActive;
   const isSectionsSeparatorShown = isSectionsShown && isDemoActive;
-  const isServicePartShown = isInstallAppAvailable || isDemoResetAvailable;
+  const canChangeScenario = isDemoActive && demoScenario !== undefined;
+  const isMorningYardActive = demoScenario?.current === WAREHOUSE_YARD_MORNING;
+  const isServicePartShown = isInstallAppAvailable || isDemoResetAvailable || canChangeScenario;
+  const scenarioText = createSectionTranslator(demoScenarioCatalog);
 
   const handleMyProfileSelect = (): void => {
     console.log('> ProfileMenu -> handleMyProfileSelect:', {});
@@ -136,6 +155,21 @@ const ProfileMenuItems = ({
   const handleResetSelect = (): void => {
     console.log('> ProfileMenu -> handleResetSelect:', {});
     onResetRequest();
+  };
+
+  const handleScenarioSelect = (event: Event): void => {
+    if (demoScenario === undefined) {
+      return;
+    }
+
+    const nextScenario = isMorningYardActive ? undefined : WAREHOUSE_YARD_MORNING;
+    const path = isMorningYardActive ? '/' : MORNING_YARD_PATH;
+    requestLeave(() => {
+      if (!demoScenario.change(nextScenario, path)) {
+        event.preventDefault();
+        onScenarioChangeFailure();
+      }
+    }, 'all');
   };
 
   useEffect(() => {
@@ -181,10 +215,22 @@ const ProfileMenuItems = ({
           <>
             <DropdownMenuSeparator />
             <InstallAppMenuItem onInstructionsRequest={onInstallInstructionsRequest} />
+            {canChangeScenario && (
+              <DropdownMenuItem
+                onSelect={handleScenarioSelect}
+                testId={isMorningYardActive ? 'profile-menu-yard-morning-exit' : 'profile-menu-yard-morning'}
+              >
+                <Truck aria-hidden className="size-4 shrink-0 text-on-panel-muted" />
+                {scenarioText(isMorningYardActive ? 'demoScenario.exit' : 'demoScenario.morningYard')}
+              </DropdownMenuItem>
+            )}
+            {hasScenarioChangeFailed && (
+              <p className="px-3 py-1 text-sm" role="alert">{scenarioText('demoScenario.failed')}</p>
+            )}
             {isDemoResetAvailable && (
               <DropdownMenuItem onSelect={handleResetSelect} testId="profile-menu-reset">
                 <RotateCcw aria-hidden className="size-4 shrink-0 text-on-panel-muted" />
-                {t('demo.reset.menuItem')}
+                {isMorningYardActive ? scenarioText('demoScenario.reset.menuItem') : t('demo.reset.menuItem')}
               </DropdownMenuItem>
             )}
           </>
@@ -202,6 +248,7 @@ export const ProfileMenu = ({
 }: ProfileMenuProps): ReactElement => {
   const { t } = useI18n();
   const isResetPending = useIsDemoResetPending();
+  const [hasScenarioChangeFailed, setHasScenarioChangeFailed] = useState(false);
 
   const handleOpenChange = (nextIsOpen: boolean): void => {
     console.log('> ProfileMenu -> handleOpenChange:', { isResetPending, nextIsOpen });
@@ -211,13 +258,22 @@ export const ProfileMenu = ({
     onOpenChange(nextIsOpen);
   };
 
+  const handleScenarioChangeFailure = (): void => {
+    setHasScenarioChangeFailed(true);
+    onOpenChange(true);
+  };
+
   return (
     <DropdownMenu onOpenChange={handleOpenChange} open={isOpen}>
       <DropdownMenuTrigger>
         <ProfileButton busyReason={isResetPending ? 'resetting' : undefined} buttonRef={buttonRef} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" label={t('profile.menu.label')} testId="profile-menu" width="profile">
-        <ProfileMenuItems {...itemsProps} />
+        <ProfileMenuItems
+          {...itemsProps}
+          hasScenarioChangeFailed={hasScenarioChangeFailed}
+          onScenarioChangeFailure={handleScenarioChangeFailure}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   );

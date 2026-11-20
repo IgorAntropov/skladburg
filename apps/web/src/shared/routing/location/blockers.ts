@@ -1,5 +1,6 @@
 import type {
   BlockedHandlerValue,
+  LeaveScopeValue,
   ShouldBlockValue,
 } from './locationTypes';
 
@@ -21,8 +22,8 @@ export const askLastTriggered = (triggered: readonly BlockerValue[], proceed: ()
   }
 };
 
-export const requestGuardedLeave = (blockers: readonly BlockerValue[], action: () => void): void => {
-  const triggered = blockers.filter(({ isContextChangeGuarded }) => isContextChangeGuarded);
+export const requestGuardedLeave = (blockers: readonly BlockerValue[], action: () => void, scope: LeaveScopeValue = 'context'): void => {
+  const triggered = scope === 'all' ? blockers : blockers.filter(({ isContextChangeGuarded }) => isContextChangeGuarded);
   if (triggered.length === 0) {
     action();
 

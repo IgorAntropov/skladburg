@@ -3,6 +3,7 @@ import type {
   IDemoEngine,
 } from '../core/engine/index';
 import type { IRealTimeSource } from '../core/ports/index';
+import type { DemoScenarioValue } from '../protocol/demoScenario';
 import type { IEnginePort } from '../protocol/index';
 import type { OpenedEngineStorageValue } from './storage/index';
 
@@ -14,6 +15,7 @@ export interface CoreModuleValue {
 export interface CreateEngineHostOptionsValue {
   broadcastChannelFactory: IBroadcastChannelFactory;
   checkpointIntervalMs?: number;
+  demoScenario?: DemoScenarioValue | undefined;
   generateId: () => string;
   isDemoWarehouseEnabled?: boolean | undefined;
   loadCore: () => Promise<CoreModuleValue>;

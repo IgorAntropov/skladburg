@@ -1,5 +1,6 @@
 import type { IDemoEngine } from '../core/engine/index';
 import type { IRealTimeSource } from '../core/ports/index';
+import type { DemoScenarioValue } from '../protocol/demoScenario';
 import type { EngineStatusValue } from '../protocol/index';
 import type { CoreModuleValue } from './hostTypes';
 import type { OpenedEngineStorageValue } from './storage/index';
@@ -8,6 +9,7 @@ import type { IStorageHealthMonitor } from './storageHealthMonitor';
 import { createMemoryStorage } from '../core/ports/index';
 
 export interface EngineStartupOptionsValue {
+  demoScenario?: DemoScenarioValue | undefined;
   generateId: () => string;
   isDemoWarehouseEnabled?: boolean | undefined;
   loadCore: () => Promise<CoreModuleValue>;
@@ -65,6 +67,7 @@ export const startEngine = async (options: EngineStartupOptionsValue): Promise<S
   const { core: { createEngine, isSeedLoadError }, opened } = await loadCoreAndOpenStorage(options);
 
   const create = (storage: OpenedEngineStorageValue['storage']): Promise<IDemoEngine> => createEngine({
+    demoScenario: options.demoScenario,
     epoch: options.generateId(),
     generateLayoutSessionId: options.generateId,
     isDemoWarehouseEnabled: options.isDemoWarehouseEnabled,

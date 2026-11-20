@@ -108,6 +108,18 @@ describe('createHashLocation block', () => {
       expect(leave).toHaveBeenCalledOnce();
       expect(blocked).not.toHaveBeenCalled();
     });
+
+    it('includes a navigation-only blocker when leaving the entire world', () => {
+      const { blocked, location } = createBlockedLocation();
+      const leave = vi.fn<() => void>();
+
+      location.requestLeave(leave, 'all');
+
+      expect(leave).not.toHaveBeenCalled();
+      getProceed(blocked)();
+      expect(leave).toHaveBeenCalledOnce();
+      expect(location.read().path).toBe('/');
+    });
   });
 
   describe('navigate', () => {

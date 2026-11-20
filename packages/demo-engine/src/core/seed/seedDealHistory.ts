@@ -4,6 +4,7 @@ import type {
   MessageInitShape,
   MessageShape,
 } from '@bufbuild/protobuf';
+import type { Deal } from '@skladburg/contracts/deal/v1/deal';
 
 import {
   create,
@@ -57,9 +58,32 @@ export interface HistoryRouteValue {
   supplier: HistoryPartyValue;
 }
 
+export interface HistoryTransportContextValue {
+  call: IHistoryCall;
+  customerHeaders: Record<string, string>;
+  deal: Deal;
+  nextId: () => string;
+}
+
+export type IHistoryCall = <TInput extends DescMessage, TOutput extends DescMessage>(
+  method: DescMethodUnary & { input: TInput; output: TOutput },
+  input: MessageInitShape<TInput>,
+  headers: Record<string, string>,
+) => Promise<MessageShape<TOutput>>;
+
+interface FundedOrderValue {
+  customerHeaders: Record<string, string>;
+  dealId: string;
+  order: HistoryOrderValue;
+  submitCarrierTitle: (() => Promise<void>) | undefined;
+  supplierHeaders: Record<string, string>;
+}
+
 interface HistoryOrderValue {
+  isUrgent?: boolean | undefined;
   listingId: string;
   manifest?: ReceivingManifestValue | undefined;
+  prepareTransport?: ((context: HistoryTransportContextValue) => Promise<(() => Promise<void>) | undefined>) | undefined;
   quantity: bigint;
   submittedAtMs: number;
 }
@@ -170,13 +194,13 @@ export const addSeedDealHistory = async (
     await engine.tick();
   };
 
-  const tickAtBankDeadline = async (dealId: string): Promise<void> => {
-    const record = requireSeedValue((await storage.load())?.collections.payments.get(dealId), 'payment record');
+  const readBankDeadlineMs = (current: EngineSnapshotValue | undefined, dealId: string): number => {
+    const record = requireSeedValue(current?.collections.payments.get(dealId), 'payment record');
     const dueAt = requireSeedValue(TABLE_DEFINITIONS.payments.decode(record).bankDueAt, 'bank deadline');
-    await tickAt(timestampMs(dueAt));
+    return timestampMs(dueAt);
   };
 
-  const replayOrder = async (route: HistoryRouteValue, order: HistoryOrderValue): Promise<void> => {
+  const fundOrder = async (route: HistoryRouteValue, order: HistoryOrderValue): Promise<FundedOrderValue> => {
     const customerHeaders = partyHeaders(route.customer);
     const supplierHeaders = partyHeaders(route.supplier);
     elapsedMs = order.submittedAtMs - HISTORY_START_MS;
@@ -185,6 +209,7 @@ export const addSeedDealHistory = async (
       dealId,
       desiredDate: HISTORY_DATE,
       idempotencyKey: nextId(),
+      isUrgent: order.isUrgent,
       lines: [{ listingId: order.listingId, quantity: order.quantity }],
       shipFromCityId: route.cityId,
       shipToWarehouseId: route.customer.warehouseId,
@@ -203,12 +228,19 @@ export const addSeedDealHistory = async (
       idempotencyKey: nextId(),
       shipFromWarehouseId: route.supplier.warehouseId,
     }, supplierHeaders);
-    await call(deals.chooseDelivery, {
-      dealId,
-      deliveryMethod: DeliveryMethod.CUSTOMER,
-      expectedVersion: requireSeedValue(confirmed, 'confirmed deal').version,
-      idempotencyKey: nextId(),
-    }, customerHeaders);
+    const confirmedDeal = requireSeedValue(confirmed, 'confirmed deal');
+    let submitCarrierTitle: (() => Promise<void>) | undefined;
+    if (order.prepareTransport === undefined) {
+      await call(deals.chooseDelivery, {
+        dealId,
+        deliveryMethod: DeliveryMethod.CUSTOMER,
+        expectedVersion: confirmedDeal.version,
+        idempotencyKey: nextId(),
+      }, customerHeaders);
+    }
+    else {
+      submitCarrierTitle = await order.prepareTransport({ call, customerHeaders, deal: confirmedDeal, nextId });
+    }
 
     const folder = await call(documents.listDealDocuments, { dealId }, supplierHeaders);
     for (const document of folder.documents) {
@@ -227,15 +259,19 @@ export const addSeedDealHistory = async (
     }
 
     const invoiceTerms = folder.documents.find(document => document.type === DocumentType.INVOICE)?.content?.terms;
-    const amount = requireSeedValue(invoiceTerms?.case === 'invoice' ? invoiceTerms.value.total : undefined, 'invoice total');
     const { payment } = await call(payments.getDealPayment, { dealId }, customerHeaders);
+    const amount = requireSeedValue(payment?.fundedAmount ?? (invoiceTerms?.case === 'invoice' ? invoiceTerms.value.total : undefined),
+      'payment amount');
     await call(payments.fundDeal, {
       amount,
       dealId,
       expectedVersion: requireSeedValue(payment, 'issued invoice').version,
       idempotencyKey: nextId(),
     }, customerHeaders);
-    await tickAtBankDeadline(dealId);
+    return { customerHeaders, dealId, order, submitCarrierTitle, supplierHeaders };
+  };
+
+  const shipOrder = async ({ dealId, order, supplierHeaders }: FundedOrderValue): Promise<number> => {
     const { deal: paid } = await call(deals.getDeal, { dealId }, supplierHeaders);
     if (order.manifest !== undefined) {
       manifests.set(dealId, order.manifest);
@@ -243,27 +279,50 @@ export const addSeedDealHistory = async (
     const { deal: shipped } = await call(deals.markDealShipped, {
       dealId, expectedVersion: requireSeedValue(paid, 'paid deal').version, idempotencyKey: nextId(),
     }, supplierHeaders);
-    await tickAt(timestampMs(requireSeedValue(shipped?.deadlines?.arrivalDueAt, 'arrival deadline')));
+    return timestampMs(requireSeedValue(shipped?.deadlines?.arrivalDueAt, 'arrival deadline'));
+  };
+
+  const receiveOrder = async ({ customerHeaders, dealId, order, submitCarrierTitle }: FundedOrderValue): Promise<void> => {
     const { deal: arrived } = await call(deals.getDeal, { dealId }, customerHeaders);
     if (order.manifest !== undefined) {
       if (arrived?.status !== DealStatus.ARRIVED) {
         throw new Error(`Seed deal ${dealId} did not arrive`);
       }
+      await submitCarrierTitle?.();
       return;
     }
     await call(deals.acceptDeal, {
       dealId, expectedVersion: requireSeedValue(arrived, 'arrived deal').version, idempotencyKey: nextId(),
     }, customerHeaders);
-    await tickAtBankDeadline(dealId);
+    await tickAt(readBankDeadlineMs(await storage.load(), dealId));
     const { deal: closed } = await call(deals.getDeal, { dealId }, customerHeaders);
     if (closed?.status !== DealStatus.CLOSED) {
       throw new Error(`Seed deal ${dealId} did not close`);
     }
   };
 
+  const transportOrders: FundedOrderValue[] = [];
   for (const route of [...HISTORY_ROUTES, ...receivingRoutes]) {
     for (const order of route.orders) {
-      await replayOrder(route, order);
+      const funded = await fundOrder(route, order);
+      if (order.prepareTransport === undefined) {
+        await tickAt(readBankDeadlineMs(await storage.load(), funded.dealId));
+        await tickAt(await shipOrder(funded));
+        await receiveOrder(funded);
+      }
+      else {
+        transportOrders.push(funded);
+      }
+    }
+  }
+  if (transportOrders.length > 0) {
+    const fundedSnapshot = await storage.load();
+    const bankDeadlines = transportOrders.map(({ dealId }) => readBankDeadlineMs(fundedSnapshot, dealId));
+    await tickAt(Math.max(...bankDeadlines));
+    const arrivalTimes = await Promise.all(transportOrders.map(shipOrder));
+    await tickAt(Math.max(...arrivalTimes));
+    for (const order of transportOrders) {
+      await receiveOrder(order);
     }
   }
 

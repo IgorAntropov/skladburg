@@ -25,6 +25,7 @@ import type {
   IDemoEngine,
 } from './engineTypes';
 
+import { WAREHOUSE_YARD_MORNING } from '../../protocol/demoScenario';
 import { createCallGuard } from '../access/index';
 import { engineTabIdKey } from '../context/engineRequestContext';
 import { createDomainErrors } from '../errors/index';
@@ -506,7 +507,7 @@ export const createEngineWithTasks = async (
 
 const loadDemoSeedSnapshot = async (
   seed: EngineSeedValue | undefined,
-  isDemoWarehouseEnabled: boolean | undefined,
+  { demoScenario, isDemoWarehouseEnabled }: Pick<CreateEngineOptionsValue, 'demoScenario' | 'isDemoWarehouseEnabled'>,
 ): Promise<EngineSnapshotValue> => {
   const snapshot = await loadSeedSnapshot(seed);
 
@@ -515,20 +516,23 @@ const loadDemoSeedSnapshot = async (
   }
 
   try {
-    const [{ addSeedDealHistory }, receiving] = await Promise.all([
+    const isMorningYard = demoScenario === WAREHOUSE_YARD_MORNING;
+    const [{ addSeedDealHistory }, receiving, morning] = await Promise.all([
       import('../seed/seedDealHistory'),
-      isDemoWarehouseEnabled === true ? import('../seed/seedReceivingExamples') : undefined,
+      !isMorningYard && isDemoWarehouseEnabled === true ? import('../seed/seedReceivingExamples') : undefined,
+      isMorningYard ? import('../seed/seedMorningYard') : undefined,
     ]);
-    const examples = receiving?.createSeedReceivingExamples(snapshot);
+    const examples = morning?.createMorningYardExamples(snapshot) ?? receiving?.createSeedReceivingExamples(snapshot);
 
-    return await addSeedDealHistory(examples?.snapshot ?? snapshot, (storage, realTime, wmsInboundManifests) =>
+    const replayed = await addSeedDealHistory(examples?.snapshot ?? snapshot, (storage, realTime, wmsInboundManifests) =>
       createEngineWithTasks({
         epoch: 'seed',
         realTime,
         storage,
         wmsInboundManifests,
         wmsInboundWarehouseIds: examples?.routes.map(route => route.customer.warehouseId),
-      }, runtime => [createDeferredPaymentTask(runtime)]), examples?.routes);
+      }, morning?.createMorningYardReplayTasks ?? (runtime => [createDeferredPaymentTask(runtime)])), examples?.routes);
+    return morning?.parkMorningYardVisits(replayed) ?? replayed;
   }
   catch (error) {
     throw new SeedLoadError(error);
@@ -536,4 +540,4 @@ const loadDemoSeedSnapshot = async (
 };
 
 export const createEngine = (options: CreateEngineOptionsValue): Promise<IDemoEngine> =>
-  createEngineWithTasks(options, createEngineTasks, seed => loadDemoSeedSnapshot(seed, options.isDemoWarehouseEnabled));
+  createEngineWithTasks(options, createEngineTasks, seed => loadDemoSeedSnapshot(seed, options));

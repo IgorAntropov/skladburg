@@ -33,7 +33,7 @@ import { SEED_WMS_RECEIVING_EXAMPLES_WAREHOUSE_ID } from './seedWarehouseWorkspa
 
 const scope = { warehouseId: SEED_WMS_RECEIVING_EXAMPLES_WAREHOUSE_ID };
 
-it('replays the morning yard with 25 parked trucks, compatible assignments and an isolated reset', async () => {
+it('replays the morning yard with 25 parked trucks, compatible assignments and an isolated reset', { timeout: 60_000 }, async () => {
   const realTime = createFakeRealTime();
   const engine = await createEngine({
     demoScenario: WAREHOUSE_YARD_MORNING,

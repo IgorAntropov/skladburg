@@ -5,3 +5,7 @@ package wms.v1;
 message WarehouseStaffPresenceChanged {
   string warehouse_id = 1;
 }
+
+message WarehouseStaffProfilesChanged {
+  string warehouse_id = 1;
+}

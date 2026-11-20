@@ -27,6 +27,10 @@ import {
 import { PICKING_TEXT } from './warehouseFormatting';
 import { WarehouseScanner } from './WarehouseScanner';
 import { WarehouseStockLines } from './WarehouseStockLines';
+import {
+  WarehouseClaimButton,
+  WarehouseTaskQualifications,
+} from './WarehouseTaskQualifications';
 import { WarehouseVehicleMarking } from './WarehouseVehicleMarking';
 
 interface WarehousePickingProps {
@@ -81,6 +85,7 @@ export const WarehousePicking = ({ canViewDeals, cells, marking, onChanged, t, t
         <h3 className="font-semibold">{t('warehouseWork.picking')}</h3>
         <p className="text-sm text-on-panel-muted">{t(PICKING_TEXT[task.status])}</p>
       </header>
+      <WarehouseTaskQualifications required={task.requiredQualifications} t={t} />
       <WarehouseVehicleMarking marking={marking} t={t} />
       {canViewDeals && (
         <TextLink size="sm" to={{ kind: 'object', object: { id: task.dealId, type: 'deal' } }}>{t('warehouseWork.deal')}</TextLink>
@@ -132,7 +137,7 @@ export const WarehousePicking = ({ canViewDeals, cells, marking, onChanged, t, t
       </ul>
       {!isAssigned && (isPicking || isPicked) && <p className="text-sm text-on-panel-muted">{t('warehouseWork.workByOther')}</p>}
       {isOpen && (
-        <ActionButton access={claimAccess} command={claim} data-testid="warehouse-claim-picking">{t('warehouseWork.claim')}</ActionButton>
+        <WarehouseClaimButton access={claimAccess} command={claim} t={t} testId="warehouse-claim-picking" />
       )}
       {isAssigned && isPicking && (
         <ActionButton access={confirmAccess} command={confirm} data-testid="warehouse-confirm-picking" isDisabled={!hasAllChecked}>

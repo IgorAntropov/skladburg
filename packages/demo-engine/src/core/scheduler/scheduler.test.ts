@@ -323,6 +323,10 @@ const createSeedSnapshotPersonaIds = (): string[] => [
   SeedPersonaId.CONSTRUCTION_CARRIER,
   SeedPersonaId.CONSTRUCTION_STOREKEEPER,
   SeedPersonaId.FRESH_BUYER,
+  SeedPersonaId.WAREHOUSE_LEAD,
+  SeedPersonaId.WAREHOUSE_OPERATOR,
+  SeedPersonaId.WAREHOUSE_PICKER,
+  SeedPersonaId.COMPANY_ADMIN,
 ].sort();
 
 describe('engine scheduler deadlines', () => {

@@ -95,7 +95,7 @@ const prepareArrival = async (page: Page): Promise<WarehouseUnloadingPoint> => {
     expect(empty.tasks).toHaveLength(0);
     const area = required(topology?.receivingArea, 'the Moscow receiving area');
     const dock = required(area.unloadingPoint, 'the Moscow unloading point');
-    const task = required(source.tasks[0], 'a seeded receiving task');
+    const task = required(source.tasks.find(candidate => candidate.requiredQualifications.length === 0), 'a standard receipt');
     const { deal } = await call(seed, DealService.method.getDeal, { dealId: task.dealId });
     return { areaId: area.id, deal: required(deal, 'the seeded deal'), dock, task };
   };

@@ -406,4 +406,25 @@ enum PermissionCode {
       PROFILE_KIND_CARRIER
     ]
   }];
+  PERMISSION_CODE_STAFF_PROFILE_VIEW = 71 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_STAFF_QUALIFICATION_VIEW = 72 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
+  PERMISSION_CODE_STAFF_PERFORMANCE_VIEW = 73 [(permission_traits) = {
+    profiles: [
+      PROFILE_KIND_CUSTOMER,
+      PROFILE_KIND_SUPPLIER
+    ]
+    is_scope_applicable: true
+  }];
 }

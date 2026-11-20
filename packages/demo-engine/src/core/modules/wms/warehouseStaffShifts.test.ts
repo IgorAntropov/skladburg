@@ -1,3 +1,4 @@
+import { staffProfilesChannel } from '@skladburg/contracts/runtime';
 import {
   expect,
   it,
@@ -5,7 +6,11 @@ import {
 
 import { SEED_WAREHOUSE_STAFF_SCHEDULES } from '../../seed/seedWarehouseStaffSchedules';
 import { SEED_WMS_RECEIVING_EXAMPLES_WAREHOUSE_ID } from '../../seed/seedWarehouseWorkspaceConfig';
-import { getWarehouseShiftPlan } from './warehouseStaffShifts';
+import { createTestRuntime } from '../testing/testRuntime';
+import {
+  getWarehouseShiftPlan,
+  publishWarehouseShiftChanges,
+} from './warehouseStaffShifts';
 
 const assignments = SEED_WAREHOUSE_STAFF_SCHEDULES.get(SEED_WMS_RECEIVING_EXAMPLES_WAREHOUSE_ID) ?? [];
 const time = (hour: number, minute: number): number => Date.UTC(2026, 9, 12, hour, minute);
@@ -27,4 +32,17 @@ it.each([
 it('uses the warehouse time zone for the same instant', () => {
   const { shift } = getWarehouseShiftPlan(assignments, time(9, 0), 'Asia/Novosibirsk');
   expect(shift).toEqual({ offSiteCount: 0, onBreakCount: 0, onShiftCount: 3 });
+});
+
+it('refreshes private profiles at warehouse midnight even without a shift schedule', async () => {
+  const { events, runtime } = createTestRuntime();
+  const withoutShifts = { ...runtime, wmsStaffSchedules: undefined };
+  const channel = staffProfilesChannel(SEED_WMS_RECEIVING_EXAMPLES_WAREHOUSE_ID);
+  await publishWarehouseShiftChanges(withoutShifts, time(20, 58), time(20, 59));
+  expect(events.filter(event => event.channel === channel)).toHaveLength(0);
+  await publishWarehouseShiftChanges(withoutShifts, time(20, 59), time(21, 0));
+  expect(events.filter(event => event.channel === channel).map(event => event.payload)).toEqual([{
+    case: 'warehouseStaffProfilesChanged',
+    value: { $typeName: 'wms.v1.WarehouseStaffProfilesChanged', warehouseId: SEED_WMS_RECEIVING_EXAMPLES_WAREHOUSE_ID },
+  }]);
 });

@@ -14,7 +14,10 @@ import {
   warehouseChannel,
 } from './channels';
 import { layoutChannel } from './layoutChannel';
-import { staffChannel } from './staffChannel';
+import {
+  staffChannel,
+  staffProfilesChannel,
+} from './staffChannel';
 
 const organizationId = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';
 const userId = '8d14e6a2-0b3c-4f57-9a68-12cd45ef7890';
@@ -43,6 +46,11 @@ describe('channel names', () => {
 
   it('builds the market channel without an identifier', () => {
     expect(marketChannel()).toBe('market');
+  });
+
+  it('builds and parses the separate warehouse staff profiles channel', () => {
+    expect(staffProfilesChannel(warehouseId)).toBe(`staffprofiles:${warehouseId}`);
+    expect(parseChannel(staffProfilesChannel(warehouseId))).toEqual({ kind: 'staffprofiles', warehouseId });
   });
 
   it('builds an organization channel', () => {
@@ -83,6 +91,7 @@ describe('parseChannel', () => {
     'warehouse:',
     'layout:',
     'staff:',
+    'staffprofiles:',
     ':id',
     'deal:',
     'deal:id:extra',

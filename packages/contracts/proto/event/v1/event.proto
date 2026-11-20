@@ -38,5 +38,6 @@ message Event {
     wms.v1.WarehouseLayoutDraftsChanged warehouse_layout_drafts_changed = 22;
     wms.v1.YardQueuePolicyChanged yard_queue_policy_changed = 23;
     wms.v1.WarehouseStaffPresenceChanged warehouse_staff_presence_changed = 24;
+    wms.v1.WarehouseStaffProfilesChanged warehouse_staff_profiles_changed = 25;
   }
 }

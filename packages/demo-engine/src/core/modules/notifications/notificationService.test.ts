@@ -183,6 +183,13 @@ describe('NotificationService.listNotifications on the seed data', () => {
   it('shows every persona exactly its own starting notifications of its organization and counts the unread ones of the seed', async () => {
     const harness = createModuleHarness();
     const seeded = createSeedNotifications(SEED_WORLD_START_MS);
+    const emptyIds = new Set<string>([
+      SeedPersonaId.COMPANY_ADMIN,
+      SeedPersonaId.FRESH_BUYER,
+      SeedPersonaId.WAREHOUSE_LEAD,
+      SeedPersonaId.WAREHOUSE_OPERATOR,
+      SeedPersonaId.WAREHOUSE_PICKER,
+    ]);
 
     for (const persona of harness.state.read.list('personas')) {
       const own = seeded
@@ -196,7 +203,7 @@ describe('NotificationService.listNotifications on the seed data', () => {
 
       expect(response.notifications.map(notification => notification.id), persona.id).toEqual(expectedIds);
       expect(response.unreadCount, persona.id).toBe(own.filter(notification => notification.readAt === undefined).length);
-      expect(expectedIds.length === 0, persona.id).toBe(persona.id === SeedPersonaId.FRESH_BUYER);
+      expect(expectedIds.length === 0, persona.id).toBe(emptyIds.has(persona.id));
     }
   });
 

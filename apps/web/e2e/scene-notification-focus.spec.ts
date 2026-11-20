@@ -82,10 +82,10 @@ test.describe('notification center on the network map', () => {
     const scene = createSceneRobot(page);
 
     await scene.openNetworkAsPersona(PERSONAS.constructionCustomer.id);
+    await assistant.dismissReplica('digest');
     await scene.expectSceneState('ready');
     await scene.waitForCameraControls();
     await notifications.expectUnreadCount(STARTING_UNREAD_COUNT);
-    await assistant.dismissReplica('digest');
 
     await navigation.openSection('warehouse');
     await navigation.expectSection('warehouse');

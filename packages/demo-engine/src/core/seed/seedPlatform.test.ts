@@ -32,6 +32,7 @@ import {
   type IStateReader,
 } from '../state/index';
 import { isOrganizationVerified } from '../visibility/index';
+import { createSeedSnapshot } from './index';
 import {
   SeedMembershipId,
   SeedOrganizationId,
@@ -41,10 +42,7 @@ import {
   SEED_OPERATOR_ROLE_IDS,
   SEED_OPERATOR_STAFF_DEFINITIONS,
 } from './seedPlatform';
-import {
-  createSeedRecords,
-  createSeedSnapshot,
-} from './seedSnapshot';
+import { createSeedRecords } from './seedSnapshot';
 
 const EXPECTED_STAFF = [
   [SeedUserId.OPERATOR_SUPPORT_AGENT, 'Ксения Р.', OperatorPresetKey.SUPPORT_AGENT],
@@ -283,7 +281,7 @@ describe('the isolation of the platform operator from the market', () => {
     const { engine } = await createTestEngine();
     const personas = engine.listPersonas();
 
-    expect(personas).toHaveLength(9);
+    expect(personas).toHaveLength(13);
 
     for (const persona of personas) {
       expect(persona.organizationId, persona.id).not.toBe(PLATFORM_OPERATOR_ORGANIZATION_ID);

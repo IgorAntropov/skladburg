@@ -1,5 +1,8 @@
 import type { Event } from '@skladburg/contracts/event/v1/event';
-import type { QueryClient } from '@tanstack/react-query';
+import type {
+  QueryCacheNotifyEvent,
+  QueryClient,
+} from '@tanstack/react-query';
 
 import type {
   IRealtimeChannel,
@@ -9,6 +12,8 @@ import type { IDemoControl } from '../transport/demo';
 import type { RealtimeEventCaseValue } from './apiQueryMetaTypes';
 
 import { invalidateQueriesByChannel } from './invalidateQueriesByChannel';
+
+const EMPTY_CHANNELS: readonly string[] = [];
 
 export interface SyncQueriesWithRealtimeOptionsValue {
   demoControl: IDemoControl | undefined;
@@ -34,13 +39,16 @@ export const syncQueriesWithRealtime = (options: SyncQueriesWithRealtimeOptionsV
   const { demoControl, queryClient, realtime } = options;
   const queryCache = queryClient.getQueryCache();
   const channelSubscriptions = new Map<string, () => void>();
+  const channelsByQuery = new WeakMap<QueryCacheNotifyEvent['query'], readonly string[]>();
   let isStopped = false;
 
   const collectDesiredChannels = (): Set<string> => {
     const channels = new Set<string>();
 
     for (const query of queryCache.getAll()) {
-      for (const channel of query.meta?.channels ?? []) {
+      const queryChannels = query.meta?.channels ?? EMPTY_CHANNELS;
+      channelsByQuery.set(query, queryChannels);
+      for (const channel of queryChannels) {
         channels.add(channel);
       }
     }
@@ -88,6 +96,16 @@ export const syncQueriesWithRealtime = (options: SyncQueriesWithRealtimeOptionsV
   const unsubscribeFromCache = queryCache.subscribe((event) => {
     if (event.type === 'added' || event.type === 'removed') {
       reconcileChannels();
+      return;
+    }
+
+    const current = event.query.meta?.channels ?? EMPTY_CHANNELS;
+    const prev = channelsByQuery.get(event.query) ?? EMPTY_CHANNELS;
+    if (current !== prev) {
+      channelsByQuery.set(event.query, current);
+      if (current.length !== prev.length || current.some((channel, index) => channel !== prev[index])) {
+        reconcileChannels();
+      }
     }
   });
 

@@ -567,11 +567,11 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     const storage = await openStorage(factory);
     await createEngine({ epoch: TEST_ENGINE_EPOCH, realTime: createFakeRealTime(), storage });
     const loaded = await storage.load();
-    expect(loaded?.schemaVersion).toBe(28);
+    expect(loaded?.schemaVersion).toBe(29);
     expect(loaded).toEqual({
       collections: { ...priorCollections, yardDispatchEntries: new Map() },
       meta: seed.meta,
-      schemaVersion: 28,
+      schemaVersion: 29,
     });
     const promoted = create(ReceivingTaskSchema, {
       id: 'receiving-2', status: ReceivingTaskStatus.OPEN, version: 8, warehouseId, yardAdmissionStatus: YardAdmissionStatus.WAITING_DOCK,

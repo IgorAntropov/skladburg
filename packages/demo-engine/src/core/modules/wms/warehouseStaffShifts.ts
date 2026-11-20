@@ -6,7 +6,10 @@ import {
   getLocalMinuteOfDay,
   getZoneOffsetMs,
 } from '../../calendar/zonedTime';
-import { publishWarehouseStaffPresenceChanged } from './warehouseStaffPresenceEvents';
+import {
+  publishWarehouseStaffPresenceChanged,
+  publishWarehouseStaffProfilesChanged,
+} from './warehouseStaffPresenceEvents';
 
 export interface WarehouseStaffAssignmentValue {
   areaId: string;
@@ -55,21 +58,35 @@ export const getWarehouseShiftPlan = (
 
 export const publishWarehouseShiftChanges = async (runtime: IModuleRuntime, previousMs: number, currentMs: number): Promise<void> => {
   const changed: string[] = [];
-  for (const [warehouseId, assignments] of runtime.wmsStaffSchedules ?? []) {
+  const profilesChanged: string[] = [];
+  const warehouses = new Set(runtime.wmsStaffSchedules?.keys());
+  for (const member of runtime.wmsStaff ?? []) {
+    warehouses.add(member.warehouseId);
+  }
+  for (const warehouseId of warehouses) {
+    const assignments = runtime.wmsStaffSchedules?.get(warehouseId) ?? [];
     const warehouse = runtime.read.get('warehouses', warehouseId);
     if (warehouse !== undefined) {
       const previous = Math.floor((previousMs + getZoneOffsetMs(previousMs, warehouse.timeZone)) / MINUTE_MS);
       const current = Math.floor((currentMs + getZoneOffsetMs(currentMs, warehouse.timeZone)) / MINUTE_MS);
       const crossed = (minute: number): boolean =>
         Math.floor((previous - minute) / MINUTES_PER_DAY) !== Math.floor((current - minute) / MINUTES_PER_DAY);
-      if (assignments.some(slot => crossed(slot.startMinute) || crossed(slot.breakStartMinute) || crossed(slot.breakEndMinute)
-        || crossed(slot.endMinute))) {
+      const shiftChanged = assignments.some(slot =>
+        crossed(slot.startMinute) || crossed(slot.breakStartMinute) || crossed(slot.breakEndMinute)
+        || crossed(slot.endMinute));
+      if (shiftChanged) {
         changed.push(warehouseId);
+      }
+      if (shiftChanged || crossed(0)) {
+        profilesChanged.push(warehouseId);
       }
     }
   }
-  if (changed.length > 0) {
+  if (profilesChanged.length > 0) {
     await runtime.command((transaction) => {
+      for (const warehouseId of profilesChanged) {
+        publishWarehouseStaffProfilesChanged(transaction, runtime.outbox, warehouseId);
+      }
       for (const warehouseId of changed) {
         publishWarehouseStaffPresenceChanged(transaction, runtime.outbox, warehouseId);
       }

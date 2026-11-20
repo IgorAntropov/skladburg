@@ -47,6 +47,7 @@ import {
 import { putAwayHandlingUnit } from './putAwayHandlingUnit';
 import { receiveHandlingUnit } from './receiveHandlingUnit';
 import { publishWarehouseStaffPresenceChanged } from './warehouseStaffPresenceEvents';
+import { requireWarehouseTaskQualifications } from './warehouseTaskQualifications';
 
 interface ReceivingCommandValue<TInput extends DescMessage, TOutput extends DescMessage> {
   allowedStatuses: readonly ReceivingTaskStatus[];
@@ -122,7 +123,8 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
     assignYardVisitToDock: async (request, context) => (await loadYardDispatch()).assignYardVisitToDock(request, context),
     claimReceivingTask: (request, context) => runReceivingCommand(runtime, {
       allowedStatuses: [ReceivingTaskStatus.OPEN],
-      handle: (_transaction, caller, task) => {
+      handle: (transaction, caller, task) => {
+        requireWarehouseTaskQualifications(transaction, runtime, caller, task);
         task.status = ReceivingTaskStatus.IN_PROGRESS;
         task.assigneeUserId = caller.user.id;
         return create(ClaimReceivingTaskResponseSchema, { task });

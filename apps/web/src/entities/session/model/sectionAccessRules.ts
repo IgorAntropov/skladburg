@@ -17,5 +17,5 @@ export const SECTION_ACCESS_RULES: Readonly<Record<AppSectionValue, SectionAcces
   garage: { permissions: [PermissionCode.FLEET_VIEW], scope: { kind: 'organization' } },
   network: { permissions: [PermissionCode.NETWORK_VIEW], scope: { kind: 'any' } },
   transport: { permissions: [PermissionCode.TRANSPORT_REQUEST_VIEW, PermissionCode.TRIP_VIEW], scope: { kind: 'organization' } },
-  warehouse: { permissions: [PermissionCode.WAREHOUSE_VIEW], scope: { kind: 'any' } },
+  warehouse: { permissions: [PermissionCode.WAREHOUSE_VIEW, PermissionCode.STAFF_PROFILE_VIEW], scope: { kind: 'any' } },
 };

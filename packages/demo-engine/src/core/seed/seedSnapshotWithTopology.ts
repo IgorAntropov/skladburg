@@ -5,9 +5,12 @@ import { addWarehouseTopologies } from '../engine/migrateWarehouseTopologies';
 import { SeedLoadError } from '../engine/SeedLoadError';
 
 export const createSeedSnapshotWithTopology = async (seed: EngineSeedValue | undefined): Promise<EngineSnapshotValue> => {
-  const { createSeedSnapshot } = await import('./seedSnapshot').catch((error: unknown) => {
+  const [{ createSeedSnapshot }, { addStaffAccounts }] = await Promise.all([
+    import('./seedSnapshot'),
+    import('./seedWarehouseStaffAccess'),
+  ]).catch((error: unknown) => {
     throw new SeedLoadError(error);
   });
 
-  return addWarehouseTopologies(createSeedSnapshot(seed));
+  return addWarehouseTopologies(addStaffAccounts(createSeedSnapshot(seed)));
 };

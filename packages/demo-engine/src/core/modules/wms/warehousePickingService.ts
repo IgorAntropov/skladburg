@@ -61,6 +61,7 @@ import {
   readReservedUnits,
 } from './outboundReservation';
 import { publishStockAvailabilityChanged } from './stockRecords';
+import { requireWarehouseTaskQualifications } from './warehouseTaskQualifications';
 
 interface PickingCommandValue<TInput extends DescMessage, TOutput extends DescMessage> {
   handle: (transaction: IStateTransaction, caller: PermissionCallerValue, task: PickingTask) => MessageShape<TOutput>;
@@ -147,6 +148,7 @@ export const createWarehousePickingService = (runtime: IModuleRuntime): ServiceI
     claimPickingTask: (request, context) => runPickingCommand(runtime, {
       handle: (transaction, caller, task) => {
         const deal = readTaskDeal(transaction, runtime, caller, task);
+        requireWarehouseTaskQualifications(transaction, runtime, caller, task);
         task.assigneeUserId = caller.user.id;
         advanceSystemDeal(runtime, transaction, deal, 'startPicking');
         return create(ClaimPickingTaskResponseSchema, { task });

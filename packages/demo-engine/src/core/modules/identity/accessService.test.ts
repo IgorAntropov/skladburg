@@ -53,6 +53,7 @@ const STOREKEEPER_PERMISSION_NAMES: readonly string[] = [
   'inventory_edit',
   'inventory_view',
   'sensor_view',
+  'staff_profile_view',
   'task_edit',
   'task_view',
   'warehouse_view',
@@ -205,7 +206,7 @@ describe('AccessService.listPermissions', () => {
     const supportAccessApprove = response.permissions.find(permission => permission.name === 'support_access_approve');
     const supportTicketView = response.permissions.find(permission => permission.name === 'support_ticket_view');
 
-    expect(codes).toHaveLength(70);
+    expect(codes).toHaveLength(73);
     expect(response.permissions.map(permission => permission.name)).toEqual(codes.map(getPermissionName));
     expect(response.permissions.every(permission => permission.isPlatform === (permission.profiles.length === 0))).toBe(true);
     expect(response.permissions.map(permission => permission.isPlatform)).toEqual(codes.map(code => getPermissionTraits(code).isPlatform));

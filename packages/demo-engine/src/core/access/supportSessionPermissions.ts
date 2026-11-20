@@ -50,6 +50,9 @@ export const SUPPORT_SECTION_BY_FEATURE: ReadonlyMap<string, SupportConcreteSect
   ['review', SupportAccessSection.DEALS],
   ['sensor', SupportAccessSection.WAREHOUSES],
   ['staff', SupportAccessSection.WAREHOUSES],
+  ['staff_performance', SupportAccessSection.WAREHOUSES],
+  ['staff_profile', SupportAccessSection.WAREHOUSES],
+  ['staff_qualification', SupportAccessSection.WAREHOUSES],
   ['support_access', SupportAccessSection.ORGANIZATION],
   ['task', SupportAccessSection.WAREHOUSES],
   ['transport_offer', SupportAccessSection.LOGISTICS],
@@ -115,6 +118,9 @@ export const isPermissionNameNeverForSupport = (name: string, isLimitApplicable:
   const { action, feature } = splitPermissionName(name);
 
   return NEVER_ACTIONS.includes(action)
+    || feature === 'staff_profile'
+    || feature === 'staff_qualification'
+    || feature === 'staff_performance'
     || feature === SUPPORT_ACCESS_FEATURE
     || (DEAL_LIFECYCLE_FEATURES.includes(feature) && action !== PermissionAction.VIEW);
 };

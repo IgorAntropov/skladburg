@@ -25,6 +25,7 @@ import {
   ENGINE_SCHEMA_VERSION,
   type IStateReader,
 } from '../state/index';
+import { createSeedSnapshot } from './index';
 import { createSeedRoleId } from './seedAccess';
 import {
   SeedOrganizationId,
@@ -34,8 +35,8 @@ import {
   SeedWarehouseId,
 } from './seedIds';
 import {
+  createSeedSnapshot as createBaseSnapshot,
   createSeedRecords,
-  createSeedSnapshot,
   DEFAULT_ENGINE_SEED,
   SEED_TIME_SCALE,
   SEED_VERSION,
@@ -129,10 +130,14 @@ describe('createSeedSnapshot', () => {
 describe('seed contents', () => {
   it('uses UUID literals for every id and keeps ids unique inside a collection', () => {
     const records = createSeedRecords();
+    const base = createBaseSnapshot();
     const snapshot = createSeedSnapshot();
 
     for (const name of ENGINE_COLLECTION_NAMES) {
-      expect(snapshot.collections[name].size, name).toBe(records[name]?.length ?? 0);
+      const baseCount = records[name]?.length ?? 0;
+      const hasStaffAccounts = name === 'users' || name === 'memberships' || name === 'personas';
+      expect(base.collections[name].size, name).toBe(baseCount);
+      expect(snapshot.collections[name].size, name).toBe(baseCount + (hasStaffAccounts ? 4 : 0));
 
       for (const id of snapshot.collections[name].keys()) {
         expect(id, name).toMatch(UUID_PATTERN);
@@ -399,6 +404,7 @@ describe('seed contents', () => {
         'inventory_edit',
         'inventory_view',
         'sensor_view',
+        'staff_profile_view',
         'task_edit',
         'task_view',
         'warehouse_view',
@@ -419,7 +425,7 @@ describe('seed contents', () => {
     );
     const names = reader.list('users').filter(user => !operatorUserIds.has(user.id)).map(user => user.displayName);
 
-    expect(names).toHaveLength(14);
+    expect(names).toHaveLength(18);
     expect(new Set(names).size).toBe(names.length);
     names.forEach((name) => {
       expect(name).toMatch(/^[А-ЯЁ][а-яё]+ [А-ЯЁ][а-яё]+$/);
@@ -445,25 +451,25 @@ describe('seed contents', () => {
     expect(reader.get('users', SeedUserId.STOREKEEPER_2)?.displayName).toBe('Мария Лебедева');
   });
 
-  it('puts five personas into the fresh group and four into the construction group', () => {
+  it('puts nine personas into the fresh group and four into the construction group', () => {
     const personas = createSeedReader().list('personas');
     const groupOf = (personaId: string): DemoPersonaGroup | undefined => personas.find(persona => persona.id === personaId)?.group;
 
-    expect(personas.filter(persona => persona.group === DemoPersonaGroup.FRESH)).toHaveLength(5);
+    expect(personas.filter(persona => persona.group === DemoPersonaGroup.FRESH)).toHaveLength(9);
     expect(personas.filter(persona => persona.group === DemoPersonaGroup.CONSTRUCTION)).toHaveLength(4);
     expect(groupOf(SeedPersonaId.FRESH_BUYER)).toBe(DemoPersonaGroup.FRESH);
     expect(groupOf(SeedPersonaId.CONSTRUCTION_CUSTOMER)).toBe(DemoPersonaGroup.CONSTRUCTION);
   });
 
-  it('gives the fresh vertical a customer, a buyer, a supplier, a carrier and a storekeeper persona and the construction one four', () => {
+  it('includes the warehouse team and the company administrator alongside the existing personas', () => {
     const reader = createSeedReader();
     const personas = reader.list('personas');
 
-    expect(personas).toHaveLength(9);
-    expect(personas.filter(persona => persona.kind === DemoPersonaKind.CUSTOMER)).toHaveLength(3);
+    expect(personas).toHaveLength(13);
+    expect(personas.filter(persona => persona.kind === DemoPersonaKind.CUSTOMER)).toHaveLength(4);
     expect(personas.filter(persona => persona.kind === DemoPersonaKind.SUPPLIER)).toHaveLength(2);
     expect(personas.filter(persona => persona.kind === DemoPersonaKind.CARRIER)).toHaveLength(2);
-    expect(personas.filter(persona => persona.kind === DemoPersonaKind.STOREKEEPER)).toHaveLength(2);
+    expect(personas.filter(persona => persona.kind === DemoPersonaKind.STOREKEEPER)).toHaveLength(5);
     expect(reader.get('personas', SeedPersonaId.FRESH_CUSTOMER)?.organizationId).toBe(SeedOrganizationId.CUSTOMER_1);
     expect(reader.get('personas', SeedPersonaId.FRESH_BUYER)).toMatchObject({
       kind: DemoPersonaKind.CUSTOMER,

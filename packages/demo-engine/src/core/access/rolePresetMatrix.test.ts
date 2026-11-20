@@ -37,6 +37,7 @@ import {
   getPermissionTraits,
   type KnownPermissionCode,
 } from '@skladburg/contracts/runtime';
+import { WarehouseStaffProfileService } from '@skladburg/contracts/wms/v1/warehouse_staff_profile';
 import {
   beforeAll,
   describe,
@@ -217,7 +218,8 @@ const isReachable = (subject: MatrixSubjectValue, entry: PermissionMethodValue):
   }
 
   const isScopeApplicable = getPermissionTraits(findCode(entry.permissionName)).isScopeApplicable;
-  const isScopeAware = entry.scopeField !== '' || entry.method === OrganizationService.method.listWarehouses;
+  const isScopeAware = entry.scopeField !== '' || entry.method === OrganizationService.method.listWarehouses
+    || entry.method === WarehouseStaffProfileService.method.listWarehouseStaff;
 
   return isScopeApplicable && isScopeAware;
 };

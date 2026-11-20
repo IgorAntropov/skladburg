@@ -5,6 +5,7 @@ import {
   MarkingMode,
   ProductSchema,
 } from '@skladburg/contracts/catalog/v1/catalog';
+import { WarehouseStaffQualificationKind } from '@skladburg/contracts/common/v1/warehouse_staff_qualification';
 import { HandlingUnitKind } from '@skladburg/contracts/wms/v1/stock';
 
 import type { EngineSnapshotValue } from '../ports/index';
@@ -47,6 +48,7 @@ const RECEIVING_ROUTES: readonly HistoryRouteValue[] = [
     orders: [{
       listingId: COTTAGE_LISTING_ID,
       manifest: {
+        requiredQualifications: [WarehouseStaffQualificationKind.FORKLIFT],
         sourceDocumentNumber: 'DEMO-WMS-02',
         units: [
           {

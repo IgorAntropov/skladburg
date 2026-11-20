@@ -16,6 +16,8 @@ import type { IStateTransaction } from '../../state/index';
 import type { WarehouseStockRecordValue } from '../../state/records';
 import type { IModuleRuntime } from '../moduleRuntime';
 
+import { publishWarehouseStaffProfilesChanged } from './warehouseStaffPresenceEvents';
+
 export const readOutboundTask = (record: WarehouseStockRecordValue, errors: IDomainErrors): PickingTask => {
   const task = fromBinary(PickingTaskSchema, record.bytes);
 
@@ -42,6 +44,9 @@ export const saveOutboundTask = (
   });
 
   if (isTaskVisible) {
+    if (task.assigneeUserId !== undefined) {
+      publishWarehouseStaffProfilesChanged(transaction, runtime.outbox, task.warehouseId);
+    }
     runtime.outbox.add(transaction, tasksChannel(task.warehouseId), {
       case: 'pickingTasksChanged',
       value: create(PickingTasksChangedSchema, { warehouseId: task.warehouseId }),

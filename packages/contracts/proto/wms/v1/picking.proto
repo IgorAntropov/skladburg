@@ -5,6 +5,7 @@ package wms.v1;
 import "buf/validate/validate.proto";
 import "common/v1/method_options.proto";
 import "common/v1/page.proto";
+import "common/v1/warehouse_staff_qualification.proto";
 import "google/protobuf/timestamp.proto";
 import "wms/v1/stock.proto";
 
@@ -27,6 +28,7 @@ message PickingTask {
   repeated StockBalance units = 7;
   google.protobuf.Timestamp picked_at = 8;
   google.protobuf.Timestamp shipped_at = 9;
+  repeated common.v1.WarehouseStaffQualificationKind required_qualifications = 10;
 }
 
 message ListPickingTasksRequest {

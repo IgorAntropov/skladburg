@@ -7,6 +7,7 @@ import "catalog/v1/catalog.proto";
 import "common/v1/date.proto";
 import "common/v1/method_options.proto";
 import "common/v1/page.proto";
+import "common/v1/warehouse_staff_qualification.proto";
 import "google/protobuf/timestamp.proto";
 import "organization/v1/organization.proto";
 import "wms/v1/stock.proto";
@@ -108,6 +109,7 @@ message ReceivingTask {
   optional string unloading_point_id = 14;
   YardAdmissionStatus yard_admission_status = 15;
   ReceivingDockSchedule dock_schedule = 16;
+  repeated common.v1.WarehouseStaffQualificationKind required_qualifications = 17;
 }
 
 message ListReceivingTasksRequest {

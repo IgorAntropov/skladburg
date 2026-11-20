@@ -14,9 +14,9 @@ import {
 import {
   createPresetRole,
   listPresetsForProfiles,
-  RolePresetKey,
 } from '../access/index';
 import {
+  createSeedRoleId,
   SeedMembershipId,
   SeedOrganizationId,
   SeedRoleId,
@@ -25,27 +25,7 @@ import {
 } from './seedIds';
 import { createSeedOrganizations } from './seedOrganizations';
 
-const ROLE_ID_PREFIX = '4';
-const ROLE_ID_SUFFIX = '-0000-4000-8000-000000000000';
-const ROLE_ID_PADDING = '00';
-const ORGANIZATION_NUMBER_START = 5;
-const ORGANIZATION_NUMBER_END = 8;
-
-const PRESET_NUMBERS: Record<RolePresetKey, string> = {
-  [RolePresetKey.ACCOUNTANT]: '02',
-  [RolePresetKey.ADMIN]: '01',
-  [RolePresetKey.BUYER]: '03',
-  [RolePresetKey.DIRECTOR]: '00',
-  [RolePresetKey.DISPATCHER]: '06',
-  [RolePresetKey.SALES_MANAGER]: '04',
-  [RolePresetKey.STOREKEEPER]: '05',
-};
-
-export const createSeedRoleId = (organizationId: string, presetKey: RolePresetKey): string => {
-  const organizationNumber = organizationId.slice(ORGANIZATION_NUMBER_START, ORGANIZATION_NUMBER_END);
-
-  return `${ROLE_ID_PREFIX}${PRESET_NUMBERS[presetKey]}${ROLE_ID_PADDING}${organizationNumber}${ROLE_ID_SUFFIX}`;
-};
+export { createSeedRoleId } from './seedIds';
 
 interface SeedAdminDefinitionValue {
   membershipId: string;

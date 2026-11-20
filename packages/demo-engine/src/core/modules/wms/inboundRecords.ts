@@ -58,6 +58,7 @@ import {
   readInboundYardGate,
 } from './inboundYardGate';
 import { usesOutboundDock } from './outboundDockOccupancy';
+import { publishWarehouseStaffProfilesChanged } from './warehouseStaffPresenceEvents';
 import {
   readEffectiveWarehouseDocks,
   readOwnedWarehouseTopology,
@@ -288,6 +289,9 @@ export const saveInboundTask = (
   });
 
   if (task.version > 0) {
+    if (task.assigneeUserId !== undefined) {
+      publishWarehouseStaffProfilesChanged(transaction, runtime.outbox, task.warehouseId);
+    }
     publishReceivingTasksChanged(transaction, runtime, task.warehouseId);
   }
 };

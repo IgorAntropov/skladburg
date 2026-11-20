@@ -1,3 +1,8 @@
+import type { EngineSeedValue } from './seedConfig';
+
+import { createSeedSnapshot as createBaseSnapshot } from './seedSnapshot';
+import { addStaffAccounts } from './seedWarehouseStaffAccess';
+
 export { createSeedRoleId } from './seedAccess';
 export {
   SeedCityId,
@@ -23,7 +28,6 @@ export {
 } from './seedPlatform';
 export {
   createSeedRecords,
-  createSeedSnapshot,
   DEFAULT_ENGINE_SEED,
   type EngineSeedValue,
   SEED_RANDOM_SEED,
@@ -32,3 +36,6 @@ export {
   SEED_WORLD_START_MS,
   type SeedRecordsValue,
 } from './seedSnapshot';
+
+export const createSeedSnapshot = (seed?: EngineSeedValue): ReturnType<typeof createBaseSnapshot> =>
+  addStaffAccounts(createBaseSnapshot(seed));

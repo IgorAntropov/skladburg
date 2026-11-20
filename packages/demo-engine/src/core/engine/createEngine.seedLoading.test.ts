@@ -35,13 +35,13 @@ import type { EngineSnapshotValue } from '../ports/index';
 
 import { callAs } from '../modules/testing/moduleHarness';
 import { createMemoryStorage } from '../ports/index';
+import { createSeedSnapshot } from '../seed/index';
 import {
   SeedCityId,
   SeedOrganizationId,
   SeedUserId,
   SeedWarehouseId,
 } from '../seed/seedIds';
-import { createSeedSnapshot } from '../seed/seedSnapshot';
 import {
   ENGINE_SCHEMA_VERSION,
   TABLE_DEFINITIONS,
@@ -363,7 +363,7 @@ describe('engine seed loading', () => {
     const engine = await createEngine({ epoch: 'restored', realTime: { now: () => 0 }, storage });
 
     expect(engine.epoch()).toBe('restored');
-    expect(engine.listPersonas()).toHaveLength(9);
+    expect(engine.listPersonas()).toHaveLength(13);
     expect(replaceAll).not.toHaveBeenCalled();
     expect(await storage.load()).toEqual(snapshot);
   });

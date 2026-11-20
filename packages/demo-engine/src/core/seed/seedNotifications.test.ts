@@ -23,13 +23,10 @@ import {
   listVisibleOrganizationShowcases,
   MIN_SHOWCASE_VERIFICATION_LEVEL,
 } from '../visibility/index';
+import { createSeedSnapshot } from './index';
 import { SeedPersonaId } from './seedIds';
 import { createSeedNotifications } from './seedNotifications';
-import { createSeedPersonas } from './seedPersonas';
-import {
-  createSeedSnapshot,
-  SEED_WORLD_START_MS,
-} from './seedSnapshot';
+import { SEED_WORLD_START_MS } from './seedSnapshot';
 
 const ALLOWED_PARAM_FIELDS: ReadonlySet<string> = new Set([
   'cityName',
@@ -79,12 +76,23 @@ const collectParamStrings = (notification: Notification): string[] => {
 
 describe('createSeedNotifications', () => {
   const records = createSeedNotifications(SEED_WORLD_START_MS);
-  const personas = createSeedPersonas();
+  const personas = createEngineState(createSeedSnapshot()).read.list('personas');
 
-  it('gives each of the nine personas one or two notifications in their own organization, the buyer none', () => {
-    expect(personas).toHaveLength(9);
+  it('seeds the existing demo notifications and leaves the buyer and new staff inboxes empty', () => {
+    expect(personas).toHaveLength(13);
 
-    for (const persona of personas.filter(candidate => candidate.id !== SeedPersonaId.FRESH_BUYER)) {
+    const emptyInboxIds = new Set<string>([
+      SeedPersonaId.COMPANY_ADMIN,
+      SeedPersonaId.FRESH_BUYER,
+      SeedPersonaId.WAREHOUSE_LEAD,
+      SeedPersonaId.WAREHOUSE_OPERATOR,
+      SeedPersonaId.WAREHOUSE_PICKER,
+    ]);
+    for (const persona of personas) {
+      if (emptyInboxIds.has(persona.id)) {
+        expect(records.some(record => record.userId === persona.userId)).toBe(false);
+        continue;
+      }
       const own = records.filter(record => record.userId === persona.userId);
 
       expect(own.length, persona.id).toBeGreaterThanOrEqual(1);

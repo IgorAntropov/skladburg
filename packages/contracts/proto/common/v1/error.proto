@@ -4,6 +4,7 @@ package common.v1;
 
 import "common/v1/entity.proto";
 import "common/v1/money.proto";
+import "common/v1/warehouse_staff_qualification.proto";
 import "google/protobuf/descriptor.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -53,6 +54,7 @@ enum ErrorCode {
   ERROR_CODE_WAREHOUSE_LAYOUT_SESSION_INVALID = 15 [(error_traits) = {category: ERROR_CATEGORY_FAILED_PRECONDITION}];
   ERROR_CODE_WAREHOUSE_RECEIVING_LAYOUT_BLOCKED = 16 [(error_traits) = {category: ERROR_CATEGORY_FAILED_PRECONDITION}];
   ERROR_CODE_YARD_DISPATCH_BLOCKED = 17 [(error_traits) = {category: ERROR_CATEGORY_FAILED_PRECONDITION}];
+  ERROR_CODE_WAREHOUSE_STAFF_QUALIFICATION_REQUIRED = 18 [(error_traits) = {category: ERROR_CATEGORY_FAILED_PRECONDITION}];
 }
 
 message FieldViolation {
@@ -136,6 +138,17 @@ message YardDispatchBlockedParams {
   string reason = 1;
 }
 
+enum WarehouseStaffQualificationFailure {
+  WAREHOUSE_STAFF_QUALIFICATION_FAILURE_UNSPECIFIED = 0;
+  WAREHOUSE_STAFF_QUALIFICATION_FAILURE_MISSING = 1;
+  WAREHOUSE_STAFF_QUALIFICATION_FAILURE_EXPIRED = 2;
+}
+
+message WarehouseStaffQualificationRequiredParams {
+  WarehouseStaffQualificationKind kind = 1;
+  WarehouseStaffQualificationFailure reason = 2;
+}
+
 message ErrorDetail {
   ErrorCode code = 1;
   string trace_id = 2;
@@ -151,5 +164,6 @@ message ErrorDetail {
     WarehouseLayoutBusyParams warehouse_layout_busy = 18;
     WarehouseReceivingLayoutBlockedParams warehouse_receiving_layout_blocked = 19;
     YardDispatchBlockedParams yard_dispatch_blocked = 20;
+    WarehouseStaffQualificationRequiredParams warehouse_staff_qualification_required = 21;
   }
 }

@@ -18,6 +18,7 @@ import {
   marketChannel,
   organizationChannel,
   staffChannel,
+  staffProfilesChannel,
   SUPPORT_SESSION_HEADER,
   tasksChannel,
   userChannel,
@@ -374,7 +375,8 @@ describe('subscription access to warehouse inventory', () => {
     expect(readPermission(denied)).toEqual({ permission: 'inventory_view', warehouseId: otherWarehouseId });
   });
 
-  it.each([inventoryChannel, staffChannel])('denies private subscriptions outside the acting scope and under support', (makeChannel) => {
+  const privateChannels = [inventoryChannel, staffChannel, staffProfilesChannel];
+  it.each(privateChannels)('denies private subscriptions outside the acting scope and under support', (makeChannel) => {
     const channel = makeChannel(warehouseId);
     const { check, runtime, state } = createFixture();
     expect(check(channel, SeedUserId.ADMIN_1, SeedOrganizationId.SUPPLIER_1)?.code).toBe(ErrorCode.NOT_FOUND);
@@ -395,6 +397,11 @@ it('grants the staff channel separately from task access within the assigned war
   const otherWarehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2;
   const viewer = await addTestMember(fixture, { organizationId, permissions: ['staff_view'], warehouseIds: [warehouseId] });
   expect(fixture.check(staffChannel(warehouseId), viewer, organizationId)).toBeUndefined();
+  expect(readPermission(fixture.check(staffProfilesChannel(warehouseId), viewer, organizationId))?.permission).toBe('staff_profile_view');
+  expect(fixture.check(staffProfilesChannel(warehouseId), SeedUserId.STOREKEEPER_1, organizationId)).toBeUndefined();
+  expect(readPermission(fixture.check(staffProfilesChannel(otherWarehouseId), SeedUserId.STOREKEEPER_1, organizationId))).toEqual({
+    permission: 'staff_profile_view', warehouseId: otherWarehouseId,
+  });
   expect(readPermission(fixture.check(staffChannel(otherWarehouseId), viewer, organizationId))).toEqual({
     permission: 'staff_view', warehouseId: otherWarehouseId,
   });

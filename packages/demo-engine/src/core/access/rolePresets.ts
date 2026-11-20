@@ -80,6 +80,8 @@ const ROLE_PRESETS: readonly RolePresetValue[] = [
     name: 'Администратор',
     profiles: ALL_PROFILES,
     selectPermissions: selectListed([
+      PermissionCode.STAFF_PROFILE_VIEW,
+      PermissionCode.STAFF_QUALIFICATION_VIEW,
       PermissionCode.MEMBER_MANAGE,
       PermissionCode.MEMBER_VIEW,
       PermissionCode.NETWORK_VIEW,
@@ -180,6 +182,7 @@ const ROLE_PRESETS: readonly RolePresetValue[] = [
       PermissionCode.INVENTORY_EDIT,
       PermissionCode.INVENTORY_VIEW,
       PermissionCode.SENSOR_VIEW,
+      PermissionCode.STAFF_PROFILE_VIEW,
       PermissionCode.TASK_EDIT,
       PermissionCode.TASK_VIEW,
       PermissionCode.WAREHOUSE_VIEW,

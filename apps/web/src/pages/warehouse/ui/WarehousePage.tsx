@@ -3,11 +3,16 @@ import type {
   ReactNode,
 } from 'react';
 
+import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import { useState } from 'react';
 
 import type { ObjectRefValue } from '@/shared/routing';
 import type { TabsItemValue } from '@/shared/ui';
 
+import {
+  isPermissionGranted,
+  useSessionQuery,
+} from '@/entities/session';
 import { useWarehousesQuery } from '@/entities/warehouse';
 import {
   CreateWarehouseButton,
@@ -22,6 +27,9 @@ import {
 import {
   Button,
   ChunkLoadNotice,
+  ErrorNotice,
+  Skeleton,
+  SkeletonGroup,
   useFocusHandoff,
 } from '@/shared/ui';
 import {
@@ -33,10 +41,12 @@ import { ScenePlaceholder } from '@/widgets/scene-viewport';
 
 import { warehouseImportLauncherMessages } from '../i18n/warehouseImportLauncherRu';
 import { warehouseSceneMessages } from '../i18n/warehouseSceneRu';
+import { warehouseWorkspaceLauncherMessages } from '../i18n/workspaceLauncherRu';
 import { loadWarehouseImportPanel } from './loadWarehouseImportPanel';
 import { OrganizationCard } from './OrganizationCard';
 import { WarehouseList } from './WarehouseList';
 import { loadWarehouseWorkspace } from './workspace/loadWarehouseWorkspace';
+import { WarehouseStaffSlot } from './workspace/WarehouseStaffSlot';
 
 const WarehouseWorkspaceRoute = createLazyComponent(loadWarehouseWorkspace);
 
@@ -44,7 +54,17 @@ interface WarehousePageProps {
   focus: ObjectRefValue | undefined;
 }
 
-export const WarehousePage = ({ focus }: WarehousePageProps): ReactElement => {
+const staffDirectoryTab = (label: string): TabsItemValue => ({
+  content: <WarehouseStaffSlot warehouseId={undefined} />,
+  id: 'personnel',
+  label,
+});
+
+interface WarehouseOperationsPageProps extends WarehousePageProps {
+  canViewProfiles: boolean;
+}
+
+const WarehouseOperationsPage = ({ canViewProfiles, focus }: WarehouseOperationsPageProps): ReactElement => {
   const { createSectionTranslator, t } = useI18n();
   const inspectorFocus = useInspectorFocus('warehouse', focus);
   const { data: warehouses } = useWarehousesQuery();
@@ -111,6 +131,7 @@ export const WarehousePage = ({ focus }: WarehousePageProps): ReactElement => {
       id: 'warehouses',
       label: t('hud.lists.warehouses'),
     },
+    ...(canViewProfiles ? [staffDirectoryTab(createSectionTranslator(warehouseWorkspaceLauncherMessages)('warehouseWork.directory'))] : []),
   ];
 
   const scenePlaceholder = <ScenePlaceholder label={createSectionTranslator(warehouseSceneMessages)('warehouseScene.select')} />;
@@ -134,4 +155,43 @@ export const WarehousePage = ({ focus }: WarehousePageProps): ReactElement => {
       {isWarehouseFocus ? <WarehouseWorkspaceRoute focus={focus} renderLayout={renderLayout} /> : renderLayout(panel)}
     </div>
   );
+};
+
+const WarehousePeoplePage = (): ReactElement => {
+  const { createSectionTranslator } = useI18n();
+  const label = createSectionTranslator(warehouseWorkspaceLauncherMessages)('warehouseWork.directory');
+  const inspector = useInspectorFocus('warehouse', undefined);
+  const tabs = [staffDirectoryTab(label)];
+  return (
+    <div className="contents" data-testid="page-warehouse">
+      <h1 className="sr-only">{label}</h1>
+      <HudLayout
+        {...inspector}
+        inspector={undefined}
+        listsHeader={<OrganizationCard />}
+        listTabs={tabs}
+        scene={<ScenePlaceholder label={label} />}
+      />
+    </div>
+  );
+};
+
+export const WarehousePage = ({ focus }: WarehousePageProps): ReactElement => {
+  const { t } = useI18n();
+  const session = useSessionQuery();
+  const handleRetry = (): void => {
+    void session.refetch();
+  };
+  if (session.isError) {
+    return <ErrorNotice error={session.error} onRetry={handleRetry} />;
+  }
+  if (session.data === undefined) {
+    return <SkeletonGroup isFilled label={t('routing.section.loading')}><Skeleton className="h-20 w-full" /></SkeletonGroup>;
+  }
+  const { permissions } = session.data;
+  const canViewWarehouse = isPermissionGranted(permissions, PermissionCode.WAREHOUSE_VIEW, { kind: 'any' });
+  const canViewProfiles = isPermissionGranted(permissions, PermissionCode.STAFF_PROFILE_VIEW, { kind: 'any' });
+  return canViewProfiles && !canViewWarehouse
+    ? <WarehousePeoplePage />
+    : <WarehouseOperationsPage canViewProfiles={canViewProfiles} focus={focus} />;
 };

@@ -932,6 +932,13 @@ const WAREHOUSE_LAYOUT_DRAFTS_SHAPE_FINGERPRINT = [
 
 const YARD_QUEUE_POLICY_SHAPE_FINGERPRINT = [...WAREHOUSE_LAYOUT_DRAFTS_SHAPE_FINGERPRINT, 'collection.yardQueuePolicies:bytes'].sort();
 
+const YARD_DISPATCH_SHAPE_FINGERPRINT = [
+  ...YARD_QUEUE_POLICY_SHAPE_FINGERPRINT.filter(line => !line.startsWith('collection.warehouseInbound:')),
+  'collection.warehouseInbound:{bytes:bytes,id:string,lookupKey:string,manualPrioritySequence:number,scopeId:string}'
+  + '|{bytes:bytes,id:string,lookupKey:string,scopeId:string}',
+  'collection.yardDispatchEntries:{bytes:bytes,id:string,lookupKey:string,scopeId:string}',
+].sort();
+
 const SHAPE_FINGERPRINTS = {
   ...PRE_SETTLEMENT_SHAPE_FINGERPRINTS,
   24: PRE_SETTLEMENT_SHAPE_FINGERPRINTS[23] ?? [],
@@ -941,12 +948,8 @@ const SHAPE_FINGERPRINTS = {
   ].sort(),
   26: WAREHOUSE_LAYOUT_DRAFTS_SHAPE_FINGERPRINT,
   27: YARD_QUEUE_POLICY_SHAPE_FINGERPRINT,
-  28: [
-    ...YARD_QUEUE_POLICY_SHAPE_FINGERPRINT.filter(line => !line.startsWith('collection.warehouseInbound:')),
-    'collection.warehouseInbound:{bytes:bytes,id:string,lookupKey:string,manualPrioritySequence:number,scopeId:string}'
-    + '|{bytes:bytes,id:string,lookupKey:string,scopeId:string}',
-    'collection.yardDispatchEntries:{bytes:bytes,id:string,lookupKey:string,scopeId:string}',
-  ].sort(),
+  28: YARD_DISPATCH_SHAPE_FINGERPRINT,
+  29: YARD_DISPATCH_SHAPE_FINGERPRINT,
 } as Readonly<Record<number, readonly string[]>>;
 
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -1153,8 +1156,8 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 28 with a private yard dispatch journal', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(28);
+  it('is version 29 with warehouse staff and the private yard dispatch journal', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(29);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
     expect(createSeedSnapshot().collections.yardDispatchEntries.size).toBe(0);
     expect(createSeedSnapshot().collections.yardQueuePolicies.size).toBe(0);

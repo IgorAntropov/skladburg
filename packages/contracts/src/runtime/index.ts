@@ -36,4 +36,7 @@ export {
   parseSearchQuery,
   type SearchQueryValue,
 } from './searchText';
-export { staffChannel } from './staffChannel';
+export {
+  staffChannel,
+  staffProfilesChannel,
+} from './staffChannel';

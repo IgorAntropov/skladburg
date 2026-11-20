@@ -8,6 +8,7 @@ import {
 } from '@skladburg/contracts/event/v1/event';
 import { WarehouseChangedSchema } from '@skladburg/contracts/organization/v1/organization';
 import { SupportAccessChangedSchema } from '@skladburg/contracts/support/v1/support_events';
+import { QueryObserver } from '@tanstack/react-query';
 import {
   afterEach,
   beforeEach,
@@ -197,6 +198,32 @@ describe('syncQueriesWithRealtime', () => {
 
       expect(subscribeSpy.mock.calls.map(([channel]) => channel)).toEqual([ORGANIZATION_CHANNEL, DEAL_CHANNEL]);
       expect(source.subscriptions).toHaveLength(2);
+    });
+
+    it('tracks channels discovered after a query is loaded and removes them when its scope changes', async () => {
+      sync();
+      const key = 'directory';
+      const options = { queryFn: vi.fn(() => Promise.resolve([ORGANIZATION_CHANNEL])), queryKey: [key], staleTime: Infinity };
+      const observer = new QueryObserver(queryClient, options);
+      stops.push(observer.subscribe(() => undefined));
+      const { data: channels } = await observer.refetch();
+      expect(subscribeSpy).not.toHaveBeenCalled();
+
+      observer.setOptions({ ...options, meta: { channels: channels ?? [] } });
+      const subscription = openChannel(ORGANIZATION_CHANNEL);
+      const getAllSpy = vi.spyOn(queryClient.getQueryCache(), 'getAll');
+      observer.setOptions({ ...options, meta: { channels: [ORGANIZATION_CHANNEL] } });
+      expect(getAllSpy).not.toHaveBeenCalled();
+      expect(subscribeSpy).toHaveBeenCalledTimes(1);
+
+      subscription.emit([createWarehouseChangedEvent(1)]);
+      frames.flushFrame();
+      await vi.waitFor(() => {
+        expect(options.queryFn).toHaveBeenCalledTimes(2);
+      });
+      observer.setOptions(options);
+      expect(subscription.isClosed()).toBe(true);
+      expect(queryClient.getQueryData(options.queryKey)).toEqual(channels);
     });
 
     it('ignores queries without meta or channels', async () => {

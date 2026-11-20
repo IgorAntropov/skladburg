@@ -53,6 +53,7 @@ import { WarehouseReceivingLayoutService } from '@skladburg/contracts/wms/v1/rec
 import { WarehouseStockService } from '@skladburg/contracts/wms/v1/stock';
 import { WarehouseTopologyService } from '@skladburg/contracts/wms/v1/topology';
 import { WarehouseStaffPresenceService } from '@skladburg/contracts/wms/v1/warehouse_staff_presence';
+import { WarehouseStaffProfileService } from '@skladburg/contracts/wms/v1/warehouse_staff_profile';
 import { YardQueuePolicyService } from '@skladburg/contracts/wms/v1/yard_queue_policy';
 
 import type { TestRuntimeValue } from './testRuntime';
@@ -89,6 +90,7 @@ import { createWarehousePickingService } from '../wms/warehousePickingService';
 import { createWarehouseReceivingLayoutService } from '../wms/warehouseReceivingLayoutService';
 import { createWarehouseReceivingService } from '../wms/warehouseReceivingService';
 import { createWarehouseStaffPresenceService } from '../wms/warehouseStaffPresenceService';
+import { createWarehouseStaffProfileService } from '../wms/warehouseStaffProfileService';
 import { createWarehouseStockService } from '../wms/warehouseStockService';
 import { createWarehouseTopologyService } from '../wms/warehouseTopologyService';
 import { createYardQueuePolicyService } from '../wms/yardQueuePolicyService';
@@ -189,6 +191,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(UserProfileService, createUserProfileService(testRuntime.runtime));
     service(WarehouseLayoutSessionService, createWarehouseLayoutSessionHandlers(testRuntime.runtime));
     service(WarehouseReceivingLayoutService, createWarehouseReceivingLayoutService(testRuntime.runtime));
+    service(WarehouseStaffProfileService, createWarehouseStaffProfileService(testRuntime.runtime));
     service(WarehouseStaffPresenceService, createWarehouseStaffPresenceService(testRuntime.runtime));
     service(WarehousePickingService, createWarehousePickingService(testRuntime.runtime));
     service(WarehouseReceivingService, createWarehouseReceivingService(testRuntime.runtime));

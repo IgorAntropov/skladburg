@@ -70,6 +70,7 @@ const STOREKEEPER_PERMISSION_NAMES: readonly string[] = [
   'inventory_edit',
   'inventory_view',
   'sensor_view',
+  'staff_profile_view',
   'task_edit',
   'task_view',
   'warehouse_view',

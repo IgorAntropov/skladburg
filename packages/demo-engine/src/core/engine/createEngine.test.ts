@@ -161,7 +161,7 @@ describe('createEngine startup', () => {
     expect(personas.map(persona => persona.id)).toContain(SeedPersonaId.FRESH_CUSTOMER);
   });
 
-  it('lists the nine seed personas with organization names, ordered by id', async () => {
+  it('lists the seed personas with organization names, ordered by id', async () => {
     const { engine } = await createTestEngine();
 
     const personas = engine.listPersonas();
@@ -176,6 +176,10 @@ describe('createEngine startup', () => {
       SeedPersonaId.CONSTRUCTION_CARRIER,
       SeedPersonaId.CONSTRUCTION_STOREKEEPER,
       SeedPersonaId.FRESH_BUYER,
+      SeedPersonaId.WAREHOUSE_LEAD,
+      SeedPersonaId.WAREHOUSE_OPERATOR,
+      SeedPersonaId.WAREHOUSE_PICKER,
+      SeedPersonaId.COMPANY_ADMIN,
     ]);
     expect(personas.map(persona => [persona.kind, persona.organizationName])).toEqual([
       ['customer', 'Тёплый угол'],
@@ -186,6 +190,10 @@ describe('createEngine startup', () => {
       ['supplier', 'Прокатный ряд'],
       ['carrier', 'Широкий путь'],
       ['storekeeper', 'Каменный двор'],
+      ['customer', 'Тёплый угол'],
+      ['storekeeper', 'Тёплый угол'],
+      ['storekeeper', 'Тёплый угол'],
+      ['storekeeper', 'Тёплый угол'],
       ['customer', 'Тёплый угол'],
     ]);
   });
@@ -203,6 +211,10 @@ describe('createEngine startup', () => {
       ['construction', 'Павел Волков', 'Директор'],
       ['construction', 'Мария Лебедева', 'Кладовщик'],
       ['fresh', 'Кирилл Орлов', 'Закупщик'],
+      ['fresh', 'Алексей Ветров', 'Кладовщик'],
+      ['fresh', 'Нина Озерова', 'Кладовщик'],
+      ['fresh', 'Лев Речкин', 'Кладовщик'],
+      ['fresh', 'Инна Снегова', 'Администратор'],
     ]);
   });
 
@@ -303,7 +315,7 @@ describe('createEngine startup', () => {
 
     expect(ids).not.toContain(SeedPersonaId.FRESH_SUPPLIER);
     expect(ids).not.toContain(SeedPersonaId.FRESH_CARRIER);
-    expect(ids).toHaveLength(7);
+    expect(ids).toHaveLength(11);
   });
 
   it('matches every listed organization name with the organization table of the seed', async () => {
@@ -318,7 +330,7 @@ describe('createEngine startup', () => {
   it('keeps the organization name out of the stored persona record', () => {
     const seedPersonas = createEngineState(createSeedSnapshot()).read.list('personas');
 
-    expect(seedPersonas).toHaveLength(9);
+    expect(seedPersonas).toHaveLength(13);
 
     for (const persona of seedPersonas) {
       expect(Object.keys(persona).sort()).toEqual(['group', 'id', 'kind', 'organizationId', 'userId']);

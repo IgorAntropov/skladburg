@@ -81,6 +81,7 @@ import {
   type EngineSeedValue,
   SEED_VERSION,
 } from '../seed/seedConfig';
+import { SEED_WAREHOUSE_STAFF } from '../seed/seedWarehouseStaff';
 import { SEED_WAREHOUSE_STAFF_SCHEDULES } from '../seed/seedWarehouseStaffSchedules';
 import {
   SEED_WMS_INBOUND_WAREHOUSE_ID,
@@ -160,7 +161,7 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
   return createSeedSnapshotWithTopology(seed);
 };
 
-const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27];
+const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28];
 
 const prepareDemoWarehouse = async (options: CreateEngineOptionsValue, snapshot: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
   if (options.isDemoWarehouseEnabled !== true) {
@@ -311,6 +312,7 @@ export const createEngineWithTasks = async (
     wmsInboundWarehouseIds: wmsInboundWarehouseIds === undefined ? undefined : new Set(wmsInboundWarehouseIds),
     wmsManualInboundWarehouseIds: options.wmsInboundWarehouseIds === undefined ? undefined : new Set(options.wmsInboundWarehouseIds),
     wmsOutboundWarehouseIds,
+    wmsStaff: SEED_WAREHOUSE_STAFF,
     wmsStaffSchedules: SEED_WAREHOUSE_STAFF_SCHEDULES,
   };
   const supportAudit = createSupportAuditInterceptor(runtime);
@@ -393,6 +395,8 @@ export const createEngineWithTasks = async (
     (await import('../modules/wms/warehouseReceivingService')).createWarehouseReceivingHandler(runtime, supportAudit));
   const warehouseReceivingLayoutHandler = deferEngineHandler(async () =>
     (await import('../modules/wms/warehouseReceivingLayoutService')).createWarehouseReceivingLayoutHandler(runtime, supportAudit));
+  const warehouseStaffProfileHandler = deferEngineHandler(async () =>
+    (await import('../modules/wms/warehouseStaffProfileService')).createWarehouseStaffProfileHandler(runtime, supportAudit));
   const warehouseStaffPresenceHandler = deferEngineHandler(async () =>
     (await import('../modules/wms/warehouseStaffPresenceService')).createWarehouseStaffPresenceHandler(runtime, supportAudit));
   const warehouseStockHandler = deferEngineHandler(async () =>
@@ -416,6 +420,10 @@ export const createEngineWithTasks = async (
 
     if (pathname.startsWith('/wms.v1.WarehouseReceivingLayoutService/')) {
       return warehouseReceivingLayoutHandler(request);
+    }
+
+    if (pathname.startsWith('/wms.v1.WarehouseStaffProfileService/')) {
+      return warehouseStaffProfileHandler(request);
     }
 
     if (pathname.startsWith('/wms.v1.WarehouseStaffPresenceService/')) {

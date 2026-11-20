@@ -1,5 +1,6 @@
 import type { MessageInitShape } from '@bufbuild/protobuf';
 import type { CalendarDate } from '@skladburg/contracts/common/v1/date';
+import type { WarehouseStaffQualificationKind } from '@skladburg/contracts/common/v1/warehouse_staff_qualification';
 import type { Deal } from '@skladburg/contracts/deal/v1/deal';
 import type { StockBalance } from '@skladburg/contracts/wms/v1/stock';
 
@@ -33,6 +34,7 @@ import { normalizeStockReference } from './stockLocations';
 import { readWarehouseTopology } from './warehouseTopologyCodec';
 
 export interface ReceivingManifestValue {
+  requiredQualifications?: readonly WarehouseStaffQualificationKind[] | undefined;
   sourceDocumentNumber: string;
   units: readonly ManifestUnitValue[];
 }
@@ -126,9 +128,8 @@ export const prepareInboundShipment = (
     throw errors.internal();
   }
 
-  const manifest = shippedUnits === undefined
-    ? runtime.wmsInboundManifests?.get(deal.id)
-    : manifestFromShipment(transaction, runtime, deal, shippedUnits);
+  const plannedManifest = runtime.wmsInboundManifests?.get(deal.id);
+  const manifest = shippedUnits === undefined ? plannedManifest : manifestFromShipment(transaction, runtime, deal, shippedUnits);
   if (manifest === undefined || manifest.units.length === 0) {
     throw errors.invalidTransition(EntityKind.DEAL, 'MISSING_RECEIVING_MANIFEST', 'SHIPPED');
   }
@@ -205,6 +206,7 @@ export const prepareInboundShipment = (
     id: deal.id,
     orderLines,
     receivingAreaId: topology.receivingArea.id,
+    requiredQualifications: [...plannedManifest?.requiredQualifications ?? []],
     sourceDocumentNumber: normalizeStockReference(manifest.sourceDocumentNumber, 'source_document_number', errors),
     warehouseId,
   });

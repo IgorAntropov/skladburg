@@ -43,6 +43,7 @@ import {
 } from '@/shared/lib/module-loader';
 import {
   AccessButton,
+  Button,
   ChunkLoadNotice,
   EmptyState,
   Skeleton,
@@ -74,6 +75,7 @@ import { warehouseWorkSection } from '../../i18n/workspaceSection';
 import { getWarehouseCells } from '../../model/warehouseCells';
 import { isWarehouseYardDockChoiceAllowed } from '../../model/warehouseYardDockChoice';
 import { readCells } from './warehouseFormatting';
+import { WarehouseStaffSlot } from './WarehouseStaffSlot';
 
 export type WarehouseLayoutRenderValue = (panel: ReactNode, scene?: ReactNode, sceneControls?: ReactNode) => ReactElement;
 
@@ -189,9 +191,11 @@ const WarehouseWorkspaceContent = ({
   const demoScenario = useDemoScenario();
   const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
   const canViewPolicy = useCan(PermissionCode.YARD_VIEW, { kind: 'organization' });
+  const canViewProfiles = useCan(PermissionCode.STAFF_PROFILE_VIEW, { kind: 'warehouse', warehouseId: warehouse.id });
   const canViewStaff = useCan(PermissionCode.STAFF_VIEW, { kind: 'warehouse', warehouseId: warehouse.id });
   const { ref: policyButtonRef, requestFocus: requestPolicyFocus } = useFocusHandoff<HTMLButtonElement>('warehouse-yard-policy');
   const [editingTaskId, setEditingTaskId] = useState<string | undefined>();
+  const [isStaffOpen, setIsStaffOpen] = useState(false);
   const [isEditingLayout, setIsEditingLayout] = useState(false);
   const [isPolicyOpen, setIsPolicyOpen] = useState(false);
   const hasEditor = editingTaskId !== undefined && workspace.receiving.data?.some(task => task.id === editingTaskId
@@ -222,51 +226,73 @@ const WarehouseWorkspaceContent = ({
       || task.receivedUnits.some(unit => unit.putAwayCellId === undefined)).length;
     const hasNoTasks = workspace.picking.data?.length === 0 && workspace.receiving.data?.length === 0;
 
+    const taskContent = hasNoTasks
+      ? <EmptyState icon={ClipboardList} text={t('warehouseWork.emptyTasks')} />
+      : (
+          <div className="flex flex-col gap-3" data-testid="warehouse-tasks">
+            <WarehouseQuery empty={t('warehouseWork.emptyTasks')} query={workspace.picking} t={t}>
+              {tasks => (
+                <WarehousePanelSlot loader={loadWarehousePanels}>
+                  {({ WarehousePicking }) => tasks.map(task => (
+                    <WarehousePicking
+                      canViewDeals={canViewDeals}
+                      cells={cells}
+                      key={task.id}
+                      marking={vehicleMarkings?.get(task.id)}
+                      onChanged={NO_CHANGE}
+                      t={t}
+                      task={task}
+                    />
+                  ))}
+                </WarehousePanelSlot>
+              )}
+            </WarehouseQuery>
+            <WarehouseQuery empty={t('warehouseWork.emptyTasks')} query={workspace.receiving} t={t}>
+              {tasks => (
+                <WarehousePanelSlot loader={loadWarehousePanels}>
+                  {({ WarehouseReceivingTasks }) => (
+                    <WarehouseReceivingTasks
+                      canViewDeals={canViewDeals}
+                      cells={cells}
+                      editingTaskId={hasEditor ? editingTaskId : undefined}
+                      onCellSelect={onCellSelect}
+                      onChanged={NO_CHANGE}
+                      onEditingChange={setEditingTaskId}
+                      t={t}
+                      tasks={tasks}
+                      timeZone={warehouse.timeZone}
+                      topology={workspace.topology.data}
+                      warehouseId={warehouse.id}
+                    />
+                  )}
+                </WarehousePanelSlot>
+              )}
+            </WarehouseQuery>
+          </div>
+        );
+    const handleToggleStaff = (): void => {
+      setIsStaffOpen(current => !current);
+    };
     tabs.push({
-      content: hasNoTasks
-        ? <EmptyState icon={ClipboardList} text={t('warehouseWork.emptyTasks')} />
-        : (
-            <div className="flex flex-col gap-3" data-testid="warehouse-tasks">
-              <WarehouseQuery empty={t('warehouseWork.emptyTasks')} query={workspace.picking} t={t}>
-                {tasks => (
-                  <WarehousePanelSlot loader={loadWarehousePanels}>
-                    {({ WarehousePicking }) => tasks.map(task => (
-                      <WarehousePicking
-                        canViewDeals={canViewDeals}
-                        cells={cells}
-                        key={task.id}
-                        marking={vehicleMarkings?.get(task.id)}
-                        onChanged={NO_CHANGE}
-                        t={t}
-                        task={task}
-                      />
-                    ))}
-                  </WarehousePanelSlot>
-                )}
-              </WarehouseQuery>
-              <WarehouseQuery empty={t('warehouseWork.emptyTasks')} query={workspace.receiving} t={t}>
-                {tasks => (
-                  <WarehousePanelSlot loader={loadWarehousePanels}>
-                    {({ WarehouseReceivingTasks }) => (
-                      <WarehouseReceivingTasks
-                        canViewDeals={canViewDeals}
-                        cells={cells}
-                        editingTaskId={hasEditor ? editingTaskId : undefined}
-                        onCellSelect={onCellSelect}
-                        onChanged={NO_CHANGE}
-                        onEditingChange={setEditingTaskId}
-                        t={t}
-                        tasks={tasks}
-                        timeZone={warehouse.timeZone}
-                        topology={workspace.topology.data}
-                        warehouseId={warehouse.id}
-                      />
-                    )}
-                  </WarehousePanelSlot>
-                )}
-              </WarehouseQuery>
-            </div>
-          ),
+      content: (
+        <div className="flex flex-col gap-3">
+          {canViewProfiles && !canViewStaff && (
+            <>
+              <Button
+                aria-expanded={isStaffOpen}
+                className="self-start"
+                data-testid="warehouse-task-staff"
+                onClick={handleToggleStaff}
+                variant="secondary"
+              >
+                {t('warehouseWork.staffDirectory')}
+              </Button>
+              {isStaffOpen && <WarehouseStaffSlot warehouseId={warehouse.id} />}
+            </>
+          )}
+          {taskContent}
+        </div>
+      ),
       count: count === undefined || receivingCount === undefined ? undefined : count + receivingCount,
       id: 'tasks',
       label: t('warehouseWork.tasks'),
@@ -382,9 +408,12 @@ const WarehouseWorkspaceContent = ({
   if (canViewStaff) {
     tabs.push({
       content: (
-        <WarehousePanelSlot key="staff" loader={loadWarehouseStaffPresence}>
-          {({ WarehouseStaffPresence }) => <WarehouseStaffPresence t={t} warehouseId={warehouse.id} />}
-        </WarehousePanelSlot>
+        <div className="flex flex-col gap-5">
+          <WarehousePanelSlot key="staff" loader={loadWarehouseStaffPresence}>
+            {({ WarehouseStaffPresence }) => <WarehouseStaffPresence t={t} warehouseId={warehouse.id} />}
+          </WarehousePanelSlot>
+          {canViewProfiles && <WarehouseStaffSlot warehouseId={warehouse.id} />}
+        </div>
       ),
       id: 'staff',
       label: t('warehouseWork.staffTab'),

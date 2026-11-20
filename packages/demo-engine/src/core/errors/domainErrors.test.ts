@@ -46,6 +46,7 @@ const EXPECTED_CONNECT_CODES: Readonly<Record<ErrorCode, Code>> = {
   [ErrorCode.WAREHOUSE_LAYOUT_BUSY]: Code.FailedPrecondition,
   [ErrorCode.WAREHOUSE_LAYOUT_SESSION_INVALID]: Code.FailedPrecondition,
   [ErrorCode.WAREHOUSE_RECEIVING_LAYOUT_BLOCKED]: Code.FailedPrecondition,
+  [ErrorCode.WAREHOUSE_STAFF_QUALIFICATION_REQUIRED]: Code.FailedPrecondition,
   [ErrorCode.YARD_DISPATCH_BLOCKED]: Code.FailedPrecondition,
 };
 

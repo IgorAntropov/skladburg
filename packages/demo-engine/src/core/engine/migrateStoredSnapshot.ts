@@ -1,6 +1,7 @@
 import type { EngineSnapshotValue } from '../ports/index';
 
 import { ENGINE_SCHEMA_VERSION } from '../state/schemaVersion';
+import { addWarehouseStaff } from './migrateWarehouseStaff';
 import { addWarehouseTopologies } from './migrateWarehouseTopologies';
 
 const PRE_FLEET_SCHEMA_VERSION = 15;
@@ -27,7 +28,10 @@ const addStockCollections = (snapshot: EngineSnapshotValue): EngineSnapshotValue
   },
 });
 
-export const migrateStoredSnapshot = async (stored: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
+const migrateWarehouseState = async (stored: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
+  if (stored.schemaVersion === 28) {
+    return { ...stored, schemaVersion: ENGINE_SCHEMA_VERSION };
+  }
   const withYardDispatchEntries: EngineSnapshotValue = {
     ...stored,
     collections: { ...stored.collections, yardDispatchEntries: new Map() },
@@ -102,3 +106,6 @@ export const migrateStoredSnapshot = async (stored: EngineSnapshotValue): Promis
 
   return addStockCollections(addWarehouseTopologies(migrated));
 };
+
+export const migrateStoredSnapshot = async (stored: EngineSnapshotValue): Promise<EngineSnapshotValue> =>
+  addWarehouseStaff(await migrateWarehouseState(stored));

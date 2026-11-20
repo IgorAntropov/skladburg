@@ -38,6 +38,7 @@ const expectedTraits: Record<ErrorCode, ErrorTraitsSnapshotValue> = {
   [ErrorCode.WAREHOUSE_LAYOUT_BUSY]: { category: ErrorCategory.FAILED_PRECONDITION, isRetryable: false },
   [ErrorCode.WAREHOUSE_LAYOUT_SESSION_INVALID]: { category: ErrorCategory.FAILED_PRECONDITION, isRetryable: false },
   [ErrorCode.WAREHOUSE_RECEIVING_LAYOUT_BLOCKED]: { category: ErrorCategory.FAILED_PRECONDITION, isRetryable: false },
+  [ErrorCode.WAREHOUSE_STAFF_QUALIFICATION_REQUIRED]: { category: ErrorCategory.FAILED_PRECONDITION, isRetryable: false },
   [ErrorCode.YARD_DISPATCH_BLOCKED]: { category: ErrorCategory.FAILED_PRECONDITION, isRetryable: false },
 };
 

@@ -1,1 +1,4 @@
-export const warehouseWorkspaceLauncherMessages = { 'warehouseWork.open': 'Рабочее место' } as const;
+export const warehouseWorkspaceLauncherMessages = {
+  'warehouseWork.directory': 'Сотрудники',
+  'warehouseWork.open': 'Рабочее место',
+} as const;

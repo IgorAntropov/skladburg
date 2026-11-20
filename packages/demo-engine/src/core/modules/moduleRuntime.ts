@@ -17,6 +17,7 @@ import type {
   refreshInboundDockSchedules,
 } from './wms/inboundRecords';
 import type { openOutboundTask } from './wms/outboundRecords';
+import type { WarehouseStaffMemberValue } from './wms/warehouseStaffRoster';
 import type { WarehouseStaffAssignmentValue } from './wms/warehouseStaffShifts';
 
 export interface IEventOutbox {
@@ -44,5 +45,6 @@ export interface IModuleRuntime {
   wmsInboundWarehouseIds?: ReadonlySet<string> | undefined;
   wmsManualInboundWarehouseIds?: ReadonlySet<string> | undefined;
   wmsOutboundWarehouseIds?: ReadonlySet<string> | undefined;
+  wmsStaff?: readonly WarehouseStaffMemberValue[] | undefined;
   wmsStaffSchedules?: ReadonlyMap<string, readonly WarehouseStaffAssignmentValue[]> | undefined;
 }

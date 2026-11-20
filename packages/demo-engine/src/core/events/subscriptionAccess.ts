@@ -28,6 +28,7 @@ const PRIVATE_WAREHOUSE_PERMISSIONS = {
   inventory: getPermissionName(PermissionCode.INVENTORY_VIEW),
   layout: WAREHOUSE_CHANNEL_PERMISSION,
   staff: getPermissionName(PermissionCode.STAFF_VIEW),
+  staffprofiles: getPermissionName(PermissionCode.STAFF_PROFILE_VIEW),
   tasks: getPermissionName(PermissionCode.TASK_VIEW),
 };
 export const MARKET_CHANNEL_PERMISSION = getPermissionName(PermissionCode.MARKETPLACE_VIEW);

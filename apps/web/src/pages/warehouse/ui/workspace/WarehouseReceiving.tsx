@@ -58,6 +58,10 @@ import { useYardWaitingReasons } from '../../api/useYardWaitingReasons';
 import { RECEIVING_TEXT } from './warehouseFormatting';
 import { WarehousePlacement } from './WarehousePlacement';
 import { WarehouseScanner } from './WarehouseScanner';
+import {
+  WarehouseClaimButton,
+  WarehouseTaskQualifications,
+} from './WarehouseTaskQualifications';
 import { WarehouseYardWaiting } from './WarehouseYardWaiting';
 
 interface WarehouseReceiveActionProps extends Omit<WarehouseReceiveFormProps, 'command' | 'scanner'> {
@@ -178,11 +182,16 @@ const WarehouseReceiving = ({
   };
 
   return (
-    <Card className="flex min-w-0 flex-col gap-3 p-3" data-testid="warehouse-receiving-task">
+    <Card
+      className="flex min-w-0 flex-col gap-3 p-3"
+      data-document-number={task.sourceDocumentNumber}
+      data-testid="warehouse-receiving-task"
+    >
       <header className="flex flex-wrap items-center justify-between gap-x-4">
         <h3 className="font-semibold">{t('warehouseWork.receipt')}</h3>
         <p className="text-sm text-on-panel-muted">{t(RECEIVING_TEXT[task.status])}</p>
       </header>
+      <WarehouseTaskQualifications required={task.requiredQualifications} t={t} />
       {currentReason !== undefined
         ? <WarehouseYardWaiting reason={currentReason} schedule={task.dockSchedule} t={t} timeZone={timeZone} />
         : dockLabel !== undefined && (
@@ -199,7 +208,7 @@ const WarehouseReceiving = ({
         {t('warehouseWork.placed', { count: placedCount, total: task.receivedUnits.length })}
       </p>
       {isOpen && (
-        <ActionButton access={claimAccess} command={claim} data-testid="warehouse-claim-receiving">{t('warehouseWork.claim')}</ActionButton>
+        <WarehouseClaimButton access={claimAccess} command={claim} t={t} testId="warehouse-claim-receiving" />
       )}
       {!isAssigned && isReceiving && <p className="text-sm text-on-panel-muted">{t('warehouseWork.workByOther')}</p>}
       {canReceive && selected === undefined && (

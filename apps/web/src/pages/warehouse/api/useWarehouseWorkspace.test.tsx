@@ -12,6 +12,7 @@ import { WarehouseSchema } from '@skladburg/contracts/organization/v1/organizati
 import {
   inventoryChannel,
   staffChannel,
+  staffProfilesChannel,
   tasksChannel,
   warehouseChannel,
 } from '@skladburg/contracts/runtime';
@@ -36,6 +37,10 @@ import {
   GetWarehouseStaffPresenceResponseSchema,
   WarehouseStaffPresenceService,
 } from '@skladburg/contracts/wms/v1/warehouse_staff_presence';
+import {
+  GetWarehouseStaffProfileResponseSchema,
+  WarehouseStaffProfileService,
+} from '@skladburg/contracts/wms/v1/warehouse_staff_profile';
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
   act,
@@ -63,6 +68,7 @@ import {
 
 import { useWarehouseObjectLookup } from './useWarehouseObjectLookup';
 import { useWarehouseStaffPresence } from './useWarehouseStaffPresence';
+import { useWarehouseStaffProfile } from './useWarehouseStaffProfiles';
 import { useWarehouseWorkspace } from './useWarehouseWorkspace';
 import { useWarehouseYardRefresh } from './useWarehouseYardRefresh';
 
@@ -349,4 +355,42 @@ it('resolves a cell only inside warehouses the persona can read', async () => {
   });
   expect(getWarehouseTopology).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ warehouseId: WAREHOUSE }), expect.anything());
   expect(result.current.isPending).toBe(false);
+});
+
+it('drops personal fields and their subscriptions when the acting employee or warehouse changes', async () => {
+  const runtime = createTestRuntime({
+    routes: (router) => {
+      router.service(AccessService, { getSession: () => create(GetSessionResponseSchema, {
+        permissions: [{ permission: 'staff_profile_view', warehouseIds: [WAREHOUSE] }],
+      }) });
+      router.service(WarehouseStaffProfileService, { getWarehouseStaffProfile: () => create(GetWarehouseStaffProfileResponseSchema, {
+        profile: { qualifications: { entries: [] } },
+      }) });
+    },
+  });
+  const queryClient = createQueryClient({ networkMode: 'always' });
+  const Wrapper = ({ children }: { children: ReactNode }): ReactElement => (
+    <ApiRuntimeProvider runtime={runtime}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </ApiRuntimeProvider>
+  );
+  const { rerender, result } = renderHook(({ id }) => useWarehouseStaffProfile(id, TEST_USER_ID), {
+    initialProps: { id: WAREHOUSE },
+    wrapper: Wrapper,
+  });
+
+  await waitFor(() => {
+    expect(result.current.data?.profile?.qualifications).toBeDefined();
+  });
+  const subscribed = queryClient.getQueryCache().getAll().find(query => query.meta?.channels?.includes(staffProfilesChannel(WAREHOUSE)));
+  expect(subscribed?.meta?.eventCases).toEqual(['warehouseStaffProfilesChanged']);
+  act(() => {
+    runtime.actingContext.set({ organizationId: TEST_ORGANIZATION_ID, userId: OTHER_USER });
+  });
+  expect(result.current.data).toBeUndefined();
+  rerender({ id: OTHER_WAREHOUSE });
+  expect(result.current.data).toBeUndefined();
+  expect(result.current.isFetching).toBe(false);
+  const other = queryClient.getQueryCache().getAll().filter(query => query.meta?.channels?.includes(staffProfilesChannel(OTHER_WAREHOUSE)));
+  expect(other).toHaveLength(0);
 });

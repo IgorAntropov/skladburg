@@ -23,6 +23,7 @@ const ERROR_MESSAGE_KEYS = {
   [ErrorCode.WAREHOUSE_LAYOUT_BUSY]: 'error.warehouse_layout_busy',
   [ErrorCode.WAREHOUSE_LAYOUT_SESSION_INVALID]: 'error.warehouse_layout_session_invalid',
   [ErrorCode.WAREHOUSE_RECEIVING_LAYOUT_BLOCKED]: 'error.warehouse_receiving_layout_blocked',
+  [ErrorCode.WAREHOUSE_STAFF_QUALIFICATION_REQUIRED]: 'error.warehouse_staff_qualification_required',
   [ErrorCode.YARD_DISPATCH_BLOCKED]: 'error.yard_dispatch_blocked',
 } as const satisfies Record<KnownErrorCode, MessageKey>;
 

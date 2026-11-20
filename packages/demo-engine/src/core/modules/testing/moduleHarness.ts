@@ -52,6 +52,7 @@ import { WarehouseReceivingService } from '@skladburg/contracts/wms/v1/receiving
 import { WarehouseReceivingLayoutService } from '@skladburg/contracts/wms/v1/receiving_layout';
 import { WarehouseStockService } from '@skladburg/contracts/wms/v1/stock';
 import { WarehouseTopologyService } from '@skladburg/contracts/wms/v1/topology';
+import { WarehouseStaffPresenceService } from '@skladburg/contracts/wms/v1/warehouse_staff_presence';
 import { YardQueuePolicyService } from '@skladburg/contracts/wms/v1/yard_queue_policy';
 
 import type { TestRuntimeValue } from './testRuntime';
@@ -87,6 +88,7 @@ import { createWarehouseLayoutSessionHandlers } from '../wms/warehouseLayoutSess
 import { createWarehousePickingService } from '../wms/warehousePickingService';
 import { createWarehouseReceivingLayoutService } from '../wms/warehouseReceivingLayoutService';
 import { createWarehouseReceivingService } from '../wms/warehouseReceivingService';
+import { createWarehouseStaffPresenceService } from '../wms/warehouseStaffPresenceService';
 import { createWarehouseStockService } from '../wms/warehouseStockService';
 import { createWarehouseTopologyService } from '../wms/warehouseTopologyService';
 import { createYardQueuePolicyService } from '../wms/yardQueuePolicyService';
@@ -187,6 +189,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(UserProfileService, createUserProfileService(testRuntime.runtime));
     service(WarehouseLayoutSessionService, createWarehouseLayoutSessionHandlers(testRuntime.runtime));
     service(WarehouseReceivingLayoutService, createWarehouseReceivingLayoutService(testRuntime.runtime));
+    service(WarehouseStaffPresenceService, createWarehouseStaffPresenceService(testRuntime.runtime));
     service(WarehousePickingService, createWarehousePickingService(testRuntime.runtime));
     service(WarehouseReceivingService, createWarehouseReceivingService(testRuntime.runtime));
     service(WarehouseStockService, createWarehouseStockService(testRuntime.runtime));

@@ -25,6 +25,7 @@ import { WarehouseReceivingService } from '@skladburg/contracts/wms/v1/receiving
 import { WarehouseReceivingLayoutService } from '@skladburg/contracts/wms/v1/receiving_layout';
 import { WarehouseStockService } from '@skladburg/contracts/wms/v1/stock';
 import { WarehouseTopologyService } from '@skladburg/contracts/wms/v1/topology';
+import { WarehouseStaffPresenceService } from '@skladburg/contracts/wms/v1/warehouse_staff_presence';
 import { YardQueuePolicyService } from '@skladburg/contracts/wms/v1/yard_queue_policy';
 
 export const ENGINE_SERVICES: readonly DescService[] = [
@@ -51,6 +52,7 @@ export const ENGINE_SERVICES: readonly DescService[] = [
   WarehousePickingService,
   WarehouseReceivingLayoutService,
   WarehouseReceivingService,
+  WarehouseStaffPresenceService,
   WarehouseStockService,
   WarehouseTopologyService,
   YardQueuePolicyService,

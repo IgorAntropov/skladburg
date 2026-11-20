@@ -48,6 +48,10 @@ import {
   WarehouseStockService,
 } from '@skladburg/contracts/wms/v1/stock';
 import {
+  WarehouseStaffAreaKind,
+  WarehouseStaffPresenceService,
+} from '@skladburg/contracts/wms/v1/warehouse_staff_presence';
+import {
   expect,
   it,
 } from 'vitest';
@@ -63,6 +67,7 @@ import {
 } from '../../engine/testing/engineHarness';
 import {
   SeedOrganizationId,
+  SeedUserId,
   SeedWarehouseId,
 } from '../../seed/seedIds';
 import {
@@ -232,6 +237,45 @@ const tickAt = async (test: TestEngineValue, targetMs: number): Promise<void> =>
 };
 
 const failureCode = async (call: Promise<unknown>): Promise<ErrorCode> => readErrorDetail(await captureError(call)).code;
+
+it('projects confirmed receiving and put-away while the assigned receiving task stays active', async () => {
+  const { clients, dealId, engine, inventoryOnly, receiver, ship } = await prepareInbound();
+  await tickAt(engine, await ship());
+  const presence = createClient(WarehouseStaffPresenceService, createEngineTransport(engine.engine, true));
+  const director = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
+  const readPresence = (): ReturnType<typeof presence.getWarehouseStaffPresence> =>
+    presence.getWarehouseStaffPresence({ warehouseId: WAREHOUSE }, director);
+  const base = { taskId: dealId, warehouseId: WAREHOUSE };
+  await clients.receiving.claimReceivingTask({ ...base, expectedVersion: 1, idempotencyKey: nextUuid() }, receiver);
+  const zero = await readPresence();
+  expect(zero.areas).toMatchObject([
+    { areaId: AREA, kind: WarehouseStaffAreaKind.RECEIVING, observedStaffCount: 0 },
+    { kind: WarehouseStaffAreaKind.STORAGE, observedStaffCount: 0 },
+  ]);
+
+  const receipt = { ...base, expectedVersion: 2, idempotencyKey: nextUuid(), unit: { case: 'sscc', value: SSCC } } as const;
+  const received = await clients.receiving.receiveHandlingUnit(receipt, receiver);
+  expect(await clients.receiving.receiveHandlingUnit(receipt, receiver)).toEqual(received);
+  expect((await readPresence()).areas.map(area => area.observedStaffCount)).toEqual([1, 0]);
+  const handlingUnitId = received.task?.receivedUnits[0]?.balanceAtReceipt?.handlingUnit?.id ?? '';
+  const putAway = { ...base, expectedVersion: 3, handlingUnitId, idempotencyKey: nextUuid(), toCellId: CELL };
+  engine.storage.failNextCommit();
+  expect(await failureCode(clients.receiving.putAwayHandlingUnit(putAway, receiver))).toBe(ErrorCode.UNAVAILABLE);
+  expect((await readPresence()).areas.map(area => area.observedStaffCount)).toEqual([1, 0]);
+  await clients.receiving.putAwayHandlingUnit(putAway, receiver);
+  const inStorage = await readPresence();
+  expect(inStorage.areas.map(area => area.observedStaffCount)).toEqual([0, 1]);
+  expect((await clients.stock.listStockMovements(base, inventoryOnly)).movements).toEqual(expect.arrayContaining([
+    expect.objectContaining({ kind: StockMovementKind.RECEIPT, toReceivingAreaId: AREA }),
+    expect.objectContaining({ fromReceivingAreaId: AREA, kind: StockMovementKind.TRANSFER, toCellId: CELL }),
+  ]));
+
+  const { engine: restarted } = await createTestEngine({ storage: engine.storage });
+  const restartedPresence = createClient(WarehouseStaffPresenceService, createEngineTransport(restarted, true));
+  expect(await restartedPresence.getWarehouseStaffPresence({ warehouseId: WAREHOUSE }, director)).toEqual(inStorage);
+  await createClients(restarted).receiving.finishReceivingTask({ ...base, expectedVersion: 4, idempotencyKey: nextUuid() }, receiver);
+  expect(await restartedPresence.getWarehouseStaffPresence({ warehouseId: WAREHOUSE }, director)).toEqual(zero);
+});
 
 it('opens one private task on arrival and keeps the deal payment held after restart and after finishing the fact', async () => {
   const { clients, dealId, editor, engine, inventoryOnly, receiver, secondReceiver, ship } = await prepareInbound();

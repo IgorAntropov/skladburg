@@ -58,14 +58,17 @@ const readVisibleStaff = (runtime: IModuleRuntime, caller: PermissionCallerValue
   const hasPermission = (name: string, warehouse: string): boolean =>
     caller.permissions.some(grant => grant.permission === name && isWarehouseInScope(grant, warehouse));
   const observations = new Map<string, ReturnType<typeof readStaffObservations>>();
-  const currentArea = (member: WarehouseStaffMemberValue): string | undefined => {
+  const warehouseObservations = (member: WarehouseStaffMemberValue): ReturnType<typeof readStaffObservations> => {
     let latest = observations.get(member.warehouseId);
     if (latest === undefined) {
       const topology = readOwnedWarehouseTopology(read, runtime.errors, member.warehouseId, member.organizationId);
       latest = topology === undefined ? new Map() : readStaffObservations(runtime, topology);
       observations.set(member.warehouseId, latest);
     }
-    const observation = latest.get(member.userId);
+    return latest;
+  };
+  const currentArea = (member: WarehouseStaffMemberValue): string | undefined => {
+    const observation = warehouseObservations(member).get(member.userId);
     return observation === undefined ? member.workplace?.areaId : observation.areaId;
   };
   const visible: VisibleStaffValue[] = [];
@@ -89,15 +92,17 @@ const readVisibleStaff = (runtime: IModuleRuntime, caller: PermissionCallerValue
     const canReadQualifications = isOwn || isTeamMember || hasPermission('staff_qualification_view', member.warehouseId);
     const canReadArea = own !== undefined && !isOwn && !isLead
       && currentArea(own) !== undefined && currentArea(own) === currentArea(member);
-    if (canReadPerformance || canReadQualifications || isLead || canReadArea) {
+    const canReadWork = canReadPerformance || isLead || canReadArea;
+    if (canReadWork || canReadQualifications) {
       visible.push({
         canReadPerformance,
         canReadQualifications,
-        canReadWork: canReadPerformance || isLead || canReadArea,
+        canReadWork,
         member,
         summary: create(WarehouseStaffSummarySchema, {
           avatarKey: workplace.workRole.toLowerCase(),
           displayName: user.displayName,
+          observedAreaId: canReadWork ? warehouseObservations(member).get(member.userId)?.areaId : undefined,
           staffId: member.userId,
           warehouseId: warehouse.id,
           warehouseName: warehouse.name,

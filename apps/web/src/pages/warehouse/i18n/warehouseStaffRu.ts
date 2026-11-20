@@ -18,6 +18,7 @@ export const catalog = {
   'warehouseStaff.onShift': 'На смене',
   'warehouseStaff.performance': 'Показатели',
   'warehouseStaff.picking': 'Отбор',
+  'warehouseStaff.profile': 'Карточка сотрудника',
   'warehouseStaff.qualifications': 'Допуски',
   'warehouseStaff.quality': 'Операции без ошибок',
   'warehouseStaff.rate': 'Строк отбора в час',

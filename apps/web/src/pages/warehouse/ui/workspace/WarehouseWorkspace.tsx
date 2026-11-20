@@ -16,6 +16,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useState,
 } from 'react';
@@ -68,6 +69,7 @@ import type {
   WarehouseYardDragValue,
 } from '../../model/warehouseYardDockChoice';
 import type { WarehouseYardVehicleMarkingVisualValue } from '../../model/warehouseYardVehicleMarkingVisual';
+import type { WarehouseSceneViewToggleProps } from '../WarehouseWorkspaceScene';
 
 import { useWarehouseWorkspace } from '../../api/useWarehouseWorkspace';
 import { useWarehouseYardVehicleMarkings } from '../../api/useWarehouseYardVehicleMarkings';
@@ -103,6 +105,8 @@ const WarehouseWorkspaceScene = createLazyComponent(loadWarehouseSceneView);
 const WarehouseSceneControls = createLazyComponent<object>(createCachedModuleLoader(() => loadWarehouseSceneView().then(module => ({
   default: module.WarehouseSceneControls,
 }))));
+const WarehouseSceneViewToggle = createLazyComponent<WarehouseSceneViewToggleProps>(createCachedModuleLoader(() =>
+  loadWarehouseSceneView().then(module => ({ default: module.WarehouseSceneViewToggle }))));
 
 interface WarehousePanelSlotProps<TModule> {
   children: (module: TModule) => ReactNode;
@@ -193,11 +197,14 @@ const WarehouseWorkspaceContent = ({
   const canViewPolicy = useCan(PermissionCode.YARD_VIEW, { kind: 'organization' });
   const canViewProfiles = useCan(PermissionCode.STAFF_PROFILE_VIEW, { kind: 'warehouse', warehouseId: warehouse.id });
   const canViewStaff = useCan(PermissionCode.STAFF_VIEW, { kind: 'warehouse', warehouseId: warehouse.id });
+  const workPanelId = useId();
   const { ref: policyButtonRef, requestFocus: requestPolicyFocus } = useFocusHandoff<HTMLButtonElement>('warehouse-yard-policy');
   const [editingTaskId, setEditingTaskId] = useState<string | undefined>();
   const [isStaffOpen, setIsStaffOpen] = useState(false);
   const [isEditingLayout, setIsEditingLayout] = useState(false);
   const [isPolicyOpen, setIsPolicyOpen] = useState(false);
+  const [isSceneOpen, setIsSceneOpen] = useState(false);
+  const canOpenScene = workspace.canViewTopology && workspace.topology.data != null && !isReadAccessDenied(workspace.topology.error);
   const hasEditor = editingTaskId !== undefined && workspace.receiving.data?.some(task => task.id === editingTaskId
     && task.status === ReceivingTaskStatus.IN_PROGRESS) === true;
   const isEditing = hasEditor || isEditingLayout || isEditingYard;
@@ -215,6 +222,9 @@ const WarehouseWorkspaceContent = ({
     requestPolicyFocus();
   };
 
+  if (isSceneOpen && !canOpenScene) {
+    setIsSceneOpen(false);
+  }
   if (workspace.isSessionPending) {
     return <SkeletonGroup isFilled label={baseText('routing.section.loading')}><WarehouseSkeleton /></SkeletonGroup>;
   }
@@ -429,50 +439,61 @@ const WarehouseWorkspaceContent = ({
 
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2" data-testid="warehouse-workspace">
-      <header className="flex flex-col items-start gap-1">
-        <TextLink size="sm" to={{ kind: 'section', section: 'warehouse' }}>{t('warehouseWork.back')}</TextLink>
-        <h2 className="text-xl font-semibold wrap-anywhere" translate="no">{warehouse.name}</h2>
-        {canViewPolicy && (isPolicyOpen
-          ? (
-              <WarehousePanelSlot loader={loadWarehouseYardPolicy}>
-                {({ WarehouseYardPolicyEditor }) => <WarehouseYardPolicyEditor onClose={handleClosePolicy} t={t} />}
-              </WarehousePanelSlot>
-            )
-          : (
-              <AccessButton
-                access={{ status: 'allowed' }}
-                data-testid="yard-queue-policy-open"
-                isDisabled={isEditing}
-                onClick={handleOpenPolicy}
-                ref={policyButtonRef}
-                variant="secondary"
-              >
-                {t('warehouseWork.yardPolicyTitle')}
-              </AccessButton>
-            ))}
-        {cellLabel !== undefined && (
-          <p className="text-sm text-on-panel-muted">
-            {t('warehouseWork.cell')}
-            {' '}
-            {cellLabel}
-          </p>
-        )}
-        {(isCell || isUnit) && (
-          <TextLink size="sm" to={{ kind: 'object', object: { id: warehouse.id, type: 'warehouse' } }}>
-            {t('warehouseWork.open')}
-          </TextLink>
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-col items-start gap-1">
+          {!isSceneOpen && <TextLink size="sm" to={{ kind: 'section', section: 'warehouse' }}>{t('warehouseWork.back')}</TextLink>}
+          <h2 className="text-xl font-semibold wrap-anywhere" translate="no">{warehouse.name}</h2>
+        </div>
+        {canOpenScene && (
+          <Suspense fallback={null}>
+            <WarehouseSceneViewToggle isSceneOpen={isSceneOpen} onOpenChange={setIsSceneOpen} panelId={workPanelId} t={t} />
+          </Suspense>
         )}
       </header>
-      {tabs.length > 0
-        ? (
-            <Tabs
-              className={cn('[&>[role=tablist]>[role=tab]]:shrink-0', isEditing && '[&>[role=tablist]]:hidden')}
-              defaultTabId={defaultTabId}
-              items={tabs}
-              label={t('warehouseWork.tabs')}
-            />
-          )
-        : <EmptyState icon={Package} text={t('warehouseWork.noAccess')} />}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2" hidden={isSceneOpen} id={workPanelId}>
+        <div className="flex flex-col items-start gap-1 empty:hidden">
+          {canViewPolicy && (isPolicyOpen
+            ? (
+                <WarehousePanelSlot loader={loadWarehouseYardPolicy}>
+                  {({ WarehouseYardPolicyEditor }) => <WarehouseYardPolicyEditor onClose={handleClosePolicy} t={t} />}
+                </WarehousePanelSlot>
+              )
+            : (
+                <AccessButton
+                  access={{ status: 'allowed' }}
+                  data-testid="yard-queue-policy-open"
+                  isDisabled={isEditing}
+                  onClick={handleOpenPolicy}
+                  ref={policyButtonRef}
+                  variant="secondary"
+                >
+                  {t('warehouseWork.yardPolicyTitle')}
+                </AccessButton>
+              ))}
+          {cellLabel !== undefined && (
+            <p className="text-sm text-on-panel-muted">
+              {t('warehouseWork.cell')}
+              {' '}
+              {cellLabel}
+            </p>
+          )}
+          {(isCell || isUnit) && (
+            <TextLink size="sm" to={{ kind: 'object', object: { id: warehouse.id, type: 'warehouse' } }}>
+              {t('warehouseWork.open')}
+            </TextLink>
+          )}
+        </div>
+        {tabs.length > 0
+          ? (
+              <Tabs
+                className={cn('[&>[role=tablist]>[role=tab]]:shrink-0', isEditing && '[&>[role=tablist]]:hidden')}
+                defaultTabId={defaultTabId}
+                items={tabs}
+                label={t('warehouseWork.tabs')}
+              />
+            )
+          : <EmptyState icon={Package} text={t('warehouseWork.noAccess')} />}
+      </div>
     </section>
   );
 };

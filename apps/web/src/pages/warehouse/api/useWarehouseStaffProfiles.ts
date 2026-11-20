@@ -68,10 +68,11 @@ const useStaffScope = (warehouseId: string | undefined): WarehouseStaffScopeValu
   return { canRead, client, meta, queryKey };
 };
 
-export const useWarehouseStaffList = (warehouseId: string | undefined): UseQueryResult<WarehouseStaffSummary[]> => {
+export const useWarehouseStaffList = (warehouseId: string | undefined, isEnabled = true): UseQueryResult<WarehouseStaffSummary[]> => {
   const cache = useQueryClient();
   const { canRead, client, meta, queryKey } = useStaffScope(warehouseId);
-  const listKey = [...queryKey, 'list', canRead];
+  const canListStaff = canRead && isEnabled;
+  const listKey = [...queryKey, 'list', canListStaff];
   const staff = cache.getQueryData<WarehouseStaffSummary[]>(listKey);
   const channels = [...new Set(staff?.map(member => staffProfilesChannel(member.warehouseId)))];
   const listMeta: ApiQueryMetaValue | undefined = meta ?? (canRead && channels.length > 0
@@ -79,8 +80,8 @@ export const useWarehouseStaffList = (warehouseId: string | undefined): UseQuery
     : undefined);
   return useQuery({
     gcTime: 0,
-    meta: listMeta,
-    queryFn: canRead
+    meta: canListStaff ? listMeta : undefined,
+    queryFn: canListStaff
       ? ({ signal }) => collectPages(async (page) => {
           const response = await client.service(WarehouseStaffProfileService).listWarehouseStaff({ page, warehouseId }, { signal });
           return { items: response.staff, nextPageToken: response.page?.nextPageToken ?? '' };

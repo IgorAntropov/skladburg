@@ -56,6 +56,6 @@ export const withNativeTabVisibility = async (run: (context: BrowserContext) => 
   finally {
     chrome.kill();
     await closed;
-    await rm(profile, { force: true, recursive: true });
+    await rm(profile, { force: true, maxRetries: 3, recursive: true });
   }
 };

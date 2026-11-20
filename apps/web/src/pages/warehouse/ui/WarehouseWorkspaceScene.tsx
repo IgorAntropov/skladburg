@@ -5,7 +5,9 @@ import { PermissionCode } from '@skladburg/contracts/access/v1/permission';
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -20,10 +22,12 @@ import {
   createCachedModuleLoader,
   useChunkLoader,
 } from '@/shared/lib/module-loader';
+import { useViewportClass } from '@/shared/lib/viewport';
 import {
   useAddress,
   useNavigate,
 } from '@/shared/routing';
+import { Button } from '@/shared/ui';
 import {
   SceneCameraControls,
   ScenePlaceholder,
@@ -32,6 +36,7 @@ import {
 } from '@/widgets/scene-viewport';
 
 import type { WarehouseWorkspaceValue } from '../api/useWarehouseWorkspace';
+import type { WarehouseWorkTranslate } from '../i18n/workspaceSection';
 import type {
   WarehouseConstructionLayerProps,
   WarehouseSceneDataValue,
@@ -41,6 +46,7 @@ import type { WarehouseSceneParkingValue } from '../model/warehouseSceneParking'
 import type { WarehouseYardFactsValue } from '../model/warehouseYardFacts';
 import type { WarehouseYardVehicleMarkingVisualValue } from '../model/warehouseYardVehicleMarkingVisual';
 
+import { useWarehouseSceneStaff } from '../api/useWarehouseSceneStaff';
 import { useWarehouseYardLight } from '../api/useWarehouseYardLight';
 import { useWarehouseYardRefresh } from '../api/useWarehouseYardRefresh';
 import { warehouseWorkspaceKey } from '../api/warehouseWorkspaceKey';
@@ -49,6 +55,7 @@ import { projectWarehouseCargo } from '../model/projectWarehouseCargo';
 import { readWarehouseReceivingDocks } from '../model/warehouseReceivingDocks';
 import { readWarehouseSceneParking } from '../model/warehouseSceneParking';
 import { acceptWarehouseYardFacts } from '../model/warehouseYardFacts';
+import { WarehouseStaffSceneDialog } from './workspace/WarehouseStaffSceneDialog';
 
 const loadWarehouseScene = createCachedModuleLoader(() => import('../scene/WarehouseWorldScene'));
 const loadWarehouseConstruction = createCachedModuleLoader(() => import('../scene/WarehouseConstruction'));
@@ -58,11 +65,16 @@ interface WarehouseWorkspaceSceneProps extends Omit<
   | 'cargo'
   | 'constructionLayer'
   | 'focusRequest'
+  | 'formatStaffOverflow'
   | 'isCameraReady'
   | 'isNight'
   | 'isRefreshingYardFacts'
   | 'onCellSelect'
+  | 'onStaffSelect'
   | 'parkingCapacity'
+  | 'selectedStaffId'
+  | 'staffAreas'
+  | 'staffOverlayHost'
 > {
   isLoading: boolean;
   label: string;
@@ -98,9 +110,12 @@ const WarehouseWorkspaceScene = ({
   const { organizationId, userId } = useActingContext();
   const canViewTrips = useCan(PermissionCode.TRIP_VIEW, { kind: 'organization' });
   const isSceneCameraReady = useIsSceneCameraReady();
+  const staff = useWarehouseSceneStaff(warehouseId, isSceneCameraReady && topology != null, focusRequest);
   const isNight = useWarehouseYardLight(timeZone, isSceneCameraReady && topology != null);
   const [lastParking, setLastParking] = useState<WarehouseSceneParkingValue>();
   const [lastFacts, setLastFacts] = useState<WarehouseYardFactsValue>();
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const staffOverlayHost = useRef<HTMLDivElement>(null);
   const receivingArea = topology?.receivingArea;
   const areaId = receivingArea?.id;
   const hasDock = receivingArea?.unloadingPoint?.position !== undefined;
@@ -164,31 +179,86 @@ const WarehouseWorkspaceScene = ({
   }
 
   return (
-    <SceneViewport
-      interaction={{
-        balances,
-        cargo,
-        construction,
-        constructionLayer: WarehouseConstructionLayer,
-        focusRequest,
-        isCameraReady: isSceneCameraReady,
-        isNight,
-        isRefreshingYardFacts,
-        onCellSelect: handleCellSelect,
-        parkingCapacity: parking.capacity,
-        scannedCell,
-        selectedCellId,
-        vehicleMarkings: sceneMarkings,
-        yardDrag,
-      }}
-      key={yardsScope}
-      label={label}
-      loadScene={loadWarehouseScene}
-      sceneData={sceneData}
-    />
+    <div aria-label={label} className="relative size-full" ref={viewportRef} role="group" tabIndex={-1}>
+      <SceneViewport
+        interaction={{
+          balances,
+          cargo,
+          construction,
+          constructionLayer: WarehouseConstructionLayer,
+          focusRequest,
+          formatStaffOverflow: staff.formatStaffOverflow,
+          isCameraReady: isSceneCameraReady,
+          isNight,
+          isRefreshingYardFacts,
+          onCellSelect: handleCellSelect,
+          onStaffSelect: staff.selectStaff,
+          parkingCapacity: parking.capacity,
+          scannedCell,
+          selectedCellId,
+          selectedStaffId: staff.selectedStaffId,
+          staffAreas: staff.staffAreas,
+          staffOverlayHost,
+          vehicleMarkings: sceneMarkings,
+          yardDrag,
+        }}
+        key={yardsScope}
+        label={label}
+        loadScene={loadWarehouseScene}
+        sceneData={sceneData}
+      />
+      <div className="pointer-events-none absolute inset-0 overflow-hidden select-none" ref={staffOverlayHost} />
+      {staff.selectedStaffId !== undefined && (
+        <WarehouseStaffSceneDialog
+          fallbackFocus={viewportRef}
+          onClose={staff.closeProfile}
+          staffId={staff.selectedStaffId}
+          warehouseId={warehouseId}
+        />
+      )}
+    </div>
   );
 };
 
 export const WarehouseSceneControls = SceneCameraControls;
+
+export interface WarehouseSceneViewToggleProps {
+  isSceneOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+  panelId: string;
+  t: WarehouseWorkTranslate;
+}
+
+export const WarehouseSceneViewToggle = ({
+  isSceneOpen, onOpenChange, panelId, t,
+}: WarehouseSceneViewToggleProps): null | ReactElement => {
+  const isCameraReady = useIsSceneCameraReady();
+  const viewport = useViewportClass();
+  const isAvailable = isCameraReady && viewport !== 'phone';
+
+  const handleToggle = (): void => {
+    onOpenChange(!isSceneOpen);
+  };
+
+  useLayoutEffect(() => {
+    if (!isAvailable && isSceneOpen) {
+      onOpenChange(false);
+    }
+  }, [isAvailable, isSceneOpen, onOpenChange]);
+
+  return isAvailable
+    ? (
+        <Button
+          aria-controls={panelId}
+          aria-expanded={!isSceneOpen}
+          data-testid="warehouse-scene-view-toggle"
+          onClick={handleToggle}
+          variant="secondary"
+        >
+          {t(isSceneOpen ? 'warehouseWork.returnToWork' : 'warehouseWork.viewScene')}
+        </Button>
+      )
+    : null;
+};
 
 export default WarehouseWorkspaceScene;

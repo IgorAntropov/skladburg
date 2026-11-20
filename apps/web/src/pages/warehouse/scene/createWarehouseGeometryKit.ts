@@ -5,14 +5,14 @@ import {
 
 import warehouseKit from './warehouseKit.json';
 
-export type WarehouseGeometryKitValue = ReturnType<typeof createWarehouseGeometryKit>;
+export type WarehouseGeometryKitValue = Record<'palletBase' | 'palletBoards' | 'palletLoad', BufferGeometry>;
 
 interface WarehouseKitPartValue {
   indices: number[];
   positions: number[];
 }
 
-const createGeometry = ({ indices, positions }: WarehouseKitPartValue): BufferGeometry => {
+export const createWarehousePartGeometry = ({ indices, positions }: WarehouseKitPartValue): BufferGeometry => {
   const geometry = new BufferGeometry();
 
   geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
@@ -23,14 +23,8 @@ const createGeometry = ({ indices, positions }: WarehouseKitPartValue): BufferGe
   return geometry;
 };
 
-export const createWarehouseGeometryKit = (): Record<keyof typeof warehouseKit, BufferGeometry> => ({
-  palletBase: createGeometry(warehouseKit.palletBase),
-  palletBoards: createGeometry(warehouseKit.palletBoards),
-  palletLoad: createGeometry(warehouseKit.palletLoad),
-  rackDeck: createGeometry(warehouseKit.rackDeck),
-  rackDeckLow: createGeometry(warehouseKit.rackDeckLow),
-  rackFrame: createGeometry(warehouseKit.rackFrame),
-  rackFrameLow: createGeometry(warehouseKit.rackFrameLow),
-  rackRail: createGeometry(warehouseKit.rackRail),
-  rackRailLow: createGeometry(warehouseKit.rackRailLow),
+export const createWarehouseGeometryKit = (): WarehouseGeometryKitValue => ({
+  palletBase: createWarehousePartGeometry(warehouseKit.palletBase),
+  palletBoards: createWarehousePartGeometry(warehouseKit.palletBoards),
+  palletLoad: createWarehousePartGeometry(warehouseKit.palletLoad),
 });

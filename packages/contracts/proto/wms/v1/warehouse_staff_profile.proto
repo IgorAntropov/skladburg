@@ -45,6 +45,7 @@ message WarehouseStaffSummary {
   WarehouseStaffWorkRole work_role = 4;
   string avatar_key = 5;
   string warehouse_name = 6;
+  optional string observed_area_id = 7;
 }
 
 message WarehouseStaffTask {

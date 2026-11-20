@@ -25,8 +25,10 @@ import type { WarehouseStaffTranslate } from '../../i18n/warehouseStaffSection';
 import { useWarehouseStaffProfile } from '../../api/useWarehouseStaffProfiles';
 import { warehouseQualificationMessages } from '../../i18n/warehouseQualificationRu';
 import { getWarehouseQualificationNameKey } from '../../model/warehouseQualification';
+import { WarehouseStaffIdentity } from './WarehouseStaffIdentity';
 
 interface WarehouseStaffProfileProps {
+  showIdentity?: boolean;
   staffId: string;
   t: WarehouseStaffTranslate;
   warehouseId: string;
@@ -144,7 +146,7 @@ const StaffDetails = ({ profile, t }: { profile: WarehouseStaffProfile; t: Wareh
   );
 };
 
-export const WarehouseStaffProfileDetails = ({ staffId, t, warehouseId }: WarehouseStaffProfileProps): ReactElement => {
+export const WarehouseStaffProfileDetails = ({ showIdentity, staffId, t, warehouseId }: WarehouseStaffProfileProps): ReactElement => {
   const query = useWarehouseStaffProfile(warehouseId, staffId);
   const { t: baseText } = useI18n();
   const unavailable = <EmptyState icon={UserRound} text={t('warehouseStaff.unavailable')} />;
@@ -161,7 +163,18 @@ export const WarehouseStaffProfileDetails = ({ staffId, t, warehouseId }: Wareho
       onRetry={() => { void query.refetch(); }}
       skeleton={<Skeleton className="h-28 w-full" />}
     >
-      {({ profile }) => profile === undefined ? unavailable : <StaffDetails profile={profile} t={t} />}
+      {({ profile }) => profile === undefined
+        ? unavailable
+        : (
+            <>
+              {showIdentity === true && profile.summary !== undefined && (
+                <h3 className="mb-4 flex items-center gap-3">
+                  <WarehouseStaffIdentity showWarehouse={false} staff={profile.summary} t={t} />
+                </h3>
+              )}
+              <StaffDetails profile={profile} t={t} />
+            </>
+          )}
     </WidgetStates>
   );
 };

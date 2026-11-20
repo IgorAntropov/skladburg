@@ -69,6 +69,15 @@ const setup = (): StaffHarnessValue => {
   return { ...harness, client: createClient(WarehouseStaffProfileService, harness.transport) };
 };
 
+const newTask = (status: ReceivingTaskStatus, finishedMs: number | undefined): ReceivingTask => {
+  const id = nextUuid();
+  return create(ReceivingTaskSchema, {
+    assigneeUserId: OPERATOR, dealId: id, expectedUnits: [{ id: nextUuid() }],
+    finishedAt: finishedMs === undefined ? undefined : timestampFromMs(finishedMs),
+    id, orderLines: [{ dealLineId: nextUuid() }], receivingAreaId, sourceDocumentNumber: 'DEMO-STAFF', status, warehouseId: WAREHOUSE,
+  });
+};
+
 it('projects the same roster by warehouse, area, team and field permissions for directory and detail', async () => {
   const { client } = setup();
   const listIds = async (userId: string): Promise<string[]> =>
@@ -85,6 +94,7 @@ it('projects the same roster by warehouse, area, team and field permissions for 
   expect((await client.listWarehouseStaff({ page: { pageSize: 2 }, warehouseId: WAREHOUSE }, director)).page?.nextPageToken).toBeTruthy();
 
   const own = await profile(OPERATOR, OPERATOR);
+  expect(own?.summary?.observedAreaId).toBeUndefined();
   expect(own?.performance).toBeDefined();
   expect(own?.work?.shiftState).toBe(WarehouseStaffShiftState.ON_SHIFT);
   expect(own?.qualifications?.entries).toEqual(expect.arrayContaining([expect.objectContaining({
@@ -142,21 +152,13 @@ it('denies foreign organizations, scopes, guessed staff identities and a support
 
 it('uses confirmed operations for the current area, all concurrent tasks and the shift and week counts', async () => {
   const { client, runtime } = setup();
-  const newTask = (status: ReceivingTaskStatus, finishedMs?: number): ReceivingTask => {
-    const id = nextUuid();
-    return create(ReceivingTaskSchema, {
-      assigneeUserId: OPERATOR, dealId: id, expectedUnits: [{ id: nextUuid() }],
-      finishedAt: finishedMs === undefined ? undefined : timestampFromMs(finishedMs),
-      id, orderLines: [{ dealLineId: nextUuid() }], receivingAreaId, sourceDocumentNumber: 'DEMO-STAFF', status, warehouseId: WAREHOUSE,
-    });
-  };
-  const active = newTask(ReceivingTaskStatus.IN_PROGRESS);
+  const active = newTask(ReceivingTaskStatus.IN_PROGRESS, undefined);
   active.receivedUnits.push(create(ReceivedHandlingUnitSchema, {
     putAwayAt: timestampFromMs(SEED_WORLD_START_MS),
     putAwayCellId: '8f000004-0000-4000-8000-000000000006',
     receivedAt: timestampFromMs(SEED_WORLD_START_MS - 10_000),
   }));
-  const another = newTask(ReceivingTaskStatus.IN_PROGRESS);
+  const another = newTask(ReceivingTaskStatus.IN_PROGRESS, undefined);
   const completed = newTask(ReceivingTaskStatus.RECONCILED, SEED_WORLD_START_MS);
   const beforeShift = newTask(ReceivingTaskStatus.RECONCILED, SEED_WORLD_START_MS - 3 * 3_600_000);
   const lastWeek = newTask(ReceivingTaskStatus.RECONCILED, SEED_WORLD_START_MS - 24 * 3_600_000);
@@ -189,6 +191,49 @@ it('uses confirmed operations for the current area, all concurrent tasks and the
   expect(shipped?.work).toEqual(row?.work);
   const colleagueView = await client.listWarehouseStaff({ warehouseId: WAREHOUSE }, callAs(OPERATOR, TENANT));
   expect(colleagueView.staff.map(member => member.staffId)).toEqual([OPERATOR, PICKER]);
+});
+
+it('exposes an observed work area only while an authorized viewer has unambiguous evidence', async () => {
+  const { client, runtime } = setup();
+  const active = newTask(ReceivingTaskStatus.IN_PROGRESS, undefined);
+  const conflicting = newTask(ReceivingTaskStatus.IN_PROGRESS, undefined);
+  const at = timestampFromMs(SEED_WORLD_START_MS);
+  active.receivedUnits.push(create(ReceivedHandlingUnitSchema, {
+    putAwayAt: at, putAwayCellId: '8f000004-0000-4000-8000-000000000006',
+  }));
+  conflicting.receivedUnits.push(create(ReceivedHandlingUnitSchema, { receivedAt: at }));
+  await runtime.command((transaction) => {
+    transaction.put('warehouseTopologies', encodeWarehouseTopology(createSeedWarehouseTopology({
+      prefix: '8f000004', tenantId: TENANT, warehouseId: WAREHOUSE,
+    })));
+    saveInboundTask(transaction, runtime, active, TENANT);
+  });
+  const request = { staffId: OPERATOR, warehouseId: WAREHOUSE };
+  const row = (await client.getWarehouseStaffProfile(request, director)).profile;
+  const observedZone = '8f000004-0000-4000-8000-000000000001';
+  expect(row?.summary?.observedAreaId).toBe(observedZone);
+  const directorList = await client.listWarehouseStaff({ warehouseId: WAREHOUSE }, director);
+  expect(directorList.staff.map(member => member.observedAreaId)).toEqual([undefined, observedZone, undefined]);
+  const admin = callAs(SeedUserId.COMPANY_ADMIN, TENANT);
+  const adminList = await client.listWarehouseStaff({ warehouseId: WAREHOUSE }, admin);
+  expect(adminList.staff.map(member => member.observedAreaId)).toEqual([undefined, undefined, undefined]);
+  const adminProfile = await client.getWarehouseStaffProfile(request, admin);
+  expect(adminProfile.profile?.summary?.observedAreaId).toBeUndefined();
+  const neighbourView = await client.listWarehouseStaff({ warehouseId: WAREHOUSE }, callAs(PICKER, TENANT));
+  expect(neighbourView.staff.find(member => member.staffId === OPERATOR)?.observedAreaId).toBe(observedZone);
+  await runtime.command((transaction) => {
+    saveInboundTask(transaction, runtime, conflicting, TENANT);
+  });
+  const ambiguous = await client.getWarehouseStaffProfile(request, director);
+  expect(ambiguous.profile?.summary?.observedAreaId).toBeUndefined();
+  await runtime.command((transaction) => {
+    for (const task of [active, conflicting]) {
+      task.status = ReceivingTaskStatus.RECONCILED;
+      saveInboundTask(transaction, runtime, task, TENANT);
+    }
+  });
+  const closed = await client.getWarehouseStaffProfile(request, director);
+  expect(closed.profile?.summary?.observedAreaId).toBeUndefined();
 });
 
 it('keeps performance and credentials independent and preserves colleague work when another grant is assigned', async () => {

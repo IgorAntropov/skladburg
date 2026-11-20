@@ -39,6 +39,7 @@ import {
 } from '@skladburg/contracts/wms/v1/warehouse_staff_presence';
 import {
   GetWarehouseStaffProfileResponseSchema,
+  ListWarehouseStaffResponseSchema,
   WarehouseStaffProfileService,
 } from '@skladburg/contracts/wms/v1/warehouse_staff_profile';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -65,8 +66,10 @@ import {
   TEST_ORGANIZATION_ID,
   TEST_USER_ID,
 } from '@/shared/api/index.testing';
+import { withTestLocalizer } from '@/shared/i18n/index.testing';
 
 import { useWarehouseObjectLookup } from './useWarehouseObjectLookup';
+import { useWarehouseSceneStaff } from './useWarehouseSceneStaff';
 import { useWarehouseStaffPresence } from './useWarehouseStaffPresence';
 import { useWarehouseStaffProfile } from './useWarehouseStaffProfiles';
 import { useWarehouseWorkspace } from './useWarehouseWorkspace';
@@ -393,4 +396,55 @@ it('drops personal fields and their subscriptions when the acting employee or wa
   expect(result.current.isFetching).toBe(false);
   const other = queryClient.getQueryCache().getAll().filter(query => query.meta?.channels?.includes(staffProfilesChannel(OTHER_WAREHOUSE)));
   expect(other).toHaveLength(0);
+});
+
+it('queries scene staff only with a live camera and closes the selection on object and actor changes', async () => {
+  const listWarehouseStaff = vi.fn(() => create(ListWarehouseStaffResponseSchema, {
+    staff: [{ observedAreaId: 'receiving', staffId: TEST_USER_ID, warehouseId: WAREHOUSE }],
+  }));
+  const runtime = createTestRuntime({
+    routes: (router) => {
+      router.service(AccessService, { getSession: () => create(GetSessionResponseSchema, {
+        permissions: [{ permission: 'staff_profile_view', warehouseIds: [WAREHOUSE] }],
+      }) });
+      router.service(WarehouseStaffProfileService, { listWarehouseStaff });
+    },
+  });
+  const queryClient = createQueryClient({ networkMode: 'always' });
+  const Wrapper = ({ children }: { children: ReactNode }): ReactElement => withTestLocalizer(
+    <ApiRuntimeProvider runtime={runtime}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </ApiRuntimeProvider>,
+  );
+  const { rerender, result } = renderHook(({ focus, ready }) => useWarehouseSceneStaff(WAREHOUSE, ready, focus), {
+    initialProps: { focus: 1, ready: false },
+    wrapper: Wrapper,
+  });
+  await waitFor(() => {
+    expect(queryClient.getQueryCache().find({ exact: false, queryKey: sessionKeys.all })?.state.status).toBe('success');
+  });
+  expect(listWarehouseStaff).not.toHaveBeenCalled();
+  rerender({ focus: 1, ready: true });
+  await waitFor(() => {
+    expect(result.current.staffAreas[0]?.staff[0]?.staffId).toBe(TEST_USER_ID);
+  });
+  expect(result.current.staffAreas[0]?.counter).toBeUndefined();
+  act(() => {
+    result.current.selectStaff(OTHER_USER);
+  });
+  expect(result.current.selectedStaffId).toBeUndefined();
+  act(() => {
+    result.current.selectStaff(TEST_USER_ID);
+  });
+  expect(result.current.selectedStaffId).toBe(TEST_USER_ID);
+  rerender({ focus: 2, ready: true });
+  expect(result.current.selectedStaffId).toBeUndefined();
+  act(() => {
+    result.current.selectStaff(TEST_USER_ID);
+  });
+  act(() => {
+    runtime.actingContext.set({ organizationId: TEST_ORGANIZATION_ID, userId: OTHER_USER });
+  });
+  expect(result.current.selectedStaffId).toBeUndefined();
+  expect(result.current.staffAreas).toEqual([]);
 });

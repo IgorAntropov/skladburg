@@ -30,11 +30,7 @@ import type {
   WarehouseSceneInteractionValue,
 } from '../model/warehouseSceneInteraction';
 import type { WarehouseYardPlaybackClockValue } from './warehouseDockPlayback';
-import type {
-  WarehouseBoxValue,
-  WarehouseCellVisualValue,
-  WarehouseLayoutValue,
-} from './warehouseLayout';
+import type { WarehouseLayoutValue } from './warehouseLayout';
 import type { WarehouseTruckModelValue } from './warehouseTruckModel';
 import type { IWarehouseYardLightingRig } from './WarehouseYardLightingLayer';
 
@@ -44,7 +40,6 @@ import { WarehouseDockLane } from './WarehouseDockLane';
 import { WarehouseFloor } from './WarehouseFloor';
 import { WarehouseInstances } from './WarehouseInstances';
 import { getWarehouseLayout } from './warehouseLayout';
-import { WarehouseRacks } from './WarehouseRacks';
 import { useWarehouseTruckModel } from './warehouseTruckModel';
 import {
   advanceWarehouseYardTraffic,
@@ -52,34 +47,23 @@ import {
 } from './warehouseYardTraffic';
 
 const TAP_SLOP_PX = 5;
+let WarehouseRacks: typeof import('./WarehouseRacks').default | undefined;
+const WarehouseSelectedCell = lazy(() => import('./WarehouseSelectedCell'));
+const WarehouseStaffFloor = lazy(() => import('./WarehouseStaffFloor'));
 const WarehouseYardDragLayer = lazy(() => import('./WarehouseYardDragLayer'));
 const WarehouseYardLightingLayer = lazy(() => import('./WarehouseYardLightingLayer'));
 const WarehouseYardMarkings = lazy(() => import('./WarehouseYardMarkings'));
 
-export const prepare = ({ parkingCapacity, topology }: WarehouseSceneDataValue): Promise<void> => {
-  getWarehouseLayout(topology, parkingCapacity);
-  return Promise.resolve();
+export const prepare = async ({ parkingCapacity, topology }: WarehouseSceneDataValue): Promise<void> => {
+  if (getWarehouseLayout(topology, parkingCapacity).racks.frames.length > 0 && WarehouseRacks === undefined) {
+    WarehouseRacks = (await import('./WarehouseRacks')).default;
+  }
 };
 
 export const resolveIsNight = ({ isNight }: WarehouseSceneInteractionValue): boolean => isNight;
 
 export const resolveWorld = ({ parkingCapacity, topology }: WarehouseSceneDataValue): SceneWorldValue =>
   getWarehouseLayout(topology, parkingCapacity).world;
-
-const buildSelectionBoxes = (selection: undefined | WarehouseCellVisualValue): WarehouseBoxValue[] => {
-  if (selection === undefined) {
-    return [];
-  }
-
-  const { position: [x, y, z], size: [width, , depth] } = selection;
-  const line = Math.min(0.055, width / 8);
-  return [
-    { position: [x, y + 0.03, z - depth / 2], size: [width, 0.034, line] },
-    { position: [x, y + 0.03, z + depth / 2], size: [width, 0.034, line] },
-    { position: [x - width / 2, y + 0.03, z], size: [line, 0.034, depth] },
-    { position: [x + width / 2, y + 0.03, z], size: [line, 0.034, depth] },
-  ];
-};
 
 const WarehouseWorldScene = ({
   data, interaction, level,
@@ -106,13 +90,14 @@ const WarehouseWorldScene = ({
   } = interaction;
   const layout = motionLayout ?? desiredLayout;
   const hasPendingLayout = layout !== desiredLayout || data.parkingCapacity !== interaction.parkingCapacity;
+  const floor = <WarehouseFloor batches={layout.floor} geometry={geometry} hasShadows={hasShadows} />;
+  const staffAreas = layout === desiredLayout ? interaction.staffAreas : undefined;
   const docks = layout.receiving?.docks;
   const primaryDock = layout.receiving?.dock;
   const lanes = useMemo(() => splitWarehouseDockCargo(cargo, balances, docks?.map(dock => dock.id) ?? []), [balances, cargo, docks]);
   const hasAssignedDocks = (docks?.length ?? 0) > 1;
   const activeCellId = scannedCell?.cellId ?? selectedCellId;
   const selection = activeCellId === undefined ? undefined : layout.cellsById.get(activeCellId);
-  const selectionBoxes = useMemo(() => buildSelectionBoxes(selection), [selection]);
   const canDragInYard = yardDrag !== undefined && yardDrag.options.size > 0 && docks !== undefined && layout.yard !== undefined
     && !hasPendingLayout && interaction.isRefreshingYardFacts !== true;
 
@@ -211,8 +196,23 @@ const WarehouseWorldScene = ({
 
   return (
     <>
-      <WarehouseFloor batches={layout.floor} geometry={geometry} hasShadows={hasShadows} />
-      <WarehouseRacks box={geometry} kit={kit} layout={layout.racks} level={level} />
+      {staffAreas !== undefined && staffAreas.length > 0
+        ? (
+            <Suspense fallback={floor}>
+              <WarehouseStaffFloor
+                areas={staffAreas}
+                geometry={geometry}
+                hasShadows={hasShadows}
+                interaction={interaction}
+                layout={layout}
+                topology={data.topology}
+              />
+            </Suspense>
+          )
+        : floor}
+      {layout.racks.frames.length > 0 && WarehouseRacks !== undefined && (
+        <WarehouseRacks box={geometry} layout={layout.racks} level={level} />
+      )}
       {construction !== undefined && (
         <ConstructionLayer construction={construction} geometry={geometry} instances={WarehouseInstances} topology={data.topology} />
       )}
@@ -270,7 +270,11 @@ const WarehouseWorldScene = ({
           />
         </Suspense>
       )}
-      {selectionBoxes.length > 0 && <WarehouseInstances boxes={selectionBoxes} geometry={geometry} materialKey="lampGlow" />}
+      {selection !== undefined && (
+        <Suspense fallback={null}>
+          <WarehouseSelectedCell cell={selection} geometry={geometry} />
+        </Suspense>
+      )}
     </>
   );
 };

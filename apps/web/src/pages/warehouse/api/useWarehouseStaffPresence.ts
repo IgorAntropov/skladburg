@@ -23,13 +23,13 @@ import { warehouseWorkspaceKey } from './warehouseWorkspaceKey';
 type StaffPresenceQueryValue = Pick<UseQueryResult<GetWarehouseStaffPresenceResponse>,
   'data' | 'error' | 'isFetching'> & { refetch: () => void };
 
-export const useWarehouseStaffPresence = (warehouseId: string): StaffPresenceQueryValue => {
+export const useWarehouseStaffPresence = (warehouseId: string, isEnabled = true): StaffPresenceQueryValue => {
   const client = useApiClient();
   const { organizationId, userId } = useActingContext();
   const session = useSessionQuery();
   const permissions = session.isError ? [] : session.data?.permissions ?? [];
   const scope = { kind: 'warehouse', warehouseId } as const;
-  const canRead = organizationId !== undefined && userId !== undefined
+  const canRead = isEnabled && organizationId !== undefined && userId !== undefined
     && isPermissionGranted(permissions, PermissionCode.STAFF_VIEW, scope);
   const query = useQuery({
     gcTime: 0,

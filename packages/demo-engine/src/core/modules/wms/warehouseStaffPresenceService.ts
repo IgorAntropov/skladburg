@@ -24,6 +24,7 @@ import {
   createServiceRouter,
 } from '../../router/engineRouter';
 import { readInboundTask } from './inboundRecords';
+import { getWarehouseShiftPlan } from './warehouseStaffShifts';
 import { readOwnedWarehouseTopology } from './warehouseTopologyRecords';
 
 interface StaffObservationValue {
@@ -69,7 +70,9 @@ const mergeStaffObservation = (current: StaffObservationValue, prev: StaffObserv
   return order > 0 ? current : prev;
 };
 
-const readStaffPresence = (runtime: IModuleRuntime, topology: WarehouseTopology): WarehouseStaffAreaPresence[] => {
+const readStaffPresence = (
+  runtime: IModuleRuntime, topology: WarehouseTopology, plannedByArea: ReadonlyMap<string, number> | undefined,
+): WarehouseStaffAreaPresence[] => {
   const { errors, read } = runtime;
   const { receivingArea, storageZones, tenantId, warehouseId } = topology;
   const zoneByCell = indexStorageZones(topology);
@@ -108,14 +111,20 @@ const readStaffPresence = (runtime: IModuleRuntime, topology: WarehouseTopology)
     }
   }
 
-  const areas = storageZones.map(({ id }) => create(WarehouseStaffAreaPresenceSchema, {
-    areaId: id, kind: WarehouseStaffAreaKind.STORAGE, observedStaffCount: countByArea.get(id) ?? 0,
+  const areas = storageZones.map(({ code, id }) => create(WarehouseStaffAreaPresenceSchema, {
+    areaCode: code,
+    areaId: id,
+    kind: WarehouseStaffAreaKind.STORAGE,
+    observedStaffCount: countByArea.get(id) ?? 0,
+    plannedStaffCount: plannedByArea?.get(id),
   }));
   if (receivingArea !== undefined) {
     areas.unshift(create(WarehouseStaffAreaPresenceSchema, {
+      areaCode: receivingArea.code,
       areaId: receivingArea.id,
       kind: WarehouseStaffAreaKind.RECEIVING,
       observedStaffCount: countByArea.get(receivingArea.id) ?? 0,
+      plannedStaffCount: plannedByArea?.get(receivingArea.id),
     }));
   }
 
@@ -130,8 +139,13 @@ export const createWarehouseStaffPresenceService = (runtime: IModuleRuntime): Se
     getWarehouseStaffPresence: (request, context) => {
       const caller = guard.guardPermissionCall(read, method.getWarehouseStaffPresence, request, context.requestHeader);
       const topology = readOwnedWarehouseTopology(read, errors, request.warehouseId, caller.organizationId);
-      const areas = topology === undefined ? [] : readStaffPresence(runtime, topology);
-      return create(GetWarehouseStaffPresenceResponseSchema, { areas });
+      const assignments = runtime.wmsStaffSchedules?.get(request.warehouseId);
+      const warehouse = read.get('warehouses', request.warehouseId);
+      const plan = assignments !== undefined && warehouse !== undefined
+        ? getWarehouseShiftPlan(assignments, runtime.getWorldTimeMs(), warehouse.timeZone)
+        : undefined;
+      const areas = topology === undefined ? [] : readStaffPresence(runtime, topology, plan?.plannedByArea);
+      return create(GetWarehouseStaffPresenceResponseSchema, { areas, shift: plan?.shift });
     },
   };
 };

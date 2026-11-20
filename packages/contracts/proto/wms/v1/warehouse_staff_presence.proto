@@ -15,6 +15,14 @@ message WarehouseStaffAreaPresence {
   string area_id = 1;
   WarehouseStaffAreaKind kind = 2;
   uint32 observed_staff_count = 3;
+  string area_code = 4;
+  optional uint32 planned_staff_count = 5;
+}
+
+message WarehouseStaffShiftSummary {
+  uint32 on_shift_count = 1;
+  uint32 on_break_count = 2;
+  uint32 off_site_count = 3;
 }
 
 message GetWarehouseStaffPresenceRequest {
@@ -23,6 +31,7 @@ message GetWarehouseStaffPresenceRequest {
 
 message GetWarehouseStaffPresenceResponse {
   repeated WarehouseStaffAreaPresence areas = 1;
+  WarehouseStaffShiftSummary shift = 2;
 }
 
 service WarehouseStaffPresenceService {

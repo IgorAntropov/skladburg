@@ -24,8 +24,12 @@ import { isDealVisibleToOrganization } from '../modules/deals/index';
 import { isProfileVerified } from '../visibility/index';
 
 export const WAREHOUSE_CHANNEL_PERMISSION = getPermissionName(PermissionCode.WAREHOUSE_VIEW);
-const TASK_CHANNEL_PERMISSION = getPermissionName(PermissionCode.TASK_VIEW);
-const INVENTORY_CHANNEL_PERMISSION = getPermissionName(PermissionCode.INVENTORY_VIEW);
+const PRIVATE_WAREHOUSE_PERMISSIONS = {
+  inventory: getPermissionName(PermissionCode.INVENTORY_VIEW),
+  layout: WAREHOUSE_CHANNEL_PERMISSION,
+  staff: getPermissionName(PermissionCode.STAFF_VIEW),
+  tasks: getPermissionName(PermissionCode.TASK_VIEW),
+};
 export const MARKET_CHANNEL_PERMISSION = getPermissionName(PermissionCode.MARKETPLACE_VIEW);
 export const DEAL_CHANNEL_PERMISSION = getPermissionName(PermissionCode.DEAL_VIEW);
 
@@ -165,14 +169,12 @@ export const createSubscriptionAccess = (errors: IDomainErrors): ISubscriptionAc
       return;
     }
 
-    if (parsed.kind === 'inventory' || parsed.kind === 'tasks' || parsed.kind === 'layout') {
+    if ('warehouseId' in parsed) {
       if (organizationId === undefined || supportSessionId !== undefined) {
         throw errors.membershipRequired();
       }
 
-      const permission = parsed.kind === 'inventory'
-        ? INVENTORY_CHANNEL_PERMISSION
-        : parsed.kind === 'tasks' ? TASK_CHANNEL_PERMISSION : WAREHOUSE_CHANNEL_PERMISSION;
+      const permission = PRIVATE_WAREHOUSE_PERMISSIONS[parsed.kind];
       evaluateWarehouse(reader, parsed.warehouseId, userId, permission, organizationId);
 
       return;

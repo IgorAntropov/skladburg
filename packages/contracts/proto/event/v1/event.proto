@@ -14,6 +14,7 @@ import "wms/v1/layout_events.proto";
 import "wms/v1/picking_events.proto";
 import "wms/v1/receiving_events.proto";
 import "wms/v1/stock_events.proto";
+import "wms/v1/warehouse_staff_presence_events.proto";
 import "wms/v1/yard_queue_policy_events.proto";
 
 message Event {
@@ -36,5 +37,6 @@ message Event {
     wms.v1.ReceivingTasksChanged receiving_tasks_changed = 21;
     wms.v1.WarehouseLayoutDraftsChanged warehouse_layout_drafts_changed = 22;
     wms.v1.YardQueuePolicyChanged yard_queue_policy_changed = 23;
+    wms.v1.WarehouseStaffPresenceChanged warehouse_staff_presence_changed = 24;
   }
 }

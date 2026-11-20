@@ -95,6 +95,11 @@ export const toCalendarDate = (instantMs: number, timeZone: string): CalendarDat
   return { day, month, year };
 };
 
+export const getLocalMinuteOfDay = (instantMs: number, timeZone: string): number => {
+  const { hour, minute } = readClock(instantMs, timeZone);
+  return hour * 60 + minute;
+};
+
 const findFirstInstantOfDay = (localMidnightMs: number, targetEpochDay: number, timeZone: string): number => {
   const isOnOrAfterTargetDay = (instantMs: number): boolean => toEpochDay(toCalendarDate(instantMs, timeZone)) >= targetEpochDay;
 

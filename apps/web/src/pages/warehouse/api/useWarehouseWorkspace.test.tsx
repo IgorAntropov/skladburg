@@ -11,6 +11,7 @@ import {
 import { WarehouseSchema } from '@skladburg/contracts/organization/v1/organization';
 import {
   inventoryChannel,
+  staffChannel,
   tasksChannel,
   warehouseChannel,
 } from '@skladburg/contracts/runtime';
@@ -31,6 +32,10 @@ import {
   GetWarehouseTopologyResponseSchema,
   WarehouseTopologyService,
 } from '@skladburg/contracts/wms/v1/topology';
+import {
+  GetWarehouseStaffPresenceResponseSchema,
+  WarehouseStaffPresenceService,
+} from '@skladburg/contracts/wms/v1/warehouse_staff_presence';
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
   act,
@@ -45,6 +50,7 @@ import {
   vi,
 } from 'vitest';
 
+import { sessionKeys } from '@/entities/session';
 import {
   ApiRuntimeProvider,
   createQueryClient,
@@ -56,6 +62,7 @@ import {
 } from '@/shared/api/index.testing';
 
 import { useWarehouseObjectLookup } from './useWarehouseObjectLookup';
+import { useWarehouseStaffPresence } from './useWarehouseStaffPresence';
 import { useWarehouseWorkspace } from './useWarehouseWorkspace';
 import { useWarehouseYardRefresh } from './useWarehouseYardRefresh';
 
@@ -239,6 +246,74 @@ it('loads only permitted warehouse views and retains each page and event scope',
     runtime.actingContext.set({ organizationId: TEST_ORGANIZATION_ID, userId: OTHER_USER });
   });
   expect(result.current.balances.data).toBeUndefined();
+});
+
+it('reads the shift and subscribes to staff events only in the granted warehouse', async () => {
+  const getSession = vi.fn(() => create(GetSessionResponseSchema, {
+    permissions: [{ permission: 'staff_view', warehouseIds: [WAREHOUSE] }],
+  }));
+  const getWarehouseStaffPresence = vi.fn(() => create(GetWarehouseStaffPresenceResponseSchema, {
+    areas: [{ areaCode: 'A01', areaId: 'receiving', observedStaffCount: 2, plannedStaffCount: 0 }],
+    shift: { offSiteCount: 1, onBreakCount: 2, onShiftCount: 3 },
+  }));
+  const runtime = createTestRuntime({
+    routes: (router) => {
+      router.service(AccessService, { getSession });
+      router.service(WarehouseStaffPresenceService, { getWarehouseStaffPresence });
+    },
+  });
+  const queryClient = createQueryClient({ networkMode: 'always' });
+  queryClient.setQueryDefaults(sessionKeys.all, { retry: false });
+  const Wrapper = ({ children }: { children: ReactNode }): ReactElement => (
+    <ApiRuntimeProvider runtime={runtime}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </ApiRuntimeProvider>
+  );
+  const { rerender, result } = renderHook(({ id }) => useWarehouseStaffPresence(id), {
+    initialProps: { id: WAREHOUSE },
+    wrapper: Wrapper,
+  });
+
+  await waitFor(() => {
+    expect(result.current.data?.areas[0]).toMatchObject({ areaCode: 'A01', observedStaffCount: 2, plannedStaffCount: 0 });
+    expect(result.current.data?.shift).toMatchObject({ offSiteCount: 1, onBreakCount: 2, onShiftCount: 3 });
+  });
+  const staffQuery = queryClient.getQueryCache().find({
+    exact: false,
+    queryKey: ['warehouse-workspace', TEST_ORGANIZATION_ID, TEST_USER_ID, WAREHOUSE],
+  });
+  expect(staffQuery?.meta).toEqual({ channels: [staffChannel(WAREHOUSE)], eventCases: ['warehouseStaffPresenceChanged'] });
+  rerender({ id: OTHER_WAREHOUSE });
+  expect(result.current.data).toBeUndefined();
+  expect(result.current.isFetching).toBe(false);
+  expect(queryClient.getQueryCache().getAll().some(entry => entry.meta?.channels?.includes(staffChannel(OTHER_WAREHOUSE)))).toBe(false);
+  expect(getWarehouseStaffPresence).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ warehouseId: WAREHOUSE }), expect.anything());
+
+  rerender({ id: WAREHOUSE });
+  await waitFor(() => {
+    expect(result.current.data?.areas).toHaveLength(1);
+  });
+  getSession.mockImplementationOnce(() => {
+    throw new Error('session unavailable');
+  });
+  await act(async () => {
+    await queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+  });
+  await waitFor(() => {
+    expect(result.current.error).toBeInstanceOf(Error);
+    expect(result.current.data).toBeUndefined();
+  });
+  act(() => {
+    result.current.refetch();
+  });
+  await waitFor(() => {
+    expect(result.current.error).toBeNull();
+    expect(result.current.data?.areas).toHaveLength(1);
+  });
+  act(() => {
+    runtime.actingContext.set({ organizationId: TEST_ORGANIZATION_ID, userId: OTHER_USER });
+  });
+  expect(result.current.data).toBeUndefined();
 });
 
 it('resolves a cell only inside warehouses the persona can read', async () => {

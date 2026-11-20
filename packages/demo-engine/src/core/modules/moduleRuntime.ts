@@ -17,6 +17,7 @@ import type {
   refreshInboundDockSchedules,
 } from './wms/inboundRecords';
 import type { openOutboundTask } from './wms/outboundRecords';
+import type { WarehouseStaffAssignmentValue } from './wms/warehouseStaffShifts';
 
 export interface IEventOutbox {
   add: (transaction: IStateTransaction, channel: string, payload: Event['payload']) => void;
@@ -43,4 +44,5 @@ export interface IModuleRuntime {
   wmsInboundWarehouseIds?: ReadonlySet<string> | undefined;
   wmsManualInboundWarehouseIds?: ReadonlySet<string> | undefined;
   wmsOutboundWarehouseIds?: ReadonlySet<string> | undefined;
+  wmsStaffSchedules?: ReadonlyMap<string, readonly WarehouseStaffAssignmentValue[]> | undefined;
 }

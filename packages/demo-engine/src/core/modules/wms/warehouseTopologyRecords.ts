@@ -21,6 +21,7 @@ import type {
 import type { WarehouseTopologyRecordValue } from '../../state/records';
 import type { IModuleRuntime } from '../moduleRuntime';
 
+import { publishWarehouseStaffPresenceChanged } from './warehouseStaffPresenceEvents';
 import {
   encodeWarehouseTopology,
   readWarehouseTopology,
@@ -160,4 +161,5 @@ export const saveWarehouseTopology = (
     case: 'warehouseChanged',
     value: create(WarehouseChangedSchema, { change: WarehouseChange.TOPOLOGY_UPDATED, warehouseId: topology.warehouseId }),
   });
+  publishWarehouseStaffPresenceChanged(transaction, runtime.outbox, topology.warehouseId);
 };

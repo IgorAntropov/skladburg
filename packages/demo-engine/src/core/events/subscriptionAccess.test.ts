@@ -17,7 +17,9 @@ import {
   listPermissionCodes,
   marketChannel,
   organizationChannel,
+  staffChannel,
   SUPPORT_SESSION_HEADER,
+  tasksChannel,
   userChannel,
   warehouseChannel,
 } from '@skladburg/contracts/runtime';
@@ -372,7 +374,8 @@ describe('subscription access to warehouse inventory', () => {
     expect(readPermission(denied)).toEqual({ permission: 'inventory_view', warehouseId: otherWarehouseId });
   });
 
-  it('denies subscriptions outside the acting organization and under a support session', () => {
+  it.each([inventoryChannel, staffChannel])('denies private subscriptions outside the acting scope and under support', (makeChannel) => {
+    const channel = makeChannel(warehouseId);
     const { check, runtime, state } = createFixture();
     expect(check(channel, SeedUserId.ADMIN_1, SeedOrganizationId.SUPPLIER_1)?.code).toBe(ErrorCode.NOT_FOUND);
     expect(check(channel, SeedUserId.ADMIN_2, SeedOrganizationId.CUSTOMER_1)?.code).toBe(ErrorCode.NOT_FOUND);
@@ -383,4 +386,18 @@ describe('subscription access to warehouse inventory', () => {
     const access = createSubscriptionAccess(runtime.errors);
     expect(access.check(state.read, channel, headers)?.code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
   });
+});
+
+it('grants the staff channel separately from task access within the assigned warehouses', async () => {
+  const fixture = createFixture();
+  const organizationId = SeedOrganizationId.CUSTOMER_1;
+  const warehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1;
+  const otherWarehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2;
+  const viewer = await addTestMember(fixture, { organizationId, permissions: ['staff_view'], warehouseIds: [warehouseId] });
+  expect(fixture.check(staffChannel(warehouseId), viewer, organizationId)).toBeUndefined();
+  expect(readPermission(fixture.check(staffChannel(otherWarehouseId), viewer, organizationId))).toEqual({
+    permission: 'staff_view', warehouseId: otherWarehouseId,
+  });
+  expect(readPermission(fixture.check(tasksChannel(warehouseId), viewer, organizationId))?.permission).toBe('task_view');
+  expect(readPermission(fixture.check(staffChannel(warehouseId), SeedUserId.STOREKEEPER_1, organizationId))?.permission).toBe('staff_view');
 });

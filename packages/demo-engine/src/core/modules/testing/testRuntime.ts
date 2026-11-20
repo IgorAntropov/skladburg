@@ -29,6 +29,7 @@ import {
   createSeedSnapshot,
   SEED_WORLD_START_MS,
 } from '../../seed/index';
+import { SEED_WAREHOUSE_STAFF_SCHEDULES } from '../../seed/seedWarehouseStaffSchedules';
 import { createEngineState } from '../../state/index';
 import { createRequestValidator } from '../../validation/index';
 import { createNotifier } from '../notifications/index';
@@ -118,6 +119,7 @@ export const createTestRuntime = (): TestRuntimeValue => {
     paymentProvider: createDemoPaymentProvider(random),
     random,
     read: state.read,
+    wmsStaffSchedules: SEED_WAREHOUSE_STAFF_SCHEDULES,
   };
 
   return { clock, commits, events, random, runtime, state, storage };

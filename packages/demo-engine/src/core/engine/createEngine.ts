@@ -81,6 +81,7 @@ import {
   type EngineSeedValue,
   SEED_VERSION,
 } from '../seed/seedConfig';
+import { SEED_WAREHOUSE_STAFF_SCHEDULES } from '../seed/seedWarehouseStaffSchedules';
 import {
   SEED_WMS_INBOUND_WAREHOUSE_ID,
   SEED_WMS_OUTBOUND_WAREHOUSE_ID,
@@ -98,6 +99,7 @@ import {
   createCheckpointRunner,
   createCommandRunner,
 } from './commandRunner';
+import { createWarehouseStaffShiftRefresh } from './refreshWarehouseStaffShifts';
 import { SeedLoadError } from './SeedLoadError';
 import { createSwitchableRandom } from './switchableRandom';
 
@@ -309,6 +311,7 @@ export const createEngineWithTasks = async (
     wmsInboundWarehouseIds: wmsInboundWarehouseIds === undefined ? undefined : new Set(wmsInboundWarehouseIds),
     wmsManualInboundWarehouseIds: options.wmsInboundWarehouseIds === undefined ? undefined : new Set(options.wmsInboundWarehouseIds),
     wmsOutboundWarehouseIds,
+    wmsStaffSchedules: SEED_WAREHOUSE_STAFF_SCHEDULES,
   };
   const supportAudit = createSupportAuditInterceptor(runtime);
   const handler = createEngineHandler({
@@ -444,7 +447,15 @@ export const createEngineWithTasks = async (
     return pathname.startsWith('/logistics.v1.LogisticsService/') ? logisticsHandler(request) : handler(request);
   });
 
-  const tick = (): Promise<void> => queue.enqueue(() => scheduler.tick());
+  let refreshStaffShifts = createWarehouseStaffShiftRefresh(runtime);
+  const tick = (): Promise<void> => queue.enqueue(async () => {
+    try {
+      await refreshStaffShifts();
+    }
+    finally {
+      await scheduler.tick();
+    }
+  });
 
   const checkpoint = (): Promise<void> => queue.enqueue(runCheckpoint);
 
@@ -455,6 +466,7 @@ export const createEngineWithTasks = async (
     state.replaceAll(seeded);
     runtime.wmsOutboundWarehouseIds = outboundWarehouseIds;
     clock = createClockFromMeta(seeded.meta, realTime);
+    refreshStaffShifts = createWarehouseStaffShiftRefresh(runtime);
     random.replace(createRandom(seeded.meta.randomState));
     traceRandom.replace(createRandom(seeded.meta.traceRandomState));
     epoch = nextEpoch;

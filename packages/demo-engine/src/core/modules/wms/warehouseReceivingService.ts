@@ -46,6 +46,7 @@ import {
 } from './inboundRecords';
 import { putAwayHandlingUnit } from './putAwayHandlingUnit';
 import { receiveHandlingUnit } from './receiveHandlingUnit';
+import { publishWarehouseStaffPresenceChanged } from './warehouseStaffPresenceEvents';
 
 interface ReceivingCommandValue<TInput extends DescMessage, TOutput extends DescMessage> {
   allowedStatuses: readonly ReceivingTaskStatus[];
@@ -141,6 +142,9 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
           task.finishedAt = timestampFromMs(transaction.worldTimeMs);
           finishInboundReceipt(transaction, runtime, task);
           assignAvailableInboundDocks(transaction, runtime, { ...task, tenantId }, task);
+          if (task.receivedUnits.length > 0) {
+            publishWarehouseStaffPresenceChanged(transaction, runtime.outbox, task.warehouseId);
+          }
           return create(FinishReceivingTaskResponseSchema, { task });
         },
         headers: context.requestHeader,
@@ -185,6 +189,9 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
       ],
       handle: (transaction, caller, task) => {
         putAwayHandlingUnit(transaction, runtime, caller, task, request);
+        if (task.status === ReceivingTaskStatus.IN_PROGRESS) {
+          publishWarehouseStaffPresenceChanged(transaction, runtime.outbox, task.warehouseId);
+        }
         return create(PutAwayHandlingUnitResponseSchema, { task });
       },
       headers: context.requestHeader,
@@ -196,6 +203,7 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
       handle: (transaction, caller, task) => {
         requireInboundDock(transaction, errors, task, caller.organizationId, method.receiveHandlingUnit.name, transaction.worldTimeMs);
         receiveHandlingUnit(transaction, runtime, caller, task, request);
+        publishWarehouseStaffPresenceChanged(transaction, runtime.outbox, task.warehouseId);
         return create(ReceiveHandlingUnitResponseSchema, { task });
       },
       headers: context.requestHeader,

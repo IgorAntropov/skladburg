@@ -34,7 +34,10 @@ import {
   PayoutStatus,
   SafeDealPaymentStatus,
 } from '@skladburg/contracts/payment/v1/payment';
-import { tasksChannel } from '@skladburg/contracts/runtime';
+import {
+  staffChannel,
+  tasksChannel,
+} from '@skladburg/contracts/runtime';
 import {
   ReceivingTaskSchema,
   ReceivingTaskStatus,
@@ -51,6 +54,7 @@ import {
   WarehouseStaffAreaKind,
   WarehouseStaffPresenceService,
 } from '@skladburg/contracts/wms/v1/warehouse_staff_presence';
+import { WarehouseStaffPresenceChangedSchema } from '@skladburg/contracts/wms/v1/warehouse_staff_presence_events';
 import {
   expect,
   it,
@@ -243,11 +247,21 @@ it('projects confirmed receiving and put-away while the assigned receiving task 
   await tickAt(engine, await ship());
   const presence = createClient(WarehouseStaffPresenceService, createEngineTransport(engine.engine, true));
   const director = callAs(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
+  const changes: Event[] = [];
+  const observe = (source: IDemoEngine): void => {
+    expect(source.subscribe(staffChannel(WAREHOUSE), new Headers(director.headers), batch => changes.push(...batch)).kind)
+      .toBe('subscribed');
+  };
+  const staffPayload = {
+    case: 'warehouseStaffPresenceChanged', value: create(WarehouseStaffPresenceChangedSchema, { warehouseId: WAREHOUSE }),
+  };
+  observe(engine.engine);
   const readPresence = (): ReturnType<typeof presence.getWarehouseStaffPresence> =>
     presence.getWarehouseStaffPresence({ warehouseId: WAREHOUSE }, director);
   const base = { taskId: dealId, warehouseId: WAREHOUSE };
   await clients.receiving.claimReceivingTask({ ...base, expectedVersion: 1, idempotencyKey: nextUuid() }, receiver);
   const zero = await readPresence();
+  expect(changes).toHaveLength(0);
   expect(zero.areas).toMatchObject([
     { areaId: AREA, kind: WarehouseStaffAreaKind.RECEIVING, observedStaffCount: 0 },
     { kind: WarehouseStaffAreaKind.STORAGE, observedStaffCount: 0 },
@@ -256,13 +270,16 @@ it('projects confirmed receiving and put-away while the assigned receiving task 
   const receipt = { ...base, expectedVersion: 2, idempotencyKey: nextUuid(), unit: { case: 'sscc', value: SSCC } } as const;
   const received = await clients.receiving.receiveHandlingUnit(receipt, receiver);
   expect(await clients.receiving.receiveHandlingUnit(receipt, receiver)).toEqual(received);
+  expect(changes.map(event => event.payload)).toEqual([staffPayload]);
   expect((await readPresence()).areas.map(area => area.observedStaffCount)).toEqual([1, 0]);
   const handlingUnitId = received.task?.receivedUnits[0]?.balanceAtReceipt?.handlingUnit?.id ?? '';
   const putAway = { ...base, expectedVersion: 3, handlingUnitId, idempotencyKey: nextUuid(), toCellId: CELL };
   engine.storage.failNextCommit();
   expect(await failureCode(clients.receiving.putAwayHandlingUnit(putAway, receiver))).toBe(ErrorCode.UNAVAILABLE);
+  expect(changes).toHaveLength(1);
   expect((await readPresence()).areas.map(area => area.observedStaffCount)).toEqual([1, 0]);
   await clients.receiving.putAwayHandlingUnit(putAway, receiver);
+  expect(changes.map(event => event.payload)).toEqual([staffPayload, staffPayload]);
   const inStorage = await readPresence();
   expect(inStorage.areas.map(area => area.observedStaffCount)).toEqual([0, 1]);
   expect((await clients.stock.listStockMovements(base, inventoryOnly)).movements).toEqual(expect.arrayContaining([
@@ -271,9 +288,11 @@ it('projects confirmed receiving and put-away while the assigned receiving task 
   ]));
 
   const { engine: restarted } = await createTestEngine({ storage: engine.storage });
+  observe(restarted);
   const restartedPresence = createClient(WarehouseStaffPresenceService, createEngineTransport(restarted, true));
   expect(await restartedPresence.getWarehouseStaffPresence({ warehouseId: WAREHOUSE }, director)).toEqual(inStorage);
   await createClients(restarted).receiving.finishReceivingTask({ ...base, expectedVersion: 4, idempotencyKey: nextUuid() }, receiver);
+  expect(changes.map(event => event.payload)).toEqual([staffPayload, staffPayload, staffPayload]);
   expect(await restartedPresence.getWarehouseStaffPresence({ warehouseId: WAREHOUSE }, director)).toEqual(zero);
 });
 

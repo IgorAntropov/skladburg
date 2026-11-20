@@ -1,4 +1,5 @@
 import { LAYOUT_CHANNEL_PREFIX } from './layoutChannel';
+import { STAFF_CHANNEL_PREFIX } from './staffChannel';
 
 const CHANNEL_SEPARATOR = ':';
 const MARKET_CHANNEL = 'market';
@@ -16,6 +17,7 @@ export type ChannelValue
     | { kind: 'layout'; warehouseId: string }
     | { kind: 'market' }
     | { kind: 'organization'; organizationId: string }
+    | { kind: 'staff'; warehouseId: string }
     | { kind: 'tasks'; warehouseId: string }
     | { kind: 'user'; userId: string }
     | { kind: 'warehouse'; warehouseId: string };
@@ -61,7 +63,7 @@ export const parseChannel = (channel: string): ChannelValue | undefined => {
     return { kind: 'user', userId: id };
   }
 
-  if (prefix === INVENTORY_CHANNEL_PREFIX || prefix === LAYOUT_CHANNEL_PREFIX
+  if (prefix === INVENTORY_CHANNEL_PREFIX || prefix === LAYOUT_CHANNEL_PREFIX || prefix === STAFF_CHANNEL_PREFIX
     || prefix === TASKS_CHANNEL_PREFIX || prefix === WAREHOUSE_CHANNEL_PREFIX) {
     return { kind: prefix, warehouseId: id };
   }

@@ -14,6 +14,7 @@ import {
 } from '@skladburg/contracts/organization/v1/organization';
 import {
   organizationChannel,
+  staffChannel,
   SUPPORT_SESSION_HEADER,
   warehouseChannel,
 } from '@skladburg/contracts/runtime';
@@ -27,6 +28,7 @@ import {
   AddWarehouseCellsRequestSchema,
   WarehouseTopologyService,
 } from '@skladburg/contracts/wms/v1/topology';
+import { WarehouseStaffPresenceChangedSchema } from '@skladburg/contracts/wms/v1/warehouse_staff_presence_events';
 import {
   describe,
   expect,
@@ -271,9 +273,11 @@ describe('AddWarehouseCells', () => {
     const client = createClient(WarehouseTopologyService, createEngineTransport(engine, true));
     const events: Event[] = [];
     const organizationEvents: Event[] = [];
+    const staffEvents: Event[] = [];
     const headers = new Headers(admin.headers);
     const subscription = engine.subscribe(warehouseChannel(request.warehouseId), headers, published => events.push(...published));
     expect(subscription.kind).toBe('subscribed');
+    expect(engine.subscribe(staffChannel(request.warehouseId), headers, batch => staffEvents.push(...batch)).kind).toBe('subscribed');
     expect(engine.subscribe(organizationChannel(SeedOrganizationId.CUSTOMER_1), headers, (published) => {
       organizationEvents.push(...published);
     }).kind).toBe('subscribed');
@@ -284,6 +288,9 @@ describe('AddWarehouseCells', () => {
       value: create(WarehouseChangedSchema, { change: WarehouseChange.TOPOLOGY_UPDATED, warehouseId: request.warehouseId }),
     }]);
     expect(organizationEvents).toEqual([]);
+    expect(staffEvents.map(event => event.payload)).toEqual([{
+      case: 'warehouseStaffPresenceChanged', value: create(WarehouseStaffPresenceChangedSchema, { warehouseId: request.warehouseId }),
+    }]);
     const restarted = await createTestEngine({ storage });
     const restored = createClient(WarehouseTopologyService, createEngineTransport(restarted.engine, true));
     expect(await restored.addWarehouseCells(request, admin)).toMatchObject({ revision: 1 });

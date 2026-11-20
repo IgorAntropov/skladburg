@@ -60,8 +60,8 @@ const CELL = '8f000002-0000-4000-8000-000000000006';
 const director = callAs(SeedUserId.ADMIN_1, TENANT);
 
 const counts = (receiving: number, storage: number): Omit<WarehouseStaffAreaPresence, '$typeName' | '$unknown'>[] => [
-  { areaId: RECEIVING, kind: WarehouseStaffAreaKind.RECEIVING, observedStaffCount: receiving },
-  { areaId: STORAGE, kind: WarehouseStaffAreaKind.STORAGE, observedStaffCount: storage },
+  { areaCode: 'PR01', areaId: RECEIVING, kind: WarehouseStaffAreaKind.RECEIVING, observedStaffCount: receiving },
+  { areaCode: 'Z01', areaId: STORAGE, kind: WarehouseStaffAreaKind.STORAGE, observedStaffCount: storage },
 ];
 
 const createTask = (input: MessageInitShape<typeof ReceivingTaskSchema>): ReceivingTask => {
@@ -144,6 +144,32 @@ it('counts each member at the latest unambiguous area across active receiving ta
   await expect(read()).resolves.toMatchObject(counts(0, 0));
   await save({ ...placement, status: ReceivingTaskStatus.READY_FOR_RECONCILIATION });
   await expect(read()).resolves.toMatchObject(counts(1, 0));
+});
+
+it('returns the scheduled roster and matches plans only to their original warehouse areas', async () => {
+  const { runtime, transport } = createModuleHarness();
+  const warehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3;
+  const topology = createSeedWarehouseTopology({ prefix: '8f000004', tenantId: TENANT, warehouseId });
+  const [zone] = topology.storageZones;
+  if (zone === undefined) {
+    throw new Error('Missing storage zone');
+  }
+  topology.storageZones.push({ ...zone, code: 'Z02', id: nextUuid(), rows: [] });
+  await runtime.command((transaction) => {
+    transaction.put('warehouseTopologies', encodeWarehouseTopology(topology));
+  });
+  const client = createClient(WarehouseStaffPresenceService, transport);
+  const read = (): ReturnType<typeof client.getWarehouseStaffPresence> => client.getWarehouseStaffPresence({ warehouseId }, director);
+  const morning = await read();
+  expect(morning.shift).toMatchObject({ offSiteCount: 0, onBreakCount: 0, onShiftCount: 3 });
+  expect(morning.areas.map(area => [area.areaCode, area.plannedStaffCount, area.observedStaffCount]))
+    .toEqual([['PR01', 2, 0], ['Z01', 1, 0], ['Z02', undefined, 0]]);
+
+  runtime.getWorldTimeMs = () => Date.UTC(2026, 9, 12, 9);
+  const midday = await read();
+  expect(midday.shift).toMatchObject({ offSiteCount: 0, onBreakCount: 2, onShiftCount: 1 });
+  expect(midday.areas.map(area => area.plannedStaffCount)).toEqual([0, 1, undefined]);
+  expect((await client.getWarehouseStaffPresence({ warehouseId: OTHER_WAREHOUSE }, director)).shift).toBeUndefined();
 });
 
 it('audits warehouse support reads through the engine router', async () => {

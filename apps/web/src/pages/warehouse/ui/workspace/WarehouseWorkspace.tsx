@@ -93,6 +93,7 @@ interface WarehouseWorkspaceProps {
 
 const loadWarehousePanels = createCachedModuleLoader(() => import('./warehousePanels'));
 const loadWarehouseRackPlacement = createCachedModuleLoader(() => import('../layout/WarehouseRackPlacement'));
+const loadWarehouseStaffPresence = createCachedModuleLoader(() => import('./WarehouseStaffPresence'));
 const loadWarehouseYardDispatch = createCachedModuleLoader(() => import('./WarehouseYardDispatch'));
 const loadWarehouseYardPolicy = createCachedModuleLoader(() => import('./WarehouseYardPolicyEditor'));
 const loadWarehouseSceneView = createCachedModuleLoader(() => import('../WarehouseWorkspaceScene'));
@@ -188,6 +189,7 @@ const WarehouseWorkspaceContent = ({
   const demoScenario = useDemoScenario();
   const canViewDeals = useCan(PermissionCode.DEAL_VIEW, { kind: 'organization' });
   const canViewPolicy = useCan(PermissionCode.YARD_VIEW, { kind: 'organization' });
+  const canViewStaff = useCan(PermissionCode.STAFF_VIEW, { kind: 'warehouse', warehouseId: warehouse.id });
   const { ref: policyButtonRef, requestFocus: requestPolicyFocus } = useFocusHandoff<HTMLButtonElement>('warehouse-yard-policy');
   const [editingTaskId, setEditingTaskId] = useState<string | undefined>();
   const [isEditingLayout, setIsEditingLayout] = useState(false);
@@ -374,6 +376,18 @@ const WarehouseWorkspaceContent = ({
       ),
       id: 'layout',
       label: t('warehouseWork.layout'),
+    });
+  }
+
+  if (canViewStaff) {
+    tabs.push({
+      content: (
+        <WarehousePanelSlot key="staff" loader={loadWarehouseStaffPresence}>
+          {({ WarehouseStaffPresence }) => <WarehouseStaffPresence t={t} warehouseId={warehouse.id} />}
+        </WarehousePanelSlot>
+      ),
+      id: 'staff',
+      label: t('warehouseWork.staffTab'),
     });
   }
 

@@ -52,6 +52,7 @@ export const catalog = {
   'error.unavailable': 'Не получилось, повторим',
   'error.validation_failed': 'Проверьте поля формы',
   'error.version_conflict': 'Пока вы смотрели, данные обновились',
+  'error.warehouse_equipment_unavailable': 'Нет доступного погрузчика для этого задания',
   'error.warehouse_layout_busy': 'Планировку этой зоны уже редактируют',
   'error.warehouse_layout_session_invalid': 'Сессия редактирования недействительна. Откройте зону заново',
   'error.warehouse_receiving_layout_blocked': 'Планировку приёмки сейчас нельзя изменить',

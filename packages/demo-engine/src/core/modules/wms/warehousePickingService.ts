@@ -64,6 +64,7 @@ import { publishStockAvailabilityChanged } from './stockRecords';
 import { requireWarehouseTaskQualifications } from './warehouseTaskQualifications';
 
 interface PickingCommandValue<TInput extends DescMessage, TOutput extends DescMessage> {
+  equipmentAction?: 'claim' | 'finish' | undefined;
   handle: (transaction: IStateTransaction, caller: PermissionCallerValue, task: PickingTask) => MessageShape<TOutput>;
   headers: Headers;
   method: DescMethodUnary<TInput, TOutput>;
@@ -79,52 +80,58 @@ interface PickingRequestValue {
   warehouseId: string;
 }
 
-const runPickingCommand = <TInput extends DescMessage, TOutput extends DescMessage>(
+const runPickingCommand = async <TInput extends DescMessage, TOutput extends DescMessage>(
   runtime: IModuleRuntime,
   input: PickingCommandValue<TInput, TOutput>,
-): Promise<MessageShape<TOutput>> => runtime.command((transaction) => {
-  const { errors, guard, idempotency } = runtime;
-  const { expectedVersion, idempotencyKey, taskId, warehouseId } = input.request;
-  const caller = guard.guardPermissionCall(transaction, input.method, input.request, input.headers);
-  if (caller.admission.kind !== 'membership') {
-    throw errors.permissionDenied('task_edit', warehouseId);
-  }
+): Promise<MessageShape<TOutput>> => {
+  const { applyWarehouseEquipmentOperation } = await import('./warehouseEquipmentOperations');
+  return runtime.command((transaction) => {
+    const { errors, guard, idempotency } = runtime;
+    const { expectedVersion, idempotencyKey, taskId, warehouseId } = input.request;
+    const caller = guard.guardPermissionCall(transaction, input.method, input.request, input.headers);
+    if (caller.admission.kind !== 'membership') {
+      throw errors.permissionDenied('task_edit', warehouseId);
+    }
 
-  return idempotency.run(transaction, {
-    handler: () => {
-      const record = transaction.get('warehouseOutbound', taskId);
-      if (record?.scopeId !== warehouseId || record.lookupKey !== caller.organizationId) {
-        throw errors.notFound(EntityKind.PICKING_TASK);
-      }
-      const task = readOutboundTask(record, errors);
-      if (task.version === 0) {
-        throw errors.notFound(EntityKind.PICKING_TASK);
-      }
-      if (task.version !== expectedVersion) {
-        throw errors.versionConflict(EntityKind.PICKING_TASK, task.version);
-      }
-      if (task.status !== input.prev) {
-        throw errors.invalidTransition(EntityKind.PICKING_TASK, PickingTaskStatus[task.status], PickingTaskStatus[input.next]);
-      }
-      if (input.prev !== PickingTaskStatus.OPEN && task.assigneeUserId !== caller.user.id) {
-        throw errors.permissionDenied('task_edit', warehouseId);
-      }
-      if (task.version >= 2_147_483_647) {
-        throw errors.unavailable();
-      }
+    return idempotency.run(transaction, {
+      handler: () => {
+        const record = transaction.get('warehouseOutbound', taskId);
+        if (record?.scopeId !== warehouseId || record.lookupKey !== caller.organizationId) {
+          throw errors.notFound(EntityKind.PICKING_TASK);
+        }
+        const task = readOutboundTask(record, errors);
+        if (task.version === 0) {
+          throw errors.notFound(EntityKind.PICKING_TASK);
+        }
+        if (task.version !== expectedVersion) {
+          throw errors.versionConflict(EntityKind.PICKING_TASK, task.version);
+        }
+        if (task.status !== input.prev) {
+          throw errors.invalidTransition(EntityKind.PICKING_TASK, PickingTaskStatus[task.status], PickingTaskStatus[input.next]);
+        }
+        if (input.prev !== PickingTaskStatus.OPEN && task.assigneeUserId !== caller.user.id) {
+          throw errors.permissionDenied('task_edit', warehouseId);
+        }
+        if (task.version >= 2_147_483_647) {
+          throw errors.unavailable();
+        }
 
-      task.status = input.next;
-      task.version += 1;
-      const result = input.handle(transaction, caller, task);
-      saveOutboundTask(transaction, runtime, task, caller.organizationId, true);
-      return result;
-    },
-    idempotencyKey,
-    method: input.method,
-    request: input.request,
-    scope: `${caller.organizationId}:${caller.user.id}`,
+        task.status = input.next;
+        task.version += 1;
+        const result = input.handle(transaction, caller, task);
+        if (input.equipmentAction !== undefined) {
+          applyWarehouseEquipmentOperation(transaction, runtime, caller.organizationId, task, input.equipmentAction);
+        }
+        saveOutboundTask(transaction, runtime, task, caller.organizationId, true);
+        return result;
+      },
+      idempotencyKey,
+      method: input.method,
+      request: input.request,
+      scope: `${caller.organizationId}:${caller.user.id}`,
+    });
   });
-});
+};
 
 const readTaskDeal = (
   transaction: IStateTransaction,
@@ -146,6 +153,7 @@ export const createWarehousePickingService = (runtime: IModuleRuntime): ServiceI
 
   return {
     claimPickingTask: (request, context) => runPickingCommand(runtime, {
+      equipmentAction: 'claim',
       handle: (transaction, caller, task) => {
         const deal = readTaskDeal(transaction, runtime, caller, task);
         requireWarehouseTaskQualifications(transaction, runtime, caller, task);
@@ -160,6 +168,7 @@ export const createWarehousePickingService = (runtime: IModuleRuntime): ServiceI
       request,
     }),
     confirmPicking: (request, context) => runPickingCommand(runtime, {
+      equipmentAction: 'finish',
       handle: (transaction, caller, task) => {
         const ids = new Set(request.handlingUnitIds);
         if (task.units.length !== ids.size || task.units.some(unit => !ids.has(unit.handlingUnit?.id ?? ''))) {

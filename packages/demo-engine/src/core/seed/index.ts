@@ -1,6 +1,7 @@
 import type { EngineSeedValue } from './seedConfig';
 
 import { createSeedSnapshot as createBaseSnapshot } from './seedSnapshot';
+import { addSeedWarehouseEquipment } from './seedWarehouseEquipment';
 import { addStaffAccounts } from './seedWarehouseStaffAccess';
 
 export { createSeedRoleId } from './seedAccess';
@@ -38,4 +39,4 @@ export {
 } from './seedSnapshot';
 
 export const createSeedSnapshot = (seed?: EngineSeedValue): ReturnType<typeof createBaseSnapshot> =>
-  addStaffAccounts(createBaseSnapshot(seed));
+  addSeedWarehouseEquipment(addStaffAccounts(createBaseSnapshot(seed)), undefined);

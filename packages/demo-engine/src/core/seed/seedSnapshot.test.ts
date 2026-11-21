@@ -24,6 +24,7 @@ import {
   DemoPersonaKind,
   ENGINE_SCHEMA_VERSION,
   type IStateReader,
+  TABLE_DEFINITIONS,
 } from '../state/index';
 import { createSeedSnapshot } from './index';
 import { createSeedRoleId } from './seedAccess';
@@ -42,6 +43,7 @@ import {
   SEED_VERSION,
   SEED_WORLD_START_MS,
 } from './seedSnapshot';
+import { addSeedWarehouseEquipment } from './seedWarehouseEquipment';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -137,7 +139,8 @@ describe('seed contents', () => {
       const baseCount = records[name]?.length ?? 0;
       const hasStaffAccounts = name === 'users' || name === 'memberships' || name === 'personas';
       expect(base.collections[name].size, name).toBe(baseCount);
-      expect(snapshot.collections[name].size, name).toBe(baseCount + (hasStaffAccounts ? 4 : 0));
+      const additional = hasStaffAccounts ? 4 : Number(name === 'warehouseEquipment');
+      expect(snapshot.collections[name].size, name).toBe(baseCount + additional);
 
       for (const id of snapshot.collections[name].keys()) {
         expect(id, name).toMatch(UUID_PATTERN);
@@ -502,6 +505,31 @@ describe('seed contents', () => {
 
       expect(memberships.map(membership => membership.organizationId), persona.id).toContain(persona.organizationId);
       expect(reader.get('organizations', persona.organizationId), persona.id).toBeDefined();
+    }
+  });
+});
+
+describe('warehouse equipment in a saved world', () => {
+  it('checks the warehouse identity and tenant before adding the demo equipment', () => {
+    const seed = createBaseSnapshot();
+    const warehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3;
+    const warehouse = createEngineState(seed).read.get('warehouses', warehouseId);
+    if (warehouse === undefined) {
+      throw new Error('Missing Kazan warehouse');
+    }
+    const replacements = [
+      undefined,
+      { ...warehouse, id: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_1 },
+      { ...warehouse, tenantId: SeedOrganizationId.CUSTOMER_2 },
+    ];
+    for (const replacement of replacements) {
+      const warehouses = new Map(seed.collections.warehouses);
+      warehouses.delete(warehouseId);
+      if (replacement !== undefined) {
+        warehouses.set(warehouseId, TABLE_DEFINITIONS.warehouses.encode(replacement));
+      }
+      const migrated = addSeedWarehouseEquipment({ ...seed, collections: { ...seed.collections, warehouses } }, undefined);
+      expect(migrated.collections.warehouseEquipment.size).toBe(0);
     }
   });
 });

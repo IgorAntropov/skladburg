@@ -27,6 +27,7 @@ import type { EngineSnapshotValue } from '../ports/index';
 import type { SchedulerTaskValue } from '../scheduler/index';
 import type { HistoryRouteValue } from './seedDealHistory';
 
+import { WAREHOUSE_YARD_MORNING } from '../../protocol/demoScenario';
 import { findInterWarehouseRoutes } from '../modules/network/index';
 import { loadPayments } from '../modules/payments/loadPayments';
 import { readInboundYardGate } from '../modules/wms/inboundYardGate';
@@ -45,6 +46,7 @@ import {
   MORNING_YARD_FREIGHT_MINOR,
   prepareMorningYardTransport,
 } from './seedMorningYardTransport';
+import { createSeedWarehouseEquipment } from './seedWarehouseEquipment';
 import { createSeedWarehouseTopology } from './seedWarehouseTopologies';
 import { SEED_WMS_RECEIVING_EXAMPLES_WAREHOUSE_ID } from './seedWarehouseWorkspaceConfig';
 
@@ -242,7 +244,11 @@ export const parkMorningYardVisits = (snapshot: EngineSnapshotValue): EngineSnap
     warehouseInbound.set(record.id, TABLE_DEFINITIONS.warehouseInbound.encode({ ...record, bytes: toBinary(ReceivingTaskSchema, task) }));
   }
 
-  return { ...snapshot, collections: { ...snapshot.collections, warehouseInbound } };
+  const equipment = createSeedWarehouseEquipment(snapshot.meta.worldTimeMs, WAREHOUSE_YARD_MORNING);
+  const warehouseEquipment = new Map(snapshot.collections.warehouseEquipment);
+  warehouseEquipment.set(equipment.id, TABLE_DEFINITIONS.warehouseEquipment.encode(equipment));
+
+  return { ...snapshot, collections: { ...snapshot.collections, warehouseEquipment, warehouseInbound } };
 };
 
 export const createMorningYardReplayTasks = (runtime: IModuleRuntime): readonly SchedulerTaskValue[] => [{

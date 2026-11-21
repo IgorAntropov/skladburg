@@ -1,5 +1,7 @@
+import type { DemoScenarioValue } from '../../protocol/demoScenario';
 import type { EngineSnapshotValue } from '../ports/index';
 
+import { addSeedWarehouseEquipment } from '../seed/seedWarehouseEquipment';
 import { ENGINE_SCHEMA_VERSION } from '../state/schemaVersion';
 import { addWarehouseStaff } from './migrateWarehouseStaff';
 import { addWarehouseTopologies } from './migrateWarehouseTopologies';
@@ -16,6 +18,7 @@ const PRE_WAREHOUSE_LAYOUT_SESSIONS_SCHEMA_VERSION = 24;
 const PRE_WAREHOUSE_LAYOUT_DRAFTS_SCHEMA_VERSION = 25;
 const PRE_YARD_QUEUE_POLICY_SCHEMA_VERSION = 26;
 const PRE_YARD_DISPATCH_SCHEMA_VERSION = 27;
+const PRE_WAREHOUSE_EQUIPMENT_SCHEMA_VERSION = 29;
 
 const addStockCollections = (snapshot: EngineSnapshotValue): EngineSnapshotValue => ({
   ...snapshot,
@@ -107,5 +110,12 @@ const migrateWarehouseState = async (stored: EngineSnapshotValue): Promise<Engin
   return addStockCollections(addWarehouseTopologies(migrated));
 };
 
-export const migrateStoredSnapshot = async (stored: EngineSnapshotValue): Promise<EngineSnapshotValue> =>
-  addWarehouseStaff(await migrateWarehouseState(stored));
+export const migrateStoredSnapshot = async (
+  stored: EngineSnapshotValue,
+  scenario: DemoScenarioValue | undefined,
+): Promise<EngineSnapshotValue> => {
+  const world = stored.schemaVersion === PRE_WAREHOUSE_EQUIPMENT_SCHEMA_VERSION
+    ? { ...stored, schemaVersion: ENGINE_SCHEMA_VERSION }
+    : addWarehouseStaff(await migrateWarehouseState(stored));
+  return addSeedWarehouseEquipment(world, scenario);
+};

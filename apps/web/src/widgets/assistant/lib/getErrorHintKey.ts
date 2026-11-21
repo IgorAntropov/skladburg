@@ -15,6 +15,7 @@ export const getErrorHintKey = (code: ErrorCode): AssistantErrorHintKey | null =
     case ErrorCode.UNAVAILABLE:
     case ErrorCode.UNSPECIFIED:
     case ErrorCode.VALIDATION_FAILED:
+    case ErrorCode.WAREHOUSE_EQUIPMENT_UNAVAILABLE:
     case ErrorCode.WAREHOUSE_LAYOUT_BUSY:
     case ErrorCode.WAREHOUSE_LAYOUT_SESSION_INVALID:
     case ErrorCode.WAREHOUSE_RECEIVING_LAYOUT_BLOCKED:

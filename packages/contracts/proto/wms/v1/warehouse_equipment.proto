@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package wms.v1;
+
+import "buf/validate/validate.proto";
+import "common/v1/method_options.proto";
+
+enum WarehouseEquipmentKind {
+  WAREHOUSE_EQUIPMENT_KIND_UNSPECIFIED = 0;
+  WAREHOUSE_EQUIPMENT_KIND_FORKLIFT = 1;
+  WAREHOUSE_EQUIPMENT_KIND_STACKER = 2;
+  WAREHOUSE_EQUIPMENT_KIND_PALLET_TRUCK = 3;
+}
+
+enum WarehouseEquipmentStatus {
+  WAREHOUSE_EQUIPMENT_STATUS_UNSPECIFIED = 0;
+  WAREHOUSE_EQUIPMENT_STATUS_AVAILABLE = 1;
+  WAREHOUSE_EQUIPMENT_STATUS_TO_TASK = 2;
+  WAREHOUSE_EQUIPMENT_STATUS_CARRYING = 3;
+  WAREHOUSE_EQUIPMENT_STATUS_HANDLING = 4;
+  WAREHOUSE_EQUIPMENT_STATUS_WAITING_FOR_CHARGE = 5;
+  WAREHOUSE_EQUIPMENT_STATUS_CHARGING = 6;
+  WAREHOUSE_EQUIPMENT_STATUS_IN_REPAIR = 7;
+}
+
+enum WarehouseEquipmentTaskKind {
+  WAREHOUSE_EQUIPMENT_TASK_KIND_UNSPECIFIED = 0;
+  WAREHOUSE_EQUIPMENT_TASK_KIND_RECEIVING = 1;
+  WAREHOUSE_EQUIPMENT_TASK_KIND_PICKING = 2;
+}
+
+message WarehouseEquipmentUnit {
+  string id = 1;
+  string code = 2;
+  WarehouseEquipmentKind kind = 3;
+  string model = 4;
+  uint32 capacity_kg = 5;
+  uint32 lift_height_mm = 6;
+  WarehouseEquipmentStatus status = 7;
+  uint32 battery_percent = 8 [(buf.validate.field).uint32.lte = 100];
+  optional string driver_staff_id = 9;
+  optional string task_id = 10;
+  optional WarehouseEquipmentTaskKind task_kind = 11;
+  optional string charging_station_id = 12;
+}
+
+message WarehouseChargingStation {
+  string id = 1;
+  string code = 2;
+  optional string equipment_id = 3;
+}
+
+message GetWarehouseEquipmentRequest {
+  string warehouse_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetWarehouseEquipmentResponse {
+  repeated WarehouseEquipmentUnit equipment = 1;
+  repeated WarehouseChargingStation stations = 2;
+}
+
+service WarehouseEquipmentService {
+  rpc GetWarehouseEquipment(GetWarehouseEquipmentRequest) returns (GetWarehouseEquipmentResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.access).permission = {
+      name: "warehouse_view"
+      scope_field: "warehouse_id"
+    };
+  }
+}

@@ -26,6 +26,11 @@ import {
 } from '@skladburg/contracts/wms/v1/receiving';
 import { StockBalanceSchema } from '@skladburg/contracts/wms/v1/stock';
 import {
+  WarehouseEquipmentKind,
+  WarehouseEquipmentStatus,
+} from '@skladburg/contracts/wms/v1/warehouse_equipment';
+import { WarehouseEquipmentRecordSchema } from '@skladburg/contracts/wms/v1/warehouse_equipment_records';
+import {
   expect,
   it,
 } from 'vitest';
@@ -51,6 +56,10 @@ import {
 } from '../testing/moduleHarness';
 import { saveOutboundTask } from './outboundRecords';
 import { buildSsccKey } from './stockRecords';
+import {
+  readWarehouseEquipmentRecord,
+  saveWarehouseEquipmentRecord,
+} from './warehouseEquipmentRecords';
 
 const forklift = WarehouseStaffQualificationKind.FORKLIFT;
 const coldRoom = WarehouseStaffQualificationKind.COLD_ROOM;
@@ -152,12 +161,36 @@ it('leaves the picking task, deal and events unchanged when one of two required 
   expect((await client.listPickingTasks({ warehouseId }, director)).tasks).toEqual([task]);
   expect(events).toHaveLength(0);
   credentials.push({ expiresOn: create(CalendarDateSchema, { day: 12, month: 10, year: 2026 }), kind: coldRoom });
+  const unavailable = await captureError(client.claimPickingTask(claim, director));
+  expect(readErrorDetail(unavailable)).toMatchObject({ code: ErrorCode.WAREHOUSE_EQUIPMENT_UNAVAILABLE });
+  expect(runtime.read.get('deals', dealId)).toEqual(deal);
+  expect((await client.listPickingTasks({ warehouseId }, director)).tasks).toEqual([task]);
+  expect(events).toHaveLength(0);
+  const machineId = nextUuid();
+  await runtime.command((transaction) => {
+    saveWarehouseEquipmentRecord(transaction, create(WarehouseEquipmentRecordSchema, {
+      equipment: [{
+        unit: { batteryPercent: 20, id: machineId, kind: WarehouseEquipmentKind.FORKLIFT, status: WarehouseEquipmentStatus.AVAILABLE },
+        updatedAtMs: BigInt(transaction.worldTimeMs),
+      }],
+      stations: [{ id: nextUuid() }],
+      tenantId: organizationId,
+      warehouseId,
+    }));
+  });
   const accepted = await client.claimPickingTask(claim, director);
   expect(accepted.task).toMatchObject({ assigneeUserId: userId, version: 2 });
   expect(runtime.read.get('deals', dealId)?.status).toBe(DealStatus.PICKING);
+  expect(readWarehouseEquipmentRecord(runtime.read, warehouseId)?.equipment[0]?.unit).toMatchObject({
+    driverStaffId: userId, status: WarehouseEquipmentStatus.TO_TASK, taskId: dealId,
+  });
   clock.now = () => Date.UTC(2026, 9, 13, 12);
   await expect(client.claimPickingTask(claim, director)).resolves.toEqual(accepted);
   await expect(client.confirmPicking({
     ...claim, expectedVersion: 2, handlingUnitIds: [unitId], idempotencyKey: nextUuid(),
   }, director)).resolves.toMatchObject({ task: { status: PickingTaskStatus.PICKED } });
+  const finished = readWarehouseEquipmentRecord(runtime.read, warehouseId);
+  expect(finished?.equipment[0]?.unit).toMatchObject({ batteryPercent: 0, status: WarehouseEquipmentStatus.CHARGING });
+  expect(finished?.equipment[0]?.unit?.taskId).toBeUndefined();
+  expect(finished?.stations[0]?.equipmentId).toBe(machineId);
 });

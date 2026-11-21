@@ -35,7 +35,7 @@ it('adds warehouse staff to a v28 world once and preserves customized roles, mem
     }
     collections.roles.set(id, TABLE_DEFINITIONS.roles.encode(role));
   }
-  const migrated = await migrateStoredSnapshot({ ...legacy, collections });
+  const migrated = await migrateStoredSnapshot({ ...legacy, collections }, undefined);
   const readRole = (id: string): readonly string[] => {
     const stored = migrated.collections.roles.get(id);
     if (stored === undefined) {
@@ -54,5 +54,5 @@ it('adds warehouse staff to a v28 world once and preserves customized roles, mem
   expect(readRole(SeedRoleId.STOREKEEPER_CUSTOMER_2)).not.toContain('staff_profile_view');
   expect(readRole(SeedRoleId.STOREKEEPER_CUSTOMER_2)).not.toContain('task_edit');
   expect(readRole(SeedRoleId.DIRECTOR_CUSTOMER_1)).toEqual(expect.arrayContaining([...grants]));
-  expect(await migrateStoredSnapshot({ ...migrated, schemaVersion: 28 })).toEqual(migrated);
+  expect(await migrateStoredSnapshot({ ...migrated, schemaVersion: 28 }, undefined)).toEqual(migrated);
 });

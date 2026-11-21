@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import type { DemoScenarioValue } from '@skladburg/demo-engine/client';
 
 const DATABASE_NAME = 'skladburg-demo-engine';
 const STORES_ADDED_AFTER_V13 = [
@@ -11,6 +12,7 @@ const STORES_ADDED_AFTER_V13 = [
   'transportRequests',
   'trips',
   'vehicles',
+  'warehouseEquipment',
   'warehouseLayoutSessions',
   'warehouseTopologies',
   'yardDispatchEntries',
@@ -20,12 +22,14 @@ const PRE_FLEET_DATABASE_VERSION = 13;
 const PRE_FLEET_SCHEMA_VERSION = 15;
 
 interface MetadataChangeValue {
+  demoScenario?: DemoScenarioValue | undefined;
   isClockPaused: boolean;
   seedVersionOffset: number;
   worldTimeMs?: number | undefined;
 }
 
 export const changeStoredEngineMetadata = async (page: Page, change: MetadataChangeValue): Promise<void> => {
+  const databaseName = change.demoScenario === undefined ? DATABASE_NAME : `${DATABASE_NAME}:${change.demoScenario}`;
   await page.evaluate(async ({ databaseName, isClockPaused, seedVersionOffset, worldTimeMs }): Promise<void> => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open(databaseName);
@@ -72,7 +76,7 @@ export const changeStoredEngineMetadata = async (page: Page, change: MetadataCha
     finally {
       database.close();
     }
-  }, { databaseName: DATABASE_NAME, ...change });
+  }, { databaseName, ...change });
 };
 
 export const readStoredEngineSnapshot = async (page: Page, storeNames: readonly string[] = []): Promise<string> =>

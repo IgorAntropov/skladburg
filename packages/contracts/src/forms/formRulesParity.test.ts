@@ -707,6 +707,7 @@ const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
   'wms.v1.ConfigureWarehouseReceivingLayoutRequest.docks',
   'wms.v1.ConfigureWarehouseReceivingLayoutRequest.receivingFootprint',
   'wms.v1.ConfigureWarehouseReceivingLayoutRequest.receivingFootprint.origin',
+  'wms.v1.WarehouseEquipmentUnitRecord.unit',
   'wms.v1.WarehouseStaffQualification.expiresOn',
   'wms.v1.ListWarehouseStaffRequest.page',
   'wms.v1.YardQueuePolicy.weights',

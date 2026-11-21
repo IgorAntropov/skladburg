@@ -78,7 +78,7 @@ export const createDealService = (runtime: IModuleRuntime): ServiceImpl<typeof D
         loadDocuments(),
         import('../logistics/transportLifecycle'),
         loadPayments(),
-        runtime.openOutboundTask === undefined ? undefined : import('../wms/outboundReservation'),
+        runtime.openOutboundTask === undefined ? undefined : import('../wms/cancelOutboundReservation'),
       ]);
       return runDealCommand(runtime, {
         command: 'cancelDeal',

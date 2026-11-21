@@ -35,6 +35,7 @@ const expectedTraits: Record<ErrorCode, ErrorTraitsSnapshotValue> = {
   [ErrorCode.UNSPECIFIED]: { category: ErrorCategory.UNSPECIFIED, isRetryable: false },
   [ErrorCode.VALIDATION_FAILED]: { category: ErrorCategory.INVALID_ARGUMENT, isRetryable: false },
   [ErrorCode.VERSION_CONFLICT]: { category: ErrorCategory.ABORTED, isRetryable: false },
+  [ErrorCode.WAREHOUSE_EQUIPMENT_UNAVAILABLE]: { category: ErrorCategory.FAILED_PRECONDITION, isRetryable: false },
   [ErrorCode.WAREHOUSE_LAYOUT_BUSY]: { category: ErrorCategory.FAILED_PRECONDITION, isRetryable: false },
   [ErrorCode.WAREHOUSE_LAYOUT_SESSION_INVALID]: { category: ErrorCategory.FAILED_PRECONDITION, isRetryable: false },
   [ErrorCode.WAREHOUSE_RECEIVING_LAYOUT_BLOCKED]: { category: ErrorCategory.FAILED_PRECONDITION, isRetryable: false },

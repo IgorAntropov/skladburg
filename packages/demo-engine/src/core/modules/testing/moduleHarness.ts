@@ -52,6 +52,7 @@ import { WarehouseReceivingService } from '@skladburg/contracts/wms/v1/receiving
 import { WarehouseReceivingLayoutService } from '@skladburg/contracts/wms/v1/receiving_layout';
 import { WarehouseStockService } from '@skladburg/contracts/wms/v1/stock';
 import { WarehouseTopologyService } from '@skladburg/contracts/wms/v1/topology';
+import { WarehouseEquipmentService } from '@skladburg/contracts/wms/v1/warehouse_equipment';
 import { WarehouseStaffPresenceService } from '@skladburg/contracts/wms/v1/warehouse_staff_presence';
 import { WarehouseStaffProfileService } from '@skladburg/contracts/wms/v1/warehouse_staff_profile';
 import { YardQueuePolicyService } from '@skladburg/contracts/wms/v1/yard_queue_policy';
@@ -85,6 +86,7 @@ import {
   createSupportAccessService,
   createSupportTicketService,
 } from '../platform/index';
+import { createWarehouseEquipmentService } from '../wms/warehouseEquipmentService';
 import { createWarehouseLayoutSessionHandlers } from '../wms/warehouseLayoutSessionHandlers';
 import { createWarehousePickingService } from '../wms/warehousePickingService';
 import { createWarehouseReceivingLayoutService } from '../wms/warehouseReceivingLayoutService';
@@ -192,6 +194,7 @@ export const createModuleHarness = (): ModuleHarnessValue => {
     service(WarehouseLayoutSessionService, createWarehouseLayoutSessionHandlers(testRuntime.runtime));
     service(WarehouseReceivingLayoutService, createWarehouseReceivingLayoutService(testRuntime.runtime));
     service(WarehouseStaffProfileService, createWarehouseStaffProfileService(testRuntime.runtime));
+    service(WarehouseEquipmentService, createWarehouseEquipmentService(testRuntime.runtime));
     service(WarehouseStaffPresenceService, createWarehouseStaffPresenceService(testRuntime.runtime));
     service(WarehousePickingService, createWarehousePickingService(testRuntime.runtime));
     service(WarehouseReceivingService, createWarehouseReceivingService(testRuntime.runtime));

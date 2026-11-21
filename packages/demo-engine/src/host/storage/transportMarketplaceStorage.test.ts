@@ -84,7 +84,7 @@ const createLegacyDatabase = (
   const request = factory.open(DATABASE_NAME, databaseVersion);
 
   request.addEventListener('upgradeneeded', () => {
-    const laterCollections = ['warehouseLayoutSessions', 'yardDispatchEntries', 'yardQueuePolicies'];
+    const laterCollections = ['warehouseEquipment', 'warehouseLayoutSessions', 'yardDispatchEntries', 'yardQueuePolicies'];
     if (databaseVersion < 18) {
       laterCollections.push('stockBalances', 'stockBatches', 'stockMovements');
     }
@@ -333,7 +333,11 @@ describe('saved world migration with an active trip', () => {
     const expected = { ...source, collections: { ...source.collections, importJobs, warehouseTopologies } };
     const old = {
       ...expected,
-      collections: { ...expected.collections, warehouseTopologies: databaseVersion >= 17 ? warehouseTopologies : new Map() },
+      collections: {
+        ...expected.collections,
+        warehouseEquipment: new Map(),
+        warehouseTopologies: databaseVersion >= 17 ? warehouseTopologies : new Map(),
+      },
       schemaVersion,
     };
     await createLegacyDatabase(factory, old, databaseVersion, schemaVersion);

@@ -950,6 +950,7 @@ const SHAPE_FINGERPRINTS = {
   27: YARD_QUEUE_POLICY_SHAPE_FINGERPRINT,
   28: YARD_DISPATCH_SHAPE_FINGERPRINT,
   29: YARD_DISPATCH_SHAPE_FINGERPRINT,
+  30: [...YARD_DISPATCH_SHAPE_FINGERPRINT, 'collection.warehouseEquipment:{bytes:bytes,id:string,lookupKey:string,scopeId:string}'].sort(),
 } as Readonly<Record<number, readonly string[]>>;
 
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -1066,6 +1067,7 @@ const populatedTask: SchedulerTaskValue = {
     transaction.put('stockBalances', stockRecord);
     transaction.put('stockBatches', stockRecord);
     transaction.put('stockMovements', stockRecord);
+    transaction.put('warehouseEquipment', stockRecord);
     transaction.put('warehouseInbound', stockRecord);
     transaction.put('warehouseInbound', { ...stockRecord, id: 'fingerprint-promoted', manualPrioritySequence: 1 });
     transaction.put('yardDispatchEntries', stockRecord);
@@ -1156,8 +1158,9 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 29 with warehouse staff and the private yard dispatch journal', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(29);
+  it('is version 30 with private equipment records and the yard dispatch journal', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(30);
+    expect(createSeedSnapshot().collections.warehouseEquipment.size).toBe(1);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
     expect(createSeedSnapshot().collections.yardDispatchEntries.size).toBe(0);
     expect(createSeedSnapshot().collections.yardQueuePolicies.size).toBe(0);

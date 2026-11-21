@@ -51,6 +51,7 @@ import { requireWarehouseTaskQualifications } from './warehouseTaskQualification
 
 interface ReceivingCommandValue<TInput extends DescMessage, TOutput extends DescMessage> {
   allowedStatuses: readonly ReceivingTaskStatus[];
+  equipmentAction: 'carry' | 'claim' | 'finish' | 'handle';
   handle: (transaction: IStateTransaction, caller: PermissionCallerValue, task: ReceivingTask) => MessageShape<TOutput>;
   headers: Headers;
   method: DescMethodUnary<TInput, TOutput>;
@@ -64,52 +65,56 @@ interface ReceivingRequestValue {
   warehouseId: string;
 }
 
-const runReceivingCommand = <TInput extends DescMessage, TOutput extends DescMessage>(
+const runReceivingCommand = async <TInput extends DescMessage, TOutput extends DescMessage>(
   runtime: IModuleRuntime,
   input: ReceivingCommandValue<TInput, TOutput>,
-): Promise<MessageShape<TOutput>> => runtime.command((transaction) => {
-  const { errors, guard, idempotency } = runtime;
-  const { expectedVersion, idempotencyKey, taskId, warehouseId } = input.request;
-  const caller = guard.guardPermissionCall(transaction, input.method, input.request, input.headers);
-  if (caller.admission.kind !== 'membership') {
-    throw errors.permissionDenied('task_edit', warehouseId);
-  }
+): Promise<MessageShape<TOutput>> => {
+  const { applyWarehouseEquipmentOperation } = await import('./warehouseEquipmentOperations');
+  return runtime.command((transaction) => {
+    const { errors, guard, idempotency } = runtime;
+    const { expectedVersion, idempotencyKey, taskId, warehouseId } = input.request;
+    const caller = guard.guardPermissionCall(transaction, input.method, input.request, input.headers);
+    if (caller.admission.kind !== 'membership') {
+      throw errors.permissionDenied('task_edit', warehouseId);
+    }
 
-  return idempotency.run(transaction, {
-    handler: () => {
-      const record = transaction.get('warehouseInbound', taskId);
-      if (record?.scopeId !== warehouseId || record.lookupKey !== caller.organizationId) {
-        throw errors.notFound(EntityKind.RECEIVING_TASK);
-      }
+    return idempotency.run(transaction, {
+      handler: () => {
+        const record = transaction.get('warehouseInbound', taskId);
+        if (record?.scopeId !== warehouseId || record.lookupKey !== caller.organizationId) {
+          throw errors.notFound(EntityKind.RECEIVING_TASK);
+        }
 
-      const task = readInboundTask(record, errors);
-      if (task.version === 0) {
-        throw errors.notFound(EntityKind.RECEIVING_TASK);
-      }
-      if (task.version !== expectedVersion) {
-        throw errors.versionConflict(EntityKind.RECEIVING_TASK, task.version);
-      }
-      if (!input.allowedStatuses.includes(task.status)) {
-        throw errors.invalidTransition(EntityKind.RECEIVING_TASK, ReceivingTaskStatus[task.status], input.method.name);
-      }
-      if (task.status !== ReceivingTaskStatus.OPEN && task.assigneeUserId !== caller.user.id) {
-        throw errors.permissionDenied('task_edit', warehouseId);
-      }
-      if (task.version >= 2_147_483_647) {
-        throw errors.unavailable();
-      }
+        const task = readInboundTask(record, errors);
+        if (task.version === 0) {
+          throw errors.notFound(EntityKind.RECEIVING_TASK);
+        }
+        if (task.version !== expectedVersion) {
+          throw errors.versionConflict(EntityKind.RECEIVING_TASK, task.version);
+        }
+        if (!input.allowedStatuses.includes(task.status)) {
+          throw errors.invalidTransition(EntityKind.RECEIVING_TASK, ReceivingTaskStatus[task.status], input.method.name);
+        }
+        if (task.status !== ReceivingTaskStatus.OPEN && task.assigneeUserId !== caller.user.id) {
+          throw errors.permissionDenied('task_edit', warehouseId);
+        }
+        if (task.version >= 2_147_483_647) {
+          throw errors.unavailable();
+        }
 
-      task.version += 1;
-      const result = input.handle(transaction, caller, task);
-      saveInboundTask(transaction, runtime, task, caller.organizationId);
-      return result;
-    },
-    idempotencyKey,
-    method: input.method,
-    request: input.request,
-    scope: `${caller.organizationId}:${caller.user.id}`,
+        task.version += 1;
+        const result = input.handle(transaction, caller, task);
+        applyWarehouseEquipmentOperation(transaction, runtime, caller.organizationId, task, input.equipmentAction);
+        saveInboundTask(transaction, runtime, task, caller.organizationId);
+        return result;
+      },
+      idempotencyKey,
+      method: input.method,
+      request: input.request,
+      scope: `${caller.organizationId}:${caller.user.id}`,
+    });
   });
-});
+};
 
 export const createWarehouseReceivingService = (runtime: IModuleRuntime): ServiceImpl<typeof WarehouseReceivingService> => {
   const { errors, guard, read } = runtime;
@@ -123,6 +128,7 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
     assignYardVisitToDock: async (request, context) => (await loadYardDispatch()).assignYardVisitToDock(request, context),
     claimReceivingTask: (request, context) => runReceivingCommand(runtime, {
       allowedStatuses: [ReceivingTaskStatus.OPEN],
+      equipmentAction: 'claim',
       handle: (transaction, caller, task) => {
         requireWarehouseTaskQualifications(transaction, runtime, caller, task);
         task.status = ReceivingTaskStatus.IN_PROGRESS;
@@ -137,6 +143,7 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
       const { finishInboundReceipt } = await import('../deals/dealReceipt');
       return runReceivingCommand(runtime, {
         allowedStatuses: [ReceivingTaskStatus.IN_PROGRESS],
+        equipmentAction: 'finish',
         handle: (transaction, caller, task) => {
           const tenantId = caller.organizationId;
           requireInboundDock(transaction, errors, task, tenantId, method.finishReceivingTask.name, transaction.worldTimeMs);
@@ -189,6 +196,7 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
         ReceivingTaskStatus.READY_FOR_RECONCILIATION,
         ReceivingTaskStatus.RECONCILED,
       ],
+      equipmentAction: 'carry',
       handle: (transaction, caller, task) => {
         putAwayHandlingUnit(transaction, runtime, caller, task, request);
         if (task.status === ReceivingTaskStatus.IN_PROGRESS) {
@@ -202,6 +210,7 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
     }),
     receiveHandlingUnit: (request, context) => runReceivingCommand(runtime, {
       allowedStatuses: [ReceivingTaskStatus.IN_PROGRESS],
+      equipmentAction: 'handle',
       handle: (transaction, caller, task) => {
         requireInboundDock(transaction, errors, task, caller.organizationId, method.receiveHandlingUnit.name, transaction.worldTimeMs);
         receiveHandlingUnit(transaction, runtime, caller, task, request);

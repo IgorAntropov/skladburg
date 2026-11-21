@@ -100,6 +100,7 @@ import {
   createCheckpointRunner,
   createCommandRunner,
 } from './commandRunner';
+import { createWarehouseEquipmentRefresh } from './refreshWarehouseEquipment';
 import { createWarehouseStaffShiftRefresh } from './refreshWarehouseStaffShifts';
 import { SeedLoadError } from './SeedLoadError';
 import { createSwitchableRandom } from './switchableRandom';
@@ -161,7 +162,7 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
   return createSeedSnapshotWithTopology(seed);
 };
 
-const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28];
+const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29];
 
 const prepareDemoWarehouse = async (options: CreateEngineOptionsValue, snapshot: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
   if (options.isDemoWarehouseEnabled !== true) {
@@ -206,7 +207,7 @@ const loadOrSeedSnapshot = async (
   if (stored?.meta.seedVersion === SEED_VERSION && MIGRATABLE_SCHEMA_VERSIONS.includes(stored.schemaVersion)) {
     try {
       const { migrateStoredSnapshot } = await import('./migrateStoredSnapshot');
-      const snapshot = await prepareDemoWarehouse(options, await migrateStoredSnapshot(stored));
+      const snapshot = await prepareDemoWarehouse(options, await migrateStoredSnapshot(stored, options.demoScenario));
       await options.storage.replaceAll(snapshot);
 
       return snapshot;
@@ -389,6 +390,8 @@ export const createEngineWithTasks = async (
     (await import('../modules/logistics/index')).createLogisticsHandler(runtime, supportAudit));
   const tripDocumentsHandler = deferEngineHandler(async () =>
     (await import('../modules/logistics/tripDocumentsService')).createTripDocumentsHandler(runtime, supportAudit));
+  const warehouseEquipmentHandler = deferEngineHandler(async () =>
+    (await import('../modules/wms/warehouseEquipmentService')).createWarehouseEquipmentHandler(runtime, supportAudit));
   const warehousePickingHandler = deferEngineHandler(async () =>
     (await import('../modules/wms/warehousePickingService')).createWarehousePickingHandler(runtime, supportAudit));
   const warehouseReceivingHandler = deferEngineHandler(async () =>
@@ -409,6 +412,10 @@ export const createEngineWithTasks = async (
     (await import('../modules/wms/yardQueuePolicyService')).createYardQueuePolicyHandler(runtime, supportAudit));
   const handle: IDemoEngine['handle'] = (request, tabId) => queue.enqueue(() => {
     const { pathname } = new URL(request.url);
+
+    if (pathname.startsWith('/wms.v1.WarehouseEquipmentService/')) {
+      return warehouseEquipmentHandler(request);
+    }
 
     if (pathname.startsWith('/wms.v1.WarehousePickingService/')) {
       return warehousePickingHandler(request);
@@ -456,9 +463,11 @@ export const createEngineWithTasks = async (
   });
 
   let refreshStaffShifts = createWarehouseStaffShiftRefresh(runtime);
+  let refreshEquipment = createWarehouseEquipmentRefresh(runtime, snapshot.collections.warehouseEquipment.size > 0);
   const tick = (): Promise<void> => queue.enqueue(async () => {
     try {
       await refreshStaffShifts();
+      await refreshEquipment();
     }
     finally {
       await scheduler.tick();
@@ -475,6 +484,7 @@ export const createEngineWithTasks = async (
     runtime.wmsOutboundWarehouseIds = outboundWarehouseIds;
     clock = createClockFromMeta(seeded.meta, realTime);
     refreshStaffShifts = createWarehouseStaffShiftRefresh(runtime);
+    refreshEquipment = createWarehouseEquipmentRefresh(runtime, seeded.collections.warehouseEquipment.size > 0);
     random.replace(createRandom(seeded.meta.randomState));
     traceRandom.replace(createRandom(seeded.meta.traceRandomState));
     epoch = nextEpoch;

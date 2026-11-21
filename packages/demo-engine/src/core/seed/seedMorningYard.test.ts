@@ -16,6 +16,10 @@ import {
 } from '@skladburg/contracts/wms/v1/receiving';
 import { WarehouseTopologyService } from '@skladburg/contracts/wms/v1/topology';
 import {
+  WarehouseEquipmentService,
+  WarehouseEquipmentStatus,
+} from '@skladburg/contracts/wms/v1/warehouse_equipment';
+import {
   expect,
   it,
 } from 'vitest';
@@ -44,6 +48,15 @@ it('replays the morning yard with 25 parked trucks, compatible assignments and a
   });
   const transport = createEngineTransport(engine, true);
   const receiving = createClient(WarehouseReceivingService, transport);
+  const equipment = createClient(WarehouseEquipmentService, transport);
+  const readEquipment = (): ReturnType<typeof equipment.getWarehouseEquipment> => equipment.getWarehouseEquipment(scope, CUSTOMER_CALL);
+  const fleet = await readEquipment();
+  expect(fleet.equipment.map(unit => [unit.code, unit.batteryPercent, unit.status])).toEqual([
+    ['ПГ-01', 18, WarehouseEquipmentStatus.AVAILABLE],
+    ['ПГ-02', 85, WarehouseEquipmentStatus.AVAILABLE],
+  ]);
+  expect(fleet.stations).toHaveLength(1);
+  expect(fleet.stations[0]?.equipmentId).toBeUndefined();
   const { topology } = await createClient(WarehouseTopologyService, transport).getWarehouseTopology(scope, CUSTOMER_CALL);
   const loadTasks = async (): Promise<ReceivingTask[]> => (await receiving.listReceivingTasks(scope, CUSTOMER_CALL)).tasks;
   const loadQueue = async (): Promise<YardWaitingReason[]> => (await receiving.listYardWaitingReasons(scope, CUSTOMER_CALL)).reasons;
@@ -60,6 +73,9 @@ it('replays the morning yard with 25 parked trucks, compatible assignments and a
 
   realTime.advance(5_000);
   await engine.tick();
+  const charging = await readEquipment();
+  expect(charging.equipment[0]).toMatchObject({ batteryPercent: 18, status: WarehouseEquipmentStatus.CHARGING });
+  expect(charging.stations[0]?.equipmentId).toBe(fleet.equipment[0]?.id);
   expect(await loadTasks()).toEqual(initialTasks);
   const queue = await loadQueue();
   expect(queue).toHaveLength(25);
@@ -93,6 +109,7 @@ it('replays the morning yard with 25 parked trucks, compatible assignments and a
   expect(journal.entries).toEqual([expect.objectContaining({ action: YardDispatchAction.PROMOTE, taskId: wide.receivingTaskId })]);
 
   await engine.reset('morning-yard-reset');
+  expect(await readEquipment()).toEqual(fleet);
   expect(await loadTasks()).toEqual(initialTasks);
   expect((await receiving.listYardDispatchEntries(scope, CUSTOMER_CALL)).entries).toEqual([]);
 });

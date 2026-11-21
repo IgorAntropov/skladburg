@@ -13,6 +13,7 @@ import {
   YardDispatchEntrySchema,
   YardDispatchOutcome,
 } from '@skladburg/contracts/wms/v1/receiving';
+import { WarehouseEquipmentStatus } from '@skladburg/contracts/wms/v1/warehouse_equipment';
 import { YardQueuePolicySchema } from '@skladburg/contracts/wms/v1/yard_queue_policy';
 import { IDBFactory } from 'fake-indexeddb';
 import { wrap } from 'idb';
@@ -25,6 +26,7 @@ import {
   vi,
 } from 'vitest';
 
+import type { CreateEngineOptionsValue } from '../../core/engine/engineTypes';
 import type {
   EngineChangeSetValue,
   EngineCollectionName,
@@ -40,6 +42,7 @@ import {
   createWarehouseRequest,
   TEST_ENGINE_EPOCH,
 } from '../../core/engine/testing/engineHarness';
+import { readWarehouseEquipmentRecord } from '../../core/modules/wms/warehouseEquipmentRecords';
 import {
   createSeedSnapshot,
   SeedOrganizationId,
@@ -50,6 +53,7 @@ import {
   createEngineState,
   TABLE_DEFINITIONS,
 } from '../../core/state/index';
+import { WAREHOUSE_YARD_MORNING } from '../../protocol/demoScenario';
 import {
   createIndexedDbStorage,
   INDEXED_DB_VERSION,
@@ -499,7 +503,106 @@ describe('createIndexedDbStorage when another connection changes the version', (
   });
 });
 
+const storePreviousWorld = async (
+  factory: IDBFactory,
+  databaseVersion: number,
+  snapshot: EngineSnapshotValue,
+  skippedStores: readonly string[],
+): Promise<void> => {
+  const request = factory.open(DATABASE_NAME, databaseVersion);
+  request.addEventListener('upgradeneeded', () => {
+    for (const [name, records] of Object.entries(snapshot.collections)) {
+      if (skippedStores.includes(name)) {
+        continue;
+      }
+      const store = request.result.createObjectStore(name);
+      for (const [id, record] of records) {
+        store.put(record, id);
+      }
+    }
+    const meta = request.result.createObjectStore('meta');
+    meta.put(snapshot.schemaVersion, 'schemaVersion');
+    meta.put(snapshot.meta, 'engineMeta');
+  });
+  const database = await wrap(request);
+  if (database === undefined) {
+    throw new Error('Expected the saved database');
+  }
+  database.close();
+};
+
 describe('createIndexedDbStorage over a database of the previous version', () => {
+  it('upgrades v23 atomically and resumes the occupied morning yard station after reopening', async () => {
+    const seed = createSeedSnapshot();
+    const warehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3;
+    const task = create(ReceivingTaskSchema, {
+      assigneeUserId: SeedUserId.WAREHOUSE_OPERATOR, id: 'task', status: ReceivingTaskStatus.IN_PROGRESS, version: 3, warehouseId,
+    });
+    const journal = create(YardDispatchEntrySchema, { id: 'entry', sequence: 12n, taskId: task.id, warehouseId });
+    const scope = { lookupKey: SeedOrganizationId.CUSTOMER_1, scopeId: warehouseId };
+    const legacy = {
+      ...seed,
+      collections: {
+        ...seed.collections,
+        warehouseEquipment: new Map(),
+        warehouseInbound: new Map([[task.id, { ...scope, bytes: toBinary(ReceivingTaskSchema, task), id: task.id }]]),
+        yardDispatchEntries: new Map([[journal.id, { ...scope, bytes: toBinary(YardDispatchEntrySchema, journal), id: journal.id }]]),
+      },
+      schemaVersion: 29,
+    };
+    const factory = new IDBFactory();
+    await storePreviousWorld(factory, 23, legacy, ['warehouseEquipment']);
+    const storage = await openStorage(factory);
+    const realTime = createFakeRealTime();
+    const options = {
+      demoScenario: WAREHOUSE_YARD_MORNING, epoch: TEST_ENGINE_EPOCH, realTime, storage,
+    } satisfies CreateEngineOptionsValue;
+    const { replaceAll } = storage;
+    vi.spyOn(storage, 'replaceAll').mockImplementationOnce(next => replaceAll(withRecords(next, 'warehouseEquipment', [
+      [warehouseId, createUnclonableRecord()],
+    ])));
+    await expect(createEngine(options)).rejects.toMatchObject({ name: 'SeedLoadError' });
+    expect(await storage.load()).toEqual(legacy);
+
+    const engine = await createEngine(options);
+    const upgraded = await storage.load();
+    if (upgraded === undefined) {
+      throw new Error('Expected the upgraded world');
+    }
+    expect({ ...upgraded.collections, warehouseEquipment: new Map() }).toEqual(legacy.collections);
+    expect(upgraded.meta).toEqual(legacy.meta);
+    expect(upgraded.schemaVersion).toBe(30);
+    const migrated = readWarehouseEquipmentRecord(createEngineState(upgraded).read, warehouseId);
+    expect(migrated?.equipment.map(({ unit }) => unit?.batteryPercent)).toEqual([18, 85]);
+    expect(migrated?.equipment.map(({ unit }) => unit?.taskId)).toEqual([undefined, undefined]);
+
+    realTime.advance(65_000);
+    await engine.tick();
+    const charging = await storage.load();
+    if (charging === undefined) {
+      throw new Error('Expected the saved charge');
+    }
+    const started = readWarehouseEquipmentRecord(createEngineState(charging).read, warehouseId);
+    expect(started?.equipment[0]?.unit).toMatchObject({
+      batteryPercent: 19, chargingStationId: started?.stations[0]?.id, status: WarehouseEquipmentStatus.CHARGING,
+    });
+    expect(started?.stations[0]?.equipmentId).toBe(started?.equipment[0]?.unit?.id);
+    storage.close();
+
+    const reopened = await openStorage(factory);
+    const resumed = await createEngine({ ...options, storage: reopened });
+    expect(await reopened.load()).toEqual(charging);
+    realTime.advance(60_000);
+    await resumed.tick();
+    const latest = await reopened.load();
+    if (latest === undefined) {
+      throw new Error('Expected the resumed charge');
+    }
+    const continued = readWarehouseEquipmentRecord(createEngineState(latest).read, warehouseId);
+    expect(continued?.equipment[0]?.unit?.batteryPercent).toBe(20);
+    expect(continued?.stations).toEqual(started?.stations);
+  });
+
   it.each([
     { databaseVersion: 21, schemaVersion: 26 },
     { databaseVersion: 22, schemaVersion: 27 },
@@ -543,35 +646,20 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
       warehouseLayoutSessions,
       yardQueuePolicies: schemaVersion === 27 ? policyRecords : new Map(),
     };
-    const request = factory.open(DATABASE_NAME, databaseVersion);
-    request.addEventListener('upgradeneeded', () => {
-      for (const [name, records] of Object.entries(priorCollections)) {
-        if (name === 'yardDispatchEntries' || (name === 'yardQueuePolicies' && schemaVersion === 26)) {
-          continue;
-        }
-        const store = request.result.createObjectStore(name);
-        for (const [id, record] of records) {
-          store.put(record, id);
-        }
-      }
-      const meta = request.result.createObjectStore('meta');
-      meta.put(schemaVersion, 'schemaVersion');
-      meta.put(seed.meta, 'engineMeta');
-    });
-    const oldDatabase = await wrap(request);
-    if (oldDatabase === undefined) {
-      throw new Error('Expected the saved database');
+    const skippedStores = ['warehouseEquipment', 'yardDispatchEntries'];
+    if (schemaVersion === 26) {
+      skippedStores.push('yardQueuePolicies');
     }
-    oldDatabase.close();
+    await storePreviousWorld(factory, databaseVersion, { ...seed, collections: priorCollections, schemaVersion }, skippedStores);
 
     const storage = await openStorage(factory);
     await createEngine({ epoch: TEST_ENGINE_EPOCH, realTime: createFakeRealTime(), storage });
     const loaded = await storage.load();
-    expect(loaded?.schemaVersion).toBe(29);
+    expect(loaded?.schemaVersion).toBe(30);
     expect(loaded).toEqual({
       collections: { ...priorCollections, yardDispatchEntries: new Map() },
       meta: seed.meta,
-      schemaVersion: 29,
+      schemaVersion: 30,
     });
     const promoted = create(ReceivingTaskSchema, {
       id: 'receiving-2', status: ReceivingTaskStatus.OPEN, version: 8, warehouseId, yardAdmissionStatus: YardAdmissionStatus.WAITING_DOCK,
@@ -649,7 +737,7 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     const hasOutbound = databaseVersion >= 19;
     const request = factory.open(DATABASE_NAME, databaseVersion);
     request.addEventListener('upgradeneeded', () => {
-      const missingStores = ['warehouseInbound', 'yardDispatchEntries', 'yardQueuePolicies'];
+      const missingStores = ['warehouseEquipment', 'warehouseInbound', 'yardDispatchEntries', 'yardQueuePolicies'];
       if (!hasOutbound) {
         missingStores.push('warehouseOutbound');
       }
@@ -717,6 +805,7 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     expect(loaded?.schemaVersion).toBe(databaseVersion < 13 ? 15 : schemaVersion);
     expect(loaded?.meta).toEqual(seed.meta);
     expect(loaded?.collections.warehouseTopologies).toEqual(new Map());
+    expect(loaded?.collections.warehouseEquipment).toEqual(new Map());
     expect(loaded?.collections.stockBalances.get('a')).toEqual(hasStock ? bytes : undefined);
     expect(loaded?.collections.warehouseInbound).toEqual(new Map());
     expect(loaded?.collections.yardDispatchEntries).toEqual(new Map());

@@ -22,6 +22,7 @@ import {
   SafeDealPaymentRecordSchema,
   SafeDealPaymentStatus,
 } from '@skladburg/contracts/payment/v1/payment';
+import { deepStrictEqual } from 'node:assert/strict';
 import {
   afterEach,
   beforeEach,
@@ -115,10 +116,12 @@ beforeEach(() => {
   vi.resetModules();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await vi.dynamicImportSettled();
   vi.doUnmock('../modules/payments/loadExchangePayments');
   vi.doUnmock('../seed/seedDealHistory');
   vi.doUnmock('../seed/seedSnapshot');
+  vi.doUnmock('../seed/seedSnapshotWithTopology');
   vi.restoreAllMocks();
 });
 
@@ -150,14 +153,14 @@ describe('engine seed loading', () => {
       cause: writeFailure,
       name: 'SeedLoadError',
     });
-    expect(await storage.load()).toEqual(stored);
+    deepStrictEqual(await storage.load(), stored);
 
     const engine = await createEngine({ epoch: 'restored', realTime, storage });
     const fleet = createClient(FleetService, createEngineTransport(engine, true));
     const result = await fleet.listVehicles({}, callAs(SeedUserId.ADMIN_4, SeedOrganizationId.CARRIER_1));
 
     expect(result.vehicles).toHaveLength(3);
-    expect(await storage.load()).toEqual(snapshot);
+    deepStrictEqual(await storage.load(), snapshot);
     await createEngine({ epoch: 'reopened', realTime, storage });
     expect(replaceAll).toHaveBeenCalledTimes(2);
   });
@@ -183,11 +186,11 @@ describe('engine seed loading', () => {
       cause: writeFailure,
       name: 'SeedLoadError',
     });
-    expect(await storage.load()).toEqual(stored);
+    deepStrictEqual(await storage.load(), stored);
 
     await createEngine({ epoch: 'migrated', realTime, storage });
     expect(warehouseTopologies.size).toBe(2);
-    expect(await storage.load()).toEqual({
+    deepStrictEqual(await storage.load(), {
       ...snapshot,
       collections: { ...priorCollections, warehouseTopologies },
       schemaVersion: ENGINE_SCHEMA_VERSION,
@@ -208,7 +211,7 @@ describe('engine seed loading', () => {
       cause: writeFailure,
       name: 'SeedLoadError',
     });
-    expect(await storage.load()).toEqual(stored);
+    deepStrictEqual(await storage.load(), stored);
 
     await createEngine({ epoch: 'restored', realTime, storage });
     const migrated = await storage.load();
@@ -216,7 +219,7 @@ describe('engine seed loading', () => {
     if (storedTrip === undefined || migrated === undefined) {
       throw new Error('Missing migrated trip');
     }
-    expect(migrated).toEqual({
+    deepStrictEqual(migrated, {
       ...stored,
       collections: {
         ...stored.collections,
@@ -245,7 +248,7 @@ describe('engine seed loading', () => {
     expect(trip.transportOrder?.confirmedAt).toBeUndefined();
 
     await createEngine({ epoch: 'reopened', realTime, storage });
-    expect(await storage.load()).toEqual(migrated);
+    deepStrictEqual(await storage.load(), migrated);
     expect(replaceAll).toHaveBeenCalledTimes(2);
   });
 
@@ -258,7 +261,7 @@ describe('engine seed loading', () => {
 
     await expect(createEngine({ epoch: 'failed', realTime: { now: () => 0 }, storage })).rejects.toMatchObject({ name: 'SeedLoadError' });
     expect(replaceAll).not.toHaveBeenCalled();
-    expect(await storage.load()).toEqual(stored);
+    deepStrictEqual(await storage.load(), stored);
   });
 
   it('preserves the snapshot when the active exchange payment cannot be loaded on startup', async () => {
@@ -285,7 +288,7 @@ describe('engine seed loading', () => {
       name: 'SeedLoadError',
     });
     expect(replaceAll).not.toHaveBeenCalled();
-    expect(await storage.load()).toEqual(stored);
+    deepStrictEqual(await storage.load(), stored);
   });
 
   it('publishes seeded deal history only on a new world or reset', async () => {
@@ -300,11 +303,11 @@ describe('engine seed loading', () => {
     expect(replaceAll).toHaveBeenCalledTimes(1);
 
     const restored = await createEngine({ epoch: 'restored', realTime, storage });
-    expect(await storage.load()).toEqual(seeded);
+    deepStrictEqual(await storage.load(), seeded);
     expect(replaceAll).toHaveBeenCalledTimes(1);
 
     await restored.reset('reset');
-    expect(await storage.load()).toEqual(seeded);
+    deepStrictEqual(await storage.load(), seeded);
     expect(replaceAll).toHaveBeenCalledTimes(2);
   });
 
@@ -333,7 +336,7 @@ describe('engine seed loading', () => {
 
     expect(response.cities.find(item => item.id === city.id)?.localDeliveryProfile).toMatchObject({ distanceKm: 22, driveMinutes: 60 });
     expect(replaceAll).not.toHaveBeenCalled();
-    expect(await storage.load()).toEqual(stored);
+    deepStrictEqual(await storage.load(), stored);
   });
 
   it('preserves an incompatible snapshot when deal history cannot load', async () => {
@@ -348,7 +351,7 @@ describe('engine seed loading', () => {
 
     await expect(createEngine({ epoch: 'new', realTime: { now: () => 0 }, storage })).rejects.toMatchObject({ name: 'SeedLoadError' });
     expect(replaceAll).not.toHaveBeenCalled();
-    expect(await storage.load()).toEqual(stored);
+    deepStrictEqual(await storage.load(), stored);
   });
 
   it('restores a current snapshot when the seed module cannot be loaded', async () => {
@@ -365,7 +368,7 @@ describe('engine seed loading', () => {
     expect(engine.epoch()).toBe('restored');
     expect(engine.listPersonas()).toHaveLength(13);
     expect(replaceAll).not.toHaveBeenCalled();
-    expect(await storage.load()).toEqual(snapshot);
+    deepStrictEqual(await storage.load(), snapshot);
   });
 
   it('classifies a failed seed import before replacing an incompatible snapshot', async () => {
@@ -384,16 +387,13 @@ describe('engine seed loading', () => {
 
     await expect(starting).rejects.toMatchObject({ name: 'SeedLoadError' });
     expect(replaceAll).not.toHaveBeenCalled();
-    expect(await storage.load()).toEqual(stored);
+    deepStrictEqual(await storage.load(), stored);
   });
 
   it('keeps the current world and epoch after a failed reset and allows retrying', async () => {
     const snapshot = createSeedSnapshot();
     const storage = createMemoryStorage(snapshot);
     const replaceAll = vi.spyOn(storage, 'replaceAll');
-    vi.doMock('../seed/seedSnapshot', () => {
-      throw new Error('Seed chunk is unavailable');
-    });
     const { createEngine } = await import('./createEngine');
     const seed = { randomSeed: 91, worldStartMs: 10 };
     const engine = await createEngine({ epoch: 'restored', realTime: { now: () => 0 }, seed, storage });
@@ -402,6 +402,9 @@ describe('engine seed loading', () => {
     const clock = engine.getClockSnapshot();
     const personas = engine.listPersonas();
 
+    vi.doMock('../seed/seedSnapshotWithTopology', () => {
+      throw new Error('Seed chunk is unavailable');
+    });
     await expect(engine.reset('reset')).rejects.toMatchObject({ name: 'SeedLoadError' });
 
     expect(engine.epoch()).toBe('restored');
@@ -409,13 +412,13 @@ describe('engine seed loading', () => {
     expect(engine.listPersonas()).toEqual(personas);
     expect(replaceAll).not.toHaveBeenCalled();
     await engine.checkpoint();
-    expect(await storage.load()).toEqual(stored);
+    deepStrictEqual(await storage.load(), stored);
 
-    vi.doUnmock('../seed/seedSnapshot');
+    vi.doUnmock('../seed/seedSnapshotWithTopology');
     await engine.reset('retry');
 
     expect(engine.epoch()).toBe('retry');
-    expect(await storage.load()).toEqual(addWarehouseTopologies(createSeedSnapshot(seed)));
+    deepStrictEqual(await storage.load(), addWarehouseTopologies(createSeedSnapshot(seed)));
   });
 
   it('does not classify a storage failure as a seed import failure', async () => {

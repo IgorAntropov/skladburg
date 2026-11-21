@@ -210,12 +210,25 @@ const selectCarrier = async (engine: IDemoEngine, deal: Deal): Promise<Omit<Sele
   return selection;
 };
 
+let agreedDeal: Deal;
+let agreedDealSnapshot: EngineSnapshotValue;
+
+beforeAll(async () => {
+  const storage = createMemoryStorage();
+  const engine = await createEngine({ epoch: 'seed', realTime: createFakeRealTime(), storage });
+  agreedDeal = await prepareDeal(engine);
+  const snapshot = await storage.load();
+  if (snapshot === undefined) {
+    throw new Error('Expected the agreed deal snapshot');
+  }
+  agreedDealSnapshot = snapshot;
+});
+
 it('preserves the pre-marketplace database and reloads a selected offer after reopening it', async () => {
   const factory = new IDBFactory();
   const realTime = createFakeRealTime();
-  const sourceStorage = createMemoryStorage();
+  const sourceStorage = createMemoryStorage(agreedDealSnapshot);
   const source = await createEngine({ epoch: 'legacy-world', realTime, storage: sourceStorage });
-  const deal = await prepareDeal(source);
   const fleet = createClient(FleetService, createEngineTransport(source, true));
   await fleet.saveDriver({
     displayName: 'Тестовый водитель',
@@ -238,7 +251,7 @@ it('preserves the pre-marketplace database and reloads a selected offer after re
   try {
     const engine = await createEngine({ epoch: 'migrated-world', realTime, storage: migratedStorage });
     deepStrictEqual(await migratedStorage.load(), { ...original, schemaVersion: ENGINE_SCHEMA_VERSION });
-    selection = await selectCarrier(engine, deal);
+    selection = await selectCarrier(engine, agreedDeal);
   }
   finally {
     migratedStorage.close();
@@ -261,7 +274,7 @@ it('preserves the pre-marketplace database and reloads a selected offer after re
     const replay = await logistics.selectTransportOffer(selection, CUSTOMER_CALL);
     expect(replay.transportRequest).toEqual(transportRequest);
     const deals = createClient(DealService, transport);
-    expect((await deals.getDeal({ dealId: deal.id }, CUSTOMER_CALL)).deal?.status).toBe(DealStatus.AWAITING_LOGISTICS);
+    expect((await deals.getDeal({ dealId: agreedDeal.id }, CUSTOMER_CALL)).deal?.status).toBe(DealStatus.AWAITING_LOGISTICS);
   }
   finally {
     reopenedStorage.close();
@@ -273,10 +286,9 @@ describe('saved world migration with an active trip', () => {
   let original: EngineSnapshotValue;
 
   beforeAll(async () => {
-    const sourceStorage = createMemoryStorage();
+    const sourceStorage = createMemoryStorage(agreedDealSnapshot);
     const source = await createEngine({ epoch: 'source', realTime, storage: sourceStorage });
-    const deal = await prepareDeal(source);
-    const selection = await selectCarrier(source, deal);
+    const selection = await selectCarrier(source, agreedDeal);
     const stored = await sourceStorage.load();
 
     if (stored === undefined) {

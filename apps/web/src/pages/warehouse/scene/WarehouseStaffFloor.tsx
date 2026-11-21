@@ -1,5 +1,8 @@
 import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
-import type { ReactElement } from 'react';
+import type {
+  ReactElement,
+  RefObject,
+} from 'react';
 import type { BufferGeometry } from 'three';
 
 import {
@@ -16,6 +19,7 @@ import type {
   WarehouseSceneInteractionValue,
   WarehouseSceneStaffAreaValue,
 } from '../model/warehouseSceneInteraction';
+import type { WarehouseStaffLabelBoundsValue } from './createWarehouseStaffOverlay';
 import type { WarehouseLayoutValue } from './warehouseLayout';
 
 import { createWarehouseStaffOverlay } from './createWarehouseStaffOverlay';
@@ -24,6 +28,7 @@ import { buildWarehouseStaffLayout } from './warehouseStaffLayout';
 
 interface WarehouseStaffFloorProps {
   areas: readonly WarehouseSceneStaffAreaValue[];
+  bounds: RefObject<readonly WarehouseStaffLabelBoundsValue[]>;
   geometry: BufferGeometry;
   hasShadows: boolean;
   interaction: WarehouseSceneInteractionValue;
@@ -31,7 +36,9 @@ interface WarehouseStaffFloorProps {
   topology: WarehouseTopology;
 }
 
-const WarehouseStaffFloor = ({ areas, geometry, hasShadows, interaction, layout, topology }: WarehouseStaffFloorProps): ReactElement => {
+const WarehouseStaffFloor = ({
+  areas, bounds, geometry, hasShadows, interaction, layout, topology,
+}: WarehouseStaffFloorProps): ReactElement => {
   const canvas = useThree(state => state.gl.domElement);
   const invalidate = useThree(state => state.invalidate);
   const overlay = useRef<ReturnType<typeof createWarehouseStaffOverlay>>(undefined);
@@ -43,13 +50,13 @@ const WarehouseStaffFloor = ({ areas, geometry, hasShadows, interaction, layout,
     if (host == null) {
       return undefined;
     }
-    const current = createWarehouseStaffOverlay(canvas, host);
+    const current = createWarehouseStaffOverlay(canvas, host, bounds);
     overlay.current = current;
     return (): void => {
       current.dispose();
       overlay.current = undefined;
     };
-  }, [canvas, staffOverlayHost]);
+  }, [bounds, canvas, staffOverlayHost]);
 
   useLayoutEffect(() => {
     overlay.current?.update(placement, { formatStaffOverflow, onStaffSelect, selectedStaffId });
@@ -58,7 +65,7 @@ const WarehouseStaffFloor = ({ areas, geometry, hasShadows, interaction, layout,
 
   useFrame(({ camera, size }) => {
     overlay.current?.project(camera, size.width, size.height);
-  });
+  }, -0.25);
 
   return <WarehouseFloor batches={placement.floor} geometry={geometry} hasShadows={hasShadows} />;
 };

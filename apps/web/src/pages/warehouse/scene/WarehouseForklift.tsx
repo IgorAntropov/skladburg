@@ -5,6 +5,7 @@ import type {
 import type {
   Group,
   Mesh,
+  Object3D,
 } from 'three';
 
 import {
@@ -26,10 +27,10 @@ import forklift from './warehouseForklift.json';
 import { FORKLIFT_SCALE } from './warehouseForkliftRoute';
 
 export interface WarehouseForkliftRigValue {
-  body: Group;
-  carriage: Group;
-  mast: Mesh;
-  tines: Mesh;
+  body: Object3D;
+  carriage: Object3D;
+  mast: Object3D;
+  tines: Object3D;
 }
 
 interface ForkliftPartValue {
@@ -54,6 +55,14 @@ const buildGeometry = ({ indices, positions }: ForkliftPartValue): BufferGeometr
 
   return geometry;
 };
+
+export const createWarehouseForkliftGeometries = (): Record<'body' | 'carriage' | 'chassis' | 'mast' | 'tines', BufferGeometry> => ({
+  body: buildGeometry(forklift.body),
+  carriage: buildGeometry(forklift.carriage),
+  chassis: buildGeometry(forklift.chassis),
+  mast: buildGeometry(forklift.mast),
+  tines: buildGeometry(forklift.tines),
+});
 
 export const applyWarehouseForkliftPose = (
   rig: null | WarehouseForkliftRigValue,
@@ -87,13 +96,7 @@ export const WarehouseForklift = ({ rig }: WarehouseForkliftProps): ReactElement
   const carriage = useRef<Group>(null);
   const mast = useRef<Mesh>(null);
   const tines = useRef<Mesh>(null);
-  const geometries = useMemo(() => ({
-    body: buildGeometry(forklift.body),
-    carriage: buildGeometry(forklift.carriage),
-    chassis: buildGeometry(forklift.chassis),
-    mast: buildGeometry(forklift.mast),
-    tines: buildGeometry(forklift.tines),
-  }), []);
+  const geometries = useMemo(() => createWarehouseForkliftGeometries(), []);
 
   useImperativeHandle<null | WarehouseForkliftRigValue, null | WarehouseForkliftRigValue>(rig, () => {
     if (body.current !== null && carriage.current !== null && mast.current !== null && tines.current !== null) {

@@ -46,6 +46,7 @@ import type { WarehouseSceneParkingValue } from '../model/warehouseSceneParking'
 import type { WarehouseYardFactsValue } from '../model/warehouseYardFacts';
 import type { WarehouseYardVehicleMarkingVisualValue } from '../model/warehouseYardVehicleMarkingVisual';
 
+import { useWarehouseEquipment } from '../api/useWarehouseEquipment';
 import { useWarehouseSceneStaff } from '../api/useWarehouseSceneStaff';
 import { useWarehouseYardLight } from '../api/useWarehouseYardLight';
 import { useWarehouseYardRefresh } from '../api/useWarehouseYardRefresh';
@@ -53,6 +54,7 @@ import { warehouseWorkspaceKey } from '../api/warehouseWorkspaceKey';
 import { warehouseSceneMessages } from '../i18n/warehouseSceneRu';
 import { projectWarehouseCargo } from '../model/projectWarehouseCargo';
 import { readWarehouseReceivingDocks } from '../model/warehouseReceivingDocks';
+import { projectWarehouseSceneEquipment } from '../model/warehouseSceneEquipment';
 import { readWarehouseSceneParking } from '../model/warehouseSceneParking';
 import { acceptWarehouseYardFacts } from '../model/warehouseYardFacts';
 import { WarehouseStaffSceneDialog } from './workspace/WarehouseStaffSceneDialog';
@@ -64,6 +66,7 @@ interface WarehouseWorkspaceSceneProps extends Omit<
   WarehouseSceneInteractionValue,
   | 'cargo'
   | 'constructionLayer'
+  | 'equipment'
   | 'focusRequest'
   | 'formatStaffOverflow'
   | 'isCameraReady'
@@ -101,15 +104,20 @@ const WarehouseConstructionLayer = (props: WarehouseConstructionLayerProps): nul
 };
 
 const WarehouseWorkspaceScene = ({
-  balances, construction, isLoading, label, picking, receiving, scannedCell, selectedCellId, timeZone, topology,
+  balances, construction, isLoading, label, onEquipmentSelect, picking, receiving, scannedCell, selectedCellId, timeZone, topology,
   vehicleMarkings, warehouseId, yardDrag,
 }: WarehouseWorkspaceSceneProps): ReactElement => {
-  const { createSectionTranslator, t } = useI18n();
+  const i18n = useI18n();
+  const { createSectionTranslator, t } = i18n;
   const navigate = useNavigate();
   const { focusRequest } = useAddress();
   const { organizationId, userId } = useActingContext();
   const canViewTrips = useCan(PermissionCode.TRIP_VIEW, { kind: 'organization' });
   const isSceneCameraReady = useIsSceneCameraReady();
+  const canShowEquipment = isSceneCameraReady && topology != null;
+  const fleet = useWarehouseEquipment(warehouseId, canShowEquipment);
+  const factsForEquipment = canShowEquipment && !isReadAccessDenied(fleet.error) ? fleet.data : undefined;
+  const equipment = useMemo(() => projectWarehouseSceneEquipment(factsForEquipment, i18n), [factsForEquipment, i18n]);
   const staff = useWarehouseSceneStaff(warehouseId, isSceneCameraReady && topology != null, focusRequest);
   const isNight = useWarehouseYardLight(timeZone, isSceneCameraReady && topology != null);
   const [lastParking, setLastParking] = useState<WarehouseSceneParkingValue>();
@@ -165,6 +173,12 @@ const WarehouseWorkspaceScene = ({
     navigate({ kind: 'object', object: { id, type: 'cell' } });
   }, [navigate]);
 
+  const handleEquipmentSelect = useCallback((id: string, trigger?: HTMLElement): void => {
+    if (equipment?.units.some(unit => unit.id === id)) {
+      onEquipmentSelect?.(id, trigger ?? viewportRef.current ?? undefined);
+    }
+  }, [equipment, onEquipmentSelect]);
+
   if (parking !== lastParking) {
     setLastParking(parking);
   }
@@ -186,12 +200,14 @@ const WarehouseWorkspaceScene = ({
           cargo,
           construction,
           constructionLayer: WarehouseConstructionLayer,
+          equipment,
           focusRequest,
           formatStaffOverflow: staff.formatStaffOverflow,
           isCameraReady: isSceneCameraReady,
           isNight,
           isRefreshingYardFacts,
           onCellSelect: handleCellSelect,
+          onEquipmentSelect: handleEquipmentSelect,
           onStaffSelect: staff.selectStaff,
           parkingCapacity: parking.capacity,
           scannedCell,

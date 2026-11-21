@@ -70,8 +70,10 @@ import { createWarehouseDockTruck } from './warehouseDockTruckMotion';
 import { applyWarehouseForkliftPose } from './WarehouseForklift';
 import {
   advanceWarehouseForklift,
+  advanceWarehouseUnassignedCargo,
   clearWarehouseForkliftJobs,
   createWarehouseForkliftPlayback,
+  getWarehouseCargoEndpointWeight,
   MAX_WAREHOUSE_FORKLIFT_JOBS,
   queueWarehouseForkliftJobs,
   truncateWarehouseForkliftJobs,
@@ -84,6 +86,7 @@ import { canAdvanceWarehouseForklift } from './warehouseForkliftTraffic';
 import { readWarehouseYardTruckPose } from './warehouseYardMotion';
 import { WAREHOUSE_TRUCK_CENTER_Z } from './warehouseYardRoads';
 import {
+  setWarehouseCargoPlayback,
   setWarehouseYardForklift,
   setWarehouseYardLane,
   setWarehouseYardVisits,
@@ -298,7 +301,10 @@ const paintScene = (scene: CargoSceneValue): void => {
     const { from, id, to } = job.transfer;
     hasActiveDispatch ||= to.location === 'truck';
     const phase = index === 0 ? job.phases[phaseIndex] : undefined;
-    const load = phase?.load ?? 'source';
+    const hasForklift = playback.equipmentJob === undefined || playback.equipmentJob === job;
+    const isUnassigned = index === 0 && (!hasForklift || playback.unassignedJob === job);
+    const weight = isUnassigned ? getWarehouseCargoEndpointWeight(playback.elapsed) : 1;
+    const load = isUnassigned ? (weight < 0 ? 'source' : 'target') : phase?.load ?? 'source';
     activeIds.add(id);
     if ((load === 'forks' || load === 'handoff') && pose !== undefined && phase !== undefined) {
       const distance = FORKLIFT_PALLET_OFFSET + pose.reach;
@@ -317,7 +323,9 @@ const paintScene = (scene: CargoSceneValue): void => {
       }
     }
     else {
-      const { location, point, size } = load === 'target' ? to : from;
+      const endpoint = load === 'target' ? to : from;
+      const { location, point } = endpoint;
+      const size = endpoint.size * Math.abs(weight);
       if (location === 'truck') {
         const parked = job.transfer.dockTaskId === truck.taskId ? truck : readWarehouseYardTruckPose(yard, job.transfer.dockTaskId);
         if (parked === undefined) {
@@ -453,6 +461,7 @@ export const WarehouseCargo = ({
   }, [invalidate]);
 
   useLayoutEffect(() => (): void => {
+    setWarehouseCargoPlayback(traffic, laneIndex, undefined);
     setWarehouseYardForklift(traffic, laneIndex, undefined);
     setWarehouseYardLane(traffic, laneIndex, undefined);
   }, [laneIndex, traffic]);
@@ -475,6 +484,7 @@ export const WarehouseCargo = ({
       retainWarehouseDockLoads(dockSteps, layout, previousCargo, cargo.shippedUnitIds, dock);
     }
     const playback = isSameLayout ? prior.playback : createWarehouseForkliftPlayback(layout, dock);
+    setWarehouseCargoPlayback(traffic, laneIndex, playback);
     const { yard } = traffic;
     const truck = isSameLayout ? prior.truck : createWarehouseDockTruck(yard.hasInitialized ? undefined : cargo.dockTaskId);
     const primaryDock = layout.receiving?.dock;
@@ -562,7 +572,7 @@ export const WarehouseCargo = ({
       paintYard(current);
     }
     paintScene(current);
-    applyWarehouseForkliftPose(forklift.current, playback.pose);
+    applyWarehouseForkliftPose(forklift.current, playback.jobs.length > 0 ? playback.pose : undefined);
     if (!document.hidden) {
       invalidate();
     }
@@ -595,7 +605,12 @@ export const WarehouseCargo = ({
       setWarehouseYardForklift(traffic, laneIndex, ready);
       if (ready !== undefined && (!hasAssignedDocks || canAdvanceWarehouseForklift(traffic.forklifts, laneIndex))) {
         const isCatchingUp = clock.isCatchingUp || lane?.isCatchingUp === true || ready.jobs.length > 1;
-        advanceWarehouseForklift(ready, clock.delta, hasAssignedDocks, isCatchingUp ? WAREHOUSE_YARD_CATCH_UP_RATE : 1);
+        if (ready.equipmentJob === null || ready.unassignedJob === ready.jobs[0]) {
+          advanceWarehouseUnassignedCargo(ready, clock.delta);
+        }
+        else {
+          advanceWarehouseForklift(ready, clock.delta, hasAssignedDocks, isCatchingUp ? WAREHOUSE_YARD_CATCH_UP_RATE : 1);
+        }
         isForkliftMoving = true;
         setWarehouseYardForklift(traffic, laneIndex, readReadyForklift(current));
       }
@@ -605,7 +620,7 @@ export const WarehouseCargo = ({
     if (isYardOwner) {
       paintYard(current);
     }
-    applyWarehouseForkliftPose(forklift.current, playback.pose);
+    applyWarehouseForkliftPose(forklift.current, playback.jobs.length > 0 ? playback.pose : undefined);
     paintScene(current);
     if (hasNewDockTarget || isForkliftMoving) {
       invalidate();

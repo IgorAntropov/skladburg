@@ -18,6 +18,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -77,6 +78,7 @@ import { warehouseWorkSection } from '../../i18n/workspaceSection';
 import { getWarehouseCells } from '../../model/warehouseCells';
 import { isWarehouseYardDockChoiceAllowed } from '../../model/warehouseYardDockChoice';
 import { readCells } from './warehouseFormatting';
+import { WarehouseObjectDialog } from './WarehouseObjectDialog';
 import { WarehouseStaffSlot } from './WarehouseStaffSlot';
 
 export type WarehouseLayoutRenderValue = (panel: ReactNode, scene?: ReactNode, sceneControls?: ReactNode) => ReactElement;
@@ -96,6 +98,7 @@ interface WarehouseWorkspaceProps {
 }
 
 const loadWarehousePanels = createCachedModuleLoader(() => import('./warehousePanels'));
+const loadWarehouseEquipment = createCachedModuleLoader(() => import('./WarehouseEquipment'));
 const loadWarehouseRackPlacement = createCachedModuleLoader(() => import('../layout/WarehouseRackPlacement'));
 const loadWarehouseStaffPresence = createCachedModuleLoader(() => import('./WarehouseStaffPresence'));
 const loadWarehouseYardDispatch = createCachedModuleLoader(() => import('./WarehouseYardDispatch'));
@@ -130,6 +133,7 @@ interface WarehouseWorkspaceContentProps extends Omit<WarehouseWorkspaceProps, '
   onConsumeDockChoice: (choice: WarehouseYardDockChoiceValue) => void;
   onDragOptionsChange: (options: undefined | WarehouseYardDragOptionsValue) => void;
   onEditingYardChange: (isEditing: boolean) => void;
+  onEquipmentSelect: (id: string, trigger?: HTMLElement) => void;
   onPreviewChange: WarehouseConstructionChangeValue;
   t: WarehouseWorkTranslate;
   vehicleMarkings: ReadonlyMap<string, WarehouseYardVehicleMarkingVisualValue> | undefined;
@@ -188,8 +192,8 @@ function WarehouseQuery<TData>({ children, empty, isEmpty, query, t }: Warehouse
 }
 
 const WarehouseWorkspaceContent = ({
-  dockChoice, focus, isEditingYard, onCellSelect, onConsumeDockChoice, onDragOptionsChange, onEditingYardChange, onPreviewChange,
-  t, vehicleMarkings, warehouse, workspace,
+  dockChoice, focus, isEditingYard, onCellSelect, onConsumeDockChoice, onDragOptionsChange, onEditingYardChange, onEquipmentSelect,
+  onPreviewChange, t, vehicleMarkings, warehouse, workspace,
 }: WarehouseWorkspaceContentProps): ReactElement => {
   const { t: baseText } = useI18n();
   const demoScenario = useDemoScenario();
@@ -430,6 +434,20 @@ const WarehouseWorkspaceContent = ({
     });
   }
 
+  if (workspace.canViewTopology) {
+    tabs.push({
+      content: (
+        <div className="flex flex-1 flex-col rounded-control bg-panel-solid">
+          <WarehousePanelSlot key="equipment" loader={loadWarehouseEquipment}>
+            {({ WarehouseEquipmentList }) => <WarehouseEquipmentList onSelect={onEquipmentSelect} t={t} warehouseId={warehouse.id} />}
+          </WarehousePanelSlot>
+        </div>
+      ),
+      id: 'equipment',
+      label: t('warehouseWork.equipmentTab'),
+    });
+  }
+
   const isCell = focus?.type === 'cell';
   const isUnit = focus?.type === 'handling_unit';
   const isMorningYard = demoScenario?.current === WAREHOUSE_YARD_MORNING && warehouse.id === WAREHOUSE_YARD_MORNING_WAREHOUSE_ID;
@@ -513,12 +531,24 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
   const [dockChoice, setDockChoice] = useState<WarehouseYardDockChoiceValue>();
   const [dragOptions, setDragOptions] = useState<WarehouseYardDragOptionsValue>();
   const [isEditingYard, setIsEditingYard] = useState(false);
+  const [equipmentId, setEquipmentId] = useState<string>();
+  const equipmentTrigger = useRef<HTMLElement | null>(null);
   const [scannedCell, setScannedCell] = useState<WarehouseSceneScanValue>();
   const focusId = focus?.id;
 
   const handleCellSelect = useCallback((id: string): void => {
     setScannedCell({ cellId: id, focusId });
   }, [focusId]);
+
+  const handleEquipmentSelect = useCallback((id: string, trigger?: HTMLElement): void => {
+    equipmentTrigger.current = trigger ?? null;
+    trigger?.focus({ preventScroll: true });
+    setEquipmentId(id);
+  }, []);
+
+  const handleEquipmentClose = (): void => {
+    setEquipmentId(undefined);
+  };
 
   const handleDragOptionsChange = useCallback((options: undefined | WarehouseYardDragOptionsValue): void => {
     setDragOptions(options);
@@ -570,6 +600,7 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
         onConsumeDockChoice={handleConsumeDockChoice}
         onDragOptionsChange={handleDragOptionsChange}
         onEditingYardChange={setIsEditingYard}
+        onEquipmentSelect={handleEquipmentSelect}
         onPreviewChange={setConstruction}
         t={t}
         vehicleMarkings={vehicleMarkings}
@@ -577,14 +608,14 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
         workspace={workspace}
       />
     );
-    return renderLayout(
-      panel,
+    const scene = (
       <Suspense fallback={<ScenePlaceholder isLoading label={baseText('routing.section.loading')} />}>
         <WarehouseWorkspaceScene
           balances={balances}
           construction={construction}
           isLoading={workspace.topology.isPending && workspace.canViewTopology}
           label={warehouse.name}
+          onEquipmentSelect={handleEquipmentSelect}
           picking={picking}
           receiving={receiving}
           scannedCell={currentScan}
@@ -595,8 +626,28 @@ export const WarehouseWorkspace = ({ focus, renderLayout, warehouse }: Warehouse
           warehouseId={warehouse.id}
           yardDrag={yardDrag}
         />
-      </Suspense>,
-      topology == null ? undefined : <Suspense fallback={null}><WarehouseSceneControls /></Suspense>,
+      </Suspense>
+    );
+    const controls = topology == null ? undefined : <Suspense fallback={null}><WarehouseSceneControls /></Suspense>;
+    return (
+      <>
+        {renderLayout(panel, scene, controls)}
+        {equipmentId !== undefined && workspace.canViewTopology && (
+          <WarehouseObjectDialog
+            closeTestId="warehouse-equipment-close"
+            fallbackFocus={equipmentTrigger}
+            onClose={handleEquipmentClose}
+            testId="warehouse-equipment-inspector"
+            title={t('warehouseWork.equipmentInspector')}
+          >
+            <WarehousePanelSlot loader={loadWarehouseEquipment}>
+              {({ WarehouseEquipmentDetails }) => (
+                <WarehouseEquipmentDetails equipmentId={equipmentId} receivingTasks={receiving?.data} t={t} warehouseId={warehouse.id} />
+              )}
+            </WarehousePanelSlot>
+          </WarehouseObjectDialog>
+        )}
+      </>
     );
   }
   if (status === 'error') {

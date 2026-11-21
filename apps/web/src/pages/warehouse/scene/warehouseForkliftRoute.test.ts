@@ -344,6 +344,7 @@ describe('warehouse forklift jobs', () => {
 
     expect(receipt?.id).toBe('pallet');
     expect(placement?.from).toEqual(receipt?.to);
+    expect(placement).toMatchObject({ dockTaskId: undefined, taskId: 'receiving-task' });
     expect(buildWarehouseCargoTransfers(layout, undefined, placed)).toEqual([]);
     expect(buildWarehouseCargoTransfers(layout, { ...truck, dockTaskId: 'another-task' }, staging)).toEqual([]);
     expect(buildWarehouseCargoTransfers(layout, truck, { ...staging, dockTaskId: 'another-task' })).toEqual([]);

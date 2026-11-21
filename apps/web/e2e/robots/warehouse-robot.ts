@@ -12,6 +12,7 @@ export interface WarehouseRobotValue {
   expectStaffCount: (areaId: string, count: number) => Promise<void>;
   expectStaffPlan: (areaId: string, planned: number, difference: number) => Promise<void>;
   expectStaffShift: (onShift: number, onBreak: number, offSite: number) => Promise<void>;
+  openEquipmentTab: () => Promise<void>;
   openStaffTab: () => Promise<void>;
 }
 
@@ -37,6 +38,9 @@ export const createWarehouseRobot = (page: Page): WarehouseRobotValue => {
       await expect(workspace.getByTestId('warehouse-staff-on-shift')).toHaveText(String(onShift));
       await expect(workspace.getByTestId('warehouse-staff-on-break')).toHaveText(String(onBreak));
       await expect(workspace.getByTestId('warehouse-staff-off-site')).toHaveText(String(offSite));
+    },
+    async openEquipmentTab(): Promise<void> {
+      await workspace.locator('button[id$="-trigger-equipment"]').click();
     },
     async openStaffTab(): Promise<void> {
       await workspace.locator('button[id$="-trigger-staff"]').click();

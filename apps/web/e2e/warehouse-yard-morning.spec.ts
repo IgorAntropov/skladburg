@@ -11,6 +11,7 @@ import {
   YardPriorityFactor,
 } from '@skladburg/contracts/wms/v1/receiving';
 import { WarehouseTopologyService } from '@skladburg/contracts/wms/v1/topology';
+import { WarehouseEquipmentStatus } from '@skladburg/contracts/wms/v1/warehouse_equipment';
 import { WAREHOUSE_YARD_MORNING } from '@skladburg/demo-engine/client';
 
 import { expectNoAxeViolations } from './fixtures/axe.ts';
@@ -37,6 +38,7 @@ import { createPersonaRobot } from './robots/persona-robot.ts';
 import { createProfileMenuLocators } from './robots/profile-menu-locators.ts';
 import { createSceneRobot } from './robots/scene-robot.ts';
 import { createTopBarRobot } from './robots/top-bar-robot.ts';
+import { createWarehouseRobot } from './robots/warehouse-robot.ts';
 
 const SCOPE = { warehouseId: OWN_NETWORK_SITES[2].id };
 const WAREHOUSE_HASH = toObjectHash(toWarehouseRoute(SCOPE.warehouseId));
@@ -170,6 +172,16 @@ test('replays the morning yard from the profile without resetting the ordinary w
       reason: ASSIGN_REASON,
       taskId: coldLoad.receivingTaskId,
     }]);
+    await createWarehouseRobot(page).openEquipmentTab();
+    const station = page.getByTestId(/^warehouse-equipment-station-/u);
+    await expect(station).toHaveAttribute('data-equipment-id', /.+/u);
+    const chargingId = await station.getAttribute('data-equipment-id') ?? '';
+    const status = page.getByTestId(`warehouse-equipment-status-${chargingId}`);
+    await expect(status).toHaveAttribute('data-status', String(WarehouseEquipmentStatus.CHARGING));
+    await page.getByTestId(`warehouse-equipment-open-${chargingId}`).click();
+    const inspector = page.getByTestId('warehouse-equipment-inspector');
+    await expect(inspector.getByTestId('warehouse-equipment-inspector-station')).toContainText('ЗС-01');
+    await inspector.getByTestId('warehouse-equipment-close').click();
     await createSceneRobot(page).expectNoCanvas();
 
     await openProfileAction(page, 'profile-menu-yard-morning-exit');

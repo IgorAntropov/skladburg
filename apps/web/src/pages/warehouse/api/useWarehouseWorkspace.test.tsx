@@ -34,6 +34,10 @@ import {
   WarehouseTopologyService,
 } from '@skladburg/contracts/wms/v1/topology';
 import {
+  GetWarehouseEquipmentResponseSchema,
+  WarehouseEquipmentService,
+} from '@skladburg/contracts/wms/v1/warehouse_equipment';
+import {
   GetWarehouseStaffPresenceResponseSchema,
   WarehouseStaffPresenceService,
 } from '@skladburg/contracts/wms/v1/warehouse_staff_presence';
@@ -68,6 +72,7 @@ import {
 } from '@/shared/api/index.testing';
 import { withTestLocalizer } from '@/shared/i18n/index.testing';
 
+import { useWarehouseEquipment } from './useWarehouseEquipment';
 import { useWarehouseObjectLookup } from './useWarehouseObjectLookup';
 import { useWarehouseSceneStaff } from './useWarehouseSceneStaff';
 import { useWarehouseStaffPresence } from './useWarehouseStaffPresence';
@@ -318,6 +323,80 @@ it('reads the shift and subscribes to staff events only in the granted warehouse
   await waitFor(() => {
     expect(result.current.error).toBeNull();
     expect(result.current.data?.areas).toHaveLength(1);
+  });
+  act(() => {
+    runtime.actingContext.set({ organizationId: TEST_ORGANIZATION_ID, userId: OTHER_USER });
+  });
+  expect(result.current.data).toBeUndefined();
+});
+
+it('drops equipment assignments immediately when the warehouse, employee or field permissions change', async () => {
+  const warehouseAccess = { permission: 'warehouse_view', warehouseIds: [WAREHOUSE] };
+  const fullSession = create(GetSessionResponseSchema, {
+    permissions: [warehouseAccess, ...['staff_profile_view', 'task_view'].map(permission => ({ permission, warehouseIds: [WAREHOUSE] }))],
+  });
+  const limitedSession = create(GetSessionResponseSchema, { permissions: [warehouseAccess] });
+  const visible = create(GetWarehouseEquipmentResponseSchema, { equipment: [{ code: '01', driverStaffId: TEST_USER_ID, taskId: 'task' }] });
+  const hidden = createDeferred(create(GetWarehouseEquipmentResponseSchema, { equipment: [{ code: '01' }] }));
+  const getWarehouseEquipment = vi.fn<() => Promise<typeof visible>>()
+    .mockResolvedValueOnce(visible)
+    .mockReturnValue(hidden.promise);
+  const runtime = createTestRuntime({
+    routes: (router) => {
+      router.service(AccessService, { getSession: () => fullSession });
+      router.service(WarehouseEquipmentService, { getWarehouseEquipment });
+    },
+  });
+  const queryClient = createQueryClient({ networkMode: 'always' });
+  const Wrapper = ({ children }: { children: ReactNode }): ReactElement => (
+    <ApiRuntimeProvider runtime={runtime}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </ApiRuntimeProvider>
+  );
+  const { rerender, result } = renderHook(({ enabled, id }) => useWarehouseEquipment(id, enabled), {
+    initialProps: { enabled: false, id: WAREHOUSE },
+    wrapper: Wrapper,
+  });
+  const key = sessionKeys.current(TEST_ORGANIZATION_ID, TEST_USER_ID);
+  await waitFor(() => {
+    expect(queryClient.getQueryData(key)).toBeDefined();
+  });
+  expect(getWarehouseEquipment).not.toHaveBeenCalled();
+  rerender({ enabled: true, id: WAREHOUSE });
+  await waitFor(() => {
+    expect(result.current.data?.equipment[0]?.driverStaffId).toBe(TEST_USER_ID);
+  });
+  const equipmentQuery = (): Readonly<Record<string, unknown>> | undefined => queryClient.getQueryCache().getAll()
+    .find(query => query.getObserversCount() > 0 && query.queryKey.includes('equipment'))?.meta;
+  expect(equipmentQuery()).toEqual({
+    channels: [warehouseChannel(WAREHOUSE), staffProfilesChannel(WAREHOUSE)],
+    eventCases: ['warehouseEquipmentChanged', 'warehouseStaffProfilesChanged'],
+  });
+
+  act(() => {
+    queryClient.setQueryData(key, limitedSession);
+  });
+  await waitFor(() => {
+    expect(getWarehouseEquipment).toHaveBeenCalledTimes(2);
+  });
+  expect(result.current.data).toBeUndefined();
+  expect(equipmentQuery()).toEqual({ channels: [warehouseChannel(WAREHOUSE)], eventCases: ['warehouseEquipmentChanged'] });
+  await act(async () => {
+    hidden.resolve();
+    await hidden.promise;
+  });
+  await waitFor(() => {
+    expect(result.current.data?.equipment[0]?.code).toBe('01');
+  });
+  expect(result.current.data?.equipment[0]?.taskId).toBeUndefined();
+  rerender({ enabled: true, id: OTHER_WAREHOUSE });
+  expect(result.current.data).toBeUndefined();
+  expect(equipmentQuery()).toBeUndefined();
+  expect(getWarehouseEquipment).toHaveBeenCalledTimes(2);
+
+  rerender({ enabled: true, id: WAREHOUSE });
+  await waitFor(() => {
+    expect(result.current.data?.equipment[0]?.code).toBe('01');
   });
   act(() => {
     runtime.actingContext.set({ organizationId: TEST_ORGANIZATION_ID, userId: OTHER_USER });

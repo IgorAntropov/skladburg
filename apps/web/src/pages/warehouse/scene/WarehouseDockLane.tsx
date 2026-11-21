@@ -29,6 +29,7 @@ interface WarehouseDockLaneProps {
   dock: undefined | WarehouseDockPointValue;
   geometry: BoxGeometry;
   hasAssignedDocks: boolean;
+  hasEquipmentFleet: boolean;
   hasShadows: boolean;
   kit: WarehouseGeometryKitValue;
   lane: WarehouseDockCargoValue;
@@ -42,7 +43,7 @@ interface WarehouseDockLaneProps {
 const EMPTY_CARGO = { dockTaskId: undefined, hasDock: false, units: [] };
 
 export const WarehouseDockLane = ({
-  dock, geometry, hasAssignedDocks, hasShadows, kit, lane, laneIndex, layout, playbackClock, traffic, truckModel,
+  dock, geometry, hasAssignedDocks, hasEquipmentFleet, hasShadows, kit, lane, laneIndex, layout, playbackClock, traffic, truckModel,
 }: WarehouseDockLaneProps): ReactElement => {
   const dockTruck = useRef<Group>(null);
   const forklift = useRef<WarehouseForkliftRigValue>(null);
@@ -68,7 +69,7 @@ export const WarehouseDockLane = ({
           </group>
         </group>
       )}
-      <WarehouseForklift rig={forklift} />
+      {!hasEquipmentFleet && <WarehouseForklift rig={forklift} />}
       {hasParking && roads !== undefined && (
         <WarehouseYardParking dock={primaryDock} model={truckModel} parked={traffic.yard.parked} rig={yardParking} roads={roads} />
       )}

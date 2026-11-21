@@ -1,3 +1,4 @@
+import type { RefObject } from 'react';
 import type { Camera } from 'three';
 
 import {
@@ -6,20 +7,25 @@ import {
 } from 'three';
 
 import type { WarehouseSceneInteractionValue } from '../model/warehouseSceneInteraction';
+import type { WarehouseActorHitValue } from './bindWarehouseActorPicking';
 import type {
   WarehouseStaffLayoutValue,
   WarehouseStaffMarkerValue,
 } from './warehouseStaffLayout';
 
-import { bindWarehouseStaffPicking } from './bindWarehouseStaffPicking';
+import { bindWarehouseActorPicking } from './bindWarehouseActorPicking';
 
-interface ProjectedElementValue {
-  element: HTMLElement;
+export interface WarehouseStaffLabelBoundsValue {
   labelHeight: number;
   labelWidth: number;
-  point: Vector3;
   screenX: number;
   screenY: number;
+}
+
+interface ProjectedElementValue extends WarehouseStaffLabelBoundsValue {
+  element: HTMLElement;
+  hitBounds: WarehouseStaffLabelBoundsValue;
+  point: Vector3;
 }
 
 interface StaffOverlaySettingsValue {
@@ -98,12 +104,15 @@ const updateMarker = (element: HTMLElement, marker: WarehouseStaffMarkerValue, s
   element.textContent = [counter === undefined ? undefined : MARK[counter.comparison], counter?.text, extra].filter(Boolean).join(' ');
 };
 
-export const createWarehouseStaffOverlay = (canvas: HTMLCanvasElement, host: HTMLElement): StaffOverlayValue => {
+export const createWarehouseStaffOverlay = (
+  canvas: HTMLCanvasElement, host: HTMLElement, bounds?: RefObject<readonly WarehouseStaffLabelBoundsValue[]>,
+): StaffOverlayValue => {
   const layer = document.createElement('div');
   layer.className = 'pointer-events-none absolute inset-0 overflow-hidden select-none';
   host.append(layer);
   const nodes = new Map<string, ProjectedElementValue>();
   const placed: ProjectedElementValue[] = [];
+  const protectedBounds: WarehouseStaffLabelBoundsValue[] = [];
   const projection = new Matrix4();
   const previous = new Matrix4();
   const scratch = new Vector3();
@@ -113,7 +122,7 @@ export const createWarehouseStaffOverlay = (canvas: HTMLCanvasElement, host: HTM
   let axisX = 0;
   let axisY = 0;
   let shoulderRadius = 0;
-  const pick = (x: number, y: number, radius: number): HTMLButtonElement | undefined => {
+  const pick = (x: number, y: number, radius: number): undefined | WarehouseActorHitValue => {
     let closest: HTMLButtonElement | undefined;
     let distance = Math.max(radius, shoulderRadius) ** 2;
     const axisLength = axisX ** 2 + axisY ** 2;
@@ -129,15 +138,18 @@ export const createWarehouseStaffOverlay = (canvas: HTMLCanvasElement, host: HTM
         }
       }
     }
-    return closest;
+    return closest === undefined ? undefined : { button: closest, distanceSq: distance };
   };
-  const unbind = bindWarehouseStaffPicking(canvas, pick);
+  const unbind = bindWarehouseActorPicking(canvas, pick);
   const ensureNode = (id: string, tag: 'button' | 'span', x: number, y: number, z: number): HTMLElement => {
     let node = nodes.get(id);
     if (node === undefined) {
       const element = document.createElement(tag);
       element.hidden = true;
-      node = { element, labelHeight: 0, labelWidth: 0, point: new Vector3(), screenX: Number.NaN, screenY: Number.NaN };
+      node = {
+        element, hitBounds: { labelHeight: 44, labelWidth: 44, screenX: 0, screenY: 0 },
+        labelHeight: 0, labelWidth: 0, point: new Vector3(), screenX: Number.NaN, screenY: Number.NaN,
+      };
       nodes.set(id, node);
       layer.append(element);
     }
@@ -146,6 +158,9 @@ export const createWarehouseStaffOverlay = (canvas: HTMLCanvasElement, host: HTM
   };
   return {
     dispose: (): void => {
+      if (bounds?.current === protectedBounds) {
+        bounds.current = [];
+      }
       unbind();
       layer.remove();
       nodes.clear();
@@ -163,6 +178,7 @@ export const createWarehouseStaffOverlay = (canvas: HTMLCanvasElement, host: HTM
       axisY = -projection.elements[5] * height / 2;
       shoulderRadius = Math.abs(camera.projectionMatrix.elements[0]) * width * 0.15;
       placed.length = 0;
+      protectedBounds.length = 0;
       for (const node of nodes.values()) {
         scratch.copy(node.point).applyMatrix4(projection);
         const { element } = node;
@@ -178,8 +194,21 @@ export const createWarehouseStaffOverlay = (canvas: HTMLCanvasElement, host: HTM
             node.labelHeight = element.offsetHeight;
           }
           placeMarker(node, placed, width, height);
+          protectedBounds.push(node);
+        }
+        else {
+          const halfWidth = Math.max(22, Math.abs(axisX) * 0.83 + shoulderRadius);
+          const halfHeight = Math.max(22, Math.abs(axisY) * 0.83 + shoulderRadius);
+          node.hitBounds.screenX = node.screenX;
+          node.hitBounds.screenY = node.screenY + halfHeight;
+          node.hitBounds.labelWidth = 2 * halfWidth;
+          node.hitBounds.labelHeight = 2 * halfHeight;
+          protectedBounds.push(node.hitBounds);
         }
         element.style.transform = `translate3d(${node.screenX.toFixed(2)}px,${node.screenY.toFixed(2)}px,0)`;
+      }
+      if (bounds !== undefined) {
+        bounds.current = protectedBounds;
       }
       isDirty = false;
     },

@@ -42,6 +42,7 @@ export interface WarehouseYardLaneValue {
 }
 
 export interface WarehouseYardTrafficValue {
+  cargoPlaybacks: (undefined | WarehouseForkliftPlaybackValue)[];
   forklifts: (undefined | WarehouseForkliftPlaybackValue)[];
   hasParkingChanged: boolean;
   indexedVisits: readonly WarehouseDockVisitValue[] | undefined;
@@ -56,6 +57,7 @@ export interface WarehouseYardTrafficValue {
 export const WAREHOUSE_YARD_CATCH_UP_RATE = 4;
 
 export const createWarehouseYardTraffic = (): WarehouseYardTrafficValue => ({
+  cargoPlaybacks: [],
   forklifts: [],
   hasParkingChanged: false,
   indexedVisits: undefined,
@@ -80,6 +82,12 @@ export const setWarehouseYardLane = (
 
 export const setWarehouseYardVisits = (traffic: WarehouseYardTrafficValue, visits: readonly WarehouseDockVisitValue[]): void => {
   traffic.visits = visits;
+};
+
+export const setWarehouseCargoPlayback = (
+  traffic: WarehouseYardTrafficValue, index: number, playback: undefined | WarehouseForkliftPlaybackValue,
+): void => {
+  traffic.cargoPlaybacks[index] = playback;
 };
 
 export const setWarehouseYardForklift = (

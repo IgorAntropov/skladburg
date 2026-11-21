@@ -29,6 +29,7 @@ import type {
   WarehouseSceneDataValue,
   WarehouseSceneInteractionValue,
 } from '../model/warehouseSceneInteraction';
+import type { WarehouseStaffLabelBoundsValue } from './createWarehouseStaffOverlay';
 import type { WarehouseYardPlaybackClockValue } from './warehouseDockPlayback';
 import type { WarehouseLayoutValue } from './warehouseLayout';
 import type { WarehouseTruckModelValue } from './warehouseTruckModel';
@@ -36,7 +37,6 @@ import type { IWarehouseYardLightingRig } from './WarehouseYardLightingLayer';
 
 import { createWarehouseGeometryKit } from './createWarehouseGeometryKit';
 import { splitWarehouseDockCargo } from './warehouseDockCargo';
-import { WarehouseDockLane } from './WarehouseDockLane';
 import { WarehouseFloor } from './WarehouseFloor';
 import { WarehouseInstances } from './WarehouseInstances';
 import { getWarehouseLayout } from './warehouseLayout';
@@ -47,7 +47,9 @@ import {
 } from './warehouseYardTraffic';
 
 const TAP_SLOP_PX = 5;
+let WarehouseDockLane: typeof import('./WarehouseDockLane').WarehouseDockLane | undefined;
 let WarehouseRacks: typeof import('./WarehouseRacks').default | undefined;
+const WarehouseEquipmentLayer = lazy(() => import('./WarehouseEquipmentLayer'));
 const WarehouseSelectedCell = lazy(() => import('./WarehouseSelectedCell'));
 const WarehouseStaffFloor = lazy(() => import('./WarehouseStaffFloor'));
 const WarehouseYardDragLayer = lazy(() => import('./WarehouseYardDragLayer'));
@@ -55,9 +57,13 @@ const WarehouseYardLightingLayer = lazy(() => import('./WarehouseYardLightingLay
 const WarehouseYardMarkings = lazy(() => import('./WarehouseYardMarkings'));
 
 export const prepare = async ({ parkingCapacity, topology }: WarehouseSceneDataValue): Promise<void> => {
-  if (getWarehouseLayout(topology, parkingCapacity).racks.frames.length > 0 && WarehouseRacks === undefined) {
-    WarehouseRacks = (await import('./WarehouseRacks')).default;
-  }
+  const layout = getWarehouseLayout(topology, parkingCapacity);
+  await Promise.all([
+    (layout.receiving !== undefined || layout.cells.length > 0) && WarehouseDockLane === undefined
+    && import('./WarehouseDockLane').then((module) => { WarehouseDockLane = module.WarehouseDockLane; }),
+    layout.racks.frames.length > 0 && WarehouseRacks === undefined
+    && import('./WarehouseRacks').then((module) => { WarehouseRacks = module.default; }),
+  ]);
 };
 
 export const resolveIsNight = ({ isNight }: WarehouseSceneInteractionValue): boolean => isNight;
@@ -72,6 +78,7 @@ const WarehouseWorldScene = ({
   const invalidate = useThree(state => state.invalidate);
   const motion = useRef<MediaQueryList | undefined>(undefined);
   const isYardActive = useRef(false);
+  const staffBounds = useRef<readonly WarehouseStaffLabelBoundsValue[]>([]);
   const desiredLayout = getWarehouseLayout(data.topology, data.parkingCapacity);
   const [motionLayout, setMotionLayout] = useState<WarehouseLayoutValue>();
   const traffic = useMemo(() => createWarehouseYardTraffic(), []);
@@ -92,6 +99,25 @@ const WarehouseWorldScene = ({
   const hasPendingLayout = layout !== desiredLayout || data.parkingCapacity !== interaction.parkingCapacity;
   const floor = <WarehouseFloor batches={layout.floor} geometry={geometry} hasShadows={hasShadows} />;
   const staffAreas = layout === desiredLayout ? interaction.staffAreas : undefined;
+  const equipment = interaction.equipment;
+  const hasEquipment = equipment !== undefined && (equipment.units.length > 0 || equipment.stations.length > 0);
+  const renderFloor = (current: WarehouseLayoutValue): ReactElement => (
+    staffAreas !== undefined && staffAreas.length > 0
+      ? (
+          <Suspense fallback={floor}>
+            <WarehouseStaffFloor
+              areas={staffAreas}
+              bounds={staffBounds}
+              geometry={geometry}
+              hasShadows={hasShadows}
+              interaction={interaction}
+              layout={current}
+              topology={data.topology}
+            />
+          </Suspense>
+        )
+      : <WarehouseFloor batches={current.floor} geometry={geometry} hasShadows={hasShadows} />
+  );
   const docks = layout.receiving?.docks;
   const primaryDock = layout.receiving?.dock;
   const lanes = useMemo(() => splitWarehouseDockCargo(cargo, balances, docks?.map(dock => dock.id) ?? []), [balances, cargo, docks]);
@@ -196,20 +222,6 @@ const WarehouseWorldScene = ({
 
   return (
     <>
-      {staffAreas !== undefined && staffAreas.length > 0
-        ? (
-            <Suspense fallback={floor}>
-              <WarehouseStaffFloor
-                areas={staffAreas}
-                geometry={geometry}
-                hasShadows={hasShadows}
-                interaction={interaction}
-                layout={layout}
-                topology={data.topology}
-              />
-            </Suspense>
-          )
-        : floor}
       {layout.racks.frames.length > 0 && WarehouseRacks !== undefined && (
         <WarehouseRacks box={geometry} layout={layout.racks} level={level} />
       )}
@@ -219,11 +231,12 @@ const WarehouseWorldScene = ({
       {layout.cells.length > 0 && (
         <WarehouseInstances boxes={layout.cells} geometry={geometry} materialKey="buildingWall" onClick={handleCellClick} />
       )}
-      {lanes.map((lane, index) => (
+      {lanes.map((lane, index) => WarehouseDockLane !== undefined && (
         <WarehouseDockLane
           dock={docks?.[index] ?? primaryDock}
           geometry={geometry}
           hasAssignedDocks={hasAssignedDocks}
+          hasEquipmentFleet={hasEquipment && equipment.units.length > 0}
           hasShadows={hasShadows}
           key={docks?.[index]?.id ?? 'warehouse'}
           kit={kit}
@@ -235,6 +248,24 @@ const WarehouseWorldScene = ({
           truckModel={markedTruckModel ?? baseTruckModel}
         />
       ))}
+      {hasEquipment
+        ? (
+            <Suspense fallback={renderFloor(layout)}>
+              <WarehouseEquipmentLayer
+                clock={playbackClock}
+                fleet={equipment}
+                host={interaction.staffOverlayHost}
+                key={layout.topologyKey}
+                layout={layout}
+                onSelect={interaction.onEquipmentSelect}
+                renderFloor={renderFloor}
+                staffBounds={staffBounds}
+                topology={data.topology}
+                traffic={traffic}
+              />
+            </Suspense>
+          )
+        : renderFloor(layout)}
       {primaryDock !== undefined && docks !== undefined && layout.yard !== undefined && (
         <Suspense fallback={null}>
           <WarehouseYardLightingLayer

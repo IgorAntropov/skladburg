@@ -33,6 +33,7 @@ export interface WarehouseCargoTransferValue {
   dockTaskId?: string | undefined;
   from: WarehouseCargoEndpointValue;
   id: string;
+  taskId: string;
   to: WarehouseCargoEndpointValue;
 }
 
@@ -248,7 +249,7 @@ export const buildWarehouseCargoTransfers = (
       const to = { ...placement, cellId: source.cellId, dock: location === 'truck' ? dock : undefined, location };
       if (from !== undefined) {
         const dockTaskId = from.location === 'truck' || to.location === 'truck' ? unit.taskId : undefined;
-        transfers.push({ dockTaskId, from, id: unit.id, to });
+        transfers.push({ dockTaskId, from, id: unit.id, taskId: unit.taskId, to });
       }
       from = to;
     }

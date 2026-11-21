@@ -1,8 +1,20 @@
-const TAP_SLOP_PX = 5;
+export interface WarehouseActorHitValue {
+  button: HTMLButtonElement;
+  distanceSq: number;
+}
 
-export const bindWarehouseStaffPicking = (
-  canvas: HTMLElement, pick: (x: number, y: number, radius: number) => HTMLButtonElement | undefined,
-): (() => void) => {
+type WarehouseActorPickerValue = (x: number, y: number, radius: number) => undefined | WarehouseActorHitValue;
+
+interface WarehouseCanvasPickingValue {
+  dispose: () => void;
+  pickers: Set<WarehouseActorPickerValue>;
+}
+
+const TAP_SLOP_PX = 5;
+const bindings = new WeakMap<HTMLElement, WarehouseCanvasPickingValue>();
+
+const createCanvasPicking = (canvas: HTMLElement): WarehouseCanvasPickingValue => {
+  const pickers = new Set<WarehouseActorPickerValue>();
   let down: PointerEvent | undefined;
   let pending: HTMLButtonElement | undefined;
   const handlePointerDown = (event: PointerEvent): void => {
@@ -19,7 +31,14 @@ export const bindWarehouseStaffPicking = (
     handlePointerMove(event);
     if (down !== undefined && start?.pointerId === event.pointerId && event.button === 0) {
       const rect = canvas.getBoundingClientRect();
-      pending = pick(event.clientX - rect.left, event.clientY - rect.top, event.pointerType === 'touch' ? 22 : 12);
+      let nearest: undefined | WarehouseActorHitValue;
+      for (const pick of pickers) {
+        const hit = pick(event.clientX - rect.left, event.clientY - rect.top, event.pointerType === 'touch' ? 22 : 12);
+        if (hit !== undefined && (nearest === undefined || hit.distanceSq < nearest.distanceSq)) {
+          nearest = hit;
+        }
+      }
+      pending = nearest?.button;
     }
     down = undefined;
   };
@@ -42,11 +61,25 @@ export const bindWarehouseStaffPicking = (
   canvas.addEventListener('pointerup', handlePointerUp, listeners);
   canvas.addEventListener('pointercancel', handlePointerCancel, listeners);
   canvas.addEventListener('click', handleClick, listeners);
-  return (): void => {
+  const dispose = (): void => {
     canvas.removeEventListener('pointerdown', handlePointerDown, true);
     canvas.removeEventListener('pointermove', handlePointerMove, true);
     canvas.removeEventListener('pointerup', handlePointerUp, true);
     canvas.removeEventListener('pointercancel', handlePointerCancel, true);
     canvas.removeEventListener('click', handleClick, true);
+  };
+  return { dispose, pickers };
+};
+
+export const bindWarehouseActorPicking = (canvas: HTMLElement, pick: WarehouseActorPickerValue): (() => void) => {
+  const binding = bindings.get(canvas) ?? createCanvasPicking(canvas);
+  bindings.set(canvas, binding);
+  binding.pickers.add(pick);
+  return (): void => {
+    binding.pickers.delete(pick);
+    if (binding.pickers.size === 0) {
+      binding.dispose();
+      bindings.delete(canvas);
+    }
   };
 };

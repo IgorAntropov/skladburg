@@ -1,5 +1,9 @@
 import type { StockBalance } from '@skladburg/contracts/wms/v1/stock';
 import type { WarehouseTopology } from '@skladburg/contracts/wms/v1/topology';
+import type {
+  WarehouseChargingStation,
+  WarehouseEquipmentUnit,
+} from '@skladburg/contracts/wms/v1/warehouse_equipment';
 import type { WarehouseStaffSummary } from '@skladburg/contracts/wms/v1/warehouse_staff_profile';
 import type {
   ComponentType,
@@ -39,17 +43,28 @@ export interface WarehouseSceneDataValue {
   topology: WarehouseTopology;
 }
 
+export interface WarehouseSceneEquipmentValue {
+  stations: readonly (Pick<WarehouseChargingStation, 'equipmentId' | 'id'> & { label: string })[];
+  units: readonly (Pick<WarehouseEquipmentUnit, 'chargingStationId' | 'id' | 'status' | 'taskId'> & {
+    badge: string;
+    label: string;
+    statusLabel: string;
+  })[];
+}
+
 export interface WarehouseSceneInteractionValue {
   balances: readonly StockBalance[] | undefined;
   cargo: undefined | WarehouseCargoValue;
   construction: undefined | WarehouseConstructionPreviewValue;
   constructionLayer: ComponentType<WarehouseConstructionLayerProps>;
+  equipment?: undefined | WarehouseSceneEquipmentValue;
   focusRequest: number;
   formatStaffOverflow?: ((count: number) => string) | undefined;
   isCameraReady?: boolean | undefined;
   isNight: boolean;
   isRefreshingYardFacts?: boolean | undefined;
   onCellSelect: (id: string) => void;
+  onEquipmentSelect?: ((id: string, trigger?: HTMLElement) => void) | undefined;
   onStaffSelect?: ((staffId: string) => void) | undefined;
   parkingCapacity: number;
   scannedCell: undefined | WarehouseSceneScanValue;

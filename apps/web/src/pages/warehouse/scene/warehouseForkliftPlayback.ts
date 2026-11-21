@@ -12,10 +12,12 @@ import {
 
 export interface WarehouseForkliftPlaybackValue {
   elapsed: number;
+  equipmentJob?: null | undefined | WarehouseForkliftJobValue;
   jobs: WarehouseForkliftJobValue[];
   parking: undefined | WarehouseForkliftPoseValue;
   phaseIndex: number;
   pose: undefined | WarehouseForkliftPoseValue;
+  unassignedJob?: undefined | WarehouseForkliftJobValue;
 }
 
 export const MAX_WAREHOUSE_FORKLIFT_JOBS = 8;
@@ -37,6 +39,7 @@ export const createWarehouseForkliftPlayback = (
 
 export const clearWarehouseForkliftJobs = (playback: WarehouseForkliftPlaybackValue, shouldKeepPose = false): void => {
   playback.jobs.length = 0;
+  playback.unassignedJob = undefined;
   playback.elapsed = 0;
   playback.phaseIndex = 0;
   if (shouldKeepPose) {
@@ -73,6 +76,38 @@ export const queueWarehouseForkliftJobs = (
     const job = start === undefined ? undefined : planWarehouseForkliftJob(layout, { ...start }, transfer, playback.parking);
     if (job !== undefined) {
       playback.jobs.push(job);
+    }
+  }
+};
+
+const UNASSIGNED_TRANSFER_SECONDS = 1.2;
+
+export const getWarehouseCargoEndpointWeight = (elapsed: number): number => {
+  const progress = Math.min(1, elapsed / UNASSIGNED_TRANSFER_SECONDS);
+  const linear = 2 * progress - 1;
+  const magnitude = Math.abs(linear);
+  return linear * magnitude * (3 - 2 * magnitude);
+};
+
+export const advanceWarehouseUnassignedCargo = (playback: WarehouseForkliftPlaybackValue, delta: number): void => {
+  const job = playback.jobs[0];
+  if (job === undefined) {
+    return;
+  }
+  if (playback.unassignedJob !== job) {
+    playback.unassignedJob = job;
+    if (playback.phaseIndex > 0 || playback.elapsed > 0) {
+      playback.elapsed = UNASSIGNED_TRANSFER_SECONDS;
+    }
+  }
+  playback.elapsed += Math.min(delta, 0.1);
+  if (playback.elapsed >= UNASSIGNED_TRANSFER_SECONDS) {
+    playback.jobs.shift();
+    playback.unassignedJob = undefined;
+    playback.phaseIndex = 0;
+    playback.elapsed = 0;
+    if (playback.pose !== undefined) {
+      Object.assign(playback.pose, job.finish);
     }
   }
 };

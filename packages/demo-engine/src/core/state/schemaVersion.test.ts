@@ -939,6 +939,10 @@ const YARD_DISPATCH_SHAPE_FINGERPRINT = [
   'collection.yardDispatchEntries:{bytes:bytes,id:string,lookupKey:string,scopeId:string}',
 ].sort();
 
+const WAREHOUSE_EQUIPMENT_SHAPE_FINGERPRINT = [
+  ...YARD_DISPATCH_SHAPE_FINGERPRINT, 'collection.warehouseEquipment:{bytes:bytes,id:string,lookupKey:string,scopeId:string}',
+].sort();
+
 const SHAPE_FINGERPRINTS = {
   ...PRE_SETTLEMENT_SHAPE_FINGERPRINTS,
   24: PRE_SETTLEMENT_SHAPE_FINGERPRINTS[23] ?? [],
@@ -950,7 +954,12 @@ const SHAPE_FINGERPRINTS = {
   27: YARD_QUEUE_POLICY_SHAPE_FINGERPRINT,
   28: YARD_DISPATCH_SHAPE_FINGERPRINT,
   29: YARD_DISPATCH_SHAPE_FINGERPRINT,
-  30: [...YARD_DISPATCH_SHAPE_FINGERPRINT, 'collection.warehouseEquipment:{bytes:bytes,id:string,lookupKey:string,scopeId:string}'].sort(),
+  30: WAREHOUSE_EQUIPMENT_SHAPE_FINGERPRINT,
+  31: [
+    ...WAREHOUSE_EQUIPMENT_SHAPE_FINGERPRINT,
+    'collection.warehouseSensorAlerts:{alertBytes:bytes,id:string,lastSample:number,tenantId:string,warehouseId:string}'
+    + '|{id:string,lastSample:number,tenantId:string,warehouseId:string}',
+  ].sort(),
 } as Readonly<Record<number, readonly string[]>>;
 
 const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -1068,6 +1077,9 @@ const populatedTask: SchedulerTaskValue = {
     transaction.put('stockBatches', stockRecord);
     transaction.put('stockMovements', stockRecord);
     transaction.put('warehouseEquipment', stockRecord);
+    const sensor = { id: 'channel', lastSample: 0, tenantId: 'organization', warehouseId: 'warehouse' };
+    transaction.put('warehouseSensorAlerts', sensor);
+    transaction.put('warehouseSensorAlerts', { ...sensor, alertBytes: new Uint8Array(), id: 'another-channel' });
     transaction.put('warehouseInbound', stockRecord);
     transaction.put('warehouseInbound', { ...stockRecord, id: 'fingerprint-promoted', manualPrioritySequence: 1 });
     transaction.put('yardDispatchEntries', stockRecord);
@@ -1158,8 +1170,9 @@ describe('schema version of a snapshot', () => {
     expect(isCurrentSnapshot({ ...empty, schemaVersion: 1 }, empty.meta.seedVersion)).toBe(false);
   });
 
-  it('is version 30 with private equipment records and the yard dispatch journal', () => {
-    expect(ENGINE_SCHEMA_VERSION).toBe(30);
+  it('is version 31 with private sensor state, equipment records and the yard dispatch journal', () => {
+    expect(ENGINE_SCHEMA_VERSION).toBe(31);
+    expect(createSeedSnapshot().collections.warehouseSensorAlerts.size).toBe(0);
     expect(createSeedSnapshot().collections.warehouseEquipment.size).toBe(1);
     expect(createSeedSnapshot().meta.schedulerDueAtMs).toEqual({});
     expect(createSeedSnapshot().collections.yardDispatchEntries.size).toBe(0);

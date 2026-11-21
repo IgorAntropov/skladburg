@@ -1,3 +1,5 @@
+import type { Notification } from '@skladburg/contracts/notification/v1/notification';
+
 import { userChannel } from '@skladburg/contracts/runtime';
 import {
   useEffect,
@@ -27,7 +29,9 @@ export interface UsePostedReplicasOptionsValue {
   isReady: boolean;
 }
 
-export const usePostedReplicas = ({ dispatch, epochCount, isQuiet, isReady }: UsePostedReplicasOptionsValue): void => {
+export const usePostedReplicas = (
+  { dispatch, epochCount, isQuiet, isReady }: UsePostedReplicasOptionsValue,
+): readonly Notification[] | undefined => {
   const realtime = useRealtimeChannel();
   const { userId } = useActingContext();
   const { data, dataUpdatedAt } = useNotificationsQuery();
@@ -94,4 +98,6 @@ export const usePostedReplicas = ({ dispatch, epochCount, isQuiet, isReady }: Us
       dispatch({ isQuiet, kind: 'enqueue', replicas: ready.map(buildNotificationReplica) });
     }
   }, [awaiting, data, dataUpdatedAt, dispatch, isQuiet, isReady]);
+
+  return data?.notifications;
 };

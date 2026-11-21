@@ -1,3 +1,4 @@
+import type { Timestamp } from '@bufbuild/protobuf/wkt';
 import type { ObjectLink } from '@skladburg/contracts/common/v1/object_link';
 import type {
   Notification,
@@ -12,6 +13,7 @@ export interface INotifier {
 }
 
 export interface PostNotificationInputValue {
+  createdAt?: Timestamp | undefined;
   importance: NotificationImportance;
   kind: NotificationKind;
   links: readonly ObjectLink[];

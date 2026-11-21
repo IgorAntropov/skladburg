@@ -4,6 +4,7 @@ package wms.v1;
 
 import "buf/validate/validate.proto";
 import "common/v1/method_options.proto";
+import "common/v1/warehouse_sensor_alert.proto";
 import "google/protobuf/timestamp.proto";
 
 enum WarehouseSensorChannelKind {
@@ -29,6 +30,7 @@ message WarehouseSensorChannel {
   string id = 1;
   WarehouseSensorChannelKind kind = 2;
   repeated WarehouseSensorReading readings = 3 [(buf.validate.field).repeated.max_items = 60];
+  common.v1.WarehouseSensorAlert alert = 4;
 }
 
 message WarehouseSensorDevice {

@@ -532,6 +532,18 @@ const storePreviousWorld = async (
 };
 
 describe('createIndexedDbStorage over a database of the previous version', () => {
+  it('adds the private sensor store to v24 and preserves the saved world on reopening', async () => {
+    const factory = new IDBFactory();
+    const legacy = { ...createSeedSnapshot(), schemaVersion: 30 };
+    await storePreviousWorld(factory, 24, legacy, ['warehouseSensorAlerts']);
+    const storage = await openStorage(factory);
+    await createEngine({ epoch: TEST_ENGINE_EPOCH, realTime: createFakeRealTime(), storage });
+    expect(await storage.load()).toEqual({ ...legacy, schemaVersion: 31 });
+    storage.close();
+    const reopened = await openStorage(factory);
+    expect(await reopened.load()).toEqual({ ...legacy, schemaVersion: 31 });
+  });
+
   it('upgrades v23 atomically and resumes the occupied morning yard station after reopening', async () => {
     const seed = createSeedSnapshot();
     const warehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3;
@@ -571,7 +583,7 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     }
     expect({ ...upgraded.collections, warehouseEquipment: new Map() }).toEqual(legacy.collections);
     expect(upgraded.meta).toEqual(legacy.meta);
-    expect(upgraded.schemaVersion).toBe(30);
+    expect(upgraded.schemaVersion).toBe(31);
     const migrated = readWarehouseEquipmentRecord(createEngineState(upgraded).read, warehouseId);
     expect(migrated?.equipment.map(({ unit }) => unit?.batteryPercent)).toEqual([18, 85]);
     expect(migrated?.equipment.map(({ unit }) => unit?.taskId)).toEqual([undefined, undefined]);
@@ -655,11 +667,11 @@ describe('createIndexedDbStorage over a database of the previous version', () =>
     const storage = await openStorage(factory);
     await createEngine({ epoch: TEST_ENGINE_EPOCH, realTime: createFakeRealTime(), storage });
     const loaded = await storage.load();
-    expect(loaded?.schemaVersion).toBe(30);
+    expect(loaded?.schemaVersion).toBe(31);
     expect(loaded).toEqual({
       collections: { ...priorCollections, yardDispatchEntries: new Map() },
       meta: seed.meta,
-      schemaVersion: 30,
+      schemaVersion: 31,
     });
     const promoted = create(ReceivingTaskSchema, {
       id: 'receiving-2', status: ReceivingTaskStatus.OPEN, version: 8, warehouseId, yardAdmissionStatus: YardAdmissionStatus.WAITING_DOCK,

@@ -114,8 +114,12 @@ export const migrateStoredSnapshot = async (
   stored: EngineSnapshotValue,
   scenario: DemoScenarioValue | undefined,
 ): Promise<EngineSnapshotValue> => {
-  const world = stored.schemaVersion === PRE_WAREHOUSE_EQUIPMENT_SCHEMA_VERSION
-    ? { ...stored, schemaVersion: ENGINE_SCHEMA_VERSION }
-    : addWarehouseStaff(await migrateWarehouseState(stored));
+  const snapshot = { ...stored, collections: { ...stored.collections, warehouseSensorAlerts: new Map() } };
+  if (snapshot.schemaVersion === 30) {
+    return { ...snapshot, schemaVersion: ENGINE_SCHEMA_VERSION };
+  }
+  const world = snapshot.schemaVersion === PRE_WAREHOUSE_EQUIPMENT_SCHEMA_VERSION
+    ? { ...snapshot, schemaVersion: ENGINE_SCHEMA_VERSION }
+    : addWarehouseStaff(await migrateWarehouseState(snapshot));
   return addSeedWarehouseEquipment(world, scenario);
 };

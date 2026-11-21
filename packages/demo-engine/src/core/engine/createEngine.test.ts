@@ -34,6 +34,7 @@ import {
 } from '@skladburg/contracts/organization/v1/organization';
 import {
   organizationChannel,
+  sensorsChannel,
   SUPPORT_SESSION_HEADER,
   userChannel,
   warehouseChannel,
@@ -42,6 +43,7 @@ import {
   SupportAccessSection,
   SupportAccessStatus,
 } from '@skladburg/contracts/support/v1/support_access';
+import { WarehouseSensorAlertsChangedSchema } from '@skladburg/contracts/wms/v1/warehouse_sensor_alert_events';
 import {
   describe,
   expect,
@@ -49,6 +51,7 @@ import {
   vi,
 } from 'vitest';
 
+import type { IModuleRuntime } from '../modules/moduleRuntime';
 import type {
   EngineSnapshotValue,
   IRealTimeSource,
@@ -71,6 +74,7 @@ import {
   createSeedSnapshot,
   DEFAULT_ENGINE_SEED,
   SEED_VERSION,
+  SeedMembershipId,
   SeedOrganizationId,
   SeedPersonaId,
   SeedRoleId,
@@ -942,6 +946,38 @@ describe('subscription access', () => {
 describe('subscription position', () => {
   const customerChannel = organizationChannel(SeedOrganizationId.CUSTOMER_1);
   const customerHeaders = (): Headers => createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1);
+
+  it('stops delivering warehouse sensor transitions when the subscriber loses access', async () => {
+    const warehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3;
+    const channel = sensorsChannel(warehouseId);
+    let runtime: IModuleRuntime | undefined;
+    const options = { epoch: TEST_ENGINE_EPOCH, realTime: createFakeRealTime(), storage: createSpyStorage() };
+    const engine = await createEngineWithTasks(options, (current) => {
+      runtime = current;
+      return [];
+    });
+    if (runtime === undefined) {
+      throw new Error('Missing module runtime');
+    }
+    const active = runtime;
+    const listener = vi.fn();
+    const subscription = engine.subscribe(channel, customerHeaders(), listener);
+    expect(subscription.kind).toBe('subscribed');
+    const publish = (isRevoked: boolean): Promise<void> => active.command((transaction) => {
+      if (isRevoked) {
+        transaction.delete('memberships', SeedMembershipId.ADMIN_1);
+      }
+      active.outbox.add(transaction, channel, {
+        case: 'warehouseSensorAlertsChanged',
+        value: create(WarehouseSensorAlertsChangedSchema, { warehouseId }),
+      });
+    });
+    await publish(false);
+    expect(listener).toHaveBeenCalledTimes(1);
+    await publish(true);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(subscription.kind === 'subscribed' && subscription.checkDeliveryAccess?.()).toBeTruthy();
+  });
 
   const subscribeAt = (engine: IDemoEngine, channel: string, batches: Event[][]): SubscribedValue => {
     const result = engine.subscribe(channel, customerHeaders(), (batch) => {

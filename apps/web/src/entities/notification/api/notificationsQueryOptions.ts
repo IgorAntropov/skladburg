@@ -1,7 +1,6 @@
 import type { ListNotificationsResponse } from '@skladburg/contracts/notification/v1/notification';
 import type { UndefinedInitialDataOptions } from '@tanstack/react-query';
 
-import { NotificationService } from '@skladburg/contracts/notification/v1/notification';
 import {
   queryOptions,
   skipToken,
@@ -39,9 +38,10 @@ export const createNotificationsQueryOptions = ({
   return queryOptions({
     meta: createNotificationQueryMeta(userId),
     queryFn: isContextComplete
-      ? (): Promise<ListNotificationsResponse> => client.service(NotificationService).listNotifications({
-          page: { pageSize: NOTIFICATIONS_PAGE_SIZE, pageToken: '' },
-        })
+      ? async (): Promise<ListNotificationsResponse> => {
+        const { NotificationService } = await import('@skladburg/contracts/notification/v1/notification');
+        return client.service(NotificationService).listNotifications({ page: { pageSize: NOTIFICATIONS_PAGE_SIZE, pageToken: '' } });
+      }
       : skipToken,
     queryKey: notificationKeys.list(getOrganizationScope(organizationId)),
   });

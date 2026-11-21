@@ -51,6 +51,19 @@ const ALLOWED_PARAM_FIELDS: ReadonlySet<string> = new Set([
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+const ALLOWED_SENSOR_ALERT_FIELDS: ReadonlySet<string> = new Set([
+  'channelId',
+  'id',
+  'openedAt',
+  'openedDeciCelsius',
+  'resolvedAt',
+  'resolvedDeciCelsius',
+  'thresholdDeciCelsius',
+  'warehouseId',
+  'zoneCode',
+  'zoneId',
+]);
+
 const createSeedReader = (): IStateReader => createEngineState(createSeedSnapshot()).read;
 
 const listParamMessageFields = (): { fieldNames: string[]; messageName: string }[] => {
@@ -275,8 +288,9 @@ describe('createSeedNotifications', () => {
     expect(messages.length).toBeGreaterThanOrEqual(3);
 
     for (const { fieldNames, messageName } of messages) {
+      const allowedFields = messageName === 'WarehouseSensorAlert' ? ALLOWED_SENSOR_ALERT_FIELDS : ALLOWED_PARAM_FIELDS;
       fieldNames.forEach((fieldName) => {
-        expect(ALLOWED_PARAM_FIELDS.has(fieldName), `${messageName}.${fieldName}`).toBe(true);
+        expect(allowedFields.has(fieldName), `${messageName}.${fieldName}`).toBe(true);
       });
     }
   });

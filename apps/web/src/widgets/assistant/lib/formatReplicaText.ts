@@ -2,9 +2,15 @@ import type { Notification } from '@skladburg/contracts/notification/v1/notifica
 
 import { NotificationKind } from '@skladburg/contracts/notification/v1/notification';
 
-import type { SectionTranslate } from '@/shared/i18n';
+import type {
+  I18nSnapshotValue,
+  SectionTranslate,
+} from '@/shared/i18n';
 
-import { getDealNoticeKey } from '@/entities/notification';
+import {
+  formatWarehouseSensorAlert,
+  getDealNoticeKey,
+} from '@/entities/notification';
 
 import type { AssistantCatalogValue } from '../i18n/assistantSection';
 import type {
@@ -32,7 +38,11 @@ const formatSupportAccess = (t: AssistantTranslate, { kind, params }: Notificati
     : t('assistant.replica.unknown');
 };
 
-const formatNotification = (t: AssistantTranslate, notification: Notification): string => {
+const formatNotification = (
+  t: AssistantTranslate,
+  createSectionTranslator: I18nSnapshotValue['createSectionTranslator'],
+  notification: Notification,
+): string => {
   const { params } = notification;
 
   switch (params.case) {
@@ -68,6 +78,8 @@ const formatNotification = (t: AssistantTranslate, notification: Notification): 
 
       return t('assistant.replica.warehouseCreated', { cityName, warehouseName });
     }
+    case 'warehouseSensorAlert':
+      return formatWarehouseSensorAlert(createSectionTranslator, params.value);
   }
 };
 
@@ -77,7 +89,11 @@ const formatDigestLine = (t: AssistantTranslate, line: DigestLineValue): string 
     : t(line.key, { count: line.count });
 };
 
-export const formatReplicaText = (t: AssistantTranslate, { body }: ReplicaValue): ReplicaTextValue => {
+export const formatReplicaText = (
+  t: AssistantTranslate,
+  createSectionTranslator: I18nSnapshotValue['createSectionTranslator'],
+  { body }: ReplicaValue,
+): ReplicaTextValue => {
   switch (body.kind) {
     case 'digest':
       return {
@@ -93,7 +109,7 @@ export const formatReplicaText = (t: AssistantTranslate, { body }: ReplicaValue)
     case 'more':
       return { kind: 'paragraphs', paragraphs: [t('assistant.replica.more', { count: body.count })] };
     case 'notification':
-      return { kind: 'paragraphs', paragraphs: [formatNotification(t, body.notification)] };
+      return { kind: 'paragraphs', paragraphs: [formatNotification(t, createSectionTranslator, body.notification)] };
   }
 };
 

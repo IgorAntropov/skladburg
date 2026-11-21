@@ -1,12 +1,9 @@
 import { WarehouseSensorChannelKind } from '@skladburg/contracts/wms/v1/warehouse_sensors';
 
-import { SEED_WORLD_START_MS } from './seedConfig';
-import {
-  SeedOrganizationId,
-  SeedWarehouseId,
-} from './seedIds';
+import { WAREHOUSE_SENSOR_SITE } from './warehouseSensorConfig';
 
 export const SEED_WAREHOUSE_SENSORS = [{
+  ...WAREHOUSE_SENSOR_SITE,
   channels: [
     { id: '8e000003-0000-4000-8000-000000000002', kind: WarehouseSensorChannelKind.TEMPERATURE },
     { id: '8e000003-0000-4000-8000-000000000003', kind: WarehouseSensorChannelKind.HUMIDITY },
@@ -15,8 +12,5 @@ export const SEED_WAREHOUSE_SENSORS = [{
   ],
   code: 'КЛ-01',
   id: '8e000003-0000-4000-8000-000000000001',
-  installedAtMs: SEED_WORLD_START_MS,
-  tenantId: SeedOrganizationId.CUSTOMER_1,
-  warehouseId: SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3,
-  zoneId: '8f000004-0000-4000-8000-000000000001',
+  thresholdDeciCelsius: 80,
 }] as const;

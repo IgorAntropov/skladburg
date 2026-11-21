@@ -23,3 +23,16 @@ export const buildNotificationReplica = (notification: Notification): ReplicaVal
   importance: IMPORTANCE_BY_NOTIFICATION_IMPORTANCE[notification.importance],
   links: resolveNotificationLinks(notification.links),
 });
+
+export const resolveCurrentReplica = (
+  replica: ReplicaValue | undefined,
+  notifications: readonly Notification[] | undefined,
+): ReplicaValue | undefined => {
+  if (replica?.body.kind !== 'notification' || replica.body.notification.params.case !== 'warehouseSensorAlert') {
+    return replica;
+  }
+
+  const { id } = replica.body.notification;
+  const current = notifications?.find(notification => notification.id === id);
+  return current?.params.case === 'warehouseSensorAlert' ? buildNotificationReplica(current) : undefined;
+};

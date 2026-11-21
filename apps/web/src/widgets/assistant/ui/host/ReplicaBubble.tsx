@@ -11,9 +11,17 @@ import {
 } from 'react';
 
 import { AssistantPortrait } from '@/entities/assistant';
+import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
+import {
+  createCachedModuleLoader,
+  useChunkLoader,
+} from '@/shared/lib/module-loader';
 import { useViewportClass } from '@/shared/lib/viewport';
-import { IconButton } from '@/shared/ui';
+import {
+  Button,
+  IconButton,
+} from '@/shared/ui';
 
 import type {
   AssistantTranslate,
@@ -24,7 +32,6 @@ import type {
   ReplicaValue,
 } from '../../model/replicaTypes';
 
-import { ReplicaLinks } from './ReplicaLinks';
 import { useReplicaHold } from './useReplicaHold';
 
 export interface ReplicaBubbleProps {
@@ -37,6 +44,8 @@ export interface ReplicaBubbleProps {
   t: AssistantTranslate;
   text: ReplicaTextValue;
 }
+
+const loadReplicaLinks = createCachedModuleLoader(() => import('./ReplicaLinks'));
 
 const NO_NOTIFICATION_IDS: readonly string[] = [];
 
@@ -105,11 +114,16 @@ export const ReplicaBubble = ({
   t,
   text,
 }: ReplicaBubbleProps): ReactElement => {
+  const { t: mainT } = useI18n();
+  const { load, state } = useChunkLoader(loadReplicaLinks);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const holdHandlers = useReplicaHold({ onHold, onRelease });
   const textId = useId();
   const isPhone = useViewportClass() === 'phone';
 
+  const hasLinks = replica.links.length > 0 || replica.centerAction !== undefined;
+  const ReplicaLinks = state.kind === 'loaded' ? state.module.ReplicaLinks : undefined;
+  const isLinksError = hasLinks && state.kind === 'failed';
   const isCritical = replica.importance === 'critical';
   const borderClassName = isCritical ? 'border-status-alarm' : 'border-line';
   const scrollAreaProps = isPhone ? { 'aria-labelledby': textId, 'role': 'group', 'tabIndex': 0 } : undefined;
@@ -120,6 +134,12 @@ export const ReplicaBubble = ({
     focusAnchor(bubbleRef.current);
     onClose();
   };
+
+  useEffect(() => {
+    if (hasLinks) {
+      load();
+    }
+  }, [hasLinks, load]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
@@ -167,13 +187,12 @@ export const ReplicaBubble = ({
         </div>
       </div>
       <div className="flex min-h-11 shrink-0 items-center justify-between gap-2">
-        <ReplicaLinks
-          notificationIds={notificationIds}
-          onNavigate={onClose}
-          onOpenCenter={onOpenCenter}
-          replica={replica}
-          t={t}
-        />
+        <div className="flex min-w-0 flex-1">
+          {hasLinks && ReplicaLinks !== undefined && (
+            <ReplicaLinks notificationIds={notificationIds} onNavigate={onClose} onOpenCenter={onOpenCenter} replica={replica} t={t} />
+          )}
+          {isLinksError && <Button onClick={load} variant="link">{mainT('common.retry')}</Button>}
+        </div>
         <IconButton
           className="-mr-2"
           data-testid="assistant-replica-close"

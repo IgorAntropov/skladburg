@@ -84,6 +84,13 @@ describe('planReplicas', () => {
       expect(shownId(onTime)).toBe('b');
     });
 
+    it('dismisses a held alert removed from the visible list while preserving a different current replica', () => {
+      const start = planReplicas(INITIAL_REPLICA_QUEUE, enqueue([createReplica('current', 'critical')]), 0);
+      const held = planReplicas(start, { kind: 'hold' }, 500);
+      expect(planReplicas(held, { id: 'other', kind: 'dismiss' }, 1000)).toBe(held);
+      expect(planReplicas(held, { id: 'current', kind: 'dismiss' }, 1000).current).toBeUndefined();
+    });
+
     it('waits the same pause after the user hides a replica', () => {
       const start = planReplicas(INITIAL_REPLICA_QUEUE, enqueue([createReplica('a'), createReplica('b')]), 0);
       const hidden = planReplicas(start, { kind: 'dismiss' }, 2000);

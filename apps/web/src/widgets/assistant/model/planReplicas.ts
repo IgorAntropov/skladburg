@@ -9,10 +9,10 @@ import {
 } from './replicaTiming';
 
 export type ReplicaQueueInputValue
-  = | { isQuiet: boolean; kind: 'enqueue'; replicas: readonly ReplicaValue[] }
+  = | { id?: string; kind: 'dismiss' }
+    | { isQuiet: boolean; kind: 'enqueue'; replicas: readonly ReplicaValue[] }
     | { isQuiet: boolean; kind: 'quiet' }
     | { isSuspended: boolean; kind: 'suspend' }
-    | { kind: 'dismiss' }
     | { kind: 'hold' }
     | { kind: 'release' }
     | { kind: 'reset' }
@@ -179,7 +179,7 @@ export const planReplicas = (
 ): ReplicaQueueStateValue => {
   switch (input.kind) {
     case 'dismiss':
-      return state.current === undefined ? state : close(state, nowMs);
+      return state.current === undefined || (input.id !== undefined && state.current.replica.id !== input.id) ? state : close(state, nowMs);
     case 'enqueue':
       return enqueue(state, input.replicas, input.isQuiet, nowMs);
     case 'hold':

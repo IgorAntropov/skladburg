@@ -17,6 +17,7 @@ import {
   listPermissionCodes,
   marketChannel,
   organizationChannel,
+  sensorsChannel,
   staffChannel,
   staffProfilesChannel,
   SUPPORT_SESSION_HEADER,
@@ -375,7 +376,7 @@ describe('subscription access to warehouse inventory', () => {
     expect(readPermission(denied)).toEqual({ permission: 'inventory_view', warehouseId: otherWarehouseId });
   });
 
-  const privateChannels = [inventoryChannel, staffChannel, staffProfilesChannel];
+  const privateChannels = [inventoryChannel, sensorsChannel, staffChannel, staffProfilesChannel];
   it.each(privateChannels)('denies private subscriptions outside the acting scope and under support', (makeChannel) => {
     const channel = makeChannel(warehouseId);
     const { check, runtime, state } = createFixture();
@@ -388,6 +389,21 @@ describe('subscription access to warehouse inventory', () => {
     const access = createSubscriptionAccess(runtime.errors);
     expect(access.check(state.read, channel, headers)?.code).toBe(ErrorCode.MEMBERSHIP_REQUIRED);
   });
+});
+
+it('requires sensor_view in the requested warehouse for sensor alert transitions', async () => {
+  const fixture = createFixture();
+  const organizationId = SeedOrganizationId.CUSTOMER_1;
+  const warehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_3;
+  const otherWarehouseId = SeedWarehouseId.CUSTOMER_1_WAREHOUSE_2;
+  const grant = { organizationId, warehouseIds: [warehouseId] };
+  const sensorViewer = await addTestMember(fixture, { ...grant, permissions: ['sensor_view'] });
+  const warehouseViewer = await addTestMember(fixture, { ...grant, permissions: ['warehouse_view'] });
+  expect(fixture.check(sensorsChannel(warehouseId), sensorViewer, organizationId)).toBeUndefined();
+  expect(readPermission(fixture.check(sensorsChannel(otherWarehouseId), sensorViewer, organizationId))).toEqual({
+    permission: 'sensor_view', warehouseId: otherWarehouseId,
+  });
+  expect(readPermission(fixture.check(sensorsChannel(warehouseId), warehouseViewer, organizationId))?.permission).toBe('sensor_view');
 });
 
 it('grants the staff channel separately from task access within the assigned warehouses', async () => {

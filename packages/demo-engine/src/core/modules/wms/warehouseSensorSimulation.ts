@@ -11,36 +11,42 @@ import {
 } from '@skladburg/contracts/wms/v1/warehouse_sensors';
 
 import { SEED_WAREHOUSE_SENSORS } from '../../seed/seedWarehouseSensors';
+import { WAREHOUSE_SENSOR_INTERVAL_MS } from '../../seed/warehouseSensorConfig';
 
-const SAMPLE_INTERVAL_MS = 60_000;
-const MAX_READINGS_PER_CHANNEL = 60;
-const CYCLE_MINUTES = 12;
+export const MAX_READINGS_PER_CHANNEL = 60;
+export const CYCLE_MINUTES = 12;
 
 type SimulatedChannelKindValue = typeof SEED_WAREHOUSE_SENSORS[number]['channels'][number]['kind'];
 
+export const getWarehouseSensorSample = (worldTimeMs: number, installedAtMs: number): number =>
+  Math.floor((worldTimeMs - installedAtMs) / WAREHOUSE_SENSOR_INTERVAL_MS);
+
+const readWarming = (sample: number): number => Math.max(0, 4 - Math.abs(sample % CYCLE_MINUTES - 5));
+
+export const readSensorDeciCelsius = (sample: number): number => 40 + readWarming(sample) * 15;
+
 const readSampleValue = (kind: SimulatedChannelKindValue, sample: number): WarehouseSensorReading['value'] => {
   const minute = sample % CYCLE_MINUTES;
-  const warming = Math.max(0, 4 - Math.abs(minute - 5));
   switch (kind) {
     case WarehouseSensorChannelKind.CO2:
-      return { case: 'co2Ppm', value: 560 - warming * 20 };
+      return { case: 'co2Ppm', value: 560 - readWarming(sample) * 20 };
     case WarehouseSensorChannelKind.DOOR:
       return { case: 'doorOpen', value: minute >= 1 && minute <= 4 };
     case WarehouseSensorChannelKind.HUMIDITY:
-      return { case: 'relativeHumidityPercent', value: 72 + warming * 2 };
+      return { case: 'relativeHumidityPercent', value: 72 + readWarming(sample) * 2 };
     case WarehouseSensorChannelKind.TEMPERATURE:
-      return { case: 'deciCelsius', value: 40 + warming * 15 };
+      return { case: 'deciCelsius', value: readSensorDeciCelsius(sample) };
   }
 };
 
 const readChannelHistory = (kind: SimulatedChannelKindValue, installedAtMs: number, worldTimeMs: number): WarehouseSensorReading[] => {
-  const lastSample = Math.floor((worldTimeMs - installedAtMs) / SAMPLE_INTERVAL_MS);
+  const lastSample = getWarehouseSensorSample(worldTimeMs, installedAtMs);
   const count = Math.min(MAX_READINGS_PER_CHANNEL, Math.max(0, lastSample + 1));
   const firstSample = lastSample - count + 1;
   return Array.from({ length: count }, (_, index) => {
     const sample = firstSample + index;
     return create(WarehouseSensorReadingSchema, {
-      measuredAt: timestampFromMs(installedAtMs + sample * SAMPLE_INTERVAL_MS),
+      measuredAt: timestampFromMs(installedAtMs + sample * WAREHOUSE_SENSOR_INTERVAL_MS),
       value: readSampleValue(kind, sample),
     });
   });

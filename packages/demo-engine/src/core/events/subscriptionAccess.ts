@@ -27,6 +27,7 @@ export const WAREHOUSE_CHANNEL_PERMISSION = getPermissionName(PermissionCode.WAR
 const PRIVATE_WAREHOUSE_PERMISSIONS = {
   inventory: getPermissionName(PermissionCode.INVENTORY_VIEW),
   layout: WAREHOUSE_CHANNEL_PERMISSION,
+  sensors: getPermissionName(PermissionCode.SENSOR_VIEW),
   staff: getPermissionName(PermissionCode.STAFF_VIEW),
   staffprofiles: getPermissionName(PermissionCode.STAFF_PROFILE_VIEW),
   tasks: getPermissionName(PermissionCode.TASK_VIEW),
@@ -40,7 +41,7 @@ export interface EngineChannelPositionValue {
 }
 
 export type EngineSubscriptionValue
-  = | (EngineChannelPositionValue & { kind: 'subscribed'; unsubscribe: () => void })
+  = | (EngineChannelPositionValue & { checkDeliveryAccess?: () => ErrorDetail | undefined; kind: 'subscribed'; unsubscribe: () => void })
     | { detail: ErrorDetail; kind: 'denied' };
 
 export interface ISubscriptionAccess {

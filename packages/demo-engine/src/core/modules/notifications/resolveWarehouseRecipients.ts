@@ -9,12 +9,16 @@ import {
 import { WAREHOUSE_CHANNEL_PERMISSION } from '../../events/index';
 import { compareIds } from '../../state/index';
 
-export const resolveWarehouseRecipients = (reader: IStateReader, warehouse: Warehouse): string[] => {
+export const resolveWarehouseRecipients = (
+  reader: IStateReader,
+  warehouse: Warehouse,
+  permission: string = WAREHOUSE_CHANNEL_PERMISSION,
+): string[] => {
   const recipients = new Set<string>();
 
   for (const membership of reader.listBy('memberships', 'organizationId', warehouse.tenantId)) {
     const effective = resolveEffectivePermissions(reader, membership).find(
-      candidate => candidate.permission === WAREHOUSE_CHANNEL_PERMISSION,
+      candidate => candidate.permission === permission,
     );
 
     if (effective !== undefined && isWarehouseInScope(effective, warehouse.id)) {

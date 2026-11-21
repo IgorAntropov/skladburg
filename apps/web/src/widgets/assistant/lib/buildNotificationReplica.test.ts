@@ -1,4 +1,5 @@
 import { create } from '@bufbuild/protobuf';
+import { timestampFromMs } from '@bufbuild/protobuf/wkt';
 import {
   ObjectKind,
   ObjectLinkSchema,
@@ -16,7 +17,10 @@ import {
   it,
 } from 'vitest';
 
-import { buildNotificationReplica } from './buildNotificationReplica';
+import {
+  buildNotificationReplica,
+  resolveCurrentReplica,
+} from './buildNotificationReplica';
 
 const SITE_ID = '00000000-0000-4000-8000-000000000002';
 
@@ -27,6 +31,22 @@ const createSiteLink = (): ReturnType<typeof create<typeof ObjectLinkSchema>> =>
 };
 
 describe('buildNotificationReplica', () => {
+  it('refreshes a visible or queued alert by its notification ID and hides it when it leaves the visible list', () => {
+    const opened = create(NotificationSchema, { id: 'sensor-1', params: { case: 'warehouseSensorAlert', value: { zoneCode: 'Z01' } } });
+    const replica = buildNotificationReplica(opened);
+    const recovered = create(NotificationSchema, {
+      id: opened.id,
+      params: { case: 'warehouseSensorAlert', value: { resolvedAt: timestampFromMs(420_000), zoneCode: 'Z01' } },
+    });
+    const other = create(NotificationSchema, { id: 'sensor-2', params: opened.params });
+
+    expect(resolveCurrentReplica(replica, [other, recovered])).toEqual(buildNotificationReplica(recovered));
+    expect(resolveCurrentReplica(replica, [other])).toBeUndefined();
+    expect(resolveCurrentReplica(replica, undefined)).toBeUndefined();
+    const ordinary = buildNotificationReplica(create(NotificationSchema, { id: 'ordinary' }));
+    expect(resolveCurrentReplica(ordinary, [])).toBe(ordinary);
+  });
+
   it('turns a notification with a camera link into a replica with a map link', () => {
     const replica = buildNotificationReplica(create(NotificationSchema, {
       id: 'n-1',

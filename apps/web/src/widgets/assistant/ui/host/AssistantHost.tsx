@@ -7,9 +7,11 @@ import {
 
 import { useAssistantName } from '@/entities/assistant';
 import { useAssistantQuietMode } from '@/features/assistant-quiet-mode';
+import { useI18n } from '@/shared/i18n';
 
 import type { ReplicaCenterTabValue } from '../../model/replicaTypes';
 
+import { resolveCurrentReplica } from '../../lib/buildNotificationReplica';
 import {
   formatReplicaText,
   getReplicaAnnouncement,
@@ -30,6 +32,7 @@ export interface AssistantHostProps {
 }
 
 export const AssistantHost = ({ canCallSupport, isPanelOpen, onOpenCenter }: AssistantHostProps): ReactElement => {
+  const { createSectionTranslator } = useI18n();
   const assistantName = useAssistantName();
   const { isQuiet } = useAssistantQuietMode();
   const epoch = useSessionEpoch();
@@ -37,11 +40,12 @@ export const AssistantHost = ({ canCallSupport, isPanelOpen, onOpenCenter }: Ass
   const { current, dispatch } = useReplicaQueue(epoch.count);
 
   useDigestReplica({ dispatch, epoch, isQuiet, isReady });
-  usePostedReplicas({ dispatch, epochCount: epoch.count, isQuiet, isReady });
+  const notifications = usePostedReplicas({ dispatch, epochCount: epoch.count, isQuiet, isReady });
   useErrorReplicas({ canCallSupport, dispatch, isQuiet, isReady });
 
-  const replica = current?.replica;
-  const text = t === undefined || replica === undefined ? undefined : formatReplicaText(t, replica);
+  const replica = resolveCurrentReplica(current?.replica, notifications);
+  const hiddenReplicaId = replica === undefined ? current?.replica.id : undefined;
+  const text = t === undefined || replica === undefined ? undefined : formatReplicaText(t, createSectionTranslator, replica);
   const announcement = text === undefined ? '' : getReplicaAnnouncement(text);
   const isCritical = replica?.importance === 'critical';
   const assertiveText = isCritical ? announcement : '';
@@ -65,6 +69,12 @@ export const AssistantHost = ({ canCallSupport, isPanelOpen, onOpenCenter }: Ass
     dispatch({ kind: 'dismiss' });
     onOpenCenter(tab);
   };
+
+  useEffect(() => {
+    if (hiddenReplicaId !== undefined) {
+      dispatch({ id: hiddenReplicaId, kind: 'dismiss' });
+    }
+  }, [dispatch, hiddenReplicaId]);
 
   useEffect(() => {
     dispatch({ isSuspended: isPanelOpen, kind: 'suspend' });

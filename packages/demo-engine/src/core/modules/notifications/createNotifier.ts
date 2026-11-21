@@ -25,7 +25,7 @@ export const createNotifier = (dependencies: CreateNotifierDependenciesValue): I
 
       for (const userId of new Set(input.recipients)) {
         const notification = create(NotificationSchema, {
-          createdAt: timestampFromMs(transaction.worldTimeMs),
+          createdAt: input.createdAt ?? timestampFromMs(transaction.worldTimeMs),
           id: random.uuid(),
           importance: input.importance,
           kind: input.kind,

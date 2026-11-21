@@ -131,6 +131,7 @@ import type {
   WarehouseTopologyRecordValue,
 } from './records';
 import type { WarehouseLayoutSessionRecordValue } from './warehouseLayoutSessionRecord';
+import type { WarehouseSensorAlertRecordValue } from './warehouseSensorAlertRecord';
 
 import {
   parseDealReminderMark,
@@ -164,6 +165,10 @@ import {
   parseWarehouseLayoutSessionRecord,
   serializeWarehouseLayoutSessionRecord,
 } from './warehouseLayoutSessionRecord';
+import {
+  parseWarehouseSensorAlertRecord,
+  serializeWarehouseSensorAlertRecord,
+} from './warehouseSensorAlertRecord';
 
 export const ListingPublication = {
   DRAFT: 'draft',
@@ -196,7 +201,7 @@ export interface TableIndexesValue {
   listings: 'publication' | 'tenantId';
   mapNodes: never;
   memberships: 'organizationId' | 'userId';
-  notifications: 'userId';
+  notifications: 'sensorAlertId' | 'userId';
   organizationRequisites: never;
   organizations: never;
   organizationSettings: never;
@@ -228,6 +233,7 @@ export interface TableIndexesValue {
   warehouseLayoutSessions: never;
   warehouseOutbound: 'scopeId';
   warehouses: 'tenantId';
+  warehouseSensorAlerts: never;
   warehouseTopologies: never;
   yardDispatchEntries: 'scopeId';
   yardQueuePolicies: never;
@@ -281,6 +287,7 @@ export interface TableRecordsValue {
   warehouseLayoutSessions: WarehouseLayoutSessionRecordValue;
   warehouseOutbound: WarehouseStockRecordValue;
   warehouses: Warehouse;
+  warehouseSensorAlerts: WarehouseSensorAlertRecordValue;
   warehouseTopologies: WarehouseTopologyRecordValue;
   yardDispatchEntries: WarehouseStockRecordValue;
   yardQueuePolicies: YardQueuePolicy;
@@ -315,12 +322,15 @@ const defineRecordTable = <TRecord extends { id: string }>(
   indexKeys: {},
 });
 
-const NOTIFICATION_TABLE: TableDefinition<NotificationRecordValue, 'userId'> = {
+const NOTIFICATION_TABLE: TableDefinition<NotificationRecordValue, 'sensorAlertId' | 'userId'> = {
   clone: record => parseNotificationRecord(serializeNotificationRecord(record)),
   decode: parseNotificationRecord,
   encode: serializeNotificationRecord,
   getId: record => record.notification.id,
-  indexKeys: { userId: record => record.userId },
+  indexKeys: {
+    sensorAlertId: ({ notification }) => notification.params.case === 'warehouseSensorAlert' ? notification.params.value.id : '',
+    userId: record => record.userId,
+  },
 };
 
 const stockRecordTable = defineRecordTable(parseWarehouseStockRecord, serializeWarehouseStockRecord);
@@ -407,6 +417,7 @@ export const TABLE_DEFINITIONS: TableDefinitionsValue = {
   warehouseLayoutSessions: defineRecordTable(parseWarehouseLayoutSessionRecord, serializeWarehouseLayoutSessionRecord),
   warehouseOutbound: { ...stockRecordTable, indexKeys: { scopeId: stockScopeId } },
   warehouses: defineMessageTable(WarehouseSchema, warehouse => warehouse.id, { tenantId: warehouse => warehouse.tenantId }),
+  warehouseSensorAlerts: defineRecordTable(parseWarehouseSensorAlertRecord, serializeWarehouseSensorAlertRecord),
   warehouseTopologies: defineRecordTable(parseWarehouseTopologyRecord, serializeWarehouseTopologyRecord),
   yardDispatchEntries: { ...stockRecordTable, indexKeys: { scopeId: stockScopeId } },
   yardQueuePolicies: defineMessageTable(YardQueuePolicySchema, policy => policy.organizationId, {}),

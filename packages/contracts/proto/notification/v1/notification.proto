@@ -6,6 +6,7 @@ import "buf/validate/validate.proto";
 import "common/v1/method_options.proto";
 import "common/v1/object_link.proto";
 import "common/v1/page.proto";
+import "common/v1/warehouse_sensor_alert.proto";
 import "google/protobuf/timestamp.proto";
 import "organization/v1/organization.proto";
 
@@ -18,6 +19,7 @@ enum NotificationKind {
   NOTIFICATION_KIND_SUPPORT_ACCESS_REQUESTED = 5;
   NOTIFICATION_KIND_SUPPORT_EMERGENCY_ACCESS_STARTED = 6;
   NOTIFICATION_KIND_DEAL_UPDATE = 7;
+  NOTIFICATION_KIND_WAREHOUSE_SENSOR_ALERT = 8;
 }
 
 enum DealNotice {
@@ -96,6 +98,7 @@ message Notification {
     SupportReplyParams support_reply = 13;
     SupportAccessParams support_access = 14;
     DealUpdateParams deal_update = 15;
+    common.v1.WarehouseSensorAlert warehouse_sensor_alert = 16;
   }
   repeated common.v1.ObjectLink links = 7 [(buf.validate.field).repeated.max_items = 3];
 }

@@ -7,11 +7,15 @@ import type {
   NotificationRecordValue,
 } from '../../state/index';
 
-import { resolveEffectivePermissions } from '../../access/index';
+import {
+  isWarehouseInScope,
+  resolveEffectivePermissions,
+} from '../../access/index';
 import { compareIds } from '../../state/index';
 import { isDealVisibleToOrganization } from '../deals/index';
 
 const DEAL_VIEW_PERMISSION = getPermissionName(PermissionCode.DEAL_VIEW);
+const SENSOR_VIEW_PERMISSION = getPermissionName(PermissionCode.SENSOR_VIEW);
 
 const compareNewestFirst = (current: NotificationRecordValue, next: NotificationRecordValue): number => {
   const currentMs = current.notification.createdAt === undefined ? 0 : timestampMs(current.notification.createdAt);
@@ -28,14 +32,22 @@ export const listUserNotifications = (
   organizationId: string,
 ): NotificationRecordValue[] => {
   const membership = reader.listBy('memberships', 'userId', userId).find(candidate => candidate.organizationId === organizationId);
-  const canViewDeals = membership !== undefined && resolveEffectivePermissions(reader, membership).some(
+  const permissions = membership === undefined ? [] : resolveEffectivePermissions(reader, membership);
+  const canViewDeals = permissions.some(
     permission => permission.permission === DEAL_VIEW_PERMISSION && permission.isOrganizationWide,
   );
+  const sensorView = permissions.find(permission => permission.permission === SENSOR_VIEW_PERMISSION);
 
   return reader.listBy('notifications', 'userId', userId)
     .filter(({ notification }) => {
       if (notification.organizationId !== organizationId) {
         return false;
+      }
+
+      if (notification.params.case === 'warehouseSensorAlert') {
+        const { warehouseId } = notification.params.value;
+        return sensorView !== undefined && isWarehouseInScope(sensorView, warehouseId)
+          && reader.get('warehouses', warehouseId)?.tenantId === organizationId;
       }
 
       if (notification.params.case !== 'dealUpdate') {

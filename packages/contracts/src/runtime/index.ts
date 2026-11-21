@@ -9,6 +9,7 @@ export {
   marketChannel,
   organizationChannel,
   parseChannel,
+  sensorsChannel,
   tasksChannel,
   userChannel,
   warehouseChannel,

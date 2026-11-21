@@ -100,6 +100,7 @@ type UnseededTableName
     | 'warehouseInbound'
     | 'warehouseLayoutSessions'
     | 'warehouseOutbound'
+    | 'warehouseSensorAlerts'
     | 'warehouseTopologies'
     | 'yardDispatchEntries'
     | 'yardQueuePolicies';

@@ -9,6 +9,7 @@ import {
   COMPRESSED_VALIDATION_IMAGE_BASE64,
   createValidationContractRegistry,
 } from '@skladburg/contracts/registry';
+import { parseChannel } from '@skladburg/contracts/runtime';
 
 import type { EngineSubscriptionValue } from '../events/index';
 import type { IModuleRuntime } from '../modules/index';
@@ -88,6 +89,7 @@ import {
   SEED_WMS_OUTBOUND_WAREHOUSE_ID,
   SEED_WMS_RECEIVING_EXAMPLES_WAREHOUSE_ID,
 } from '../seed/seedWarehouseWorkspaceConfig';
+import { WAREHOUSE_SENSOR_SITE } from '../seed/warehouseSensorConfig';
 import {
   createEngineState,
   isCurrentSnapshot,
@@ -101,6 +103,7 @@ import {
   createCommandRunner,
 } from './commandRunner';
 import { createWarehouseEquipmentRefresh } from './refreshWarehouseEquipment';
+import { createWarehouseSensorAlertRefresh } from './refreshWarehouseSensorAlerts';
 import { createWarehouseStaffShiftRefresh } from './refreshWarehouseStaffShifts';
 import { SeedLoadError } from './SeedLoadError';
 import { createSwitchableRandom } from './switchableRandom';
@@ -162,7 +165,7 @@ const loadSeedSnapshot = async (seed: EngineSeedValue | undefined): Promise<Engi
   return createSeedSnapshotWithTopology(seed);
 };
 
-const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29];
+const MIGRATABLE_SCHEMA_VERSIONS = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30];
 
 const prepareDemoWarehouse = async (options: CreateEngineOptionsValue, snapshot: EngineSnapshotValue): Promise<EngineSnapshotValue> => {
   if (options.isDemoWarehouseEnabled !== true) {
@@ -470,10 +473,21 @@ export const createEngineWithTasks = async (
 
   let refreshStaffShifts = createWarehouseStaffShiftRefresh(runtime);
   let refreshEquipment = createWarehouseEquipmentRefresh(runtime, snapshot.collections.warehouseEquipment.size > 0);
+  const sensorRefresh = (world: EngineSnapshotValue): (() => Promise<void>) =>
+    createWarehouseSensorAlertRefresh(runtime, world.collections.warehouseTopologies.has(WAREHOUSE_SENSOR_SITE.warehouseId));
+  let refreshSensorAlerts = sensorRefresh(snapshot);
+  try {
+    await refreshSensorAlerts();
+  }
+  catch (cause) {
+    throw new SeedLoadError(cause, 'The saved warehouse sensor state could not be resumed');
+  }
+
   const tick = (): Promise<void> => queue.enqueue(async () => {
     try {
       await refreshStaffShifts();
       await refreshEquipment();
+      await refreshSensorAlerts();
     }
     finally {
       await scheduler.tick();
@@ -495,6 +509,7 @@ export const createEngineWithTasks = async (
     traceRandom.replace(createRandom(seeded.meta.traceRandomState));
     epoch = nextEpoch;
     scheduler.restart();
+    refreshSensorAlerts = sensorRefresh(seeded);
   });
 
   const listPersonas = (): readonly DemoPersonaListItemValue[] => {
@@ -524,15 +539,22 @@ export const createEngineWithTasks = async (
 
   const subscribe: IDemoEngine['subscribe'] = (channel, headers, listener): EngineSubscriptionValue => {
     const detail = subscriptionAccess.check(state.read, channel, headers);
-
-    return detail === undefined
-      ? {
-          epoch,
-          kind: 'subscribed',
-          seq: state.getChannelSeq(channel),
-          unsubscribe: bus.subscribe(channel, listener),
-        }
-      : { detail, kind: 'denied' };
+    if (detail !== undefined) {
+      return { detail, kind: 'denied' };
+    }
+    const position = { epoch, kind: 'subscribed', seq: state.getChannelSeq(channel) } as const;
+    if (parseChannel(channel)?.kind !== 'sensors') {
+      return { ...position, unsubscribe: bus.subscribe(channel, listener) };
+    }
+    const subscriberHeaders = new Headers(headers);
+    const checkDeliveryAccess = (): ReturnType<typeof subscriptionAccess.check> =>
+      subscriptionAccess.check(state.read, channel, subscriberHeaders);
+    const unsubscribe = bus.subscribe(channel, (events) => {
+      if (checkDeliveryAccess() === undefined) {
+        listener(events);
+      }
+    });
+    return { ...position, checkDeliveryAccess, unsubscribe };
   };
 
   return {

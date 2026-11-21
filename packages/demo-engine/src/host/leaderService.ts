@@ -57,6 +57,7 @@ interface InFlightCallValue {
 
 interface LeaderSubscriptionValue {
   channel: string;
+  checkDeliveryAccess?: (() => ErrorDetail | undefined) | undefined;
   headers: HeaderPairValue[];
   pendingEvents: ArrayBuffer[];
   subscriptionId: string;
@@ -99,7 +100,13 @@ export const createLeaderService = (options: CreateLeaderServiceOptionsValue): I
       subscription.pendingEvents = [];
 
       if (events.length > 0) {
-        send(subscription.tabId, { events, subscriptionId: subscription.subscriptionId, type: 'events' });
+        const detail = subscription.checkDeliveryAccess?.();
+        if (detail === undefined) {
+          send(subscription.tabId, { events, subscriptionId: subscription.subscriptionId, type: 'events' });
+        }
+        else {
+          rejectSubscription(subscription, detail);
+        }
       }
     }
   };
@@ -190,6 +197,7 @@ export const createLeaderService = (options: CreateLeaderServiceOptionsValue): I
     }
 
     subscription.unsubscribe = result.unsubscribe;
+    subscription.checkDeliveryAccess = result.checkDeliveryAccess;
     send(subscription.tabId, {
       epoch: result.epoch,
       seq: result.seq,

@@ -41,6 +41,32 @@ import {
   THEME_COLOR_BY_THEME,
 } from './src/shared/theme/themeConstants.ts';
 
+const QUERY_RUNTIME_MODULES = [
+  'node_modules/@tanstack/query-core/build/modern/environmentManager.js',
+  'node_modules/@tanstack/query-core/build/modern/focusManager.js',
+  'node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js',
+  'node_modules/@tanstack/query-core/build/modern/notifyManager.js',
+  'node_modules/@tanstack/query-core/build/modern/onlineManager.js',
+  'node_modules/@tanstack/query-core/build/modern/query.js',
+  'node_modules/@tanstack/query-core/build/modern/queryObserver.js',
+  'node_modules/@tanstack/query-core/build/modern/removable.js',
+  'node_modules/@tanstack/query-core/build/modern/retryer.js',
+  'node_modules/@tanstack/query-core/build/modern/subscribable.js',
+  'node_modules/@tanstack/query-core/build/modern/timeoutManager.js',
+  'node_modules/@tanstack/query-core/build/modern/utils.js',
+  'node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js',
+  'node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js',
+  'node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js',
+  'node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js',
+  'node_modules/@tanstack/react-query/build/modern/suspense.js',
+  'node_modules/@tanstack/react-query/build/modern/useBaseQuery.js',
+  'node_modules/@tanstack/react-query/build/modern/useQuery.js',
+  'src/shared/api/react/ApiRuntimeContext.ts',
+  'src/shared/api/react/useActingContext.ts',
+  'src/shared/api/react/useApiClient.ts',
+  'src/shared/api/react/useApiRuntime.ts',
+];
+
 const HUD_SHARED_MODULES = [
   'node_modules/@tanstack/react-query/build/modern/queryOptions.js',
   'node_modules/lucide-react/dist/esm/icons/ban.mjs',
@@ -1373,6 +1399,11 @@ export default defineConfig({
           groups: [
             { name: 'react', priority: 2, test: /[\\/]node_modules[\\/]react[\\/]/ },
             { name: 'zustand', priority: 1, test: /[\\/]node_modules[\\/]zustand[\\/]esm[\\/](?:index|vanilla|react)\.mjs$/ },
+            {
+              includeDependenciesRecursively: false,
+              name: 'query-runtime',
+              test: (moduleId: string): boolean => QUERY_RUNTIME_MODULES.some(entry => hasEntryModule([moduleId], entry)),
+            },
             {
               includeDependenciesRecursively: false,
               name: 'hud-shared',

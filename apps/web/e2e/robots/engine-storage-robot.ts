@@ -14,6 +14,7 @@ const STORES_ADDED_AFTER_V13 = [
   'vehicles',
   'warehouseEquipment',
   'warehouseLayoutSessions',
+  'warehouseSensorAlerts',
   'warehouseTopologies',
   'yardDispatchEntries',
   'yardQueuePolicies',
@@ -25,12 +26,14 @@ interface MetadataChangeValue {
   demoScenario?: DemoScenarioValue | undefined;
   isClockPaused: boolean;
   seedVersionOffset: number;
+  timeScale?: number | undefined;
   worldTimeMs?: number | undefined;
 }
 
 export const changeStoredEngineMetadata = async (page: Page, change: MetadataChangeValue): Promise<void> => {
   const databaseName = change.demoScenario === undefined ? DATABASE_NAME : `${DATABASE_NAME}:${change.demoScenario}`;
-  await page.evaluate(async ({ databaseName, isClockPaused, seedVersionOffset, worldTimeMs }): Promise<void> => {
+  await page.evaluate(async ({ databaseName, isClockPaused, seedVersionOffset, timeScale, worldTimeMs }): Promise<void> => {
+    const nextTimeScale = isClockPaused ? 0 : timeScale;
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open(databaseName);
       request.onsuccess = (): void => {
@@ -66,7 +69,7 @@ export const changeStoredEngineMetadata = async (page: Page, change: MetadataCha
 
           store.put({
             ...meta,
-            ...(isClockPaused ? { timeScale: 0 } : {}),
+            ...(nextTimeScale === undefined ? {} : { timeScale: nextTimeScale }),
             seedVersion: meta.seedVersion + seedVersionOffset,
             ...(worldTimeMs === undefined ? {} : { worldTimeMs }),
           }, 'engineMeta');

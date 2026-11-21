@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package common.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message WarehouseSensorAlert {
+  string id = 1;
+  string warehouse_id = 2;
+  string zone_id = 3;
+  string zone_code = 4;
+  string channel_id = 5;
+  google.protobuf.Timestamp opened_at = 6;
+  google.protobuf.Timestamp resolved_at = 7;
+  sint32 threshold_deci_celsius = 8;
+  sint32 opened_deci_celsius = 9;
+  optional sint32 resolved_deci_celsius = 10;
+}

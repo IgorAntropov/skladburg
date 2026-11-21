@@ -10,6 +10,7 @@ import {
   marketChannel,
   organizationChannel,
   parseChannel,
+  sensorsChannel,
   userChannel,
   warehouseChannel,
 } from './channels';
@@ -24,6 +25,11 @@ const userId = '8d14e6a2-0b3c-4f57-9a68-12cd45ef7890';
 const warehouseId = 'c5a3e9f1-7b24-4d86-a0c1-5e9d3b7f2a64';
 
 describe('channel names', () => {
+  it('builds and parses the private warehouse sensor channel', () => {
+    expect(sensorsChannel(warehouseId)).toBe(`sensors:${warehouseId}`);
+    expect(parseChannel(sensorsChannel(warehouseId))).toEqual({ kind: 'sensors', warehouseId });
+  });
+
   it('builds and parses a deal channel', () => {
     expect(dealChannel(organizationId)).toBe(`deal:${organizationId}`);
     expect(parseChannel(dealChannel(organizationId))).toEqual({ dealId: organizationId, kind: 'deal' });
@@ -90,6 +96,7 @@ describe('parseChannel', () => {
     'user:',
     'warehouse:',
     'layout:',
+    'sensors:',
     'staff:',
     'staffprofiles:',
     ':id',

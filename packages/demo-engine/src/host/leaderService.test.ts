@@ -1,4 +1,9 @@
-import { ErrorCode } from '@skladburg/contracts/common/v1/error';
+import { create } from '@bufbuild/protobuf';
+import {
+  ErrorCode,
+  ErrorDetailSchema,
+} from '@skladburg/contracts/common/v1/error';
+import { EventSchema } from '@skladburg/contracts/event/v1/event';
 import { organizationChannel } from '@skladburg/contracts/runtime';
 import {
   afterEach,
@@ -47,6 +52,7 @@ interface LeaderFixtureValue {
   messages: Map<string, EngineHostMessageValue[]>;
   resetEpochs: string[];
   service: ILeaderService;
+  timers: ReturnType<typeof createFakeTimers>;
 }
 
 const customerHeaders = (): HeaderPairValue[] => [...createHeaders(SeedUserId.ADMIN_1, SeedOrganizationId.CUSTOMER_1)];
@@ -59,6 +65,7 @@ const createFixture = async (
   const { engine } = await createTestEngine();
   const messages = new Map<string, EngineHostMessageValue[]>();
   const resetEpochs: string[] = [];
+  const timers = createFakeTimers();
   let idCounter = 0;
 
   const service = createLeaderService({
@@ -78,10 +85,10 @@ const createFixture = async (
       messages.set(tabId, [...messages.get(tabId) ?? [], message]);
     },
     tickIntervalMs: 250,
-    timers: createFakeTimers(),
+    timers,
   });
 
-  return { messages, resetEpochs, service };
+  return { messages, resetEpochs, service, timers };
 };
 
 const readTypes = (fixture: LeaderFixtureValue, tabId: string): EngineHostMessageValue['type'][] =>
@@ -99,6 +106,38 @@ const subscribe = (
 
 beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
+});
+
+it('drops a buffered batch when delivery access is revoked before the worker flushes it', async () => {
+  const denial = create(ErrorDetailSchema, { code: ErrorCode.PERMISSION_DENIED });
+  let isRevoked = false;
+  let queueBatch: (() => void) | undefined;
+  const fixture = await createFixture(engine => ({
+    ...engine,
+    subscribe: (channel, headers, listener) => {
+      const subscription = engine.subscribe(channel, headers, listener);
+      if (subscription.kind === 'denied') {
+        return subscription;
+      }
+      queueBatch = (): void => {
+        listener([create(EventSchema, { channel, epoch: engine.epoch(), seq: 1n })]);
+      };
+      return { ...subscription, checkDeliveryAccess: () => isRevoked ? denial : undefined };
+    },
+  }));
+  fixture.service.start();
+  subscribe(fixture, TAB_ID, 'buffered', CUSTOMER_CHANNEL, customerHeaders());
+  expect(readTypes(fixture, TAB_ID)).toEqual(['subscribed']);
+  if (queueBatch === undefined) {
+    throw new Error('Missing subscription listener');
+  }
+  queueBatch();
+  isRevoked = true;
+  fixture.timers.advance(250);
+  await vi.waitFor(() => {
+    expect(readTypes(fixture, TAB_ID)).toEqual(['subscribed', 'subscription_denied']);
+  });
+  await fixture.service.stop();
 });
 
 afterEach(() => {

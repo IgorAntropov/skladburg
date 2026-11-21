@@ -2,21 +2,17 @@ import type { Notification } from '@skladburg/contracts/notification/v1/notifica
 import type { ReactElement } from 'react';
 
 import { timestampMs } from '@bufbuild/protobuf/wkt';
-import { useMemo } from 'react';
+import { useEffect } from 'react';
 
-import type { NotificationLinkKind } from '@/entities/notification';
 import type { DateTimeFormatPartsValue } from '@/shared/i18n';
 
-import {
-  resolveNotificationLinks,
-  useMarkNotificationsRead,
-} from '@/entities/notification';
 import { useI18n } from '@/shared/i18n';
 import { cn } from '@/shared/lib/cn';
 import {
-  Button,
-  TextLink,
-} from '@/shared/ui';
+  createCachedModuleLoader,
+  useChunkLoader,
+} from '@/shared/lib/module-loader';
+import { Button } from '@/shared/ui';
 
 import type { NotificationCenterTabValue } from '../../lib/notificationCenterTabs';
 import type { NotificationTranslate } from './formatNotificationMessage';
@@ -31,11 +27,7 @@ interface NotificationRowProps {
   t: NotificationTranslate;
 }
 
-const LINK_LABEL_KEY_BY_KIND = {
-  map: 'notification.link.map',
-  open: 'notification.link.open',
-  organization: 'notification.link.organization',
-} as const satisfies Record<NotificationLinkKind, string>;
+const loadRowActions = createCachedModuleLoader(() => import('./NotificationRowActions'));
 
 const TIME_FORMAT: DateTimeFormatPartsValue = { day: 'numeric', hour: '2-digit', minute: '2-digit', month: 'short' };
 
@@ -46,33 +38,26 @@ const ICON_CLASS_NAME = 'relative flex size-8 shrink-0 items-center justify-cent
 const UNREAD_DOT_CLASS_NAME = 'absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-on-panel ring-2 ring-panel-solid';
 
 export const NotificationRow = ({ notification, onLinkClick, onTabRequest, t }: NotificationRowProps): ReactElement => {
-  const { formatDateTime, userTimeZone } = useI18n();
-  const markRead = useMarkNotificationsRead([notification.id]);
+  const { createSectionTranslator, formatDateTime, t: mainT, userTimeZone } = useI18n();
+  const { load, state } = useChunkLoader(loadRowActions);
 
   const isUnread = notification.readAt === undefined;
-  const links = useMemo(() => resolveNotificationLinks(notification.links), [notification.links]);
-  const createdAtMs = notification.createdAt === undefined ? undefined : timestampMs(notification.createdAt);
-  const timeText = createdAtMs === undefined ? '' : formatDateTime(createdAtMs, { format: TIME_FORMAT, timeZone: userTimeZone });
+  const sensorAlert = notification.params.case === 'warehouseSensorAlert' ? notification.params.value : undefined;
+  const occurredAt = sensorAlert?.resolvedAt ?? sensorAlert?.openedAt ?? notification.createdAt;
+  const occurredAtMs = occurredAt === undefined ? undefined : timestampMs(occurredAt);
+  const timeText = occurredAtMs === undefined ? '' : formatDateTime(occurredAtMs, { format: TIME_FORMAT, timeZone: userTimeZone });
   const formatTime = (instantMs: number): string => formatDateTime(instantMs, { timeZone: userTimeZone });
   const isChatOpenable = notification.params.case === 'supportReply' && onTabRequest !== undefined;
-  const hasActions = links.length > 0 || isChatOpenable;
-  const dateTimeValue = createdAtMs === undefined ? undefined : new Date(createdAtMs).toISOString();
+  const hasActions = notification.links.length > 0 || isChatOpenable;
+  const RowActions = state.kind === 'loaded' ? state.module.NotificationRowActions : undefined;
+  const isActionsError = hasActions && state.kind === 'failed';
+  const dateTimeValue = occurredAtMs === undefined ? undefined : new Date(occurredAtMs).toISOString();
 
-  const handleLinkClick = (): void => {
-    console.log('> NotificationRow -> handleLinkClick:', { isUnread, notificationId: notification.id });
-    if (isUnread) {
-      markRead.run();
+  useEffect(() => {
+    if (hasActions) {
+      load();
     }
-    onLinkClick();
-  };
-
-  const handleOpenChatClick = (): void => {
-    console.log('> NotificationRow -> handleOpenChatClick:', { notificationId: notification.id });
-    if (isUnread) {
-      markRead.run();
-    }
-    onTabRequest?.('help');
-  };
+  }, [hasActions, load]);
 
   return (
     <li
@@ -87,36 +72,15 @@ export const NotificationRow = ({ notification, onLinkClick, onTabRequest, t }: 
       <div className="flex min-w-0 flex-1 flex-col">
         <p className={cn('text-base leading-6', isUnread ? 'text-on-panel' : 'text-on-panel-muted')}>
           {isUnread && <span className="sr-only">{`${t('notification.row.unread')}. `}</span>}
-          {formatNotificationMessage(t, formatTime, notification)}
+          {formatNotificationMessage(t, formatTime, createSectionTranslator, notification)}
         </p>
         {dateTimeValue !== undefined && (
           <time className="text-sm leading-5 text-on-panel-muted" dateTime={dateTimeValue}>{timeText}</time>
         )}
-        {hasActions && (
-          <div className="flex flex-wrap gap-x-4">
-            {links.map(link => (
-              <TextLink
-                data-testid={`notification-center-link-${link.kind}`}
-                isFocusRequested={link.isFocusRequested}
-                key={link.id}
-                onClick={handleLinkClick}
-                size="sm"
-                to={link.address}
-              >
-                {t(LINK_LABEL_KEY_BY_KIND[link.kind])}
-              </TextLink>
-            ))}
-            {isChatOpenable && (
-              <Button
-                data-testid="notification-center-link-open-chat"
-                onClick={handleOpenChatClick}
-                variant="link"
-              >
-                {t('notification.link.openChat')}
-              </Button>
-            )}
-          </div>
+        {hasActions && RowActions !== undefined && (
+          <RowActions notification={notification} onLinkClick={onLinkClick} onTabRequest={onTabRequest} t={t} />
         )}
+        {isActionsError && <Button onClick={load} variant="link">{mainT('common.retry')}</Button>}
       </div>
     </li>
   );

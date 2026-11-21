@@ -3,9 +3,15 @@ import type { Notification } from '@skladburg/contracts/notification/v1/notifica
 import { timestampMs } from '@bufbuild/protobuf/wkt';
 import { NotificationKind } from '@skladburg/contracts/notification/v1/notification';
 
-import type { SectionTranslate } from '@/shared/i18n';
+import type {
+  I18nSnapshotValue,
+  SectionTranslate,
+} from '@/shared/i18n';
 
-import { getDealNoticeKey } from '@/entities/notification';
+import {
+  formatWarehouseSensorAlert,
+  getDealNoticeKey,
+} from '@/entities/notification';
 
 import type { NotificationCatalogValue } from '../../i18n/notificationSection';
 
@@ -43,6 +49,7 @@ const formatSupportAccess = (
 export const formatNotificationMessage = (
   t: NotificationTranslate,
   formatTime: FormatNotificationTime,
+  createSectionTranslator: I18nSnapshotValue['createSectionTranslator'],
   notification: Notification,
 ): string => {
   const { params } = notification;
@@ -80,5 +87,7 @@ export const formatNotificationMessage = (
 
       return t('notification.message.warehouseCreated', { cityName, warehouseName });
     }
+    case 'warehouseSensorAlert':
+      return formatWarehouseSensorAlert(createSectionTranslator, params.value);
   }
 };

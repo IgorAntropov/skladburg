@@ -122,13 +122,16 @@ const compareOptionalTimes = (current: number | undefined, prev: number | undefi
   return current - prev;
 };
 
+export const hasComparableYardResources = (candidates: readonly YardQueueCandidateValue[]): boolean =>
+  candidates.every(candidate => candidate.hasAvailableResources !== undefined);
+
 export const rankYardQueue = <T extends YardQueueCandidateValue>(
   candidates: readonly T[],
   weights: YardQueueWeightsValue,
   nowMs: number,
   warehouseDate: CalendarDateValue,
+  hasComparableResources = hasComparableYardResources(candidates),
 ): T[] => {
-  const hasComparableResources = candidates.every(candidate => candidate.hasAvailableResources !== undefined);
   const scored = candidates.map(candidate => ({
     candidate,
     score: scoreYardQueueCandidate(candidate, weights, nowMs, warehouseDate, hasComparableResources).score,

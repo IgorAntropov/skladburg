@@ -49,6 +49,11 @@ export const readInboundDockReservation = (task: ReceivingTask): InboundDockSlot
   };
 };
 
+export const hasValidInboundReservation = (
+  candidate: InboundDockCandidateValue, docks: readonly InboundDockValue[], slot: InboundDockSlotValue | undefined, worldTimeMs: number,
+): slot is InboundDockSlotValue => slot !== undefined && !isInboundDockSlotExpired(slot, worldTimeMs)
+  && docks.some(dock => dock.id === slot.dockId && canUseInboundDock(dock, candidate));
+
 export const assignInboundDock = (task: ReceivingTask, dockId: string): void => {
   task.unloadingPointId = dockId;
   if (task.yardAdmissionStatus === YardAdmissionStatus.WAITING_DOCK) {

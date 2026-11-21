@@ -14,7 +14,7 @@ import type { InboundDockCandidateValue } from './inboundDockSchedule';
 
 import { isWarehouseInScope } from '../../access/index';
 import { canUseInboundDock } from './inboundDockQueue';
-import { isInboundDockSlotExpired } from './inboundDockSlots';
+import { hasValidInboundReservation } from './inboundDockSchedule';
 import {
   discardUnavailableInboundReservations,
   isReceivingTaskActive,
@@ -33,21 +33,24 @@ import {
 import { usesOutboundDock } from './outboundDockOccupancy';
 import { readWarehouseReceivingLayoutOccupancy } from './warehouseReceivingLayoutOccupancy';
 import { readOwnedWarehouseTopology } from './warehouseTopologyRecords';
+import { readWarehouseYardResources } from './warehouseYardResources';
 import {
   readYardDispatchVisitBlock,
   readYardDockAssignment,
   readYardPromotionBlock,
 } from './yardDispatchAvailability';
 import {
+  hasComparableYardResources,
   rankYardQueue,
   scoreYardQueueCandidate,
 } from './yardQueueScoring';
 
 export const listInboundYardWaitingReasons = (
-  { errors, getWorldTimeMs, read }: Pick<IModuleRuntime, 'errors' | 'getWorldTimeMs' | 'read'>,
+  runtime: Pick<IModuleRuntime, 'errors' | 'getWorldTimeMs' | 'read' | 'wmsStaff' | 'wmsStaffSchedules'>,
   warehouseId: string,
   { admission, organizationId: tenantId, permissions }: PermissionCallerValue,
 ): YardWaitingReason[] => {
+  const { errors, getWorldTimeMs, read } = runtime;
   const tasks = read.listBy('warehouseInbound', 'scopeId', warehouseId)
     .filter(record => record.lookupKey === tenantId)
     .map(record => readInboundTask(record, errors))
@@ -96,8 +99,7 @@ export const listInboundYardWaitingReasons = (
     const candidate = readInboundDockCandidate(read, task, tenantId, areaDocks.length, warehouseDate);
     const compatible = areaDocks.filter(dock => canUseInboundDock(dock, candidate));
     const slot = reservations.get(task);
-    const hasValidSlot = slot !== undefined && !isInboundDockSlotExpired(slot, worldTimeMs)
-      && compatible.some(dock => dock.id === slot.dockId);
+    const hasValidSlot = hasValidInboundReservation(candidate, areaDocks, slot, worldTimeMs);
     const hasNoCompatibleDock = isInCurrentArea && (areaDocks.length > 0 || task.dockSchedule !== undefined) && compatible.length === 0;
     const isBusy = compatible.length > 0 && compatible.every(({ id }) => occupied.has(id)
       || [...reservations].some(([owner, booked]) => owner !== task && booked.dockId === id
@@ -120,9 +122,9 @@ export const listInboundYardWaitingReasons = (
     else if (isBusy) {
       reason = YardWaitingReasonCode.DOCKS_BUSY;
     }
-    const priorityFactors = compatible.length === 0 || task.version >= MAX_RECEIVING_VERSION
-      ? []
-      : scoreYardQueueCandidate(candidate, weights, worldTimeMs, warehouseDate, false).reasonCodes.map(code => YardPriorityFactor[code]);
+    const priorityFactors = hasValidSlot && task.version < MAX_RECEIVING_VERSION
+      ? scoreYardQueueCandidate(candidate, weights, worldTimeMs, warehouseDate, false).reasonCodes.map(code => YardPriorityFactor[code])
+      : [];
     if (compatible.length > 0 && !hasValidSlot && task.version < MAX_RECEIVING_VERSION) {
       candidates.push(candidate);
     }
@@ -139,10 +141,22 @@ export const listInboundYardWaitingReasons = (
     reasons.push(create(YardWaitingReasonSchema, { ...row, dispatchOptions, priorityFactors, reason }));
   }
 
-  const queue = rankYardQueue(candidates, weights, worldTimeMs, warehouseDate);
-  const positions = new Map(queue.map(({ id }, index) => [id, index + 1]));
-  for (const row of reasons) {
-    row.queuePosition = positions.get(row.receivingTaskId);
+  if (area !== undefined && candidates.length > 0 && weights.resourceAvailabilityWeight > 0) {
+    const resources = readWarehouseYardResources(read, runtime, { receivingAreaId: area.id, tenantId, warehouseId }, worldTimeMs, tasks);
+    for (const candidate of candidates) {
+      candidate.hasAvailableResources = resources(candidate.task);
+    }
+  }
+  const hasComparableResources = hasComparableYardResources(candidates);
+  const queue = rankYardQueue(candidates, weights, worldTimeMs, warehouseDate, hasComparableResources);
+  const byId = new Map(reasons.map(row => [row.receivingTaskId, row]));
+  for (const [index, candidate] of queue.entries()) {
+    const row = byId.get(candidate.id);
+    if (row !== undefined) {
+      row.queuePosition = index + 1;
+      row.priorityFactors = scoreYardQueueCandidate(candidate, weights, worldTimeMs, warehouseDate,
+        hasComparableResources).reasonCodes.map(code => YardPriorityFactor[code]);
+    }
   }
   return reasons;
 };

@@ -17,6 +17,7 @@ import {
 import { timestampFromMs } from '@bufbuild/protobuf/wkt';
 import { MembershipSchema } from '@skladburg/contracts/access/v1/access';
 import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
+import { WarehouseStaffQualificationKind } from '@skladburg/contracts/common/v1/warehouse_staff_qualification';
 import {
   DealSchema,
   DealService,
@@ -39,16 +40,24 @@ import { WarehouseTopologyService } from '@skladburg/contracts/wms/v1/topology';
 import type { EngineWorkerRobotValue } from '../robots/engine-worker-robot.ts';
 
 import { DEAL_CUSTOMER } from '../robots/deal-worker-robot.ts';
+import { changeStoredEngineMetadata } from '../robots/engine-storage-robot.ts';
 import { createEngineWorkerRobot } from '../robots/engine-worker-robot.ts';
 import { OWN_NETWORK_SITES } from './demoData.ts';
 import { storeDockSlotArrival } from './dockSlotArrival.ts';
 import { expect } from './test.ts';
+
+interface QueueRecordValue {
+  bytes: number[];
+  id: string;
+  table: string;
+}
 
 interface QueueVisitValue {
   arrivedAtMs: number;
   dealId: string;
   isDocked: boolean;
   isUrgent: boolean;
+  requiredQualifications?: readonly WarehouseStaffQualificationKind[] | undefined;
 }
 
 interface YardPolicyQueueSeedValue {
@@ -58,6 +67,7 @@ interface YardPolicyQueueSeedValue {
   task: ReceivingTask;
 }
 
+const KAZAN_SCOPE = { warehouseId: OWN_NETWORK_SITES[2].id };
 const DATABASE_NAME = 'skladburg-demo-engine';
 const fixtureId = (index: number): string => `ff930000-0000-4000-8000-${String(index).padStart(12, '0')}`;
 
@@ -112,15 +122,8 @@ export const storeYardPolicyReservedVisit = async (page: Page): Promise<Warehous
   return dock;
 };
 
-export const storeYardPolicyQueue = async (page: Page): Promise<WarehouseUnloadingPoint> => {
-  const seed = await readQueueSeed(page);
-  const { earlyId, holderId, urgentId, warehouseId } = YARD_POLICY_QUEUE;
-  const visits: QueueVisitValue[] = [
-    { arrivedAtMs: Date.UTC(2026, 9, 12, 5, 0), dealId: holderId, isDocked: true, isUrgent: false },
-    { arrivedAtMs: Date.UTC(2026, 9, 12, 5, 20), dealId: earlyId, isDocked: false, isUrgent: false },
-    { arrivedAtMs: Date.UTC(2026, 9, 12, 5, 40), dealId: urgentId, isDocked: false, isUrgent: true },
-  ];
-  const puts = visits.flatMap(({ arrivedAtMs, dealId, isDocked, isUrgent }, index) => {
+const createQueueVisits = (seed: YardPolicyQueueSeedValue, visits: QueueVisitValue[], warehouseId: string): QueueRecordValue[] =>
+  visits.flatMap(({ arrivedAtMs, dealId, isDocked, isUrgent, requiredQualifications }, index) => {
     const deal = create(DealSchema, {
       ...seed.deal,
       deliveryMethod: DeliveryMethod.SUPPLIER,
@@ -153,6 +156,7 @@ export const storeYardPolicyQueue = async (page: Page): Promise<WarehouseUnloadi
       id: dealId,
       receivedUnits: [],
       receivingAreaId: seed.areaId,
+      requiredQualifications: [...requiredQualifications ?? seed.task.requiredQualifications],
       sourceDocumentNumber: upd.displayNumber,
       status: isDocked ? ReceivingTaskStatus.IN_PROGRESS : ReceivingTaskStatus.OPEN,
       unloadingPointId: isDocked ? seed.dock.id : undefined,
@@ -167,15 +171,9 @@ export const storeYardPolicyQueue = async (page: Page): Promise<WarehouseUnloadi
       { bytes: Array.from(toBinary(ReceivingTaskSchema, task)), id: task.id, table: 'warehouseInbound' },
     ];
   });
-  const observerMembership = create(MembershipSchema, {
-    id: '30000010-0000-4000-8000-000000000000',
-    organizationId: seed.deal.customerOrganizationId,
-    roleAssignments: [{ roleId: '40500001-0000-4000-8000-000000000000', warehouseIds: [] }],
-    userId: '20000010-0000-4000-8000-000000000000',
-  });
-  puts.push({ bytes: Array.from(toBinary(MembershipSchema, observerMembership)), id: observerMembership.id, table: 'memberships' });
 
-  await page.evaluate(async ({ databaseName, puts, tenantId, warehouseId }): Promise<void> => {
+const writeYardQueue = (page: Page, puts: QueueRecordValue[], tenantId: string, warehouseId: string): Promise<void> =>
+  page.evaluate(async ({ databaseName, puts, tenantId, warehouseId }): Promise<void> => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open(databaseName);
       request.onsuccess = (): void => {
@@ -206,7 +204,90 @@ export const storeYardPolicyQueue = async (page: Page): Promise<WarehouseUnloadi
     finally {
       db.close();
     }
-  }, { databaseName: DATABASE_NAME, puts, tenantId: seed.deal.customerOrganizationId, warehouseId });
+  }, { databaseName: DATABASE_NAME, puts, tenantId, warehouseId });
 
+export const storeYardPolicyQueue = async (page: Page): Promise<WarehouseUnloadingPoint> => {
+  const seed = await readQueueSeed(page);
+  const { earlyId, holderId, urgentId, warehouseId } = YARD_POLICY_QUEUE;
+  const visits: QueueVisitValue[] = [
+    { arrivedAtMs: Date.UTC(2026, 9, 12, 5, 0), dealId: holderId, isDocked: true, isUrgent: false },
+    { arrivedAtMs: Date.UTC(2026, 9, 12, 5, 20), dealId: earlyId, isDocked: false, isUrgent: false },
+    { arrivedAtMs: Date.UTC(2026, 9, 12, 5, 40), dealId: urgentId, isDocked: false, isUrgent: true },
+  ];
+  const observerMembership = create(MembershipSchema, {
+    id: '30000010-0000-4000-8000-000000000000',
+    organizationId: seed.deal.customerOrganizationId,
+    roleAssignments: [{ roleId: '40500001-0000-4000-8000-000000000000', warehouseIds: [] }],
+    userId: '20000010-0000-4000-8000-000000000000',
+  });
+  const puts = createQueueVisits(seed, visits, warehouseId);
+  puts.push({ bytes: Array.from(toBinary(MembershipSchema, observerMembership)), id: observerMembership.id, table: 'memberships' });
+
+  await writeYardQueue(page, puts, seed.deal.customerOrganizationId, warehouseId);
   return seed.dock;
+};
+
+export const prepareYardResourceQueue = async (page: Page): Promise<{
+  earlyId: string;
+  leadDocumentNumber: string;
+  manualId: string;
+  releaseDock: WarehouseUnloadingPoint;
+  releaseTaskId: string;
+  warehouseId: string;
+}> => {
+  const worker = await createEngineWorkerRobot(page, DEAL_CUSTOMER);
+  const { warehouseId } = KAZAN_SCOPE;
+  const { sample, tasks, topology } = await (async () => {
+    const [{ tasks }, { topology }] = await Promise.all([
+      callYardWorker(worker, WarehouseReceivingService.method.listReceivingTasks, KAZAN_SCOPE),
+      callYardWorker(worker, WarehouseTopologyService.method.getWarehouseTopology, KAZAN_SCOPE),
+    ]);
+    const manualTask = tasks.find(task => task.requiredQualifications.length === 0);
+    if (manualTask === undefined) {
+      throw new Error('The resource queue needs a manual receipt');
+    }
+    const { deal } = await callYardWorker(worker, DealService.method.getDeal, { dealId: manualTask.dealId });
+    if (deal === undefined) {
+      throw new Error('The resource queue needs the source deal');
+    }
+    return { sample: { deal, task: manualTask }, tasks, topology };
+  })().finally(worker.stop);
+  const area = topology?.receivingArea;
+  const dock = area?.unloadingPoint;
+  const releaseDock = area?.additionalUnloadingPoints[0];
+  const leadTask = tasks.find(task => task.requiredQualifications.includes(WarehouseStaffQualificationKind.FORKLIFT));
+  if (area === undefined || dock === undefined || releaseDock === undefined || leadTask === undefined) {
+    throw new Error('The resource queue needs both Kazan docks and a forklift receipt');
+  }
+  const releaseTaskId = sample.task.id;
+  const earlyId = fixtureId(51);
+  const manualId = fixtureId(52);
+  const at = Date.UTC(2026, 9, 12, 8);
+  const visits: QueueVisitValue[] = [
+    {
+      arrivedAtMs: at, dealId: earlyId, isDocked: false, isUrgent: false,
+      requiredQualifications: [WarehouseStaffQualificationKind.COLD_ROOM, WarehouseStaffQualificationKind.FORKLIFT],
+    },
+    { arrivedAtMs: at + 60_000, dealId: manualId, isDocked: false, isUrgent: false, requiredQualifications: [] },
+  ];
+  const puts = createQueueVisits({ ...sample, areaId: area.id, dock }, visits, warehouseId);
+  for (const task of tasks) {
+    const unloadingPointId = task.id === leadTask.id ? dock.id : task.id === releaseTaskId ? releaseDock.id : undefined;
+    const isDocked = unloadingPointId !== undefined;
+    const openStatus = isDocked ? ReceivingTaskStatus.OPEN : ReceivingTaskStatus.UNSPECIFIED;
+    const record = create(ReceivingTaskSchema, {
+      ...task,
+      assigneeUserId: task.id === releaseTaskId ? DEAL_CUSTOMER.userId : undefined,
+      dockSchedule: undefined,
+      receivedUnits: [],
+      status: task.id === releaseTaskId ? ReceivingTaskStatus.IN_PROGRESS : openStatus,
+      unloadingPointId,
+      version: isDocked ? 1 : 0,
+      yardAdmissionStatus: isDocked ? YardAdmissionStatus.ADMITTED : YardAdmissionStatus.UNSPECIFIED,
+    });
+    puts.push({ bytes: Array.from(toBinary(ReceivingTaskSchema, record)), id: record.id, table: 'warehouseInbound' });
+  }
+  await writeYardQueue(page, puts, sample.deal.customerOrganizationId, warehouseId);
+  await changeStoredEngineMetadata(page, { isClockPaused: true, seedVersionOffset: 0, worldTimeMs: Date.UTC(2026, 9, 12, 10) });
+  return { earlyId, leadDocumentNumber: leadTask.sourceDocumentNumber, manualId, releaseDock, releaseTaskId, warehouseId };
 };

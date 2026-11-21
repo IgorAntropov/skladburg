@@ -1,4 +1,7 @@
-import type { ReceivingTask } from '@skladburg/contracts/wms/v1/receiving';
+import type {
+  ReceivingTask,
+  YardWaitingReason,
+} from '@skladburg/contracts/wms/v1/receiving';
 
 import { create } from '@bufbuild/protobuf';
 import {
@@ -8,7 +11,9 @@ import {
 import { createClient } from '@connectrpc/connect';
 import { DeliveryMethod } from '@skladburg/contracts/catalog/v1/showcase';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
+import { WarehouseStaffQualificationKind } from '@skladburg/contracts/common/v1/warehouse_staff_qualification';
 import {
+  DealLineSchema,
   DealSchema,
   DealStatus,
 } from '@skladburg/contracts/deal/v1/deal';
@@ -39,6 +44,7 @@ import {
 import {
   DockSlotRescheduleReason,
   ReceivedHandlingUnitSchema,
+  ReceivingDockScheduleSchema,
   ReceivingTaskSchema,
   ReceivingTaskStatus,
   WarehouseReceivingService,
@@ -47,6 +53,12 @@ import {
   YardPriorityFactor,
   YardWaitingReasonCode,
 } from '@skladburg/contracts/wms/v1/receiving';
+import {
+  WarehouseEquipmentKind,
+  WarehouseEquipmentStatus,
+  WarehouseEquipmentTaskKind,
+} from '@skladburg/contracts/wms/v1/warehouse_equipment';
+import { WarehouseEquipmentRecordSchema } from '@skladburg/contracts/wms/v1/warehouse_equipment_records';
 import { YardQueuePolicyService } from '@skladburg/contracts/wms/v1/yard_queue_policy';
 import {
   expect,
@@ -88,6 +100,7 @@ import {
   saveInboundTask,
 } from './inboundRecords';
 import { saveOutboundTask } from './outboundRecords';
+import { saveWarehouseEquipmentRecord } from './warehouseEquipmentRecords';
 import { encodeWarehouseTopology } from './warehouseTopologyCodec';
 
 const TENANT = SeedOrganizationId.CUSTOMER_1;
@@ -290,6 +303,154 @@ it('ranks waiting visits before pagination and shows manual options only to ware
     { dispatchOptions: { canPromote: true }, queuePosition: 2, receivingTaskId: first.id },
     { dispatchOptions: { canPromote: false }, queuePosition: 1, receivingTaskId: second.id },
   ]);
+});
+
+it('uses confirmed resources for both the task viewer and the dock assignment, keeping an unknown fleet neutral', async () => {
+  const harness = createModuleHarness();
+  const { runtime, transport } = harness;
+  const viewer = callAs(await addTestMember(harness, {
+    organizationId: TENANT, permissions: ['task_view'], warehouseIds: [WAREHOUSE],
+  }), TENANT);
+  const client = createClient(WarehouseReceivingService, transport);
+  const { dockId, first, holder, second } = await runtime.command((transaction) => {
+    const queue = saveDispatchQueue(transaction, runtime, true);
+    queue.first.requiredQualifications = [WarehouseStaffQualificationKind.FORKLIFT];
+    saveInboundTask(transaction, runtime, queue.first, TENANT);
+    transaction.delete('warehouseEquipment', WAREHOUSE);
+    return queue;
+  });
+  if (holder === undefined) {
+    throw new Error('Missing occupied dock');
+  }
+  const readRows = async (): Promise<YardWaitingReason[]> => {
+    const { reasons } = await client.listYardWaitingReasons({ warehouseId: WAREHOUSE }, viewer);
+    return reasons.filter(row => row.receivingTaskId === first.id || row.receivingTaskId === second.id);
+  };
+  expect(await readRows()).toMatchObject([
+    { priorityFactors: [], queuePosition: 1, receivingTaskId: first.id },
+    { priorityFactors: [], queuePosition: 2, receivingTaskId: second.id },
+  ]);
+  await runtime.command((transaction) => {
+    saveWarehouseEquipmentRecord(transaction, create(WarehouseEquipmentRecordSchema, { tenantId: TENANT, warehouseId: WAREHOUSE }));
+  });
+  const { length: commitsBeforeRead } = harness.commits;
+  const rows = await readRows();
+  expect(rows).toMatchObject([
+    { priorityFactors: [], queuePosition: 2, receivingTaskId: first.id },
+    { priorityFactors: [YardPriorityFactor.AVAILABLE_RESOURCES], queuePosition: 1, receivingTaskId: second.id },
+  ]);
+  expect(rows.every(row => row.dispatchOptions === undefined)).toBe(true);
+  expect(harness.commits).toHaveLength(commitsBeforeRead);
+  await runtime.command((transaction) => {
+    finishScheduledArrival(transaction, runtime, holder.id);
+  });
+  expect(requireStoredTask(runtime, first.id).unloadingPointId).toBeUndefined();
+  expect(requireStoredTask(runtime, second.id).unloadingPointId).toBe(dockId);
+});
+
+it('uses the driver and charged forklift released by FinishReceivingTask in the same dock assignment', async () => {
+  const { runtime, transport } = createModuleHarness();
+  const { dockId, first, holder, second } = await runtime.command((transaction) => {
+    const queue = saveDispatchQueue(transaction, runtime, true);
+    const holder = queue.holder;
+    const deal = holder === undefined ? undefined : transaction.get('deals', holder.dealId);
+    const dealLineId = holder?.orderLines[0]?.dealLineId;
+    const expectedUnitId = holder?.expectedUnits[0]?.id;
+    if (holder === undefined || deal === undefined || dealLineId === undefined || expectedUnitId === undefined) {
+      throw new Error('Missing receiving task at the occupied dock');
+    }
+    const qualifications = [WarehouseStaffQualificationKind.FORKLIFT, WarehouseStaffQualificationKind.COLD_ROOM];
+    queue.first.requiredQualifications = qualifications;
+    saveInboundTask(transaction, runtime, queue.first, TENANT);
+    const driver = SeedUserId.WAREHOUSE_LEAD;
+    const receipt = create(ReceivingTaskSchema, {
+      assigneeUserId: driver,
+      dealId: holder.dealId,
+      expectedUnits: [{ batches: [{ dealLineId, quantityBase: 1n }], id: expectedUnitId }],
+      id: holder.id,
+      orderLines: [{ dealLineId, quantityBase: 1n }],
+      receivedUnits: [{ balanceAtReceipt: { lines: [{ quantityBase: 1n }] }, expectedUnitId }],
+      receivingAreaId: AREA,
+      requiredQualifications: qualifications,
+      status: ReceivingTaskStatus.IN_PROGRESS,
+      unloadingPointId: queue.dockId,
+      updDocumentId: holder.updDocumentId,
+      version: holder.version,
+      warehouseId: WAREHOUSE,
+    });
+    saveDispatchTitle(transaction, receipt);
+    saveInboundTask(transaction, runtime, receipt, TENANT);
+    deal.lines = [create(DealLineSchema, { id: dealLineId, price: { amountMinor: 100n }, priceUnitCoefficient: 1n, quantity: 1n })];
+    transaction.put('deals', deal);
+    saveWarehouseEquipmentRecord(transaction, create(WarehouseEquipmentRecordSchema, {
+      equipment: [{ unit: {
+        batteryPercent: 85, code: 'ПГ-01', driverStaffId: driver, id: nextUuid(), kind: WarehouseEquipmentKind.FORKLIFT,
+        status: WarehouseEquipmentStatus.HANDLING, taskId: holder.id, taskKind: WarehouseEquipmentTaskKind.RECEIVING,
+      }, updatedAtMs: BigInt(transaction.worldTimeMs) }],
+      tenantId: TENANT, warehouseId: WAREHOUSE,
+    }));
+    return { ...queue, holder: receipt };
+  });
+  const client = createClient(WarehouseReceivingService, transport);
+  const operator = callAs(SeedUserId.WAREHOUSE_LEAD, TENANT);
+  const before = await client.listYardWaitingReasons({ warehouseId: WAREHOUSE }, operator);
+  expect(before.reasons.find(row => row.receivingTaskId === second.id))
+    .toMatchObject({ priorityFactors: [YardPriorityFactor.AVAILABLE_RESOURCES], queuePosition: 1 });
+  expect(before.reasons.find(row => row.receivingTaskId === first.id)).toMatchObject({ priorityFactors: [], queuePosition: 2 });
+  const finish = { expectedVersion: holder.version, idempotencyKey: nextUuid(), taskId: holder.id, warehouseId: WAREHOUSE };
+  const finished = await client.finishReceivingTask(finish, operator);
+  expect(finished.task?.status).toBe(ReceivingTaskStatus.READY_FOR_RECONCILIATION);
+  const assigned = requireStoredTask(runtime, first.id);
+  expect(assigned.unloadingPointId).toBe(dockId);
+  expect(requireStoredTask(runtime, second.id).unloadingPointId).toBeUndefined();
+  expect(await client.finishReceivingTask(finish, operator)).toEqual(finished);
+  expect(requireStoredTask(runtime, first.id)).toEqual(assigned);
+});
+
+it('excludes an unknown fleet for reserved and incompatible visits when comparing work at the receiving area', async () => {
+  const { clock, runtime, transport } = createModuleHarness();
+  vi.spyOn(clock, 'now').mockReturnValue(Date.UTC(2026, 10, 13, 6));
+  const { dockId, first, holder, incompatible, reserved, second } = await runtime.command((transaction) => {
+    const queue = saveDispatchQueue(transaction, runtime, true);
+    queue.first.requiredQualifications = [WarehouseStaffQualificationKind.COLD_ROOM];
+    saveInboundTask(transaction, runtime, queue.first, TENANT);
+    transaction.delete('warehouseEquipment', WAREHOUSE);
+    const now = transaction.worldTimeMs;
+    const incompatible = saveArrival(transaction, runtime, WAREHOUSE, {
+      arrivedAt: now, cargoKind: VehicleCargoKind.OVERSIZE, deliveryEndsAt: now + 2 * 60 * MINUTE_MS,
+    });
+    const reserved = saveArrival(transaction, runtime, WAREHOUSE);
+    const startsAt = timestampFromMs(now + 60 * MINUTE_MS);
+    reserved.dockSchedule = create(ReceivingDockScheduleSchema, {
+      preferredStartsAt: startsAt,
+      reservation: { endsAt: timestampFromMs(now + 90 * MINUTE_MS), startsAt, unloadingPointId: queue.dockId },
+    });
+    for (const task of [incompatible, reserved]) {
+      task.requiredQualifications = [WarehouseStaffQualificationKind.FORKLIFT];
+      task.yardAdmissionStatus = YardAdmissionStatus.WAITING_DOCK;
+      saveDispatchTitle(transaction, task);
+      saveInboundTask(transaction, runtime, task, TENANT);
+    }
+    return { ...queue, incompatible, reserved };
+  });
+  if (holder === undefined) {
+    throw new Error('Missing occupied dock');
+  }
+  const client = createClient(WarehouseReceivingService, transport);
+  const answer = await client.listYardWaitingReasons({ warehouseId: WAREHOUSE }, callAs(SeedUserId.ADMIN_1, TENANT));
+  const rows = new Map(answer.reasons.map(row => [row.receivingTaskId, row]));
+  expect(rows.get(first.id)).toMatchObject({ priorityFactors: [], queuePosition: 2 });
+  expect(rows.get(second.id)).toMatchObject({ priorityFactors: [YardPriorityFactor.AVAILABLE_RESOURCES], queuePosition: 1 });
+  expect(rows.get(reserved.id)).toMatchObject({ priorityFactors: [], reason: YardWaitingReasonCode.WAITING_SLOT });
+  expect(rows.get(reserved.id)?.queuePosition).toBeUndefined();
+  expect(rows.get(incompatible.id)).toMatchObject({ priorityFactors: [], reason: YardWaitingReasonCode.NO_COMPATIBLE_DOCK });
+  expect(rows.get(incompatible.id)?.queuePosition).toBeUndefined();
+  await runtime.command((transaction) => {
+    finishScheduledArrival(transaction, runtime, holder.id);
+  });
+  expect(requireStoredTask(runtime, first.id).unloadingPointId).toBeUndefined();
+  expect(requireStoredTask(runtime, second.id).unloadingPointId).toBe(dockId);
+  expect(requireStoredTask(runtime, reserved.id).dockSchedule?.reservation).toEqual(reserved.dockSchedule?.reservation);
 });
 
 it('records scoped promotions once and spends their order when a dock becomes free', async () => {

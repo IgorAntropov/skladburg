@@ -35,6 +35,7 @@ import {
 } from './fixtures/yardDispatchQueue.ts';
 import {
   callYardWorker,
+  prepareYardResourceQueue,
   storeYardPolicyQueue,
   storeYardPolicyReservedVisit,
   YARD_POLICY_QUEUE,
@@ -83,6 +84,61 @@ const chooseDock = async (page: Page, taskId: string, dockId: string, reason: st
 };
 
 test.use({ initialGraphicsPreference: 'off', viewport: DESKTOP_VIEWPORT });
+
+test('reprioritizes waiting trucks when the qualified worker takes a job and assigns the released dock', async ({ context, page }) => {
+  test.setTimeout(60_000);
+  await context.addInitScript({ content: createStoreGraphicsPreferenceIfAbsentScript('off') });
+  const control = await context.newPage();
+  const { earlyId, leadDocumentNumber, manualId, releaseDock, releaseTaskId, warehouseId } = await prepareYardResourceQueue(control);
+  const scope = { warehouseId };
+  const hash = toObjectHash(toWarehouseRoute(warehouseId));
+  const lead = await context.newPage();
+  const worker = await createEngineWorkerRobot(control, DEAL_CUSTOMER);
+  const early = visit(page, earlyId);
+  const manual = visit(page, manualId);
+  const resources = (row: Locator): Locator => row.getByTestId('yard-priority-reasons').locator('[data-factor="AVAILABLE_RESOURCES"]');
+
+  try {
+    await createPersonaRobot(page).openAsPersona(hash, PERSONAS.freshCustomer.id);
+    await openYard(page);
+    await expect(early).toHaveAttribute('data-queue-position', '1');
+    await expect(manual).toHaveAttribute('data-queue-position', '2');
+    for (const row of [early, manual]) {
+      await expect(row.getByTestId('yard-waiting-reason')).toHaveAttribute('data-reason', 'DOCKS_BUSY');
+      await row.getByTestId('yard-priority-details').click();
+      await expect(resources(row)).toBeVisible();
+    }
+
+    await createPersonaRobot(lead).openAsPersona(hash, '90000031-0000-4000-8000-000000000000');
+    const work = lead.getByTestId('warehouse-receiving-task').and(lead.locator(`[data-document-number="${leadDocumentNumber}"]`));
+    await work.getByTestId('warehouse-claim-receiving').click();
+    await expect(work.getByTestId('warehouse-enter-sscc')).toBeVisible();
+    await expect(manual).toHaveAttribute('data-queue-position', '1');
+    await expect(early).toHaveAttribute('data-queue-position', '2');
+    await expect(resources(early)).toHaveCount(0);
+    await expect(resources(manual)).toBeVisible();
+
+    const list = await callYardWorker(worker, method.listReceivingTasks, scope);
+    const holder = list.tasks.find(task => task.id === releaseTaskId);
+    if (holder === undefined) {
+      throw new Error('The dock holder must still be present');
+    }
+    expect(holder.unloadingPointId).toBe(releaseDock.id);
+    await callYardWorker(worker, method.finishReceivingTask, {
+      ...scope, expectedVersion: holder.version, idempotencyKey: randomUUID(), taskId: holder.id,
+    });
+    await expect(manual).toHaveAttribute('data-yard-state', 'assigned');
+    await expect(manual.getByTestId('yard-dispatch-visit-dock')).toContainText(releaseDock.code);
+    await expect(early).toHaveAttribute('data-queue-position', '1');
+    await expect(early.getByTestId('yard-waiting-reason')).toHaveAttribute('data-reason', 'DOCKS_BUSY');
+    const { tasks } = await callYardWorker(worker, method.listReceivingTasks, scope);
+    expect(tasks.find(task => task.id === manualId)?.unloadingPointId).toBe(releaseDock.id);
+    expect(tasks.find(task => task.id === earlyId)?.unloadingPointId).toBeUndefined();
+  }
+  finally {
+    await worker.stop();
+  }
+});
 
 test('dispatches from the HUD and retains the reason in the other tab when the dock is taken', async ({ context, page }) => {
   test.setTimeout(90_000);

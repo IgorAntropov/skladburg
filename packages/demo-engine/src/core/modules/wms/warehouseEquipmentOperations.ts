@@ -4,7 +4,6 @@ import type { ReceivingTask } from '@skladburg/contracts/wms/v1/receiving';
 import { ErrorCode } from '@skladburg/contracts/common/v1/error';
 import { WarehouseStaffQualificationKind } from '@skladburg/contracts/common/v1/warehouse_staff_qualification';
 import {
-  WarehouseEquipmentKind,
   WarehouseEquipmentStatus,
   WarehouseEquipmentTaskKind,
 } from '@skladburg/contracts/wms/v1/warehouse_equipment';
@@ -13,6 +12,7 @@ import type { IStateTransaction } from '../../state/index';
 import type { IModuleRuntime } from '../moduleRuntime';
 
 import { compareIds } from '../../state/table';
+import { notifyWaitingYardOfResourceChange } from './inboundTaskRecords';
 import {
   decodeWarehouseEquipmentRecord,
   publishWarehouseEquipmentChanged,
@@ -21,7 +21,7 @@ import {
 } from './warehouseEquipmentRecords';
 import {
   advanceWarehouseEquipment,
-  MINIMUM_WORK_BATTERY_PERCENT,
+  isWarehouseForkliftAvailable,
 } from './warehouseEquipmentSimulation';
 
 type EquipmentAction = 'cancel' | 'carry' | 'claim' | 'finish' | 'handle';
@@ -51,8 +51,7 @@ export const applyWarehouseEquipmentOperation = (
     if (driverId === undefined) {
       throw runtime.errors.internal();
     }
-    const entry = record.equipment.filter(({ unit }) => unit?.kind === WarehouseEquipmentKind.FORKLIFT
-      && unit.status === WarehouseEquipmentStatus.AVAILABLE && unit.batteryPercent >= MINIMUM_WORK_BATTERY_PERCENT)
+    const entry = record.equipment.filter(({ unit }) => isWarehouseForkliftAvailable(unit))
       .sort((current, prev) => compareIds(current.unit?.code ?? '', prev.unit?.code ?? ''))[0];
     if (entry?.unit === undefined || record.equipment.some(({ unit }) => unit?.driverStaffId === driverId)) {
       throw runtime.errors.create(ErrorCode.WAREHOUSE_EQUIPMENT_UNAVAILABLE);
@@ -92,9 +91,14 @@ export const refreshWarehouseEquipment = (runtime: IModuleRuntime): Promise<void
   const nowMs = BigInt(transaction.worldTimeMs);
   for (const stored of transaction.list('warehouseEquipment')) {
     const record = decodeWarehouseEquipmentRecord(stored);
+    const hadAvailableForklift = record.equipment.some(({ unit }) => isWarehouseForkliftAvailable(unit));
     if (advanceWarehouseEquipment(record, nowMs)) {
       saveWarehouseEquipmentRecord(transaction, record);
       publishWarehouseEquipmentChanged(transaction, runtime.outbox, record.warehouseId);
+      if (!hadAvailableForklift && record.equipment.some(({ unit }) => isWarehouseForkliftAvailable(unit))) {
+        notifyWaitingYardOfResourceChange(transaction, runtime, record.warehouseId,
+          task => task.requiredQualifications.includes(WarehouseStaffQualificationKind.FORKLIFT));
+      }
     }
   }
 });

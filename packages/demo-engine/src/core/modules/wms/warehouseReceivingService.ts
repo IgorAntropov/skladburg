@@ -106,6 +106,9 @@ const runReceivingCommand = async <TInput extends DescMessage, TOutput extends D
         const result = input.handle(transaction, caller, task);
         applyWarehouseEquipmentOperation(transaction, runtime, caller.organizationId, task, input.equipmentAction);
         saveInboundTask(transaction, runtime, task, caller.organizationId);
+        if (input.equipmentAction === 'finish') {
+          assignAvailableInboundDocks(transaction, runtime, { ...task, tenantId: caller.organizationId });
+        }
         return result;
       },
       idempotencyKey,
@@ -150,7 +153,6 @@ export const createWarehouseReceivingService = (runtime: IModuleRuntime): Servic
           task.status = ReceivingTaskStatus.READY_FOR_RECONCILIATION;
           task.finishedAt = timestampFromMs(transaction.worldTimeMs);
           finishInboundReceipt(transaction, runtime, task);
-          assignAvailableInboundDocks(transaction, runtime, { ...task, tenantId }, task);
           if (task.receivedUnits.length > 0) {
             publishWarehouseStaffPresenceChanged(transaction, runtime.outbox, task.warehouseId);
           }

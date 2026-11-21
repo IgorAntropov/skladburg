@@ -6,6 +6,7 @@ import {
   getLocalMinuteOfDay,
   getZoneOffsetMs,
 } from '../../calendar/zonedTime';
+import { notifyWaitingYardOfResourceChange } from './inboundTaskRecords';
 import {
   publishWarehouseStaffPresenceChanged,
   publishWarehouseStaffProfilesChanged,
@@ -57,8 +58,7 @@ export const getWarehouseShiftPlan = (
 };
 
 export const publishWarehouseShiftChanges = async (runtime: IModuleRuntime, previousMs: number, currentMs: number): Promise<void> => {
-  const changed: string[] = [];
-  const profilesChanged: string[] = [];
+  const changes: { areaIds: string[]; isNewDate: boolean; warehouseId: string }[] = [];
   const warehouses = new Set(runtime.wmsStaffSchedules?.keys());
   for (const member of runtime.wmsStaff ?? []) {
     warehouses.add(member.warehouseId);
@@ -66,29 +66,29 @@ export const publishWarehouseShiftChanges = async (runtime: IModuleRuntime, prev
   for (const warehouseId of warehouses) {
     const assignments = runtime.wmsStaffSchedules?.get(warehouseId) ?? [];
     const warehouse = runtime.read.get('warehouses', warehouseId);
-    if (warehouse !== undefined) {
+    if (warehouse !== undefined && warehouse.timeZone !== '') {
       const previous = Math.floor((previousMs + getZoneOffsetMs(previousMs, warehouse.timeZone)) / MINUTE_MS);
       const current = Math.floor((currentMs + getZoneOffsetMs(currentMs, warehouse.timeZone)) / MINUTE_MS);
       const crossed = (minute: number): boolean =>
         Math.floor((previous - minute) / MINUTES_PER_DAY) !== Math.floor((current - minute) / MINUTES_PER_DAY);
-      const shiftChanged = assignments.some(slot =>
-        crossed(slot.startMinute) || crossed(slot.breakStartMinute) || crossed(slot.breakEndMinute)
-        || crossed(slot.endMinute));
-      if (shiftChanged) {
-        changed.push(warehouseId);
-      }
-      if (shiftChanged || crossed(0)) {
-        profilesChanged.push(warehouseId);
+      const areaIds = assignments.filter(slot =>
+        crossed(slot.startMinute) || crossed(slot.breakStartMinute) || crossed(slot.breakEndMinute) || crossed(slot.endMinute))
+        .map(slot => slot.areaId);
+      const isNewDate = crossed(0);
+      if (areaIds.length > 0 || isNewDate) {
+        changes.push({ areaIds, isNewDate, warehouseId });
       }
     }
   }
-  if (profilesChanged.length > 0) {
+  if (changes.length > 0) {
     await runtime.command((transaction) => {
-      for (const warehouseId of profilesChanged) {
+      for (const { areaIds, isNewDate, warehouseId } of changes) {
         publishWarehouseStaffProfilesChanged(transaction, runtime.outbox, warehouseId);
-      }
-      for (const warehouseId of changed) {
-        publishWarehouseStaffPresenceChanged(transaction, runtime.outbox, warehouseId);
+        if (areaIds.length > 0) {
+          publishWarehouseStaffPresenceChanged(transaction, runtime.outbox, warehouseId);
+        }
+        notifyWaitingYardOfResourceChange(transaction, runtime, warehouseId,
+          task => areaIds.includes(task.receivingAreaId) || (isNewDate && task.requiredQualifications.length > 0));
       }
     });
   }

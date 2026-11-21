@@ -46,3 +46,16 @@ it('refreshes private profiles at warehouse midnight even without a shift schedu
     value: { $typeName: 'wms.v1.WarehouseStaffProfilesChanged', warehouseId: SEED_WMS_RECEIVING_EXAMPLES_WAREHOUSE_ID },
   }]);
 });
+
+it('keeps the clock running when a saved warehouse lacks a local time zone', async () => {
+  const { events, runtime } = createTestRuntime();
+  await runtime.command((transaction) => {
+    const warehouse = transaction.get('warehouses', SEED_WMS_RECEIVING_EXAMPLES_WAREHOUSE_ID);
+    if (warehouse === undefined) {
+      throw new Error('Missing warehouse');
+    }
+    transaction.put('warehouses', { ...warehouse, timeZone: '' });
+  });
+  await publishWarehouseShiftChanges(runtime, time(8, 59), time(9, 0));
+  expect(events).toHaveLength(0);
+});

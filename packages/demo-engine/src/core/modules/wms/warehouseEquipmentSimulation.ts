@@ -7,7 +7,10 @@ import type {
   WarehouseEquipmentUnitRecord,
 } from '@skladburg/contracts/wms/v1/warehouse_equipment_records';
 
-import { WarehouseEquipmentStatus } from '@skladburg/contracts/wms/v1/warehouse_equipment';
+import {
+  WarehouseEquipmentKind,
+  WarehouseEquipmentStatus,
+} from '@skladburg/contracts/wms/v1/warehouse_equipment';
 
 import { compareIds } from '../../state/table';
 
@@ -18,6 +21,14 @@ const MINUTE_MS = 60_000n;
 type EquipmentWithUnitValue = WarehouseEquipmentUnitRecord & { unit: WarehouseEquipmentUnit };
 
 const hasUnit = (entry: WarehouseEquipmentUnitRecord): entry is EquipmentWithUnitValue => entry.unit !== undefined;
+
+export const isWarehouseForkliftAvailable = (unit: undefined | WarehouseEquipmentUnit): boolean =>
+  unit?.kind === WarehouseEquipmentKind.FORKLIFT && unit.status === WarehouseEquipmentStatus.AVAILABLE
+  && unit.batteryPercent >= MINIMUM_WORK_BATTERY_PERCENT;
+
+export const isWarehouseEquipmentWorking = (status: WarehouseEquipmentStatus): boolean =>
+  status === WarehouseEquipmentStatus.TO_TASK || status === WarehouseEquipmentStatus.HANDLING
+  || status === WarehouseEquipmentStatus.CARRYING;
 
 const elapsedPercent = (entry: WarehouseEquipmentUnitRecord, nowMs: bigint, limit: number): number => {
   const elapsed = (nowMs - entry.updatedAtMs) / MINUTE_MS;
@@ -55,8 +66,7 @@ export const advanceWarehouseEquipment = (record: WarehouseEquipmentRecord, nowM
         hasChanges = true;
       }
     }
-    else if (unit.status === WarehouseEquipmentStatus.TO_TASK || unit.status === WarehouseEquipmentStatus.HANDLING
-      || unit.status === WarehouseEquipmentStatus.CARRYING) {
+    else if (isWarehouseEquipmentWorking(unit.status)) {
       const spent = elapsedPercent(entry, nowMs, unit.batteryPercent);
       if (spent > 0) {
         unit.batteryPercent -= spent;

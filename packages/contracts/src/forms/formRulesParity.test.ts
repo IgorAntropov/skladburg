@@ -708,6 +708,8 @@ const EXPECTED_SERVER_ONLY_FIELDS: readonly string[] = [
   'wms.v1.ConfigureWarehouseReceivingLayoutRequest.receivingFootprint',
   'wms.v1.ConfigureWarehouseReceivingLayoutRequest.receivingFootprint.origin',
   'wms.v1.WarehouseEquipmentUnitRecord.unit',
+  'wms.v1.WarehouseSensorReading.measuredAt',
+  'wms.v1.WarehouseSensorChannel.readings',
   'wms.v1.WarehouseStaffQualification.expiresOn',
   'wms.v1.ListWarehouseStaffRequest.page',
   'wms.v1.YardQueuePolicy.weights',
@@ -722,6 +724,7 @@ const EXPECTED_SERVER_ONLY_MESSAGES: readonly string[] = [
   'import.v1.GetImportTemplateRequest',
   'import.v1.PreviewImportRequest',
   'wms.v1.ReceiveHandlingUnitRequest',
+  'wms.v1.WarehouseSensorReading',
 ];
 
 const VALID_UUID = '3f2b8c1e-5a47-4d9b-8e21-7c6a90b4d153';

@@ -398,6 +398,8 @@ export const createEngineWithTasks = async (
     (await import('../modules/wms/warehouseReceivingService')).createWarehouseReceivingHandler(runtime, supportAudit));
   const warehouseReceivingLayoutHandler = deferEngineHandler(async () =>
     (await import('../modules/wms/warehouseReceivingLayoutService')).createWarehouseReceivingLayoutHandler(runtime, supportAudit));
+  const warehouseSensorHandler = deferEngineHandler(async () =>
+    (await import('../modules/wms/warehouseSensorService')).createWarehouseSensorHandler(runtime, supportAudit));
   const warehouseStaffProfileHandler = deferEngineHandler(async () =>
     (await import('../modules/wms/warehouseStaffProfileService')).createWarehouseStaffProfileHandler(runtime, supportAudit));
   const warehouseStaffPresenceHandler = deferEngineHandler(async () =>
@@ -427,6 +429,10 @@ export const createEngineWithTasks = async (
 
     if (pathname.startsWith('/wms.v1.WarehouseReceivingLayoutService/')) {
       return warehouseReceivingLayoutHandler(request);
+    }
+
+    if (pathname.startsWith('/wms.v1.WarehouseSensorService/')) {
+      return warehouseSensorHandler(request);
     }
 
     if (pathname.startsWith('/wms.v1.WarehouseStaffProfileService/')) {
